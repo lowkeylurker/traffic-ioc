@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # PostgreSQL với PostGIS extension
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: traffic_ioc_postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-traffic_ioc_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      # Mount SQL scripts để tự động chạy khi init
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./infrastructure/postgres/seed_data.sql:/docker-entrypoint-initdb.d/02-seed.sql
+      # Persist data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - traffic-network
+
+  # Redis (optional - for caching, session management)
+  redis:
+    image: redis:7-alpine
+    container_name: traffic_ioc_redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - traffic-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  traffic-network:
+    driver: bridge

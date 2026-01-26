@@ -1,0 +1,30 @@
+// Prisma Schema File
+// Chú ý: File này sẽ được tự động sinh ra bởi `npx prisma db pull`
+// Sau khi chạy lệnh đó, hãy bật các preview features cần thiết
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Bật extensions cho PostGIS support
+  extensions = [postgis(schema: "public")]
+}
+
+// TODO: Entities sẽ được generate tự động từ database schema
+// Chạy: npx prisma db pull
+// Sau đó cân nhân các Entity model tương ứng với:
+// - dim_segment (segment_key, segment_name, geometry, num_lanes, speed_limit_kmh)
+// - dim_date (date_key, calendar_date, year, month, ...)
+// - dim_time (time_key, time_hour, time_minute, ...)
+// - fact_traffic_flow (traffic_flow_key, segment_key, time_key, avg_speed_kmh, los_index, total_pcu, ...)
+// - fact_incident (incident_id, segment_key, ...)
+// - fact_forecast (forecast_id, segment_key, ...)
+model User {
+  id    Int     @id @default(autoincrement())
+  email String  @unique
+  name  String?
+}

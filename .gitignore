@@ -1,0 +1,22 @@
+# General
+.DS_Store
+.env
+
+# Python (DE & AI)
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+.ipynb_checkpoints/
+
+# Node.js (BE & FE)
+node_modules/
+dist/
+build/
+.npm/
+
+# Data & Models 
+*.csv
+*.mp4
+*.pkl    # Có thể commit nếu file nhỏ, nếu to >100MB thì dùng Git LFS
+*.pt     # Model YOLO (thường to, nên cân nhắc)
