@@ -25,7 +25,7 @@ def health_check():
 
     # 1. Kiểm tra CityFlow
     if CITYFLOW_AVAILABLE:
-        status["cityflow"] = "✅ Installed & Accessible"
+        status["cityflow"] = "🚀 Engine Ready!"
 
     # 2. Kiểm tra Biến môi trường
     db_url = os.getenv("DATABASE_URL")
