@@ -125,9 +125,6 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         const geoJsonData = response.data
 
         if (geoJsonData.features && geoJsonData.features.length > 0) {
-          console.log(
-            `✓ Loaded ${geoJsonData.features.length} traffic segments`
-          )
           setTrafficData(geoJsonData)
         } else {
           console.warn('No features found in response, using fallback')
