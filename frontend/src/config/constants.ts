@@ -1,18 +1,30 @@
 // Application Constants
 
+import type { Alert, WeatherData } from '@/types'
+
 // Map Configuration
 export const DEFAULT_MAP_CENTER: [number, number] = [106.7009, 10.7769] // [lon, lat] - Sài Gòn
-export const DEFAULT_MAP_ZOOM = 12
+export const DEFAULT_MAP_ZOOM = 14
 export const MAP_ZOOM_BOUNDS = { min: 8, max: 18 }
 
-// Colors for LOS grades
+// Colors for LOS grades (Design System)
 export const LOS_COLORS: Record<string, string> = {
-  A: '#52c41a', // Green
-  B: '#85ce61', // Light green
-  C: '#faad14', // Yellow
-  D: '#ff7a45', // Orange
-  E: '#f5222d', // Red
-  F: '#722ed1', // Purple
+  A: '#52c41a', // Traffic Fast (Leaf Green)
+  B: '#52c41a', // Traffic Fast
+  C: '#52c41a', // Traffic Fast
+  D: '#faad14', // Traffic Moderate (Golden Yellow)
+  E: '#faad14', // Traffic Moderate
+  F: '#ff4d4f', // Traffic Slow (Tart Orange)
+}
+
+// Traffic Semantic Colors (Design System)
+export const TRAFFIC_COLORS = {
+  FAST: '#52c41a', // Thông thoáng (>30 km/h)
+  MODERATE: '#faad14', // Đông xe (15-30 km/h)
+  SLOW: '#ff4d4f', // Ùn tắc (<15 km/h)
+  JAM: '#cf1322', // Tê liệt
+  INCIDENT: '#722ed1', // Sự cố (Purple)
+  NO_DATA: '#d9d9d9', // Không có dữ liệu
 }
 
 // API Endpoints
@@ -33,13 +45,13 @@ export const API_ENDPOINTS = {
   },
 }
 
-// Chart Configuration
+// Chart Configuration (Design System)
 export const CHART_COLORS = {
-  primary: '#1890ff',
+  primary: '#1677ff', // Ant Design Blue
   success: '#52c41a',
   warning: '#faad14',
-  error: '#f5222d',
-  info: '#1890ff',
+  error: '#ff4d4f',
+  info: '#1677ff',
 }
 
 // Layout
@@ -59,7 +71,7 @@ export const POLLING_INTERVALS = {
 }
 
 // Mock data - Alerts
-export const MOCK_ALERTS = [
+export const MOCK_ALERTS: Alert[] = [
   {
     id: 1,
     segmentId: 1,

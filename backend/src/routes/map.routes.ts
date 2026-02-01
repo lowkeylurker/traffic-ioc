@@ -7,9 +7,9 @@ const router = Router();
 
 /**
  * GET /api/v1/map/segments
- * Lấy danh sách tất cả đoạn đường (GeoJSON)
+ * Lấy bản đồ giao thông với mã màu (GeoJSON)
  */
-router.get('/segments', (req, res, next) => mapController.getSegments(req, res, next));
+router.get('/segments', (req, res, next) => mapController.getTrafficMap(req, res, next));
 
 /**
  * GET /api/v1/map/status

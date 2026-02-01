@@ -32,3 +32,10 @@ Thumbs.db
 
 # Build output
 .cache
+
+# Compiled JS files in src (TypeScript should not compile to src/)
+src/**/*.js
+src/**/*.jsx
+!src/**/*.stories.js
+!src/**/*.test.js
+!src/**/*.spec.js

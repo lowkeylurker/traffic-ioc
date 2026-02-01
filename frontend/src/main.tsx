@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { ConfigProvider } from 'antd'
 import viVN from 'antd/locale/vi_VN'
-import App from './App.tsx'
+import App from './App'
 import { customTheme } from '@/config/theme'
 import './styles/index.css'
 
