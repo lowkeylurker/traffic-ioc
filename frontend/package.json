@@ -11,19 +11,21 @@
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.21.0",
-    "antd": "^5.11.5",
     "@ant-design/icons": "^5.2.6",
+    "@clerk/clerk-react": "^5.60.0",
+    "@tanstack/react-query": "^5.28.0",
+    "antd": "^5.11.5",
     "axios": "^1.6.2",
-    "mapbox-gl": "^2.15.0",
-    "react-map-gl": "^7.1.5",
     "chart.js": "^4.4.1",
-    "react-chartjs-2": "^5.2.0",
-    "zustand": "^4.4.2",
     "dayjs": "^1.11.10",
-    "lucide-react": "^0.294.0"
+    "lucide-react": "^0.294.0",
+    "mapbox-gl": "^2.15.0",
+    "react": "^18.2.0",
+    "react-chartjs-2": "^5.2.0",
+    "react-dom": "^18.2.0",
+    "react-map-gl": "^7.1.5",
+    "react-router-dom": "^6.21.0",
+    "zustand": "^4.4.2"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

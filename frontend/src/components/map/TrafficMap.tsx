@@ -1,10 +1,11 @@
 // Traffic Map Component
 
 import React, { useMemo, useEffect, useState, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import Map, { Source, Layer, LayerProps } from 'react-map-gl'
 import apiService from '@/services/api'
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/config/constants'
-import { Card } from 'antd'
+import { Card, Spin } from 'antd'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 interface TrafficMapProps {
@@ -40,7 +41,7 @@ interface TrafficMapResponse {
 export const TrafficMap: React.FC<TrafficMapProps> = ({
   onMapClick,
   style,
-  autoRefreshInterval = 30000, // 30 seconds default
+  autoRefreshInterval = 10000, // 10 seconds default
   mapRef: externalMapRef,
 }) => {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
@@ -48,15 +49,14 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   const internalMapRef = useRef<any>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = externalMapRef || internalMapRef
-  const [trafficData, setTrafficData] = useState<TrafficMapResponse | null>(
-    null
-  )
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [heatmapEnabled, setHeatmapEnabled] = useState(false)
-  const [hoveredFeature, setHoveredFeature] = useState<any>(null)
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
-
+  const [hoveredFeature, setHoveredFeature] = useState<
+    GeoJSONFeature['properties'] | null
+  >(null)
+  const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  })
+  const [heatmapEnabled, setHeatmapEnabled] = useState<boolean>(false)
   // Fallback mock data if API fails
   const FALLBACK_DATA: TrafficMapResponse = {
     type: 'FeatureCollection',
@@ -118,48 +118,42 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     ],
   }
 
-  // Fetch traffic map data
-  const fetchTrafficMap = async () => {
+  // Helper function to fetch traffic map data
+  const fetchTrafficMapData = async (): Promise<TrafficMapResponse> => {
     try {
-      setError(null)
       const response = await apiService.get('/map/segments')
+      const geoJsonData = response?.data
 
-      // Check if response has data property with features
-      if (response && response.data) {
-        const geoJsonData = response.data
-
-        if (geoJsonData.features && geoJsonData.features.length > 0) {
-          console.log(
-            `✓ Loaded ${geoJsonData.features.length} traffic segments`
-          )
-          setTrafficData(geoJsonData)
-        } else {
-          console.warn('No features found in response, using fallback')
-          setTrafficData(FALLBACK_DATA)
-        }
-      } else {
-        console.warn('No data property in response, using fallback')
-        console.warn('Response structure:', response)
-        setTrafficData(FALLBACK_DATA)
+      if (geoJsonData?.features?.length > 0) {
+        return geoJsonData
       }
+
+      console.warn('Invalid or empty traffic data response, using fallback')
+      return FALLBACK_DATA
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'Failed to fetch traffic map'
       console.error('Error fetching traffic map:', err)
-      setTrafficData(FALLBACK_DATA)
-      setError(`Using mock data - ${errorMessage}`)
-    } finally {
-      setLoading(false)
+      return FALLBACK_DATA
     }
   }
 
-  // Fetch data on mount and set up auto-refresh
-  useEffect(() => {
-    fetchTrafficMap()
+  // Fetch traffic map data using React Query
+  const {
+    data: trafficData = FALLBACK_DATA,
+    isLoading: loading,
+    error: apiError,
+  } = useQuery({
+    queryKey: ['trafficMap'],
+    queryFn: fetchTrafficMapData,
+    refetchInterval: autoRefreshInterval, // Enable polling
+    refetchIntervalInBackground: true, // Continue polling in background
+    staleTime: 0, // Always refetch when component mounts
+  })
 
-    const interval = setInterval(fetchTrafficMap, autoRefreshInterval)
-    return () => clearInterval(interval)
-  }, [autoRefreshInterval])
+  const error = apiError
+    ? apiError instanceof Error
+      ? apiError.message
+      : 'Failed to fetch traffic map'
+    : null
 
   // Auto-fit map bounds when traffic data loads
   useEffect(() => {
@@ -349,7 +343,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           }}
         >
-          Loading traffic map...
+          <Spin tip="Loading traffic map..." />
         </div>
       )}
 
