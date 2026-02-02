@@ -4,6 +4,7 @@ import React, { useMemo, useEffect, useState, useRef } from 'react'
 import Map, { Source, Layer, LayerProps } from 'react-map-gl'
 import apiService from '@/services/api'
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/config/constants'
+import { Card } from 'antd'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 interface TrafficMapProps {
@@ -45,6 +46,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
   const mapboxStyle = import.meta.env.VITE_MAPBOX_STYLE
   const internalMapRef = useRef<any>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = externalMapRef || internalMapRef
   const [trafficData, setTrafficData] = useState<TrafficMapResponse | null>(
     null
@@ -52,6 +54,8 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [heatmapEnabled, setHeatmapEnabled] = useState(false)
+  const [hoveredFeature, setHoveredFeature] = useState<any>(null)
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
 
   // Fallback mock data if API fails
   const FALLBACK_DATA: TrafficMapResponse = {
@@ -264,8 +268,71 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     []
   )
 
+  // Set up map layer hover events
+  useEffect(() => {
+    if (!mapRef.current || !trafficData) return
+
+    const map = mapRef.current.getMap()
+    const layerId = 'traffic-flow-layer'
+
+    // Wait for layer to be loaded
+    const waitForLayer = setInterval(() => {
+      if (map.getLayer(layerId)) {
+        clearInterval(waitForLayer)
+
+        // Change cursor on hover
+        map.on('mouseenter', layerId, () => {
+          map.getCanvas().style.cursor = 'pointer'
+        })
+
+        map.on('mouseleave', layerId, () => {
+          map.getCanvas().style.cursor = ''
+        })
+
+        // Handle hover feature data
+        map.on('mousemove', layerId, (e: mapboxgl.MapLayerMouseEvent) => {
+          if (e.features && e.features.length > 0) {
+            const feature = e.features[0] as GeoJSON.Feature
+            setHoveredFeature(
+              feature.properties as GeoJSONFeature['properties']
+            )
+
+            // Calculate position relative to map container
+            if (containerRef.current) {
+              const rect = containerRef.current.getBoundingClientRect()
+              setMousePosition({
+                x: e.originalEvent.clientX - rect.left,
+                y: e.originalEvent.clientY - rect.top,
+              })
+            }
+          }
+        })
+
+        map.on('mouseleave', layerId, () => {
+          setHoveredFeature(null)
+        })
+      }
+    }, 100)
+
+    return () => clearInterval(waitForLayer)
+  }, [trafficData, mapRef])
+
+  // Determine LOS status display
+  const getLOSStatus = (losIndex: string) => {
+    const losMap: Record<string, { label: string; color: string }> = {
+      A: { label: 'Tốt', color: '#52C41A' },
+      B: { label: 'Khá', color: '#95DE64' },
+      C: { label: 'Bình thường', color: '#FAAD14' },
+      D: { label: 'Yếu', color: '#FA8C16' },
+      E: { label: 'Rất yếu', color: '#FF7A45' },
+      F: { label: 'Kẹt xe', color: '#FF4D4F' },
+    }
+    return losMap[losIndex] || { label: 'N/A', color: '#999999' }
+  }
+
   return (
     <div
+      ref={containerRef}
       style={{ width: '100%', height: '100%', position: 'relative', ...style }}
     >
       {loading && (
@@ -323,6 +390,111 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
           </Source>
         )}
       </Map>
+
+      {/* Hover Popup */}
+      {hoveredFeature && (
+        <div
+          style={{
+            position: 'absolute',
+            left: `${mousePosition.x + 15}px`,
+            top: `${mousePosition.y - 10}px`,
+            zIndex: 20,
+            pointerEvents: 'none',
+          }}
+        >
+          <Card
+            size="small"
+            style={{
+              width: '280px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+            }}
+          >
+            <div
+              style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+            >
+              <div>
+                <span
+                  style={{
+                    fontWeight: '600',
+                    fontSize: '14px',
+                    color: 'rgba(0,0,0,0.85)',
+                  }}
+                >
+                  {hoveredFeature.segmentName}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '13px',
+                }}
+              >
+                <span style={{ color: 'rgba(0,0,0,0.65)' }}>Vận tốc:</span>
+                <span style={{ fontWeight: '500', color: 'rgba(0,0,0,0.85)' }}>
+                  {hoveredFeature.avgSpeed} km/h
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '13px',
+                }}
+              >
+                <span style={{ color: 'rgba(0,0,0,0.65)' }}>LOS:</span>
+                <span
+                  style={{
+                    fontWeight: '600',
+                    color: 'white',
+                    backgroundColor: getLOSStatus(hoveredFeature.losIndex)
+                      .color,
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    minWidth: '40px',
+                    textAlign: 'center',
+                  }}
+                >
+                  {hoveredFeature.losIndex}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '13px',
+                }}
+              >
+                <span style={{ color: 'rgba(0,0,0,0.65)' }}>Trạng thái:</span>
+                <span
+                  style={{
+                    fontWeight: '500',
+                    color: getLOSStatus(hoveredFeature.losIndex).color,
+                  }}
+                >
+                  {getLOSStatus(hoveredFeature.losIndex).label}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: 'rgba(0,0,0,0.45)',
+                  marginTop: '4px',
+                }}
+              >
+                Cập nhật:{' '}
+                {new Date(hoveredFeature.lastUpdated).toLocaleTimeString(
+                  'vi-VN'
+                )}
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
