@@ -20,6 +20,7 @@ interface TrafficMapProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mapRef?: React.RefObject<any> // Allow parent to control map
   heatmapEnabled?: boolean // Toggle heatmap layer
+  children?: React.ReactNode // Allow children components (e.g., IncidentLayer)
 }
 
 interface GeoJSONFeature {
@@ -49,6 +50,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   autoRefreshInterval = 10000, // 10 seconds default
   mapRef: externalMapRef,
   heatmapEnabled = false,
+  children,
 }) => {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
   const mapboxStyle = import.meta.env.VITE_MAPBOX_STYLE
@@ -391,6 +393,9 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
             <Layer {...trafficLayerStyle} />
           </Source>
         )}
+
+        {/* Render children components (e.g., IncidentLayer) */}
+        {children}
       </Map>
 
       {/* Hover Popup */}

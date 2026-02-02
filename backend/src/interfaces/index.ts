@@ -51,3 +51,46 @@ export interface RoutingResponse {
   totalDistance: number;
   estimatedTime: number;
 }
+
+// Incident Monitoring Interfaces (A2)
+export type IncidentType = 'ACCIDENT' | 'FLOOD' | 'CONSTRUCTION' | 'FIRE' | 'OTHER';
+export type IncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type IncidentStatus = 'OPEN' | 'RESOLVED' | 'PENDING';
+
+export interface Incident {
+  id: string;
+  geom: {
+    type: 'Point';
+    coordinates: [number, number];
+  };
+  type: IncidentType;
+  severity: IncidentSeverity;
+  title: string;
+  description: string;
+  status: IncidentStatus;
+  source: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface IncidentFeature {
+  type: 'Feature';
+  geometry: {
+    type: 'Point';
+    coordinates: [number, number];
+  };
+  properties: {
+    id: string;
+    type: IncidentType;
+    severity: IncidentSeverity;
+    title: string;
+    description: string;
+    status: IncidentStatus;
+    timestamp: string;
+  };
+}
+
+export interface IncidentQuery {
+  status?: IncidentStatus;
+  bbox?: string; // minLng,minLat,maxLng,maxLat
+}

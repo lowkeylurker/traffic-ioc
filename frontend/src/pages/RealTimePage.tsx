@@ -1,8 +1,9 @@
 // Real-Time Operations Page
 
-import { useState, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { TrafficMap } from '@/components/map/TrafficMap'
-import { AlertFeed } from '@/components/widgets/AlertFeed'
+import { IncidentLayer } from '@/components/map/IncidentLayer'
+import { IncidentAlertWidget } from '@/components/widgets/IncidentAlertWidget'
 import { KPIBar } from '@/components/widgets/KPIBar'
 import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
@@ -10,7 +11,7 @@ import { CCTVModal } from '@/components/widgets/CCTVModal'
 import { Loading, ErrorState } from '@/components/common'
 import { useSegments, useTrafficStatus } from '@/hooks/useTraffic'
 import { useAppStore } from '@/stores/useAppStore'
-import { MOCK_ALERTS } from '@/config/constants'
+import { IncidentFeature } from '@/types'
 
 export const RealTimePage: React.FC = () => {
   const segments = useSegments()
@@ -20,6 +21,8 @@ export const RealTimePage: React.FC = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null)
   const [heatmapEnabled, setHeatmapEnabled] = useState(false)
+  const [selectedIncident, setSelectedIncident] =
+    useState<IncidentFeature | null>(null)
 
   // Map control handlers
   const handleZoomIn = () => {
@@ -87,15 +90,24 @@ export const RealTimePage: React.FC = () => {
         style={{ height: '100%', width: '100%' }}
         mapRef={mapRef}
         heatmapEnabled={heatmapEnabled}
-      />
+      >
+        {/* Incident Layer - Overlaid on traffic map */}
+        <IncidentLayer onIncidentClick={setSelectedIncident} />
+      </TrafficMap>
 
       {/* Floating Widgets - Z-Index Layering */}
 
       {/* Top KPI Bar (z-index: 20) */}
       <KPIBar />
 
-      {/* Top Right - Alert Feed (z-index: 10) */}
-      <AlertFeed alerts={MOCK_ALERTS} />
+      {/* Top Right - Incident Alert Widget (z-index: 10) */}
+      <IncidentAlertWidget
+        onIncidentClick={setSelectedIncident}
+        mapRef={mapRef}
+      />
+
+      {/* Top Right - Alert Feed (z-index: 10) - Moved down if needed */}
+      {/* <AlertFeed alerts={MOCK_ALERTS} /> */}
 
       {/* Bottom Right - Map Controls (z-index: 10) */}
       <MapControls
