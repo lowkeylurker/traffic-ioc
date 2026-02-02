@@ -63,6 +63,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     x: 0,
     y: 0,
   })
+
   // Fallback mock data if API fails
   const FALLBACK_DATA: TrafficMapResponse = {
     type: 'FeatureCollection',
