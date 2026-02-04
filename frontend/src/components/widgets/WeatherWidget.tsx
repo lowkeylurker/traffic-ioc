@@ -1,8 +1,5 @@
 // Weather Widget
 
-import React from 'react'
-import { Card } from 'antd'
-import { CloudOutlined } from '@ant-design/icons'
 import { Cloud, CloudRain } from 'lucide-react'
 import { MOCK_WEATHER } from '@/config/constants'
 

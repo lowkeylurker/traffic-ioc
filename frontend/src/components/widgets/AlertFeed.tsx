@@ -1,7 +1,6 @@
 // Alert Feed Widget
 
-import React from 'react'
-import { Card, List, Tag, Empty } from 'antd'
+import { List, Tag, Empty } from 'antd'
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Alert } from '@/types'
 import { formatRelativeTime, getSeverityColor } from '@/utils/format'
@@ -78,7 +77,7 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
         ) : (
           <List
             dataSource={alerts}
-            renderItem={(alert, index) => (
+            renderItem={(alert, _index) => (
               <div
                 style={{
                   padding: '12px 12px',

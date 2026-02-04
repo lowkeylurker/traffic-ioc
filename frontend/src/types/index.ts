@@ -81,6 +81,7 @@ export interface ApiResponse<T> {
   data?: T
   error?: {
     code?: string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     details?: any
   }
   timestamp: string

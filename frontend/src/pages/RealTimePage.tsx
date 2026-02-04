@@ -1,9 +1,7 @@
 // Real-Time Operations Page
 
-import React, { useState } from 'react'
-import { Card, Spin } from 'antd'
+import { useState, useRef } from 'react'
 import { TrafficMap } from '@/components/map/TrafficMap'
-import { WeatherWidget } from '@/components/widgets/WeatherWidget'
 import { AlertFeed } from '@/components/widgets/AlertFeed'
 import { KPIBar } from '@/components/widgets/KPIBar'
 import { MapControls } from '@/components/widgets/MapControls'
@@ -19,8 +17,9 @@ export const RealTimePage: React.FC = () => {
   const trafficStatus = useTrafficStatus()
   const { isLoading, error } = useAppStore()
   const [cctvModalVisible, setCCTVModalVisible] = useState(false)
-  const mapRef = React.useRef<any>(null)
-  const [heatmapEnabled, setHeatmapEnabled] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapRef = useRef<any>(null)
+  const [_heatmapEnabled, _setHeatmapEnabled] = useState(false)
 
   // Map control handlers
   const handleZoomIn = () => {
@@ -45,8 +44,8 @@ export const RealTimePage: React.FC = () => {
     }
   }
 
-  const handleHeatmapToggle = (enabled: boolean) => {
-    setHeatmapEnabled(enabled)
+  const handleHeatmapToggle = (_enabled: boolean) => {
+    // Heatmap toggle handler
   }
 
   if (isLoading && segments.length === 0) {

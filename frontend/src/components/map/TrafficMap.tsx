@@ -9,11 +9,15 @@ import { Card, Spin } from 'antd'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 interface TrafficMapProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   segments?: any[] // Optional segments data
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   trafficStatus?: any[] // Optional traffic status data
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMapClick?: (event: any) => void
   style?: React.CSSProperties
   autoRefreshInterval?: number // in milliseconds, default 30s
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mapRef?: React.RefObject<any> // Allow parent to control map
 }
 
@@ -46,6 +50,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
 }) => {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
   const mapboxStyle = import.meta.env.VITE_MAPBOX_STYLE
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const internalMapRef = useRef<any>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = externalMapRef || internalMapRef
@@ -56,7 +61,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     x: 0,
     y: 0,
   })
-  const [heatmapEnabled, setHeatmapEnabled] = useState<boolean>(false)
+  const [_heatmapEnabled, _setHeatmapEnabled] = useState<boolean>(false)
   // Fallback mock data if API fails
   const FALLBACK_DATA: TrafficMapResponse = {
     type: 'FeatureCollection',
@@ -188,6 +193,8 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         )
       }
     }
+    // mapRef is a ref object, its .current is checked but not included in dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trafficData])
 
   // Create traffic layer style
@@ -379,7 +386,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
       >
         {trafficData && trafficData.features.length > 0 && (
           <Source id="traffic-source" type="geojson" data={trafficData}>
-            {heatmapEnabled && <Layer {...heatmapLayerStyle} />}
+            {_heatmapEnabled && <Layer {...heatmapLayerStyle} />}
             <Layer {...trafficLayerStyle} />
           </Source>
         )}

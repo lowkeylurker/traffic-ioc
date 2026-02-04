@@ -1,11 +1,10 @@
 // Simulation & Forecast Page
 
-import React, { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Card, Row, Col, Button, Input, Space, message } from 'antd'
 import { ExperimentOutlined } from '@ant-design/icons'
 import { LineChart } from '@/components/charts/ChartComponents'
 import { TrafficMap } from '@/components/map/TrafficMap'
-import { Loading, ErrorState } from '@/components/common'
 import { useSegments, useTrafficStatus } from '@/hooks/useTraffic'
 import { simulationApi } from '@/services/api'
 import dayjs from 'dayjs'
@@ -13,9 +12,12 @@ import dayjs from 'dayjs'
 export const SimulationPage: React.FC = () => {
   const segments = useSegments()
   const trafficStatus = useTrafficStatus()
-  const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(null)
+  const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(
+    null
+  )
   const [forecastLoading, setForecastLoading] = useState(false)
   const [routingLoading, setRoutingLoading] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [forecastResult, setForecastResult] = useState<any>(null)
   const [routingResult, setRoutingResult] = useState<string>('')
 
@@ -70,7 +72,7 @@ export const SimulationPage: React.FC = () => {
     try {
       const result = await simulationApi.runRouting(
         [106.7009, 10.7769], // Start point
-        [106.7150, 10.8100]  // End point
+        [106.715, 10.81] // End point
       )
       if (result.success && result.data) {
         setRoutingResult(
@@ -108,7 +110,14 @@ export const SimulationPage: React.FC = () => {
 
       {/* Right Pane - Control Panel */}
       <Col xs={24} md={8} style={{ height: '100%' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            height: '100%',
+          }}
+        >
           {/* B1 Chart - Forecast */}
           <Card title="Dự báo 60 phút tới (B1)" loading={forecastLoading}>
             <div style={{ height: 250 }}>
@@ -137,12 +146,18 @@ export const SimulationPage: React.FC = () => {
           <Card>
             <Space direction="vertical" style={{ width: '100%' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: 8 }}>Chọn đoạn đường:</label>
+                <label style={{ display: 'block', marginBottom: 8 }}>
+                  Chọn đoạn đường:
+                </label>
                 <Input
                   type="number"
                   placeholder="Nhập ID đoạn đường"
                   value={selectedSegmentId || ''}
-                  onChange={(e) => setSelectedSegmentId(e.target.value ? parseInt(e.target.value) : null)}
+                  onChange={(e) =>
+                    setSelectedSegmentId(
+                      e.target.value ? parseInt(e.target.value) : null
+                    )
+                  }
                 />
               </div>
 
@@ -168,13 +183,15 @@ export const SimulationPage: React.FC = () => {
               {forecastResult && (
                 <div style={{ marginBottom: 16 }}>
                   <p>
-                    <strong>Tốc độ dự báo:</strong> {forecastResult.predictedSpeed?.toFixed(1)} km/h
+                    <strong>Tốc độ dự báo:</strong>{' '}
+                    {forecastResult.predictedSpeed?.toFixed(1)} km/h
                   </p>
                   <p>
                     <strong>LOS dự báo:</strong> {forecastResult.predictedLos}
                   </p>
                   <p>
-                    <strong>Độ tin cậy:</strong> {forecastResult.confidenceScore?.toFixed(0)}%
+                    <strong>Độ tin cậy:</strong>{' '}
+                    {forecastResult.confidenceScore?.toFixed(0)}%
                   </p>
                 </div>
               )}
