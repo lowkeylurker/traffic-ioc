@@ -19,6 +19,7 @@ interface TrafficMapProps {
   autoRefreshInterval?: number // in milliseconds, default 30s
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mapRef?: React.RefObject<any> // Allow parent to control map
+  heatmapEnabled?: boolean // Toggle heatmap layer
 }
 
 interface GeoJSONFeature {
@@ -47,6 +48,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   style,
   autoRefreshInterval = 10000, // 10 seconds default
   mapRef: externalMapRef,
+  heatmapEnabled = false,
 }) => {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
   const mapboxStyle = import.meta.env.VITE_MAPBOX_STYLE
@@ -61,7 +63,6 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     x: 0,
     y: 0,
   })
-  const [_heatmapEnabled, _setHeatmapEnabled] = useState<boolean>(false)
   // Fallback mock data if API fails
   const FALLBACK_DATA: TrafficMapResponse = {
     type: 'FeatureCollection',
@@ -386,7 +387,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
       >
         {trafficData && trafficData.features.length > 0 && (
           <Source id="traffic-source" type="geojson" data={trafficData}>
-            {_heatmapEnabled && <Layer {...heatmapLayerStyle} />}
+            {heatmapEnabled && <Layer {...heatmapLayerStyle} />}
             <Layer {...trafficLayerStyle} />
           </Source>
         )}

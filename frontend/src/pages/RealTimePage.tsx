@@ -19,7 +19,7 @@ export const RealTimePage: React.FC = () => {
   const [cctvModalVisible, setCCTVModalVisible] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null)
-  const [_heatmapEnabled, _setHeatmapEnabled] = useState(false)
+  const [heatmapEnabled, setHeatmapEnabled] = useState(false)
 
   // Map control handlers
   const handleZoomIn = () => {
@@ -46,6 +46,7 @@ export const RealTimePage: React.FC = () => {
 
   const handleHeatmapToggle = (_enabled: boolean) => {
     // Heatmap toggle handler
+    setHeatmapEnabled(_enabled)
   }
 
   if (isLoading && segments.length === 0) {
@@ -85,6 +86,7 @@ export const RealTimePage: React.FC = () => {
         trafficStatus={trafficStatus}
         style={{ height: '100%', width: '100%' }}
         mapRef={mapRef}
+        heatmapEnabled={heatmapEnabled}
       />
 
       {/* Floating Widgets - Z-Index Layering */}
