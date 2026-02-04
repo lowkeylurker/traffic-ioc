@@ -15,14 +15,8 @@ import {
   Upload,
 } from 'antd'
 import { useUser, useAuth } from '@clerk/clerk-react'
-import {
-  EditOutlined,
-  LockOutlined,
-  CameraOutlined,
-  UploadOutlined,
-} from '@ant-design/icons'
+import { EditOutlined, LockOutlined, CameraOutlined } from '@ant-design/icons'
 import { Loading } from '@/components'
-import type { UploadFile } from 'antd'
 
 export const UserProfilePage: React.FC = () => {
   const { user, isLoaded } = useUser()
@@ -99,9 +93,10 @@ export const UserProfilePage: React.FC = () => {
   const handleRequestPasswordChange = async () => {
     try {
       setLoading(true)
-      const values = await passwordForm.validateFields(['currentPassword'])
+      // Validate current password field
+      await passwordForm.validateFields(['currentPassword'])
 
-      // Request OTP for password change
+      // Request OTP for password change via email verification
       await user.primaryEmailAddress?.prepareVerification({
         strategy: 'email_code',
       })
@@ -120,6 +115,7 @@ export const UserProfilePage: React.FC = () => {
     try {
       setLoading(true)
       const values = await passwordForm.validateFields([
+        'currentPassword',
         'newPassword',
         'confirmPassword',
         'otp',
@@ -130,8 +126,14 @@ export const UserProfilePage: React.FC = () => {
         return
       }
 
-      // Verify OTP and update password
+      // Verify OTP code
+      await user.primaryEmailAddress?.attemptVerification({
+        code: values.otp,
+      })
+
+      // Update password with current password for verification
       await user.updatePassword({
+        currentPassword: values.currentPassword,
         newPassword: values.newPassword,
         signOutOfOtherSessions: true,
       })

@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import {
   Modal,
   Button,
-  Card,
   Tabs,
   Form,
   Input,
@@ -11,7 +10,7 @@ import {
   Divider,
 } from 'antd'
 import { GoogleOutlined } from '@ant-design/icons'
-import { useSignIn, useSignUp, useAuth } from '@clerk/clerk-react'
+import { useSignIn, useSignUp, useAuth, useClerk } from '@clerk/clerk-react'
 import { useNavigate } from 'react-router-dom'
 import type { TabsProps } from 'antd'
 
@@ -28,10 +27,13 @@ export const SignInSignUpDialog: React.FC<SignInSignUpDialogProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('signin')
   const [loading, setLoading] = useState(false)
+  const [verificationStep, setVerificationStep] = useState(false)
+  const [verificationCode, setVerificationCode] = useState('')
   const [form] = Form.useForm()
   const { signIn, isLoaded: isSignInLoaded } = useSignIn()
   const { signUp, isLoaded: isSignUpLoaded } = useSignUp()
   const { isSignedIn } = useAuth()
+  const { setActive } = useClerk()
   const navigate = useNavigate()
 
   // Auto-close dialog when user is signed in
@@ -53,13 +55,16 @@ export const SignInSignUpDialog: React.FC<SignInSignUpDialogProps> = ({
       })
 
       if (result.status === 'complete') {
+        // Set the active session to complete the sign-in
+        await setActive({ session: result.createdSessionId })
         message.success('Đăng nhập thành công')
         onClose()
         navigate('/real-time')
       } else {
         message.error('Đăng nhập thất bại. Vui lòng thử lại.')
       }
-    } catch (err: any) {
+    } catch (error) {
+      const err = error as { errors?: { message: string }[] }
       const errorMessage =
         err?.errors?.[0]?.message || 'Email hoặc mật khẩu không đúng'
       message.error(errorMessage)
@@ -96,12 +101,57 @@ export const SignInSignUpDialog: React.FC<SignInSignUpDialogProps> = ({
         onClose()
         navigate('/real-time')
       } else if (result.status === 'missing_requirements') {
-        message.info('Vui lòng xác minh email của bạn')
+        // Initiate email verification flow
+        try {
+          await signUp.prepareEmailAddressVerification()
+          setVerificationStep(true)
+          message.success('Mã xác minh đã được gửi đến email của bạn')
+        } catch (error) {
+          const err = error as { errors?: { message: string }[] }
+          const errorMessage =
+            err?.errors?.[0]?.message ||
+            'Không thể gửi mã xác minh. Vui lòng thử lại.'
+          message.error(errorMessage)
+        }
       } else {
         message.error('Đăng ký thất bại. Vui lòng thử lại.')
       }
-    } catch (err: any) {
+    } catch (error) {
+      const err = error as { errors?: { message: string }[] }
       const errorMessage = err?.errors?.[0]?.message || 'Đăng ký thất bại'
+      message.error(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyEmail = async () => {
+    if (!verificationCode) {
+      message.error('Vui lòng nhập mã xác minh')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const result = await signUp?.attemptEmailAddressVerification({
+        code: verificationCode,
+      })
+
+      if (result?.status === 'complete') {
+        // Set the active session to complete the sign-up
+        await setActive({ session: result.createdSessionId })
+        message.success('Đăng ký thành công')
+        setVerificationStep(false)
+        setVerificationCode('')
+        onClose()
+        navigate('/real-time')
+      } else {
+        message.error('Xác minh email thất bại. Vui lòng thử lại.')
+      }
+    } catch (error) {
+      const err = error as { errors?: { message: string }[] }
+      const errorMessage =
+        err?.errors?.[0]?.message || 'Mã xác minh không hợp lệ'
       message.error(errorMessage)
     } finally {
       setLoading(false)
@@ -118,7 +168,8 @@ export const SignInSignUpDialog: React.FC<SignInSignUpDialogProps> = ({
         redirectUrl: '/real-time',
         redirectUrlComplete: '/real-time',
       })
-    } catch (err: any) {
+    } catch (error) {
+      const err = error as { errors?: { message: string }[] }
       const errorMessage =
         err?.errors?.[0]?.message || 'Google sign-in thất bại'
       message.error(errorMessage)
@@ -136,7 +187,8 @@ export const SignInSignUpDialog: React.FC<SignInSignUpDialogProps> = ({
         redirectUrl: '/real-time',
         redirectUrlComplete: '/real-time',
       })
-    } catch (err: any) {
+    } catch (error) {
+      const err = error as { errors?: { message: string }[] }
       const errorMessage =
         err?.errors?.[0]?.message || 'Google sign-up thất bại'
       message.error(errorMessage)
@@ -223,7 +275,51 @@ export const SignInSignUpDialog: React.FC<SignInSignUpDialogProps> = ({
     {
       key: 'signup',
       label: 'Đăng Ký',
-      children: (
+      children: verificationStep ? (
+        <Form layout="vertical" onFinish={handleVerifyEmail}>
+          <Form.Item>
+            <p style={{ marginBottom: '16px', color: '#666' }}>
+              Mã xác minh đã được gửi đến email của bạn. Vui lòng nhập mã để
+              hoàn thành đăng ký.
+            </p>
+          </Form.Item>
+
+          <Form.Item label="Mã Xác Minh" required>
+            <Input
+              placeholder="Nhập 6 chữ số"
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value)}
+              disabled={loading}
+              maxLength={6}
+            />
+          </Form.Item>
+
+          <Form.Item>
+            <Button
+              type="primary"
+              block
+              loading={loading}
+              size="large"
+              onClick={handleVerifyEmail}
+            >
+              Xác Minh Email
+            </Button>
+          </Form.Item>
+
+          <div style={{ textAlign: 'center', fontSize: 14, color: '#666' }}>
+            <Button
+              type="link"
+              onClick={() => {
+                setVerificationStep(false)
+                setVerificationCode('')
+              }}
+              disabled={loading}
+            >
+              Quay lại
+            </Button>
+          </div>
+        </Form>
+      ) : (
         <Form
           form={form}
           layout="vertical"
@@ -304,8 +400,7 @@ export const SignInSignUpDialog: React.FC<SignInSignUpDialogProps> = ({
               Đăng ký với Google
             </Button>
           </Form.Item>
-
-          <div style={{ textAlign: 'center', fontSize: 14, color: '#666' }}>
+          <div>
             Đã có tài khoản?{' '}
             <Button
               type="link"
