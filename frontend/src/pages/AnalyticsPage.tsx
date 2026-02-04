@@ -1,7 +1,7 @@
 // Analytics & Statistics Page
 
-import React, { useMemo } from 'react'
-import { Card, Row, Col, Table, Select, DatePicker, Space, Spin } from 'antd'
+import { useMemo } from 'react'
+import { Card, Row, Col, Table, Select, DatePicker, Space } from 'antd'
 import { LineChart, DoughnutChart } from '@/components/charts/ChartComponents'
 import { TrafficMap } from '@/components/map/TrafficMap'
 import { Loading, ErrorState } from '@/components/common'
@@ -10,7 +10,8 @@ import { useSegments, useTrafficStatus, useAnalytics } from '@/hooks/useTraffic'
 export const AnalyticsPage: React.FC = () => {
   const segments = useSegments()
   const trafficStatus = useTrafficStatus()
-  const { vehicleMix, speedComparison, reliabilityRanking, loading, error } = useAnalytics()
+  const { vehicleMix, speedComparison, reliabilityRanking, loading, error } =
+    useAnalytics()
 
   // Chart Data - Vehicle Mix (A9)
   const vehicleMixChartData = useMemo(
@@ -71,6 +72,7 @@ export const AnalyticsPage: React.FC = () => {
       dataIndex: 'bufferIndex',
       key: 'bufferIndex',
       render: (text: number) => text.toFixed(1),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sorter: (a: any, b: any) => b.bufferIndex - a.bufferIndex,
     },
     {
@@ -97,7 +99,14 @@ export const AnalyticsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '80vh',
+        }}
+      >
         <Loading />
       </div>
     )
@@ -170,6 +179,7 @@ export const AnalyticsPage: React.FC = () => {
           <Card title="Bảng xếp hạng độ đáng tin cậy (A4)" loading={loading}>
             <Table
               dataSource={reliabilityRanking}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               columns={tableColumns as any}
               rowKey="segmentId"
               pagination={{ pageSize: 10 }}

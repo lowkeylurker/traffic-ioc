@@ -9,6 +9,19 @@ const logger = new Logger('MapController');
 
 export class MapController {
   /**
+   * GET /api/v1/map/segments - Lấy bản đồ giao thông với mã màu (GeoJSON)
+   */
+  async getTrafficMap(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      logger.log('GET /api/v1/map/segments');
+      const trafficMap = await mapService.getTrafficMap();
+      res.json(ResponseUtil.success(trafficMap, 'Traffic map retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * GET /segments - Lấy danh sách tất cả đoạn đường (GeoJSON)
    */
   async getSegments(req: Request, res: Response, next: NextFunction): Promise<void> {

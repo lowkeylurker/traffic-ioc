@@ -2,7 +2,11 @@
 
 import React from 'react'
 import { Layout, Menu } from 'antd'
-import { EyeOutlined, BarChartOutlined, ExperimentOutlined } from '@ant-design/icons'
+import {
+  EyeOutlined,
+  BarChartOutlined,
+  ExperimentOutlined,
+} from '@ant-design/icons'
 import { useNavigate, Outlet, useLocation } from 'react-router-dom'
 import { LAYOUT_SIDER_WIDTH } from '@/config/constants'
 
@@ -32,12 +36,23 @@ export const MainLayout: React.FC = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={LAYOUT_SIDER_WIDTH} theme="dark">
-        <div style={{ padding: '16px', color: 'white', fontSize: 18, fontWeight: 'bold' }}>
+      <Sider
+        width={LAYOUT_SIDER_WIDTH}
+        theme="light"
+        style={{ background: '#ffffff', borderRight: '1px solid #f0f0f0' }}
+      >
+        <div
+          style={{
+            padding: '16px',
+            color: '#001529',
+            fontSize: 18,
+            fontWeight: 'bold',
+          }}
+        >
           Traffic IOC
         </div>
         <Menu
-          theme="dark"
+          theme="light"
           mode="inline"
           selectedKeys={[location.pathname]}
           items={menuItems}
@@ -48,19 +63,30 @@ export const MainLayout: React.FC = () => {
       <Layout>
         <Header
           style={{
-            background: '#fff',
+            background: '#ffffff',
             padding: '0 24px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            boxShadow: '0 2px 8px #f0f1f2',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}
         >
-          <h2 style={{ margin: 0 }}>Hệ thống Điều hành Giao thông Thông minh</h2>
-          <div style={{ fontSize: 12, color: '#666' }}>Người dùng: Admin</div>
+          <h2
+            style={{
+              margin: 0,
+              color: '#001529',
+              fontSize: 24,
+              fontWeight: 'bold',
+            }}
+          >
+            Hệ thống Điều hành Giao thông Thông minh
+          </h2>
+          <div style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.45)' }}>
+            Người dùng: Admin
+          </div>
         </Header>
 
-        <Content style={{ margin: '24px 16px', background: '#f5f5f5' }}>
+        <Content style={{ padding: 0, background: '#f0f2f5' }}>
           <Outlet />
         </Content>
       </Layout>
