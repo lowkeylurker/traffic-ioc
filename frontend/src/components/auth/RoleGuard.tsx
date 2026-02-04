@@ -19,12 +19,12 @@ export const RoleGuard: React.FC<RoleGuardProps> = ({
     return <Loading />
   }
 
-  // Guest (non-logged-in user) can access non-admin routes
+  // Guest (non-logged-in user) can access auth routes
   if (!isSignedIn) {
-    if (requiredRole === 'admin') {
-      return <Navigate to="/unauthorized" replace />
+    if (requiredRole === 'guest') {
+      return <>{children}</>
     }
-    return <>{children}</>
+    return <Navigate to="/unauthorized" replace />
   }
 
   // Check admin role
