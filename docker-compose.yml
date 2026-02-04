@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   # PostgreSQL với PostGIS extension
@@ -24,6 +23,20 @@ services:
       retries: 5
     networks:
       - traffic-network
+  ai-core:
+    build:
+      context: ./ai-core       # Đường dẫn tới thư mục chứa Dockerfile trên
+    volumes:
+      - ./ai-core:/app         # Đồng bộ code từ máy bạn vào Docker (để sửa code là Docker nhận luôn)
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - ./ai-core/.env         # Sử dụng các biến môi trường
+    ports:
+      - "8000:8000"            # Mở cổng 8000 để Backend gọi sang
+    depends_on:
+      - postgres                     # Đảm bảo Database chạy trước AI-Core mới chạy
+    networks:
+      - traffic-network        # Dùng chung mạng với các dịch vụ khác
 
   # Redis (optional - for caching, session management)
   redis:
