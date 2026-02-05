@@ -1,6 +1,6 @@
 # 📊 BÁO CÁO THỬ NGHIỆM KẾT NỐI TOMTOM API - UTRAFFIC
 
-- **Ngày thực hiện:** 2026-02-05 03:15:20
+- **Ngày thực hiện:** 2026-02-05 10:54:11
 - **Mục tiêu:** Kiểm tra cấu trúc dữ liệu đầu vào cho Kho dữ liệu (DW) và Engine CityFlow.
 
 ---
@@ -14,7 +14,7 @@
     "summary": {
         "query": "phố đi bộ nguyễn huệ quận 1",
         "queryType": "NON_NEAR",
-        "queryTime": 133,
+        "queryTime": 154,
         "numResults": 1,
         "offset": 0,
         "totalResults": 760,
@@ -71,9 +71,9 @@
 {
     "flowSegmentData": {
         "frc": "FRC4",
-        "currentSpeed": 12,
+        "currentSpeed": 10,
         "freeFlowSpeed": 25,
-        "currentTravelTime": 659,
+        "currentTravelTime": 791,
         "freeFlowTravelTime": 316,
         "confidence": 1,
         "roadClosure": false,
@@ -295,21 +295,21 @@
         {
             "summary": {
                 "lengthInMeters": 1109,
-                "travelTimeInSeconds": 387,
+                "travelTimeInSeconds": 394,
                 "trafficDelayInSeconds": 0,
                 "trafficLengthInMeters": 0,
-                "departureTime": "2026-02-05T10:15:23+07:00",
-                "arrivalTime": "2026-02-05T10:21:50+07:00"
+                "departureTime": "2026-02-05T17:54:13+07:00",
+                "arrivalTime": "2026-02-05T18:00:47+07:00"
             },
             "legs": [
                 {
                     "summary": {
                         "lengthInMeters": 1109,
-                        "travelTimeInSeconds": 387,
+                        "travelTimeInSeconds": 394,
                         "trafficDelayInSeconds": 0,
                         "trafficLengthInMeters": 0,
-                        "departureTime": "2026-02-05T10:15:23+07:00",
-                        "arrivalTime": "2026-02-05T10:21:50+07:00"
+                        "departureTime": "2026-02-05T17:54:13+07:00",
+                        "arrivalTime": "2026-02-05T18:00:47+07:00"
                     },
                     "points": [
                         {

@@ -8,7 +8,9 @@ from dotenv import load_dotenv
 load_dotenv()
 API_KEY = os.getenv("TOMTOM_API_KEY")
 BASE_URL = "https://api.tomtom.com"
-REPORT_FILE = "TOMTOM_TECHNICAL_REPORT.md"
+_RESULT_DIR = os.path.join(os.path.dirname(__file__), "result")
+os.makedirs(_RESULT_DIR, exist_ok=True)
+REPORT_FILE = os.path.join(_RESULT_DIR, "TOMTOM_TECHNICAL_REPORT.md")
 
 class TomTomAudit:
     def __init__(self, api_key):
