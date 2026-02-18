@@ -21,3 +21,6 @@ geopandas       # Xử lý dữ liệu địa lý
 
 # --- Added for TomTom API Integration ---
 tabulate # For generating technical reports in a tabular format
+
+# --- Added for Google Search API Integration ---
+google-search-results
