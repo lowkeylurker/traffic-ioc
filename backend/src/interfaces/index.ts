@@ -94,3 +94,14 @@ export interface IncidentQuery {
   status?: IncidentStatus;
   bbox?: string; // minLng,minLat,maxLng,maxLat
 }
+
+export interface WeatherData {
+  temp_c: number;
+  condition_code: number;
+  condition_text: string;
+  humidity: number;
+  wind_kph: number;
+  impact_level: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
+  warning_message: string;
+  last_updated: string;
+}

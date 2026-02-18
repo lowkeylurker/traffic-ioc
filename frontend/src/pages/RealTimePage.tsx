@@ -1,4 +1,4 @@
-import { IncidentAlertWidget, IncidentLayer } from '@/components'
+import { IncidentAlertWidget, IncidentLayer, WeatherWidget } from '@/components'
 import { ErrorState, Loading } from '@/components/common'
 import { TrafficMap } from '@/components/map/TrafficMap'
 import { CCTVModal } from '@/components/widgets/CCTVModal'
@@ -187,6 +187,8 @@ export const RealTimePage: React.FC = () => {
         onIncidentClick={setSelectedIncident}
         mapRef={mapRef}
       />
+      {/* Weather Widget */}
+      <WeatherWidget compact />
     </div>
   )
 }

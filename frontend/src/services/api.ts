@@ -87,4 +87,9 @@ export const simulationApi = {
     }),
 }
 
+// Weather API
+export const weatherApi = {
+  getCurrent: (): Promise<ApiResponse> => axiosInstance.get('/weather/current'),
+}
+
 export default axiosInstance

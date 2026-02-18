@@ -103,11 +103,14 @@ export interface IncidentCollection {
 }
 
 export interface WeatherData {
-  temperature: number
-  condition: string
+  temp_c: number
+  condition_code: number
+  condition_text: string
   humidity: number
-  windSpeed: number
-  rainfall: number
+  wind_kph: number
+  impact_level: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH'
+  warning_message: string
+  last_updated: string
 }
 
 export interface VehicleMixData {

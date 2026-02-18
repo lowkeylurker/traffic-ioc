@@ -10,3 +10,9 @@ export {
   getSeverityColor,
   getSeverityLabel,
 } from './format'
+
+export {
+  mapConditionCodeToLabel,
+  mapConditionCodeToIcon,
+  mapImpactLevel,
+} from './weather'

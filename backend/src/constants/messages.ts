@@ -31,4 +31,5 @@ export const ROUTE_PATHS = {
   ANALYTICS: '/analytics',
   SIMULATION: '/simulation',
   INCIDENT: '/incidents',
+  WEATHER: '/weather',
 };

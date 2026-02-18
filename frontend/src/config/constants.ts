@@ -43,6 +43,9 @@ export const API_ENDPOINTS = {
     FORECAST: '/simulation/forecast',
     ROUTING: '/simulation/routing',
   },
+  WEATHER: {
+    CURRENT: '/weather/current',
+  },
 }
 
 // Chart Configuration (Design System)
@@ -66,7 +69,7 @@ export const DATETIME_FORMAT = 'DD/MM/YYYY HH:mm:ss'
 // Polling Intervals
 export const POLLING_INTERVALS = {
   TRAFFIC_DATA: 10000, // 10 seconds
-  WEATHER_DATA: 300000, // 5 minutes
+  WEATHER_DATA: 900000, // 15 minutes
   ANALYTICS_DATA: 60000, // 1 minute
 }
 
@@ -103,9 +106,12 @@ export const MOCK_ALERTS: Alert[] = [
 
 // Mock data - Weather
 export const MOCK_WEATHER: WeatherData = {
-  temperature: 32,
-  condition: 'Partly Cloudy',
+  temp_c: 32,
+  condition_code: 801,
+  condition_text: 'Clouds',
   humidity: 75,
-  windSpeed: 8,
-  rainfall: 2,
+  wind_kph: 8,
+  impact_level: 'NONE',
+  warning_message: 'Thời tiết ổn định, tầm nhìn tốt.',
+  last_updated: new Date().toISOString(),
 }
