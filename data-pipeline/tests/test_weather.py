@@ -9,7 +9,7 @@ API_KEY = os.getenv("OPENWEATHER_API_KEY")
 LAT, LON = 10.776, 106.700
 # Sử dụng base URL của bản 2.5 (Free hoàn toàn)
 BASE_URL = "https://api.openweathermap.org/data/2.5"
-_RESULT_DIR = os.path.join(os.path.dirname(__file__), "result")
+_RESULT_DIR = os.path.join(os.path.dirname(__file__), "results")
 os.makedirs(_RESULT_DIR, exist_ok=True)
 REPORT_FILE = os.path.join(_RESULT_DIR, "OPEN_WEATHER_MAP_REPORT.md")
 

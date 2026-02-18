@@ -5,7 +5,7 @@ from datetime import datetime
 
 # Cấu hình
 PLACE_NAME = "District 1, Ho Chi Minh City, Vietnam"
-_RESULT_DIR = os.path.join(os.path.dirname(__file__), "result")
+_RESULT_DIR = os.path.join(os.path.dirname(__file__), "results")
 os.makedirs(_RESULT_DIR, exist_ok=True)
 OUTPUT_FILE = os.path.join(_RESULT_DIR, "OSM_DATA_REPORT.md")
 

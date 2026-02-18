@@ -15,12 +15,3 @@ pandas==2.1.3            # Xử lý cấu trúc roadnet và flow
 psycopg2-binary==2.9.9   # Kết nối Postgres Data Warehouse
 requests==2.31.0         # Giao tiếp giữa các service trong monorepo
 
-# --- Added for Geospatial Data Processing ---
-osmnx            # Xử lý dữ liệu OpenStreetMap
-geopandas       # Xử lý dữ liệu địa lý
-
-# --- Added for TomTom API Integration ---
-tabulate # For generating technical reports in a tabular format
-
-# --- Added for Google Search API Integration ---
-google-search-results

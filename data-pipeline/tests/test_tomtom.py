@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 API_KEY = os.getenv("TOMTOM_API_KEY")
 BASE_URL = "https://api.tomtom.com"
-_RESULT_DIR = os.path.join(os.path.dirname(__file__), "result")
+_RESULT_DIR = os.path.join(os.path.dirname(__file__), "results")
 os.makedirs(_RESULT_DIR, exist_ok=True)
 REPORT_FILE = os.path.join(_RESULT_DIR, "TOMTOM_TECHNICAL_REPORT.md")
 

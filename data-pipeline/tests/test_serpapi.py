@@ -7,7 +7,7 @@ from serpapi import GoogleSearch
 # Load cấu hình
 load_dotenv()
 API_KEY = os.getenv("SERPAPI_KEY")
-_RESULT_DIR = os.path.join(os.path.dirname(__file__), "result")
+_RESULT_DIR = os.path.join(os.path.dirname(__file__), "results")
 os.makedirs(_RESULT_DIR, exist_ok=True)
 REPORT_FILE = os.path.join(_RESULT_DIR, "SERPAPI_CONTEXT_REPORT.md")
 
@@ -40,7 +40,7 @@ class SerpApiAudit:
             # "htichips": "date:today"
         }
         search = GoogleSearch(params)
-        print(search.get_dict())
+        # print(search.get_dict())
         results = search.get_dict().get("events_results", [])
         desc = "Xác định các sự kiện lớn gây biến động lưu lượng xe đổ về Quận 1."
         self._log_to_md("1. Google Events API", desc, results[:1]) # Lấy 1 sự kiện mẫu để báo cáo, có thể mở rộng nếu cần.

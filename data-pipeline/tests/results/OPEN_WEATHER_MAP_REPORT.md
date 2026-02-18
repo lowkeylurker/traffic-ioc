@@ -6,8 +6,8 @@
 ```json
 {
     "coord": {
-        "lon": 106.7,
-        "lat": 10.776
+        "lon": 106.7011,
+        "lat": 10.7764
     },
     "weather": [
         {
@@ -20,32 +20,32 @@
     "base": "stations",
     "main": {
         "temp": 34.43,
-        "feels_like": 39,
+        "feels_like": 41.26,
         "temp_min": 34.43,
         "temp_max": 34.95,
-        "pressure": 1009,
-        "humidity": 49,
-        "sea_level": 1009,
-        "grnd_level": 1008
+        "pressure": 1007,
+        "humidity": 55,
+        "sea_level": 1007,
+        "grnd_level": 1006
     },
     "visibility": 10000,
     "wind": {
-        "speed": 2.68,
-        "deg": 317,
-        "gust": 3.13
+        "speed": 3.6,
+        "deg": 0,
+        "gust": 8.75
     },
     "rain": {
-        "1h": 0.27
+        "1h": 0.16
     },
     "clouds": {
         "all": 20
     },
-    "dt": 1771399321,
+    "dt": 1771401818,
     "sys": {
         "type": 2,
         "id": 2093009,
         "country": "VN",
-        "sunrise": 1771369977,
+        "sunrise": 1771369976,
         "sunset": 1771412501
     },
     "timezone": 25200,
@@ -67,26 +67,26 @@
         {
             "dt": 1771405200,
             "main": {
-                "temp": 34.12,
-                "feels_like": 37.04,
-                "temp_min": 32.38,
-                "temp_max": 34.12,
-                "pressure": 1009,
-                "sea_level": 1009,
+                "temp": 34.43,
+                "feels_like": 41.43,
+                "temp_min": 32.22,
+                "temp_max": 34.43,
+                "pressure": 1007,
+                "sea_level": 1007,
                 "grnd_level": 1007,
-                "humidity": 45,
-                "temp_kf": 1.74
+                "humidity": 58,
+                "temp_kf": 2.21
             },
             "weather": [
                 {
-                    "id": 802,
+                    "id": 801,
                     "main": "Clouds",
-                    "description": "mây rải rác",
-                    "icon": "03d"
+                    "description": "mây thưa",
+                    "icon": "02d"
                 }
             ],
             "clouds": {
-                "all": 36
+                "all": 20
             },
             "wind": {
                 "speed": 5.21,
@@ -103,15 +103,15 @@
         {
             "dt": 1771416000,
             "main": {
-                "temp": 30.97,
-                "feels_like": 33.18,
-                "temp_min": 28.96,
-                "temp_max": 30.97,
-                "pressure": 1009,
-                "sea_level": 1009,
+                "temp": 32.48,
+                "feels_like": 37.26,
+                "temp_min": 28.58,
+                "temp_max": 32.48,
+                "pressure": 1008,
+                "sea_level": 1008,
                 "grnd_level": 1008,
-                "humidity": 53,
-                "temp_kf": 2.01
+                "humidity": 57,
+                "temp_kf": 3.9
             },
             "weather": [
                 {
@@ -122,7 +122,7 @@
                 }
             ],
             "clouds": {
-                "all": 50
+                "all": 35
             },
             "wind": {
                 "speed": 5.77,
@@ -139,15 +139,15 @@
         {
             "dt": 1771426800,
             "main": {
-                "temp": 27.52,
-                "feels_like": 28.77,
+                "temp": 29.82,
+                "feels_like": 32.49,
                 "temp_min": 27.52,
-                "temp_max": 27.52,
-                "pressure": 1011,
-                "sea_level": 1011,
+                "temp_max": 29.82,
+                "pressure": 1010,
+                "sea_level": 1010,
                 "grnd_level": 1011,
                 "humidity": 60,
-                "temp_kf": 0
+                "temp_kf": 2.3
             },
             "weather": [
                 {
@@ -158,7 +158,7 @@
                 }
             ],
             "clouds": {
-                "all": 44
+                "all": 36
             },
             "wind": {
                 "speed": 4.16,

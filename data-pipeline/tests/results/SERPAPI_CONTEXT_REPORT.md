@@ -1,6 +1,6 @@
 # 🕵️ Báo cáo Dữ liệu Bối cảnh SerpApi - UTRAFFIC
 
-- **Ngày thực hiện:** 2026-02-18 06:14:41
+- **Ngày thực hiện:** 2026-02-18 08:06:36
 - **Mục tiêu:** Thu thập dữ liệu sự kiện, địa điểm và tin tức để dự báo nhu cầu giao thông.
 
 ---
@@ -24,7 +24,7 @@
         "link": "https://www.virtuoso.com/cruises/sailings/18127572/mekong-discovery-northbound-19feb2026-26feb2026",
         "event_location_map": {
             "image": "https://www.google.com/maps/vt/data=yJmJgtpbHOcbVHUMVm3eg386hYkyE2o8hrpOb82Trv60UPvfXWJvPeT7Z5lqXuSkXat--BlD2emoZ1FV4Fg3f_JnY5DeoHwwm94FYwmMWkEKu5pTtY4",
-            "link": "https://www.google.com/maps/place//data=!4m2!3m1!1s0x31752f376a7b5723:0xff6297c849dd8a61?sa=X&ved=2ahUKEwiB7LygreKSAxXjMlkFHeUuNjwQ9eIBegQIAxAA",
+            "link": "https://www.google.com/maps/place//data=!4m2!3m1!1s0x31752f376a7b5723:0xff6297c849dd8a61?sa=X&ved=2ahUKEwjaq-jWyuKSAxXxliYFHbVwIzoQ9eIBegQIAxAA",
             "serpapi_link": "https://serpapi.com/search.json?data=%214m2%213m1%211s0x31752f376a7b5723%3A0xff6297c849dd8a61&engine=google_maps&google_domain=google.com&hl=en&q=Events+in+HoChiMinh+City+District+1&type=place"
         },
         "description": "Cruise on the Avalon Waterways ship Avalon Saigon: Mekong Discovery (Northbound). Contact your Virtuoso Advisor for details on special amenities and exclusive benefits.",
@@ -39,7 +39,7 @@
             "name": "Avalon Apartments",
             "rating": 4.2,
             "reviews": 40,
-            "link": "https://www.google.com/search?sca_esv=fd1b7ca8ddeb381e&q=Avalon+Apartments&ludocid=18402437913877776993&ibp=gwp%3B0,7"
+            "link": "https://www.google.com/search?sca_esv=8ee66ad7f9d1d3dd&q=Avalon+Apartments&ludocid=18402437913877776993&ibp=gwp%3B0,7"
         },
         "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQlLclEf0bEDKsiE_kto15Zu-7WdRXogO6l2z1-9wpM3n9iBv6_BPMhUf0&s",
         "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQK_F6b5yCBtRrJY8RK87dJcOkgalchby6iIfmXwtvUVA&s=10"
@@ -62,7 +62,7 @@
     "reviews_original": "(5,4 N)",
     "description": "Trung tâm mua sắm rộng lớn có nhà hàng",
     "lsig": "AB86z5Ur7yr5JLfBcqzEgri1SqOc",
-    "thumbnail": "https://serpapi.com/searches/6995515ac83b3f8fcd2d4062/images/Gmz8EjrbofSauVUawaGKNyMsusnfWPRzCNwyio-TMvA.jpeg",
+    "thumbnail": "https://serpapi.com/searches/69957310bf04d5fc9612001b/images/Gmz8EjrbofSauVUawaGKNyMsusnfWPRzCNwyio-TMvA.jpeg",
     "place_id": "9917239572823262924",
     "place_id_search": "https://serpapi.com/search.json?device=desktop&engine=google_local&gl=vn&google_domain=google.com&hl=vi&ludocid=9917239572823262924&q=Diamond+Plaza+Qu%E1%BA%ADn+1",
     "gps_coordinates": {
@@ -144,8 +144,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "21",
-                    "extracted_value": 21
+                    "value": "19",
+                    "extracted_value": 19
                 }
             ]
         },
@@ -155,8 +155,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "20",
-                    "extracted_value": 20
+                    "value": "24",
+                    "extracted_value": 24
                 }
             ]
         },
@@ -166,8 +166,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "19",
-                    "extracted_value": 19
+                    "value": "21",
+                    "extracted_value": 21
                 }
             ]
         },
@@ -199,8 +199,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "23",
-                    "extracted_value": 23
+                    "value": "24",
+                    "extracted_value": 24
                 }
             ]
         },
@@ -210,8 +210,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "28",
-                    "extracted_value": 28
+                    "value": "30",
+                    "extracted_value": 30
                 }
             ]
         },
@@ -221,8 +221,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "36",
-                    "extracted_value": 36
+                    "value": "37",
+                    "extracted_value": 37
                 }
             ]
         },
@@ -232,8 +232,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "30",
-                    "extracted_value": 30
+                    "value": "33",
+                    "extracted_value": 33
                 }
             ]
         },
@@ -243,8 +243,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "45",
-                    "extracted_value": 45
+                    "value": "47",
+                    "extracted_value": 47
                 }
             ]
         },
@@ -254,8 +254,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "78",
-                    "extracted_value": 78
+                    "value": "81",
+                    "extracted_value": 81
                 }
             ]
         },
@@ -265,8 +265,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "29",
-                    "extracted_value": 29
+                    "value": "30",
+                    "extracted_value": 30
                 }
             ]
         },
@@ -276,8 +276,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "24",
-                    "extracted_value": 24
+                    "value": "26",
+                    "extracted_value": 26
                 }
             ]
         },
@@ -287,8 +287,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "17",
-                    "extracted_value": 17
+                    "value": "18",
+                    "extracted_value": 18
                 }
             ]
         },
@@ -298,8 +298,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "28",
-                    "extracted_value": 28
+                    "value": "27",
+                    "extracted_value": 27
                 }
             ]
         },
@@ -309,8 +309,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "26",
-                    "extracted_value": 26
+                    "value": "28",
+                    "extracted_value": 28
                 }
             ]
         },
@@ -320,8 +320,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "30",
-                    "extracted_value": 30
+                    "value": "32",
+                    "extracted_value": 32
                 }
             ]
         },
@@ -331,8 +331,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "17",
-                    "extracted_value": 17
+                    "value": "20",
+                    "extracted_value": 20
                 }
             ]
         },
@@ -342,8 +342,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "32",
-                    "extracted_value": 32
+                    "value": "33",
+                    "extracted_value": 33
                 }
             ]
         },
@@ -353,8 +353,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "24",
-                    "extracted_value": 24
+                    "value": "25",
+                    "extracted_value": 25
                 }
             ]
         },
@@ -386,8 +386,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "60",
-                    "extracted_value": 60
+                    "value": "64",
+                    "extracted_value": 64
                 }
             ]
         },
@@ -397,8 +397,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "28",
-                    "extracted_value": 28
+                    "value": "30",
+                    "extracted_value": 30
                 }
             ]
         },
@@ -419,8 +419,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "31",
-                    "extracted_value": 31
+                    "value": "34",
+                    "extracted_value": 34
                 }
             ]
         },
@@ -430,8 +430,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "27",
-                    "extracted_value": 27
+                    "value": "28",
+                    "extracted_value": 28
                 }
             ]
         },
@@ -441,8 +441,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "55",
-                    "extracted_value": 55
+                    "value": "56",
+                    "extracted_value": 56
                 }
             ]
         },
@@ -463,8 +463,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "31",
-                    "extracted_value": 31
+                    "value": "36",
+                    "extracted_value": 36
                 }
             ]
         },
@@ -474,8 +474,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "27",
-                    "extracted_value": 27
+                    "value": "28",
+                    "extracted_value": 28
                 }
             ]
         },
@@ -485,8 +485,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "25",
-                    "extracted_value": 25
+                    "value": "28",
+                    "extracted_value": 28
                 }
             ]
         },
@@ -507,8 +507,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "29",
-                    "extracted_value": 29
+                    "value": "30",
+                    "extracted_value": 30
                 }
             ]
         },
@@ -518,8 +518,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "35",
-                    "extracted_value": 35
+                    "value": "37",
+                    "extracted_value": 37
                 }
             ]
         },
@@ -529,8 +529,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "31",
-                    "extracted_value": 31
+                    "value": "32",
+                    "extracted_value": 32
                 }
             ]
         },
@@ -540,8 +540,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "28",
-                    "extracted_value": 28
+                    "value": "29",
+                    "extracted_value": 29
                 }
             ]
         },
@@ -551,8 +551,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "28",
-                    "extracted_value": 28
+                    "value": "29",
+                    "extracted_value": 29
                 }
             ]
         },
@@ -573,8 +573,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "37",
-                    "extracted_value": 37
+                    "value": "35",
+                    "extracted_value": 35
                 }
             ]
         },
@@ -584,8 +584,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "31",
-                    "extracted_value": 31
+                    "value": "32",
+                    "extracted_value": 32
                 }
             ]
         },
@@ -595,8 +595,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "31",
-                    "extracted_value": 31
+                    "value": "30",
+                    "extracted_value": 30
                 }
             ]
         },
@@ -628,8 +628,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "32",
-                    "extracted_value": 32
+                    "value": "31",
+                    "extracted_value": 31
                 }
             ]
         },
@@ -639,8 +639,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "39",
-                    "extracted_value": 39
+                    "value": "44",
+                    "extracted_value": 44
                 }
             ]
         },
@@ -650,8 +650,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "30",
-                    "extracted_value": 30
+                    "value": "29",
+                    "extracted_value": 29
                 }
             ]
         },
@@ -661,8 +661,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "27",
-                    "extracted_value": 27
+                    "value": "26",
+                    "extracted_value": 26
                 }
             ]
         },
@@ -694,8 +694,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "30",
-                    "extracted_value": 30
+                    "value": "33",
+                    "extracted_value": 33
                 }
             ]
         },
@@ -705,8 +705,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "85",
-                    "extracted_value": 85
+                    "value": "87",
+                    "extracted_value": 87
                 }
             ]
         },
@@ -717,8 +717,8 @@
             "values": [
                 {
                     "query": "kẹt xe",
-                    "value": "42",
-                    "extracted_value": 42
+                    "value": "45",
+                    "extracted_value": 45
                 }
             ]
         }
