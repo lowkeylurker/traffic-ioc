@@ -1,6 +1,6 @@
 # 📊 BÁO CÁO THỬ NGHIỆM KẾT NỐI TOMTOM API - UTRAFFIC
 
-- **Ngày thực hiện:** 2026-02-18 08:07:11
+- **Ngày thực hiện:** 2026-02-19 04:10:51
 - **Mục tiêu:** Kiểm tra cấu trúc dữ liệu đầu vào cho Kho dữ liệu (DW) và Engine CityFlow.
 
 ---
@@ -14,7 +14,7 @@
     "summary": {
         "query": "phố đi bộ nguyễn huệ quận 1",
         "queryType": "NON_NEAR",
-        "queryTime": 147,
+        "queryTime": 8,
         "numResults": 1,
         "offset": 0,
         "totalResults": 761,
@@ -71,10 +71,10 @@
 {
     "flowSegmentData": {
         "frc": "FRC4",
-        "currentSpeed": 16,
-        "freeFlowSpeed": 25,
-        "currentTravelTime": 494,
-        "freeFlowTravelTime": 316,
+        "currentSpeed": 17,
+        "freeFlowSpeed": 24,
+        "currentTravelTime": 465,
+        "freeFlowTravelTime": 329,
         "confidence": 1,
         "roadClosure": false,
         "coordinates": {
@@ -295,21 +295,21 @@
         {
             "summary": {
                 "lengthInMeters": 1001,
-                "travelTimeInSeconds": 347,
+                "travelTimeInSeconds": 357,
                 "trafficDelayInSeconds": 0,
                 "trafficLengthInMeters": 0,
-                "departureTime": "2026-02-18T15:07:13+07:00",
-                "arrivalTime": "2026-02-18T15:13:00+07:00"
+                "departureTime": "2026-02-19T11:10:54+07:00",
+                "arrivalTime": "2026-02-19T11:16:51+07:00"
             },
             "legs": [
                 {
                     "summary": {
                         "lengthInMeters": 1001,
-                        "travelTimeInSeconds": 347,
+                        "travelTimeInSeconds": 357,
                         "trafficDelayInSeconds": 0,
                         "trafficLengthInMeters": 0,
-                        "departureTime": "2026-02-18T15:07:13+07:00",
-                        "arrivalTime": "2026-02-18T15:13:00+07:00"
+                        "departureTime": "2026-02-19T11:10:54+07:00",
+                        "arrivalTime": "2026-02-19T11:16:51+07:00"
                     },
                     "points": [
                         {
@@ -440,10 +440,22 @@
 ### 📥 Dữ liệu phản hồi (JSON):
 ```json
 {
-    "type": "about:blank",
-    "title": "Not found",
-    "detail": "The requested resource was not found",
-    "status": 404
+    "route": [
+        {
+            "geometry": {
+                "coordinates": [
+                    [
+                        106.6991744936,
+                        10.7781095803
+                    ],
+                    [
+                        106.6993635893,
+                        10.7783187926
+                    ]
+                ]
+            }
+        }
+    ]
 }
 ```
 

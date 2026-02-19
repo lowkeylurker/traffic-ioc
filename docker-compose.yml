@@ -29,7 +29,6 @@ services:
     container_name: utraffic-data-pipeline
     volumes:
       - ./data-pipeline:/app
-      - ./.env:/app/.env
     # Đổi sang cổng 8001 để không trùng với ai-core
     ports:
       - "8001:8000"

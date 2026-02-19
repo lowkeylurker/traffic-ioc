@@ -60,7 +60,7 @@ class TomTomAudit:
 
     # 4. Snap to Roads
     def test_snap_to_roads(self, points):
-        url = f"{BASE_URL}/maps/traffic/api/snaptoroads/1/snaptoroads"
+        url = f"{BASE_URL}/snapToRoads/1"
         params = {"key": self.key, "points": points}
         res = requests.get(url, params=params).json()
         desc = "Nắn chỉnh tọa độ GPS bị lệch từ báo cáo sự cố của người dân về đúng tim đường."
@@ -88,7 +88,7 @@ if __name__ == "__main__":
         audit.test_search_geocoding("Phố đi bộ Nguyễn Huệ, Quận 1")
         audit.test_traffic_flow(10.7781, 106.6994) # Ngã tư Lê Duẩn - Pasteur
         audit.test_routing("10.7797,106.6990", "10.7770,106.6953") # Đức Bà -> Dinh Độc Lập
-        audit.test_snap_to_roads("10.7780,106.6993;10.7782,106.6995")
+        audit.test_snap_to_roads("106.6993,10.7780;106.6995,10.7782")
         audit.test_map_display()
         
         print(f"\n🚀 Hoàn thành! File báo cáo '{REPORT_FILE}' đã sẵn sàng để tra cứu.")
