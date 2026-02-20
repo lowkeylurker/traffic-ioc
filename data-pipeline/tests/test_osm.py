@@ -35,6 +35,12 @@ def explore_osm_data():
             f.write("Đây là dữ liệu quan trọng để cấu hình các cạnh trong `roadnet.json`.\n\n")
             
             # Chọn các cột quan trọng
+            f.write(nodes.head(5).to_markdown())
+            f.write("\n\n")
+
+            f.write(edges.head(5).to_markdown())
+            f.write("\n\n")
+            
             cols_to_show = ['name', 'highway', 'oneway', 'lanes', 'maxspeed', 'length']
             available_cols = [c for c in cols_to_show if c in edges.columns]
             
