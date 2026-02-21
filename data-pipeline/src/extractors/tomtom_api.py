@@ -10,22 +10,22 @@ from typing import Dict, List, Optional
 
 class TomTomExtractor:
     """Lấy dữ liệu giao thông từ TomTom API"""
-    
+
     BASE_URL = "https://api.tomtom.com/traffic/services/4/flowSegmentData/relative"
-    
+
     def __init__(self):
         self.api_key = os.getenv('TOMTOM_API_KEY')
         if not self.api_key:
             raise ValueError("TOMTOM_API_KEY must be set in .env file")
-    
+
     def fetch_traffic_flow(self, coordinates: str, zoom: int = 12) -> Optional[Dict]:
         """
         Lấy dữ liệu luồng giao thông từ TomTom
-        
+
         Args:
             coordinates: Tọa độ (vd: "10.7769,106.7009")
             zoom: Mức zoom (10-18)
-        
+
         Returns:
             Dict chứa dữ liệu giao thông hoặc None nếu có lỗi
         """
@@ -35,7 +35,7 @@ class TomTomExtractor:
             'key': self.api_key,
             'unit': 'KMPH'
         }
-        
+
         try:
             response = requests.get(self.BASE_URL, params=params, timeout=10)
             response.raise_for_status()
@@ -43,14 +43,14 @@ class TomTomExtractor:
         except requests.exceptions.RequestException as e:
             print(f"Error fetching data from TomTom: {e}")
             return None
-    
+
     def extract_traffic_metrics(self, data: Dict) -> Optional[Dict]:
         """
         Trích xuất các metric giao thông chính từ response
-        
+
         Args:
             data: Response từ TomTom API
-        
+
         Returns:
             Dict chứa các metric chính
         """

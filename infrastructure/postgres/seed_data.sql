@@ -71,7 +71,7 @@ ON CONFLICT (time_key) DO NOTHING;
 -- SEED DIM_DATE - Tạo dữ liệu chiều ngày
 -- ============================================================================
 
-INSERT INTO dim_date (date_key, calendar_date, year, month, day, quarter, day_of_week, day_of_year, is_weekend, is_holiday) 
+INSERT INTO dim_date (date_key, calendar_date, year, month, day, quarter, day_of_week, day_of_year, is_weekend, is_holiday)
 VALUES
 (20240101, '2024-01-01', 2024, 1, 1, 1, 1, 1, FALSE, TRUE),   -- Tết Dương lịch
 (20240102, '2024-01-02', 2024, 1, 2, 1, 2, 2, FALSE, FALSE),
@@ -86,7 +86,7 @@ ON CONFLICT (date_key) DO NOTHING;
 -- SEED DIM_SEGMENT - Tạo dữ liệu đoạn đường mẫu (TP.HCM)
 -- ============================================================================
 
-INSERT INTO dim_segment (segment_name, segment_code, from_location, to_location, length_km, num_lanes, speed_limit_kmh, geometry) 
+INSERT INTO dim_segment (segment_name, segment_code, from_location, to_location, length_km, num_lanes, speed_limit_kmh, geometry)
 VALUES
 (
     'Đường Lê Lợi - Nguyễn Huệ',
@@ -144,8 +144,8 @@ ON CONFLICT (segment_code) DO NOTHING;
 -- SEED DIM_SENSOR - Tạo dữ liệu đầu dò mẫu
 -- ============================================================================
 
-INSERT INTO dim_sensor (sensor_code, sensor_name, sensor_type, segment_id, latitude, longitude, geometry, is_active) 
-SELECT 
+INSERT INTO dim_sensor (sensor_code, sensor_name, sensor_type, segment_id, latitude, longitude, geometry, is_active)
+SELECT
     'SENSOR_' || LPAD(row_number()::TEXT, 3, '0'),
     'Camera ' || s.segment_code || ' - Sensor ' || row_number(),
     CASE WHEN row_number() % 3 = 0 THEN 'camera'
@@ -165,11 +165,11 @@ ON CONFLICT (sensor_code) DO NOTHING;
 -- ============================================================================
 
 -- Nhập dữ liệu giả lập cho 5 ngày
-INSERT INTO fact_traffic_flow (segment_id, time_key, date_key, sensor_id, vehicle_count, current_speed, avg_speed, max_speed, occupancy_rate, pcu_value, los_grade, los_score, data_quality_flag) 
-SELECT 
+INSERT INTO fact_traffic_flow (segment_id, time_key, date_key, sensor_id, vehicle_count, current_speed, avg_speed, max_speed, occupancy_rate, pcu_value, los_grade, los_score, data_quality_flag)
+SELECT
     seg.segment_id,
     tm.time_key,
-    CASE 
+    CASE
         WHEN tm.time_key BETWEEN 202401010000 AND 202401012330 THEN 20240101
         WHEN tm.time_key BETWEEN 202401020000 AND 202401022330 THEN 20240102
         WHEN tm.time_key BETWEEN 202401030000 AND 202401032330 THEN 20240103
@@ -177,49 +177,49 @@ SELECT
     END as date_key,
     sen.sensor_id,
     -- vehicle_count: tăng vào giờ cao điểm
-    CASE 
+    CASE
         WHEN tm.time_period = 'morning_peak' THEN 80 + RANDOM() * 40
         WHEN tm.time_period = 'evening_peak' THEN 100 + RANDOM() * 50
         ELSE 20 + RANDOM() * 20
     END::INT,
     -- current_speed: giảm vào giờ cao điểm
-    CASE 
+    CASE
         WHEN tm.time_period = 'morning_peak' THEN 25 + RANDOM() * 10
         WHEN tm.time_period = 'evening_peak' THEN 20 + RANDOM() * 8
         ELSE 45 + RANDOM() * 15
     END::DECIMAL(8, 2),
     -- avg_speed
-    CASE 
+    CASE
         WHEN tm.time_period = 'morning_peak' THEN 28 + RANDOM() * 12
         WHEN tm.time_period = 'evening_peak' THEN 22 + RANDOM() * 10
         ELSE 48 + RANDOM() * 10
     END::DECIMAL(8, 2),
     -- max_speed
-    CASE 
+    CASE
         WHEN tm.time_period = 'morning_peak' THEN 50 + RANDOM() * 10
         WHEN tm.time_period = 'evening_peak' THEN 45 + RANDOM() * 10
         ELSE 60 + RANDOM() * 5
     END::DECIMAL(8, 2),
     -- occupancy_rate (%)
-    CASE 
+    CASE
         WHEN tm.time_period = 'morning_peak' THEN 60 + RANDOM() * 30
         WHEN tm.time_period = 'evening_peak' THEN 70 + RANDOM() * 25
         ELSE 30 + RANDOM() * 20
     END::DECIMAL(5, 2),
     -- pcu_value
-    CASE 
+    CASE
         WHEN tm.time_period = 'morning_peak' THEN 120 + RANDOM() * 60
         WHEN tm.time_period = 'evening_peak' THEN 150 + RANDOM() * 80
         ELSE 40 + RANDOM() * 30
     END::DECIMAL(10, 2),
     -- los_grade
-    CASE 
+    CASE
         WHEN tm.time_period = 'morning_peak' THEN 'C'
         WHEN tm.time_period = 'evening_peak' THEN 'D'
         ELSE 'A'
     END,
     -- los_score (0-100)
-    CASE 
+    CASE
         WHEN tm.time_period = 'morning_peak' THEN 60 + RANDOM() * 20
         WHEN tm.time_period = 'evening_peak' THEN 40 + RANDOM() * 25
         ELSE 80 + RANDOM() * 15

@@ -13,7 +13,7 @@ load_dotenv()
 
 class DatabaseConfig:
     """Quản lý kết nối và cấu hình Database"""
-    
+
     def __init__(self):
         self.host = os.getenv('DB_HOST', 'localhost')
         self.port = os.getenv('DB_PORT', '5432')
@@ -21,22 +21,22 @@ class DatabaseConfig:
         self.user = os.getenv('DB_USER', 'postgres')
         self.password = os.getenv('DB_PASSWORD', '')
         self.sslmode = os.getenv('DB_SSLMODE', 'disable')
-        
+
         # Validate configuration
         if not self.password:
             raise ValueError("DB_PASSWORD must be set in .env file")
-    
+
     def get_connection_string(self):
         """Trả về connection string cho SQLAlchemy"""
         return (
             f"postgresql://{self.user}:{self.password}@"
             f"{self.host}:{self.port}/{self.database}"
         )
-    
+
     def get_engine(self):
         """Tạo SQLAlchemy engine"""
         return create_engine(self.get_connection_string(), echo=False)
-    
+
     def get_psycopg2_connection(self):
         """Tạo psycopg2 connection (raw connection)"""
         return psycopg2.connect(
@@ -47,7 +47,7 @@ class DatabaseConfig:
             password=self.password,
             sslmode=self.sslmode
         )
-    
+
     def test_connection(self):
         """Kiểm tra kết nối Database"""
         try:
