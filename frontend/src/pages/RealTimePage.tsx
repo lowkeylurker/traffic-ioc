@@ -74,57 +74,63 @@ export const RealTimePage: React.FC = () => {
   return (
     <div
       style={{
-        position: 'relative',
+        display: 'flex',
         height: '100%',
         width: '100%',
         overflow: 'hidden',
-        borderRadius: 8,
-        boxShadow:
-          '0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+        gap: 0,
       }}
     >
-      {/* Main Map - Full Coverage */}
-      <TrafficMap
-        segments={segments}
-        trafficStatus={trafficStatus}
-        style={{ height: '100%', width: '100%' }}
-        mapRef={mapRef}
-        heatmapEnabled={heatmapEnabled}
+      {/* Main Map Area - Left Side */}
+      <div
+        style={{
+          flex: 1,
+          position: 'relative',
+          borderRadius: 8,
+          boxShadow:
+            '0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+        }}
       >
-        {/* Incident Layer - Overlaid on traffic map */}
-        <IncidentLayer onIncidentClick={setSelectedIncident} />
-      </TrafficMap>
+        {/* Main Map - Full Coverage */}
+        <TrafficMap
+          segments={segments}
+          trafficStatus={trafficStatus}
+          style={{ height: '100%', width: '100%' }}
+          mapRef={mapRef}
+          heatmapEnabled={heatmapEnabled}
+        >
+          {/* Incident Layer - Overlaid on traffic map */}
+          <IncidentLayer onIncidentClick={setSelectedIncident} />
+        </TrafficMap>
 
-      {/* Floating Widgets - Z-Index Layering */}
+        {/* Floating Widgets - Z-Index Layering */}
 
-      {/* Top KPI Bar (z-index: 20) */}
-      <KPIBar />
+        {/* Top KPI Bar (z-index: 20) */}
+        <KPIBar />
 
-      {/* Top Right - Incident Alert Widget (z-index: 10) */}
+        {/* Bottom Right - Map Controls (z-index: 10) */}
+        <MapControls
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onCompass={handleCompassReset}
+          onCamera={() => setCCTVModalVisible(true)}
+          onHeatmapToggle={handleHeatmapToggle}
+        />
+
+        {/* Bottom Right - Map Legend (z-index: 10) */}
+        <MapLegend />
+
+        {/* CCTV Modal (Hidden by default) */}
+        <CCTVModal
+          visible={cctvModalVisible}
+          onClose={() => setCCTVModalVisible(false)}
+        />
+      </div>
+
+      {/* Right Sidebar - Incident Alert Widget */}
       <IncidentAlertWidget
         onIncidentClick={setSelectedIncident}
         mapRef={mapRef}
-      />
-
-      {/* Top Right - Alert Feed (z-index: 10) - Moved down if needed */}
-      {/* <AlertFeed alerts={MOCK_ALERTS} /> */}
-
-      {/* Bottom Right - Map Controls (z-index: 10) */}
-      <MapControls
-        onZoomIn={handleZoomIn}
-        onZoomOut={handleZoomOut}
-        onCompass={handleCompassReset}
-        onCamera={() => setCCTVModalVisible(true)}
-        onHeatmapToggle={handleHeatmapToggle}
-      />
-
-      {/* Bottom Right - Map Legend (z-index: 10) */}
-      <MapLegend />
-
-      {/* CCTV Modal (Hidden by default) */}
-      <CCTVModal
-        visible={cctvModalVisible}
-        onClose={() => setCCTVModalVisible(false)}
       />
     </div>
   )

@@ -48,8 +48,8 @@ export const MapControls: React.FC<MapControlsProps> = ({
         style={{
           background: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(10px)',
-          borderRadius: 12,
-          padding: '12px',
+          borderRadius: 8,
+          padding: '4px',
           boxShadow:
             '0 8px 32px 0 rgba(0, 0, 0, 0.08), 0 2px 8px 0 rgba(0, 0, 0, 0.04)',
           border: '1px solid rgba(255, 255, 255, 0.8)',
@@ -59,7 +59,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
           <Tooltip title="Phóng to">
             <Button
               type="text"
-              size="large"
+              size="small"
               icon={
                 <ZoomInOutlined style={{ fontSize: 18, color: '#1677ff' }} />
               }
@@ -71,7 +71,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
           <Tooltip title="Thu nhỏ">
             <Button
               type="text"
-              size="large"
+              size="small"
               icon={
                 <ZoomOutOutlined style={{ fontSize: 18, color: '#1677ff' }} />
               }
@@ -83,14 +83,13 @@ export const MapControls: React.FC<MapControlsProps> = ({
           <div
             style={{
               borderTop: '1px solid rgba(0, 0, 0, 0.06)',
-              margin: '4px 0',
             }}
           />
 
           <Tooltip title="Đặt lại hướng">
             <Button
               type="text"
-              size="large"
+              size="small"
               icon={
                 <CompassOutlined style={{ fontSize: 18, color: '#1677ff' }} />
               }
@@ -102,7 +101,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
           <Tooltip title="Camera giám sát">
             <Button
               type="text"
-              size="large"
+              size="small"
               icon={
                 <CameraOutlined style={{ fontSize: 18, color: '#722ed1' }} />
               }
@@ -116,7 +115,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
           >
             <Button
               type={heatmapEnabled ? 'primary' : 'text'}
-              size="large"
+              size="small"
               icon={<BgColorsOutlined style={{ fontSize: 18 }} />}
               onClick={handleHeatmapToggle}
               style={{ width: '100%', textAlign: 'center' }}

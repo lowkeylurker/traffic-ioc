@@ -104,7 +104,7 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
         </div>
       }
       style={{
-        width: '360px',
+        width: '300px',
         maxHeight: '600px',
         position: 'absolute',
         top: '10px',
@@ -133,7 +133,7 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
               <List.Item
                 key={id}
                 style={{
-                  padding: '12px 16px',
+                  padding: '8px',
                   cursor: 'pointer',
                   borderLeft: `4px solid ${
                     severity === 'CRITICAL'
