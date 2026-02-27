@@ -9,22 +9,22 @@ from typing import Dict, Optional
 
 class WeatherExtractor:
     """Lấy dữ liệu thời tiết từ OpenWeather API"""
-    
+
     BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
-    
+
     def __init__(self):
         self.api_key = os.getenv('OPENWEATHER_API_KEY')
         if not self.api_key:
             raise ValueError("OPENWEATHER_API_KEY must be set in .env file")
-    
+
     def fetch_current_weather(self, latitude: float, longitude: float) -> Optional[Dict]:
         """
         Lấy dữ liệu thời tiết hiện tại
-        
+
         Args:
             latitude: Tọa độ vĩ độ
             longitude: Tọa độ kinh độ
-        
+
         Returns:
             Dict chứa dữ liệu thời tiết hoặc None nếu có lỗi
         """
@@ -34,7 +34,7 @@ class WeatherExtractor:
             'appid': self.api_key,
             'units': 'metric'
         }
-        
+
         try:
             response = requests.get(self.BASE_URL, params=params, timeout=10)
             response.raise_for_status()
@@ -42,14 +42,14 @@ class WeatherExtractor:
         except requests.exceptions.RequestException as e:
             print(f"Error fetching weather data: {e}")
             return None
-    
+
     def extract_weather_metrics(self, data: Dict) -> Optional[Dict]:
         """
         Trích xuất các metric thời tiết chính
-        
+
         Args:
             data: Response từ OpenWeather API
-        
+
         Returns:
             Dict chứa các metric thời tiết
         """
@@ -57,7 +57,7 @@ class WeatherExtractor:
             main = data.get('main', {})
             weather = data.get('weather', [{}])[0]
             rain = data.get('rain', {})
-            
+
             return {
                 'temperature': main.get('temp'),
                 'humidity': main.get('humidity'),

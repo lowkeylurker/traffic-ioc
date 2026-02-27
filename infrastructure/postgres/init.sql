@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS fact_traffic_flow (
     time_key BIGINT NOT NULL REFERENCES dim_time(time_key),
     date_key INT NOT NULL REFERENCES dim_date(date_key),
     sensor_id INT REFERENCES dim_sensor(sensor_id),
-    
+
     -- Thông tin giao thông
     vehicle_count INT,            -- Số lượng xe
     current_speed DECIMAL(8, 2),  -- Tốc độ hiện tại (km/h)
@@ -88,11 +88,11 @@ CREATE TABLE IF NOT EXISTS fact_traffic_flow (
     max_speed DECIMAL(8, 2),      -- Tốc độ tối đa
     occupancy_rate DECIMAL(5, 2), -- Tỷ lệ chiếm dụng (%)
     pcu_value DECIMAL(10, 2),     -- PCU (Passenger Car Unit)
-    
+
     -- Chỉ số LOS (Level of Service)
     los_grade CHAR(1),            -- A, B, C, D, E, F
     los_score INT,                -- 0-100
-    
+
     -- Metadata
     data_quality_flag SMALLINT,   -- 0: good, 1: warning, 2: error
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -111,17 +111,17 @@ CREATE TABLE IF NOT EXISTS fact_incident (
     date_key INT NOT NULL REFERENCES dim_date(date_key),
     time_start BIGINT NOT NULL REFERENCES dim_time(time_key),
     time_end BIGINT REFERENCES dim_time(time_key),
-    
+
     -- Thông tin sự cố
     incident_type VARCHAR(50),    -- 'accident', 'congestion', 'roadwork', 'weather'
     severity SMALLINT,            -- 1-5 (1=low, 5=critical)
     description TEXT,
     location_point GEOMETRY(POINT, 4326),
-    
+
     -- Impact
     affected_lanes SMALLINT,
     estimated_delay_minutes INT,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -135,14 +135,14 @@ CREATE TABLE IF NOT EXISTS fact_forecast (
     segment_id INT NOT NULL REFERENCES dim_segment(segment_id),
     forecast_time BIGINT NOT NULL,  -- Thời gian dự báo (format: YYYYMMDDHHmm)
     forecast_horizon INT,           -- Tầm nhìn (phút)
-    
+
     -- Dự báo
     predicted_speed DECIMAL(8, 2),
     predicted_vehicle_count INT,
     predicted_los_grade CHAR(1),
     confidence_score DECIMAL(5, 2), -- 0-100 (%)
     model_version VARCHAR(50),      -- Version của model
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -155,7 +155,7 @@ CREATE INDEX idx_fact_forecast_time ON fact_forecast(forecast_time);
 
 -- View tổng hợp tốc độ theo giờ
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_hourly_speed_summary AS
-SELECT 
+SELECT
     segment_id,
     time_key,
     COUNT(*) as measurement_count,

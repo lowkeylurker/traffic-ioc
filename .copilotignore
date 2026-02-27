@@ -1,0 +1,10 @@
+# Chặn file môi trường
+.env
+.env.local
+.env.development
+
+# Chặn toàn bộ thư mục chứa chứng chỉ bảo mật
+certs/*
+
+# Chặn các file cấu hình nhạy cảm khác
+config/database.yml

@@ -12,6 +12,7 @@ import { Logger } from './utils/logger';
 import mapRoutes from './routes/map.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import simulationRoutes from './routes/simulation.routes';
+import { clerkMiddleware } from '@clerk/express';
 
 const logger = new Logger('App');
 
@@ -20,6 +21,7 @@ export const createApp = (): Express => {
 
   // ============================================================================
   // Middleware
+  app.use(clerkMiddleware());
   // ============================================================================
 
   // Security
