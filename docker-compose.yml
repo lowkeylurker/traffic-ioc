@@ -1,6 +1,5 @@
-
 services:
-  # PostgreSQL với PostGIS extension
+  # 1. Database với PostGIS (Trái tim dữ liệu địa lý)
   postgres:
     image: postgis/postgis:15-3.3
     container_name: traffic_ioc_postgres
@@ -11,10 +10,8 @@ services:
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
-      # Mount SQL scripts để tự động chạy khi init
       - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./infrastructure/postgres/seed_data.sql:/docker-entrypoint-initdb.d/02-seed.sql
-      # Persist data
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
@@ -23,22 +20,48 @@ services:
       retries: 5
     networks:
       - traffic-network
-  ai-core:
+
+  # 2. Data-Pipeline (Tầng ETL & API tích hợp nguồn dữ liệu)
+  data-pipeline:
     build:
-      context: ./ai-core       # Đường dẫn tới thư mục chứa Dockerfile trên
+      context: ./data-pipeline
+      dockerfile: Dockerfile
+    container_name: utraffic-data-pipeline
     volumes:
-      - ./ai-core:/app         # Đồng bộ code từ máy bạn vào Docker (để sửa code là Docker nhận luôn)
+      - ./data-pipeline:/app
+    # Đổi sang cổng 8001 để không trùng với ai-core
+    ports:
+      - "8001:8000"
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
-      - ./ai-core/.env         # Sử dụng các biến môi trường
-    ports:
-      - "8000:8000"            # Mở cổng 8000 để Backend gọi sang
+      - ./data-pipeline/.env
     depends_on:
-      - postgres                     # Đảm bảo Database chạy trước AI-Core mới chạy
+      postgres:
+        condition: service_healthy # Chỉ chạy khi DB đã thực sự sẵn sàng
     networks:
-      - traffic-network        # Dùng chung mạng với các dịch vụ khác
+      - traffic-network
 
-  # Redis (optional - for caching, session management)
+  # 3. AI-Core (Tầng xử lý ML & Giả lập CityFlow)
+  ai-core:
+    build:
+      context: ./ai-core
+    container_name: utraffic-ai-core
+    volumes:
+      - ./ai-core:/app
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - ./ai-core/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - traffic-network
+
+  # 4. Redis (Bộ nhớ đệm cho Real-time traffic)
   redis:
     image: redis:7-alpine
     container_name: traffic_ioc_redis
@@ -57,9 +80,7 @@ services:
 
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
 
 networks:
   traffic-network:
