@@ -1,0 +1,548 @@
+2026-02-27 21:58:40 | INFO     | ============================================================
+2026-02-27 21:58:40 | INFO     |   SMART TRAFFIC IOC – Database Schema Initialization
+2026-02-27 21:58:40 | INFO     |   Thời gian: 2026-02-27 21:58:40
+2026-02-27 21:58:40 | INFO     |   Log file : C:\Users\Thanh Dung\Documents\MYDATA\BKU\4\2\DATN\project_folder\traffic-ioc\infrastructure\postgres\logs\run_20260227_215840.log
+2026-02-27 21:58:40 | INFO     | ============================================================
+2026-02-27 21:58:40 | INFO     | Đã load .env từ: C:\Users\Thanh Dung\Documents\MYDATA\BKU\4\2\DATN\project_folder\traffic-ioc\infrastructure\.env
+2026-02-27 21:58:40 | DEBUG    | DB config: host=localhost, port=5432, dbname=datn-traffic-ioc, user=postgres, sslmode=disable
+2026-02-27 21:58:40 | INFO     | 
+2026-02-27 21:58:40 | INFO     | Kiểm tra file SQL:
+2026-02-27 21:58:40 | INFO     |   ✓ 1_init_extensions.sql (811 bytes)
+2026-02-27 21:58:40 | INFO     |   ✓ 2_create_dims.sql (8,521 bytes)
+2026-02-27 21:58:40 | INFO     |   ✓ 3_create_facts.sql (12,632 bytes)
+2026-02-27 21:58:40 | INFO     |   ✓ 4_indexes.sql (8,339 bytes)
+2026-02-27 21:58:40 | INFO     | 
+2026-02-27 21:58:40 | INFO     | Đang kết nối tới postgres@localhost:5432/datn-traffic-ioc ...
+2026-02-27 21:58:40 | INFO     | Kết nối thành công!
+2026-02-27 21:58:40 | INFO     | PostgreSQL: PostgreSQL 17.6 on x86_64-windows, compiled by msvc-19.44.35213, 64-bit
+2026-02-27 21:58:40 | DEBUG    | Extensions hiện có: plpgsql v1.0
+2026-02-27 21:58:40 | INFO     | 
+2026-02-27 21:58:40 | INFO     | ──────────────────────────────────────────────────
+2026-02-27 21:58:40 | INFO     | BẮT ĐẦU CHẠY SQL
+2026-02-27 21:58:40 | INFO     | ──────────────────────────────────────────────────
+2026-02-27 21:58:40 | INFO     | 
+2026-02-27 21:58:40 | INFO     | [1/4] 1_init_extensions.sql
+2026-02-27 21:58:40 | DEBUG    |   File size: 795 bytes
+2026-02-27 21:58:40 | DEBUG    |   Số câu lệnh (ước tính): ~5
+2026-02-27 21:58:42 | INFO     |   ✓ Thành công (2.28s, ~5 statements, 795 bytes)
+2026-02-27 21:58:42 | INFO     | 
+2026-02-27 21:58:42 | INFO     | [2/4] 2_create_dims.sql
+2026-02-27 21:58:42 | DEBUG    |   File size: 8,348 bytes
+2026-02-27 21:58:42 | DEBUG    |   Số câu lệnh (ước tính): ~14
+2026-02-27 21:58:42 | INFO     |   ✓ Thành công (0.06s, ~14 statements, 8,348 bytes)
+2026-02-27 21:58:42 | INFO     | 
+2026-02-27 21:58:42 | INFO     | [3/4] 3_create_facts.sql
+2026-02-27 21:58:42 | DEBUG    |   File size: 12,462 bytes
+2026-02-27 21:58:42 | DEBUG    |   Số câu lệnh (ước tính): ~42
+2026-02-27 21:58:43 | INFO     |   ✓ Thành công (0.15s, ~42 statements, 12,462 bytes)
+2026-02-27 21:58:43 | INFO     | 
+2026-02-27 21:58:43 | INFO     | [4/4] 4_indexes.sql
+2026-02-27 21:58:43 | DEBUG    |   File size: 8,120 bytes
+2026-02-27 21:58:43 | DEBUG    |   Số câu lệnh (ước tính): ~47
+2026-02-27 21:58:43 | INFO     |   ✓ Thành công (0.42s, ~47 statements, 8,120 bytes)
+2026-02-27 21:58:43 | INFO     | 
+2026-02-27 21:58:43 | INFO     | ──────────────────────────────────────────────────
+2026-02-27 21:58:43 | INFO     | KIỂM TRA SCHEMA SAU KHI KHỞI TẠO
+2026-02-27 21:58:43 | INFO     | ──────────────────────────────────────────────────
+2026-02-27 21:58:43 | INFO     |   Dimension tables : 12
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_corridor
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_date
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_holiday
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_location
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_month_year
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_node
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_road
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_segment
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_shift
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_time_of_day
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_way
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_weather
+2026-02-27 21:58:43 | INFO     |   Fact tables      : 42
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_corridor_performance
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_event
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202401
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202402
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202403
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202404
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202405
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202406
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202407
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202408
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202409
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202410
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202411
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202412
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202401
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202402
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202403
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202404
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202405
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202406
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202407
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202408
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202409
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202410
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202411
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202412
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_simulation_scenario
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202401
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202402
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202403
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202404
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202405
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202406
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202407
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202408
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202409
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202410
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202411
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202412
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_risk_prediction
+2026-02-27 21:58:43 | INFO     |   Bridge tables    : 2
+2026-02-27 21:58:43 | DEBUG    |     ✓ bridge_corridor_segment
+2026-02-27 21:58:43 | DEBUG    |     ✓ bridge_date_holiday
+2026-02-27 21:58:43 | INFO     |   Partitions       : 36
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202401
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202402
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202403
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202404
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202405
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202406
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202407
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202408
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202409
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202410
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202411
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202412
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202401
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202402
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202403
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202404
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202405
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202406
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202407
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202408
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202409
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202410
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202411
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202412
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202401
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202402
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202403
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202404
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202405
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202406
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202407
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202408
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202409
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202410
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202411
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202412
+2026-02-27 21:58:43 | INFO     |   Khác             : 1
+2026-02-27 21:58:43 | DEBUG    |     ✓ spatial_ref_sys
+2026-02-27 21:58:43 | INFO     |   Tổng Indexes     : 380
+2026-02-27 21:58:43 | INFO     |     - BRIN         : 0
+2026-02-27 21:58:43 | INFO     |     - GiST         : 0
+2026-02-27 21:58:43 | INFO     |     - B-Tree       : 380
+2026-02-27 21:58:43 | DEBUG    |     ✓ bridge_corridor_segment_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ bridge_date_holiday_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_corridor_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_date_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_holiday_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_location_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_month_year_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_node_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_road_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_segment_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_shift_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_time_of_day_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_way_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ dim_weather_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_corridor_performance_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_event_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202401_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202401_geometry_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202401_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202401_is_active_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202401_location_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202401_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202401_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202401_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202401_severity_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202401_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202402_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202402_geometry_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202402_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202402_is_active_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202402_location_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202402_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202402_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202402_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202402_severity_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202402_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202403_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202403_geometry_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202403_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202403_is_active_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202403_location_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202403_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202403_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202403_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202403_severity_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202403_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202404_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202404_geometry_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202404_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202404_is_active_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202404_location_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202404_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202404_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202404_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202404_severity_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202404_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202405_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202405_geometry_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202405_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202405_is_active_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202405_location_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202405_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202405_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202405_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202405_severity_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202405_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202406_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202406_geometry_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202406_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202406_is_active_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202406_location_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202406_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202406_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202406_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202406_severity_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202406_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202407_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202407_geometry_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202407_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202407_is_active_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202407_location_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202407_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202407_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202407_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202407_severity_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202407_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202408_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202408_geometry_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202408_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202408_is_active_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202408_location_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202408_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202408_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202408_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202408_severity_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202408_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202409_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202409_geometry_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202409_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202409_is_active_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202409_location_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202409_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202409_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202409_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202409_severity_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202409_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202410_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202410_geometry_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202410_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202410_is_active_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202410_location_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202410_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202410_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202410_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202410_severity_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202410_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202411_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202411_geometry_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202411_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202411_is_active_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202411_location_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202411_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202411_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202411_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202411_severity_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202411_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202412_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202412_geometry_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202412_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202412_is_active_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202412_location_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202412_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202412_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202412_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202412_severity_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_202412_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_incident_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202401_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202401_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202401_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202401_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202401_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202401_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202402_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202402_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202402_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202402_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202402_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202402_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202403_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202403_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202403_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202403_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202403_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202403_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202404_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202404_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202404_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202404_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202404_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202404_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202405_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202405_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202405_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202405_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202405_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202405_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202406_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202406_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202406_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202406_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202406_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202406_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202407_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202407_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202407_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202407_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202407_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202407_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202408_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202408_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202408_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202408_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202408_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202408_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202409_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202409_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202409_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202409_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202409_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202409_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202410_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202410_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202410_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202410_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202410_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202410_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202411_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202411_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202411_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202411_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202411_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202411_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202412_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202412_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202412_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202412_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202412_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_risk_pred_202412_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_simulation_scenario_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202401_congestion_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202401_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202401_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202401_los_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202401_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202401_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202401_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202401_time_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202401_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202401_weather_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202402_congestion_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202402_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202402_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202402_los_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202402_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202402_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202402_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202402_time_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202402_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202402_weather_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202403_congestion_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202403_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202403_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202403_los_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202403_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202403_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202403_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202403_time_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202403_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202403_weather_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202404_congestion_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202404_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202404_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202404_los_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202404_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202404_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202404_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202404_time_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202404_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202404_weather_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202405_congestion_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202405_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202405_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202405_los_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202405_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202405_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202405_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202405_time_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202405_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202405_weather_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202406_congestion_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202406_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202406_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202406_los_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202406_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202406_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202406_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202406_time_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202406_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202406_weather_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202407_congestion_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202407_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202407_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202407_los_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202407_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202407_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202407_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202407_time_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202407_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202407_weather_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202408_congestion_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202408_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202408_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202408_los_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202408_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202408_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202408_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202408_time_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202408_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202408_weather_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202409_congestion_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202409_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202409_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202409_los_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202409_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202409_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202409_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202409_time_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202409_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202409_weather_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202410_congestion_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202410_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202410_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202410_los_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202410_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202410_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202410_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202410_time_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202410_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202410_weather_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202411_congestion_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202411_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202411_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202411_los_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202411_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202411_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202411_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202411_time_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202411_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202411_weather_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202412_congestion_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202412_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202412_inserted_at_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202412_los_level_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202412_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202412_segment_key_date_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202412_segment_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202412_time_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202412_timestamp_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_202412_weather_key_idx
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_flow_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ fact_traffic_risk_prediction_pkey
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_bridge_corridor_seg_segment
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_dim_date_month_year
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_dim_node_geom_gist
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_dim_segment_center_gist
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_dim_segment_from_node
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_dim_segment_linestring_gist
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_dim_segment_location
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_dim_segment_to_node
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_dim_segment_way
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_dim_time_shift
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_dim_way_road
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_corridor_inserted_brin
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_corridor_perf_bottleneck
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_corridor_perf_corridor
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_corridor_perf_date
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_corridor_ts_brin
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_event_date
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_event_inserted_brin
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_event_location
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_flow_bad_los
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_flow_date
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_flow_high_congestion
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_flow_segment
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_flow_segment_date
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_flow_time
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_flow_weather
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_incident_active
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_incident_date
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_incident_geom_gist
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_incident_inserted_brin
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_incident_location
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_incident_segment
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_incident_segment_date
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_incident_severe
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_incident_ts_brin
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_risk_pred_date
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_risk_pred_inserted_brin
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_risk_pred_segment
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_risk_pred_segment_date
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_risk_pred_ts_brin
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_sim_date
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_sim_inserted_brin
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_sim_scenario_id
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_sim_segment
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_sim_ts_brin
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_traffic_flow_inserted_brin
+2026-02-27 21:58:43 | DEBUG    |     ✓ idx_fact_traffic_flow_ts_brin
+2026-02-27 21:58:43 | DEBUG    |     ✓ spatial_ref_sys_pkey
+2026-02-27 21:58:43 | INFO     |   Extensions       : 5
+2026-02-27 21:58:43 | DEBUG    |     ✓ btree_gin v1.3
+2026-02-27 21:58:43 | DEBUG    |     ✓ pg_stat_statements v1.11
+2026-02-27 21:58:43 | DEBUG    |     ✓ pgrouting v3.8.0
+2026-02-27 21:58:43 | DEBUG    |     ✓ plpgsql v1.0
+2026-02-27 21:58:43 | DEBUG    |     ✓ postgis v3.5.3
+2026-02-27 21:58:43 | DEBUG    | Đã đóng kết nối database.
+2026-02-27 21:58:43 | INFO     | 
+2026-02-27 21:58:43 | INFO     | ============================================================
+2026-02-27 21:58:43 | INFO     |   KẾT QUẢ TỔNG HỢP
+2026-02-27 21:58:43 | INFO     | ============================================================
+2026-02-27 21:58:43 | INFO     |   Thành công : 4/4 file
+2026-02-27 21:58:43 | INFO     |   Tổng thời gian: 2.92s
+2026-02-27 21:58:43 | INFO     |   Chi tiết thời gian:
+2026-02-27 21:58:43 | INFO     |     1_init_extensions.sql          2.28s
+2026-02-27 21:58:43 | INFO     |     2_create_dims.sql              0.06s
+2026-02-27 21:58:43 | INFO     |     3_create_facts.sql             0.15s
+2026-02-27 21:58:43 | INFO     |     4_indexes.sql                  0.42s
+2026-02-27 21:58:43 | INFO     |   Log đầy đủ : C:\Users\Thanh Dung\Documents\MYDATA\BKU\4\2\DATN\project_folder\traffic-ioc\infrastructure\postgres\logs\run_20260227_215840.log
+2026-02-27 21:58:43 | INFO     | ============================================================
