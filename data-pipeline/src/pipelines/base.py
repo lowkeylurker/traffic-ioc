@@ -14,7 +14,7 @@ from typing import Any
 import requests
 from sqlalchemy import Engine, MetaData, Table, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 from tenacity import (
     before_sleep_log,
@@ -209,6 +209,53 @@ class BaseLoader(ABC):
             self._table = get_table(self.TABLE_NAME, self.engine)
         return self._table
 
+    # ── Partition helpers ────────────────────────────────────
+
+    def _ensure_partitions(self, records: list[dict]) -> None:
+        """Auto-create monthly partitions for all date_keys found in records.
+
+        Only applies if the table is partitioned (has 'date_key' column).
+        Idempotent: silently skips if partition already exists.
+        """
+        if not records or "date_key" not in records[0]:
+            return
+
+        # Collect unique YYYYMM from date_keys
+        months_seen: set[str] = set()
+        for r in records:
+            dk = r.get("date_key")
+            if dk:
+                months_seen.add(str(dk)[:6])  # "202603"
+
+        with Session(self.engine) as session:
+            for ym in sorted(months_seen):
+                year = int(ym[:4])
+                month = int(ym[4:6])
+                from_key = int(f"{year}{month:02d}01")
+                # Next month
+                if month == 12:
+                    to_key = int(f"{year + 1}0101")
+                else:
+                    to_key = int(f"{year}{month + 1:02d}01")
+
+                part_name = f"{self.TABLE_NAME}_{ym}"
+                create_sql = (
+                    f"CREATE TABLE IF NOT EXISTS {part_name} "
+                    f"PARTITION OF {self.TABLE_NAME} "
+                    f"FOR VALUES FROM ({from_key}) TO ({to_key})"
+                )
+                try:
+                    session.execute(text(create_sql))
+                    session.commit()
+                    self.logger.info(f"Ensured partition {part_name}")
+                except (ProgrammingError, OperationalError) as e:
+                    session.rollback()
+                    # Partition already exists or other non-fatal error
+                    if "already exists" in str(e):
+                        self.logger.debug(f"Partition {part_name} already exists")
+                    else:
+                        self.logger.warning(f"Could not create partition {part_name}: {e}")
+
     @abstractmethod
     def load(self, records: list[dict]) -> int:
         """Nạp dữ liệu bằng UPSERT.
@@ -228,10 +275,12 @@ class BaseLoader(ABC):
         """Helper UPSERT dùng pg_insert ON CONFLICT.
 
         Auto-commit khi OK, auto-rollback khi lỗi.
+        Auto-creates monthly partitions if needed.
         """
         if not records:
             return 0
 
+        self._ensure_partitions(records)
         total_upserted = 0
 
         for i in range(0, len(records), self.BATCH_SIZE):
@@ -279,10 +328,12 @@ class BaseLoader(ABC):
         """Helper cho bảng có PostGIS geometry (cần ST_GeomFromText).
 
         Dùng raw SQL text binding thay vì pg_insert.
+        Auto-creates monthly partitions if needed.
         """
         if not records:
             return 0
 
+        self._ensure_partitions(records)
         total = 0
         stmt = text(sql)
 

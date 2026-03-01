@@ -61,7 +61,7 @@ class IncidentExtractor(BaseExtractor):
                 "properties{id,iconCategory,magnitudeOfDelay,"
                 "startTime,endTime,from,to,delay,length}}}"
             ),
-            "language": "vi-VN",
+            "language": "en-US",
             "timeValidityFilter": "present",
         }
 

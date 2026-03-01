@@ -11,7 +11,10 @@ Commands:
 
 from __future__ import annotations
 
+from typing import Tuple
+
 import typer
+from sqlalchemy import Engine, text
 
 from src.core.config import settings
 from src.core.database import get_engine, health_check
@@ -111,6 +114,49 @@ def run_spatial() -> None:
     typer.echo(f"✅ run-spatial complete: {total} total records")
 
 
+# ── Segment query helpers ─────────────────────────────────
+
+_SEGMENT_QUERY = text("""
+    SELECT s.segment_key,
+           ST_Y(s.geometry_center) AS lat,
+           ST_X(s.geometry_center) AS lon
+    FROM   dim_segment s
+    JOIN   dim_way w ON s.way_key = w.way_key
+    WHERE  s.geometry_center IS NOT NULL
+      AND  w.osm_highway_type IN ('primary','secondary','tertiary','trunk')
+    ORDER  BY s.length_m DESC
+    LIMIT  :limit
+""")
+
+# Max segments per realtime cycle (TomTom free ≈ 2 500 calls/day,
+# 96 cycles@15 min → ~25 per cycle).  Increase if paid plan.
+_MAX_SEGMENTS_PER_CYCLE = 25
+
+
+def _load_segment_points(
+    engine: Engine,
+    limit: int = _MAX_SEGMENTS_PER_CYCLE,
+) -> Tuple[list, list, dict]:
+    """Return (points, segment_keys, segment_key_map) from dim_segment.
+
+    points : list[(lat, lon)]  → fed to TrafficExtractor
+    segment_keys : list[int]   → index-based lookup in TrafficTransformer
+    segment_key_map : {(lat,lon): segment_key}  → fallback coordinate lookup
+    """
+    points = []
+    seg_keys: list[int] = []
+    seg_map: dict[tuple, int] = {}
+    with engine.connect() as conn:
+        rows = conn.execute(_SEGMENT_QUERY, {"limit": limit}).fetchall()
+    for seg_key, lat, lon in rows:
+        pt = (round(lat, 6), round(lon, 6))
+        points.append(pt)
+        seg_keys.append(seg_key)
+        seg_map[pt] = seg_key
+    logger.info(f"[run-realtime] Loaded {len(points)} segment points from DB")
+    return points, seg_keys, seg_map
+
+
 @app.command("run-realtime")
 def run_realtime() -> None:
     """Phase 3: Weather → Traffic Flow → Incident (1 cycle, cron 15p).
@@ -131,11 +177,20 @@ def run_realtime() -> None:
     except PipelineError as e:
         logger.error(f"[run-realtime] weather_pipeline failed: {e}")
 
+    # Load segment coordinates from DB
+    points, segment_keys, segment_key_map = _load_segment_points(engine)
+
     # Traffic Flow
     try:
         from src.pipelines.real_time.traffic_pipeline import run as run_traffic
 
-        count = run_traffic(engine, weather_key=weather_key)
+        count = run_traffic(
+            engine,
+            weather_key=weather_key,
+            points=points,
+            segment_keys=segment_keys,
+            segment_key_map=segment_key_map,
+        )
         logger.info(f"[run-realtime] traffic_pipeline: {count} records")
         total += count
     except PipelineError as e:

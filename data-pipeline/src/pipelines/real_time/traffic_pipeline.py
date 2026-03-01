@@ -87,9 +87,32 @@ class TrafficExtractor(BaseExtractor):
 class TrafficTransformer(BaseTransformer):
     """Validate + tính toán traffic metrics."""
 
-    def __init__(self, segment_key_map: dict[tuple[float, float], int] | None = None) -> None:
+    def __init__(
+        self,
+        segment_keys: list[int] | None = None,
+        segment_key_map: dict[tuple[float, float], int] | None = None,
+    ) -> None:
         super().__init__()
+        # Index-based lookup (preferred): response[i] → segment_keys[i]
+        self._segment_keys = segment_keys or []
+        # Fallback: coordinate-based lookup
         self._segment_key_map = segment_key_map or {}
+
+    def _resolve_segment_key(self, idx: int, seg: Any) -> int:
+        """Resolve segment_key by index first, then by coordinate lookup."""
+        # 1. Index-based (most reliable)
+        if idx < len(self._segment_keys):
+            return self._segment_keys[idx]
+        # 2. Coordinate-based fallback
+        coords = seg.coordinates
+        if coords and coords.coordinate:
+            coord = coords.coordinate[0]
+            key = self._segment_key_map.get(
+                (round(coord.latitude, 6), round(coord.longitude, 6)), 0
+            )
+            if key:
+                return key
+        return 0
 
     def transform(
         self,
@@ -109,7 +132,7 @@ class TrafficTransformer(BaseTransformer):
         records = []
         now = datetime.now(tz=TZ_HCM)
 
-        for item in raw_data:
+        for idx, item in enumerate(raw_data):
             try:
                 validated = TomTomFlowResponse.model_validate(item)
             except ValidationError as e:
@@ -131,15 +154,11 @@ class TrafficTransformer(BaseTransformer):
             delay = calculate_delay_seconds(current_tt, free_flow_tt)
             quality = calculate_quality_flag(confidence)
 
-            # Coordinate → segment_key lookup
-            coords = seg.coordinates
-            if coords and coords.coordinate:
-                coord = coords.coordinate[0]
-                # Use lookup map if available, else generate from coordinates
-                seg_key_tuple = (coord.latitude, coord.longitude)
-                segment_key = self._segment_key_map.get(seg_key_tuple, 0)
-            else:
-                segment_key = 0
+            # Resolve segment_key (index-based → coord fallback)
+            segment_key = self._resolve_segment_key(idx, seg)
+            if segment_key == 0:
+                self.logger.warning(f"Skip record {idx}: cannot resolve segment_key")
+                continue
 
             date_key = derive_date_key(now)
             time_key = derive_time_key(now)
@@ -234,6 +253,7 @@ def run(engine: Engine, api_key: str = "", weather_key: int = 800, **kwargs) -> 
 
     # T
     transformer = TrafficTransformer(
+        segment_keys=kwargs.get("segment_keys"),
         segment_key_map=kwargs.get("segment_key_map"),
     )
     records = transformer.transform(raw, weather_key=weather_key)
