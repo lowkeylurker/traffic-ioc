@@ -1,0 +1,106 @@
+"""Utils layer – Pure Functions (không side-effect).
+
+Re-exports:
+    math_calc       – Traffic metrics, PCU, key generation, time derivation
+    weather_mapping – Weather severity, icon category, incident helpers
+    geo_ops         – Spatial transforms, haversine, WKT helpers
+"""
+
+from src.utils.geo_ops import (
+    BBOX_DISTRICT_1,
+    CENTER_HCM,
+    DEFAULT_LANE_COUNT,
+    DEFAULT_SPEED_LIMIT,
+    FRC_MAP,
+    calculate_design_capacity,
+    coords_to_wkt_linestring,
+    coords_to_wkt_point,
+    derive_node_type,
+    fallback_name,
+    find_nearest_segment,
+    get_frc,
+    haversine_distance,
+    linestring_centroid,
+    parse_lanes,
+    parse_maxspeed,
+)
+from src.utils.math_calc import (
+    BPR_ALPHA,
+    BPR_BETA,
+    LANE_CAPACITY,
+    LOS_THRESHOLDS,
+    PCU_BUS_TRUCK,
+    PCU_CAR,
+    PCU_MOTORCYCLE,
+    TZ_HCM,
+    calculate_congestion_level,
+    calculate_delay_seconds,
+    calculate_los_level,
+    calculate_pcu,
+    calculate_quality_flag,
+    calculate_traffic_index,
+    derive_date_key,
+    derive_month_year_key,
+    derive_time_key,
+    estimate_pcu_from_speed,
+    generate_incident_key,
+    generate_road_key,
+    generate_segment_key,
+    generate_traffic_flow_key,
+)
+from src.utils.weather_mapping import (
+    ICON_CATEGORY_MAP,
+    derive_is_active,
+    get_icon_category_type,
+    get_weather_severity,
+    normalize_magnitude,
+)
+
+__all__ = [
+    # math_calc
+    "calculate_traffic_index",
+    "calculate_los_level",
+    "calculate_congestion_level",
+    "calculate_delay_seconds",
+    "calculate_quality_flag",
+    "calculate_pcu",
+    "estimate_pcu_from_speed",
+    "generate_traffic_flow_key",
+    "generate_incident_key",
+    "generate_segment_key",
+    "generate_road_key",
+    "derive_date_key",
+    "derive_time_key",
+    "derive_month_year_key",
+    "TZ_HCM",
+    "PCU_MOTORCYCLE",
+    "PCU_CAR",
+    "PCU_BUS_TRUCK",
+    "BPR_ALPHA",
+    "BPR_BETA",
+    "LANE_CAPACITY",
+    "LOS_THRESHOLDS",
+    # weather_mapping
+    "get_weather_severity",
+    "get_icon_category_type",
+    "normalize_magnitude",
+    "derive_is_active",
+    "ICON_CATEGORY_MAP",
+    # geo_ops
+    "derive_node_type",
+    "fallback_name",
+    "parse_lanes",
+    "parse_maxspeed",
+    "get_frc",
+    "calculate_design_capacity",
+    "linestring_centroid",
+    "haversine_distance",
+    "find_nearest_segment",
+    "coords_to_wkt_point",
+    "coords_to_wkt_linestring",
+    "DEFAULT_LANE_COUNT",
+    "DEFAULT_SPEED_LIMIT",
+    "FRC_MAP",
+    "BBOX_DISTRICT_1",
+    "CENTER_HCM",
+]

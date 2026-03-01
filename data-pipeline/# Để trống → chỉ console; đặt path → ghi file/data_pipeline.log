@@ -1,0 +1,531 @@
+[2026-03-01 02:57:35] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 02:57:35] ERROR    data_pipeline.database | Database health check FAILED: (psycopg2.OperationalError) connection to server at "postgres" (172.18.0.2), port 5432 failed: FATAL:  password authentication failed for user "postgres"
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[2026-03-01 02:59:36] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 02:59:36] INFO     data_pipeline.database | Database health check: OK
+[2026-03-01 03:00:09] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 03:00:10] INFO     data_pipeline.DateTimeTransformer | Generated 48 dim_month_year rows
+[2026-03-01 03:00:10] INFO     data_pipeline.DateTimeTransformer | Generated 4 dim_shift rows
+[2026-03-01 03:00:10] INFO     data_pipeline.DateTimeTransformer | Generated 1461 dim_date rows
+[2026-03-01 03:00:10] INFO     data_pipeline.DateTimeTransformer | Generated 1440 dim_time_of_day rows
+[2026-03-01 03:00:10] INFO     data_pipeline.MonthYearLoader | Batch 1: upserted 48/48 rows
+[2026-03-01 03:00:10] INFO     data_pipeline.date_time_pipeline | Loaded 48 records → dim_month_year
+[2026-03-01 03:00:10] INFO     data_pipeline.ShiftLoader | Batch 1: upserted 4/4 rows
+[2026-03-01 03:00:10] INFO     data_pipeline.date_time_pipeline | Loaded 4 records → dim_shift
+[2026-03-01 03:00:10] INFO     data_pipeline.DateLoader | Batch 1: upserted 500/500 rows
+[2026-03-01 03:00:10] INFO     data_pipeline.DateLoader | Batch 2: upserted 500/500 rows
+[2026-03-01 03:00:10] INFO     data_pipeline.DateLoader | Batch 3: upserted 461/461 rows
+[2026-03-01 03:00:10] INFO     data_pipeline.date_time_pipeline | Loaded 1461 records → dim_date
+[2026-03-01 03:00:10] INFO     data_pipeline.TimeOfDayLoader | Batch 1: upserted 500/500 rows
+[2026-03-01 03:00:10] INFO     data_pipeline.TimeOfDayLoader | Batch 2: upserted 500/500 rows
+[2026-03-01 03:00:10] INFO     data_pipeline.TimeOfDayLoader | Batch 3: upserted 440/440 rows
+[2026-03-01 03:00:10] INFO     data_pipeline.date_time_pipeline | Loaded 1440 records → dim_time_of_day
+[2026-03-01 03:00:10] INFO     data_pipeline.main | [run-static] date_time_pipeline: 2953 records
+[2026-03-01 03:00:10] INFO     data_pipeline.HolidayTransformer | Generated 6 dim_holiday, 52 bridge_date_holiday rows
+[2026-03-01 03:00:10] INFO     data_pipeline.HolidayLoader | Batch 1: upserted 6/6 rows
+[2026-03-01 03:00:10] INFO     data_pipeline.holiday_pipeline | Loaded 6 records → dim_holiday
+[2026-03-01 03:00:10] INFO     data_pipeline.BridgeDateHolidayLoader | Batch 1: upserted 52/52 rows
+[2026-03-01 03:00:10] INFO     data_pipeline.holiday_pipeline | Loaded 52 records → bridge_date_holiday
+[2026-03-01 03:00:10] INFO     data_pipeline.main | [run-static] holiday_pipeline: 58 records
+[2026-03-01 03:00:11] INFO     data_pipeline.LocationTransformer | Generated 10 dim_location records
+[2026-03-01 03:00:11] INFO     data_pipeline.LocationLoader | Batch 1: upserted 10/10 rows
+[2026-03-01 03:00:11] INFO     data_pipeline.location_pipeline | Loaded 10 records → dim_location
+[2026-03-01 03:00:11] INFO     data_pipeline.main | [run-spatial] location_pipeline: 10 records
+[2026-03-01 03:00:12] INFO     data_pipeline.OSMExtractor | Downloading OSM network: bbox={'min_lon': 106.663, 'min_lat': 10.743, 'max_lon': 106.723, 'max_lat': 10.803}, type=drive
+[2026-03-01 03:01:33] INFO     data_pipeline.OSMExtractor | Extracted 5462 nodes, 12285 edges
+[2026-03-01 03:01:34] INFO     data_pipeline.OSMTransformer | Transformed 5462 dim_node records
+[2026-03-01 03:01:34] INFO     data_pipeline.OSMTransformer | Transformed 1712 dim_road records
+[2026-03-01 03:01:36] INFO     data_pipeline.OSMTransformer | Transformed 4761 dim_way, 12285 dim_segment records
+[2026-03-01 03:01:36] INFO     data_pipeline.NodeLoader | Batch 1: upserted 1000 rows (raw SQL)
+[2026-03-01 03:01:36] INFO     data_pipeline.NodeLoader | Batch 2: upserted 1000 rows (raw SQL)
+[2026-03-01 03:01:37] INFO     data_pipeline.NodeLoader | Batch 3: upserted 1000 rows (raw SQL)
+[2026-03-01 03:01:37] INFO     data_pipeline.NodeLoader | Batch 4: upserted 1000 rows (raw SQL)
+[2026-03-01 03:01:37] INFO     data_pipeline.NodeLoader | Batch 5: upserted 1000 rows (raw SQL)
+[2026-03-01 03:01:37] INFO     data_pipeline.NodeLoader | Batch 6: upserted 462 rows (raw SQL)
+[2026-03-01 03:01:37] INFO     data_pipeline.osm_pipeline | Loaded 5462 records → dim_node
+[2026-03-01 03:01:37] INFO     data_pipeline.RoadLoader | Batch 1: upserted 200/200 rows
+[2026-03-01 03:01:37] INFO     data_pipeline.RoadLoader | Batch 2: upserted 200/200 rows
+[2026-03-01 03:01:37] INFO     data_pipeline.RoadLoader | Batch 3: upserted 200/200 rows
+[2026-03-01 03:01:37] INFO     data_pipeline.RoadLoader | Batch 4: upserted 200/200 rows
+[2026-03-01 03:01:37] INFO     data_pipeline.RoadLoader | Batch 5: upserted 200/200 rows
+[2026-03-01 03:01:37] INFO     data_pipeline.RoadLoader | Batch 6: upserted 200/200 rows
+[2026-03-01 03:01:37] INFO     data_pipeline.RoadLoader | Batch 7: upserted 200/200 rows
+[2026-03-01 03:01:37] INFO     data_pipeline.RoadLoader | Batch 8: upserted 200/200 rows
+[2026-03-01 03:01:37] INFO     data_pipeline.RoadLoader | Batch 9: upserted 112/112 rows
+[2026-03-01 03:01:37] INFO     data_pipeline.osm_pipeline | Loaded 1712 records → dim_road
+[2026-03-01 03:01:37] INFO     data_pipeline.WayLoader | Batch 1: upserted 500/500 rows
+[2026-03-01 03:01:38] INFO     data_pipeline.WayLoader | Batch 2: upserted 500/500 rows
+[2026-03-01 03:01:38] INFO     data_pipeline.WayLoader | Batch 3: upserted 500/500 rows
+[2026-03-01 03:01:38] INFO     data_pipeline.WayLoader | Batch 4: upserted 500/500 rows
+[2026-03-01 03:01:38] INFO     data_pipeline.WayLoader | Batch 5: upserted 500/500 rows
+[2026-03-01 03:01:38] INFO     data_pipeline.WayLoader | Batch 6: upserted 500/500 rows
+[2026-03-01 03:01:38] INFO     data_pipeline.WayLoader | Batch 7: upserted 500/500 rows
+[2026-03-01 03:01:38] INFO     data_pipeline.WayLoader | Batch 8: upserted 500/500 rows
+[2026-03-01 03:01:38] INFO     data_pipeline.WayLoader | Batch 9: upserted 500/500 rows
+[2026-03-01 03:01:38] INFO     data_pipeline.WayLoader | Batch 10: upserted 261/261 rows
+[2026-03-01 03:01:38] INFO     data_pipeline.osm_pipeline | Loaded 4761 records → dim_way
+[2026-03-01 03:01:39] INFO     data_pipeline.SegmentLoader | Batch 1: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:39] INFO     data_pipeline.SegmentLoader | Batch 2: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:39] INFO     data_pipeline.SegmentLoader | Batch 3: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:39] INFO     data_pipeline.SegmentLoader | Batch 4: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:39] INFO     data_pipeline.SegmentLoader | Batch 5: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:40] INFO     data_pipeline.SegmentLoader | Batch 6: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:40] INFO     data_pipeline.SegmentLoader | Batch 7: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:40] INFO     data_pipeline.SegmentLoader | Batch 8: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:40] INFO     data_pipeline.SegmentLoader | Batch 9: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:40] INFO     data_pipeline.SegmentLoader | Batch 10: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:41] INFO     data_pipeline.SegmentLoader | Batch 11: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:41] INFO     data_pipeline.SegmentLoader | Batch 12: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:41] INFO     data_pipeline.SegmentLoader | Batch 13: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:41] INFO     data_pipeline.SegmentLoader | Batch 14: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:41] INFO     data_pipeline.SegmentLoader | Batch 15: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:41] INFO     data_pipeline.SegmentLoader | Batch 16: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:42] INFO     data_pipeline.SegmentLoader | Batch 17: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:42] INFO     data_pipeline.SegmentLoader | Batch 18: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:42] INFO     data_pipeline.SegmentLoader | Batch 19: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:42] INFO     data_pipeline.SegmentLoader | Batch 20: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:42] INFO     data_pipeline.SegmentLoader | Batch 21: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:43] INFO     data_pipeline.SegmentLoader | Batch 22: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:43] INFO     data_pipeline.SegmentLoader | Batch 23: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:43] INFO     data_pipeline.SegmentLoader | Batch 24: upserted 500 rows (raw SQL)
+[2026-03-01 03:01:43] INFO     data_pipeline.SegmentLoader | Batch 25: upserted 285 rows (raw SQL)
+[2026-03-01 03:01:43] INFO     data_pipeline.osm_pipeline | Loaded 12285 records → dim_segment
+[2026-03-01 03:01:43] INFO     data_pipeline.main | [run-spatial] osm_pipeline: 24220 records
+[2026-03-01 03:09:59] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 03:10:00] INFO     data_pipeline.DateTimeTransformer | Generated 48 dim_month_year rows
+[2026-03-01 03:10:00] INFO     data_pipeline.DateTimeTransformer | Generated 4 dim_shift rows
+[2026-03-01 03:10:00] INFO     data_pipeline.DateTimeTransformer | Generated 1461 dim_date rows
+[2026-03-01 03:10:00] INFO     data_pipeline.DateTimeTransformer | Generated 1440 dim_time_of_day rows
+[2026-03-01 03:10:00] INFO     data_pipeline.MonthYearLoader | Batch 1: upserted 0/48 rows
+[2026-03-01 03:10:00] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_month_year
+[2026-03-01 03:10:00] INFO     data_pipeline.ShiftLoader | Batch 1: upserted 0/4 rows
+[2026-03-01 03:10:00] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_shift
+[2026-03-01 03:10:00] INFO     data_pipeline.DateLoader | Batch 1: upserted 0/500 rows
+[2026-03-01 03:10:00] INFO     data_pipeline.DateLoader | Batch 2: upserted 0/500 rows
+[2026-03-01 03:10:00] INFO     data_pipeline.DateLoader | Batch 3: upserted 0/461 rows
+[2026-03-01 03:10:00] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_date
+[2026-03-01 03:10:00] INFO     data_pipeline.TimeOfDayLoader | Batch 1: upserted 0/500 rows
+[2026-03-01 03:10:00] INFO     data_pipeline.TimeOfDayLoader | Batch 2: upserted 0/500 rows
+[2026-03-01 03:10:00] INFO     data_pipeline.TimeOfDayLoader | Batch 3: upserted 0/440 rows
+[2026-03-01 03:10:00] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_time_of_day
+[2026-03-01 03:10:00] INFO     data_pipeline.main | [run-static] date_time_pipeline: 0 records
+[2026-03-01 03:10:00] INFO     data_pipeline.HolidayTransformer | Generated 6 dim_holiday, 52 bridge_date_holiday rows
+[2026-03-01 03:10:00] INFO     data_pipeline.HolidayLoader | Batch 1: upserted 0/6 rows
+[2026-03-01 03:10:00] INFO     data_pipeline.holiday_pipeline | Loaded 0 records → dim_holiday
+[2026-03-01 03:10:00] INFO     data_pipeline.BridgeDateHolidayLoader | Batch 1: upserted 0/52 rows
+[2026-03-01 03:10:00] INFO     data_pipeline.holiday_pipeline | Loaded 0 records → bridge_date_holiday
+[2026-03-01 03:10:00] INFO     data_pipeline.main | [run-static] holiday_pipeline: 0 records
+[2026-03-01 03:10:00] INFO     data_pipeline.LocationTransformer | Generated 10 dim_location records
+[2026-03-01 03:10:00] INFO     data_pipeline.LocationLoader | Batch 1: upserted 0/10 rows
+[2026-03-01 03:10:00] INFO     data_pipeline.location_pipeline | Loaded 0 records → dim_location
+[2026-03-01 03:10:00] INFO     data_pipeline.main | [run-spatial] location_pipeline: 0 records
+[2026-03-01 03:10:01] INFO     data_pipeline.OSMExtractor | Downloading OSM network: bbox={'min_lon': 106.663, 'min_lat': 10.743, 'max_lon': 106.723, 'max_lat': 10.803}, type=drive
+[2026-03-01 03:10:06] INFO     data_pipeline.OSMExtractor | Extracted 5462 nodes, 12285 edges
+[2026-03-01 03:10:07] INFO     data_pipeline.OSMTransformer | Transformed 5462 dim_node records
+[2026-03-01 03:10:07] INFO     data_pipeline.OSMTransformer | Transformed 1713 dim_road records
+[2026-03-01 03:10:09] INFO     data_pipeline.OSMTransformer | Transformed 4761 dim_way, 12285 dim_segment records
+[2026-03-01 03:10:10] INFO     data_pipeline.NodeLoader | Batch 1: upserted 1000 rows (raw SQL)
+[2026-03-01 03:10:10] INFO     data_pipeline.NodeLoader | Batch 2: upserted 1000 rows (raw SQL)
+[2026-03-01 03:10:10] INFO     data_pipeline.NodeLoader | Batch 3: upserted 1000 rows (raw SQL)
+[2026-03-01 03:10:11] INFO     data_pipeline.NodeLoader | Batch 4: upserted 1000 rows (raw SQL)
+[2026-03-01 03:10:11] INFO     data_pipeline.NodeLoader | Batch 5: upserted 1000 rows (raw SQL)
+[2026-03-01 03:10:11] INFO     data_pipeline.NodeLoader | Batch 6: upserted 462 rows (raw SQL)
+[2026-03-01 03:10:11] INFO     data_pipeline.osm_pipeline | Loaded 5462 records → dim_node
+[2026-03-01 03:10:11] INFO     data_pipeline.RoadLoader | Batch 1: upserted 200/200 rows
+[2026-03-01 03:10:11] INFO     data_pipeline.RoadLoader | Batch 2: upserted 200/200 rows
+[2026-03-01 03:10:11] INFO     data_pipeline.RoadLoader | Batch 3: upserted 200/200 rows
+[2026-03-01 03:10:11] INFO     data_pipeline.RoadLoader | Batch 4: upserted 200/200 rows
+[2026-03-01 03:10:11] INFO     data_pipeline.RoadLoader | Batch 5: upserted 200/200 rows
+[2026-03-01 03:10:11] INFO     data_pipeline.RoadLoader | Batch 6: upserted 200/200 rows
+[2026-03-01 03:10:11] INFO     data_pipeline.RoadLoader | Batch 7: upserted 200/200 rows
+[2026-03-01 03:10:11] INFO     data_pipeline.RoadLoader | Batch 8: upserted 200/200 rows
+[2026-03-01 03:10:11] INFO     data_pipeline.RoadLoader | Batch 9: upserted 113/113 rows
+[2026-03-01 03:10:11] INFO     data_pipeline.osm_pipeline | Loaded 1713 records → dim_road
+[2026-03-01 03:10:12] INFO     data_pipeline.WayLoader | Batch 1: upserted 500/500 rows
+[2026-03-01 03:10:12] INFO     data_pipeline.WayLoader | Batch 2: upserted 500/500 rows
+[2026-03-01 03:10:12] INFO     data_pipeline.WayLoader | Batch 3: upserted 500/500 rows
+[2026-03-01 03:10:12] INFO     data_pipeline.WayLoader | Batch 4: upserted 500/500 rows
+[2026-03-01 03:10:12] INFO     data_pipeline.WayLoader | Batch 5: upserted 500/500 rows
+[2026-03-01 03:10:12] INFO     data_pipeline.WayLoader | Batch 6: upserted 500/500 rows
+[2026-03-01 03:10:12] INFO     data_pipeline.WayLoader | Batch 7: upserted 500/500 rows
+[2026-03-01 03:10:13] INFO     data_pipeline.WayLoader | Batch 8: upserted 500/500 rows
+[2026-03-01 03:10:13] INFO     data_pipeline.WayLoader | Batch 9: upserted 500/500 rows
+[2026-03-01 03:10:13] INFO     data_pipeline.WayLoader | Batch 10: upserted 261/261 rows
+[2026-03-01 03:10:13] INFO     data_pipeline.osm_pipeline | Loaded 4761 records → dim_way
+[2026-03-01 03:10:13] INFO     data_pipeline.SegmentLoader | Batch 1: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:13] INFO     data_pipeline.SegmentLoader | Batch 2: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:13] INFO     data_pipeline.SegmentLoader | Batch 3: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:14] INFO     data_pipeline.SegmentLoader | Batch 4: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:14] INFO     data_pipeline.SegmentLoader | Batch 5: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:14] INFO     data_pipeline.SegmentLoader | Batch 6: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:14] INFO     data_pipeline.SegmentLoader | Batch 7: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:14] INFO     data_pipeline.SegmentLoader | Batch 8: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:15] INFO     data_pipeline.SegmentLoader | Batch 9: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:15] INFO     data_pipeline.SegmentLoader | Batch 10: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:15] INFO     data_pipeline.SegmentLoader | Batch 11: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:15] INFO     data_pipeline.SegmentLoader | Batch 12: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:15] INFO     data_pipeline.SegmentLoader | Batch 13: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:16] INFO     data_pipeline.SegmentLoader | Batch 14: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:16] INFO     data_pipeline.SegmentLoader | Batch 15: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:16] INFO     data_pipeline.SegmentLoader | Batch 16: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:16] INFO     data_pipeline.SegmentLoader | Batch 17: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:16] INFO     data_pipeline.SegmentLoader | Batch 18: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:17] INFO     data_pipeline.SegmentLoader | Batch 19: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:17] INFO     data_pipeline.SegmentLoader | Batch 20: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:17] INFO     data_pipeline.SegmentLoader | Batch 21: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:17] INFO     data_pipeline.SegmentLoader | Batch 22: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:17] INFO     data_pipeline.SegmentLoader | Batch 23: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:17] INFO     data_pipeline.SegmentLoader | Batch 24: upserted 500 rows (raw SQL)
+[2026-03-01 03:10:18] INFO     data_pipeline.SegmentLoader | Batch 25: upserted 285 rows (raw SQL)
+[2026-03-01 03:10:18] INFO     data_pipeline.osm_pipeline | Loaded 12285 records → dim_segment
+[2026-03-01 03:10:18] INFO     data_pipeline.main | [run-spatial] osm_pipeline: 24221 records
+[2026-03-01 03:12:11] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 03:12:11] INFO     data_pipeline.database | Database health check: OK
+[2026-03-01 03:18:24] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 03:18:24] ERROR    data_pipeline.database | Database health check FAILED: (psycopg2.OperationalError) connection to server at "postgres" (172.18.0.2), port 5433 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[2026-03-01 03:19:20] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 03:19:20] ERROR    data_pipeline.database | Database health check FAILED: (psycopg2.OperationalError) connection to server at "postgres" (172.18.0.2), port 5433 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[2026-03-01 03:19:31] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 03:19:31] ERROR    data_pipeline.database | Database health check FAILED: (psycopg2.OperationalError) connection to server at "postgres" (172.18.0.2), port 5433 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[2026-03-01 03:19:43] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 03:19:43] INFO     data_pipeline.database | Database health check: OK
+[2026-03-01 07:34:27] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 07:34:27] INFO     data_pipeline.database | Database health check: OK
+[2026-03-01 07:34:51] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 07:34:51] INFO     data_pipeline.DateTimeTransformer | Generated 48 dim_month_year rows
+[2026-03-01 07:34:51] INFO     data_pipeline.DateTimeTransformer | Generated 4 dim_shift rows
+[2026-03-01 07:34:51] INFO     data_pipeline.DateTimeTransformer | Generated 1461 dim_date rows
+[2026-03-01 07:34:51] INFO     data_pipeline.DateTimeTransformer | Generated 1440 dim_time_of_day rows
+[2026-03-01 07:34:51] INFO     data_pipeline.MonthYearLoader | Batch 1: upserted 0/48 rows
+[2026-03-01 07:34:51] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_month_year
+[2026-03-01 07:34:51] INFO     data_pipeline.ShiftLoader | Batch 1: upserted 0/4 rows
+[2026-03-01 07:34:51] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_shift
+[2026-03-01 07:34:51] INFO     data_pipeline.DateLoader | Batch 1: upserted 0/500 rows
+[2026-03-01 07:34:51] INFO     data_pipeline.DateLoader | Batch 2: upserted 0/500 rows
+[2026-03-01 07:34:51] INFO     data_pipeline.DateLoader | Batch 3: upserted 0/461 rows
+[2026-03-01 07:34:51] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_date
+[2026-03-01 07:34:52] INFO     data_pipeline.TimeOfDayLoader | Batch 1: upserted 0/500 rows
+[2026-03-01 07:34:52] INFO     data_pipeline.TimeOfDayLoader | Batch 2: upserted 0/500 rows
+[2026-03-01 07:34:52] INFO     data_pipeline.TimeOfDayLoader | Batch 3: upserted 0/440 rows
+[2026-03-01 07:34:52] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_time_of_day
+[2026-03-01 07:34:52] INFO     data_pipeline.main | [run-static] date_time_pipeline: 0 records
+[2026-03-01 07:34:52] INFO     data_pipeline.HolidayTransformer | Generated 6 dim_holiday, 52 bridge_date_holiday rows
+[2026-03-01 07:34:52] INFO     data_pipeline.HolidayLoader | Batch 1: upserted 0/6 rows
+[2026-03-01 07:34:52] INFO     data_pipeline.holiday_pipeline | Loaded 0 records → dim_holiday
+[2026-03-01 07:34:52] INFO     data_pipeline.BridgeDateHolidayLoader | Batch 1: upserted 0/52 rows
+[2026-03-01 07:34:52] INFO     data_pipeline.holiday_pipeline | Loaded 0 records → bridge_date_holiday
+[2026-03-01 07:34:52] INFO     data_pipeline.main | [run-static] holiday_pipeline: 0 records
+[2026-03-01 07:34:52] INFO     data_pipeline.LocationTransformer | Generated 10 dim_location records
+[2026-03-01 07:34:52] INFO     data_pipeline.LocationLoader | Batch 1: upserted 0/10 rows
+[2026-03-01 07:34:52] INFO     data_pipeline.location_pipeline | Loaded 0 records → dim_location
+[2026-03-01 07:34:52] INFO     data_pipeline.main | [run-spatial] location_pipeline: 0 records
+[2026-03-01 07:34:53] INFO     data_pipeline.OSMExtractor | Downloading OSM network: bbox={'min_lon': 106.663, 'min_lat': 10.743, 'max_lon': 106.723, 'max_lat': 10.803}, type=drive
+[2026-03-01 07:34:59] INFO     data_pipeline.OSMExtractor | Extracted 5462 nodes, 12285 edges
+[2026-03-01 07:35:00] INFO     data_pipeline.OSMTransformer | Transformed 5462 dim_node records
+[2026-03-01 07:35:00] INFO     data_pipeline.OSMTransformer | Transformed 1715 dim_road records
+[2026-03-01 07:35:02] INFO     data_pipeline.OSMTransformer | Transformed 4761 dim_way, 12285 dim_segment records
+[2026-03-01 07:35:03] INFO     data_pipeline.NodeLoader | Batch 1: upserted 1000 rows (raw SQL)
+[2026-03-01 07:35:03] INFO     data_pipeline.NodeLoader | Batch 2: upserted 1000 rows (raw SQL)
+[2026-03-01 07:35:03] INFO     data_pipeline.NodeLoader | Batch 3: upserted 1000 rows (raw SQL)
+[2026-03-01 07:35:04] INFO     data_pipeline.NodeLoader | Batch 4: upserted 1000 rows (raw SQL)
+[2026-03-01 07:35:04] INFO     data_pipeline.NodeLoader | Batch 5: upserted 1000 rows (raw SQL)
+[2026-03-01 07:35:04] INFO     data_pipeline.NodeLoader | Batch 6: upserted 462 rows (raw SQL)
+[2026-03-01 07:35:04] INFO     data_pipeline.osm_pipeline | Loaded 5462 records → dim_node
+[2026-03-01 07:35:04] INFO     data_pipeline.RoadLoader | Batch 1: upserted 200/200 rows
+[2026-03-01 07:35:04] INFO     data_pipeline.RoadLoader | Batch 2: upserted 200/200 rows
+[2026-03-01 07:35:04] INFO     data_pipeline.RoadLoader | Batch 3: upserted 200/200 rows
+[2026-03-01 07:35:04] INFO     data_pipeline.RoadLoader | Batch 4: upserted 200/200 rows
+[2026-03-01 07:35:04] INFO     data_pipeline.RoadLoader | Batch 5: upserted 200/200 rows
+[2026-03-01 07:35:04] INFO     data_pipeline.RoadLoader | Batch 6: upserted 200/200 rows
+[2026-03-01 07:35:04] INFO     data_pipeline.RoadLoader | Batch 7: upserted 200/200 rows
+[2026-03-01 07:35:04] INFO     data_pipeline.RoadLoader | Batch 8: upserted 200/200 rows
+[2026-03-01 07:35:04] INFO     data_pipeline.RoadLoader | Batch 9: upserted 115/115 rows
+[2026-03-01 07:35:04] INFO     data_pipeline.osm_pipeline | Loaded 1715 records → dim_road
+[2026-03-01 07:35:04] INFO     data_pipeline.WayLoader | Batch 1: upserted 500/500 rows
+[2026-03-01 07:35:05] INFO     data_pipeline.WayLoader | Batch 2: upserted 500/500 rows
+[2026-03-01 07:35:05] INFO     data_pipeline.WayLoader | Batch 3: upserted 500/500 rows
+[2026-03-01 07:35:05] INFO     data_pipeline.WayLoader | Batch 4: upserted 500/500 rows
+[2026-03-01 07:35:05] INFO     data_pipeline.WayLoader | Batch 5: upserted 500/500 rows
+[2026-03-01 07:35:05] INFO     data_pipeline.WayLoader | Batch 6: upserted 500/500 rows
+[2026-03-01 07:35:05] INFO     data_pipeline.WayLoader | Batch 7: upserted 500/500 rows
+[2026-03-01 07:35:05] INFO     data_pipeline.WayLoader | Batch 8: upserted 500/500 rows
+[2026-03-01 07:35:05] INFO     data_pipeline.WayLoader | Batch 9: upserted 500/500 rows
+[2026-03-01 07:35:05] INFO     data_pipeline.WayLoader | Batch 10: upserted 261/261 rows
+[2026-03-01 07:35:05] INFO     data_pipeline.osm_pipeline | Loaded 4761 records → dim_way
+[2026-03-01 07:35:06] INFO     data_pipeline.SegmentLoader | Batch 1: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:06] INFO     data_pipeline.SegmentLoader | Batch 2: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:06] INFO     data_pipeline.SegmentLoader | Batch 3: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:07] INFO     data_pipeline.SegmentLoader | Batch 4: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:07] INFO     data_pipeline.SegmentLoader | Batch 5: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:07] INFO     data_pipeline.SegmentLoader | Batch 6: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:07] INFO     data_pipeline.SegmentLoader | Batch 7: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:07] INFO     data_pipeline.SegmentLoader | Batch 8: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:08] INFO     data_pipeline.SegmentLoader | Batch 9: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:08] INFO     data_pipeline.SegmentLoader | Batch 10: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:08] INFO     data_pipeline.SegmentLoader | Batch 11: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:08] INFO     data_pipeline.SegmentLoader | Batch 12: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:08] INFO     data_pipeline.SegmentLoader | Batch 13: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:09] INFO     data_pipeline.SegmentLoader | Batch 14: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:09] INFO     data_pipeline.SegmentLoader | Batch 15: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:09] INFO     data_pipeline.SegmentLoader | Batch 16: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:09] INFO     data_pipeline.SegmentLoader | Batch 17: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:09] INFO     data_pipeline.SegmentLoader | Batch 18: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:10] INFO     data_pipeline.SegmentLoader | Batch 19: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:10] INFO     data_pipeline.SegmentLoader | Batch 20: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:10] INFO     data_pipeline.SegmentLoader | Batch 21: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:10] INFO     data_pipeline.SegmentLoader | Batch 22: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:10] INFO     data_pipeline.SegmentLoader | Batch 23: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:10] INFO     data_pipeline.SegmentLoader | Batch 24: upserted 500 rows (raw SQL)
+[2026-03-01 07:35:11] INFO     data_pipeline.SegmentLoader | Batch 25: upserted 285 rows (raw SQL)
+[2026-03-01 07:35:11] INFO     data_pipeline.osm_pipeline | Loaded 12285 records → dim_segment
+[2026-03-01 07:35:11] INFO     data_pipeline.main | [run-spatial] osm_pipeline: 24223 records
+[2026-03-01 07:38:11] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 07:38:11] INFO     data_pipeline.DateTimeTransformer | Generated 48 dim_month_year rows
+[2026-03-01 07:38:11] INFO     data_pipeline.DateTimeTransformer | Generated 4 dim_shift rows
+[2026-03-01 07:38:11] INFO     data_pipeline.DateTimeTransformer | Generated 1461 dim_date rows
+[2026-03-01 07:38:11] INFO     data_pipeline.DateTimeTransformer | Generated 1440 dim_time_of_day rows
+[2026-03-01 07:38:11] INFO     data_pipeline.MonthYearLoader | Batch 1: upserted 0/48 rows
+[2026-03-01 07:38:11] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_month_year
+[2026-03-01 07:38:11] INFO     data_pipeline.ShiftLoader | Batch 1: upserted 0/4 rows
+[2026-03-01 07:38:11] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_shift
+[2026-03-01 07:38:11] INFO     data_pipeline.DateLoader | Batch 1: upserted 0/500 rows
+[2026-03-01 07:38:11] INFO     data_pipeline.DateLoader | Batch 2: upserted 0/500 rows
+[2026-03-01 07:38:11] INFO     data_pipeline.DateLoader | Batch 3: upserted 0/461 rows
+[2026-03-01 07:38:11] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_date
+[2026-03-01 07:38:12] INFO     data_pipeline.TimeOfDayLoader | Batch 1: upserted 0/500 rows
+[2026-03-01 07:38:12] INFO     data_pipeline.TimeOfDayLoader | Batch 2: upserted 0/500 rows
+[2026-03-01 07:38:12] INFO     data_pipeline.TimeOfDayLoader | Batch 3: upserted 0/440 rows
+[2026-03-01 07:38:12] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_time_of_day
+[2026-03-01 07:38:12] INFO     data_pipeline.main | [run-static] date_time_pipeline: 0 records
+[2026-03-01 07:38:12] INFO     data_pipeline.HolidayTransformer | Generated 6 dim_holiday, 52 bridge_date_holiday rows
+[2026-03-01 07:38:12] INFO     data_pipeline.HolidayLoader | Batch 1: upserted 0/6 rows
+[2026-03-01 07:38:12] INFO     data_pipeline.holiday_pipeline | Loaded 0 records → dim_holiday
+[2026-03-01 07:38:12] INFO     data_pipeline.BridgeDateHolidayLoader | Batch 1: upserted 0/52 rows
+[2026-03-01 07:38:12] INFO     data_pipeline.holiday_pipeline | Loaded 0 records → bridge_date_holiday
+[2026-03-01 07:38:12] INFO     data_pipeline.main | [run-static] holiday_pipeline: 0 records
+[2026-03-01 07:38:12] INFO     data_pipeline.LocationTransformer | Generated 10 dim_location records
+[2026-03-01 07:38:12] INFO     data_pipeline.LocationLoader | Batch 1: upserted 0/10 rows
+[2026-03-01 07:38:12] INFO     data_pipeline.location_pipeline | Loaded 0 records → dim_location
+[2026-03-01 07:38:12] INFO     data_pipeline.main | [run-spatial] location_pipeline: 0 records
+[2026-03-01 07:38:13] INFO     data_pipeline.OSMExtractor | Downloading OSM network: bbox={'min_lon': 106.663, 'min_lat': 10.743, 'max_lon': 106.723, 'max_lat': 10.803}, type=drive
+[2026-03-01 07:38:19] INFO     data_pipeline.OSMExtractor | Extracted 5462 nodes, 12285 edges
+[2026-03-01 07:38:19] INFO     data_pipeline.OSMTransformer | Transformed 5462 dim_node records
+[2026-03-01 07:38:20] INFO     data_pipeline.OSMTransformer | Transformed 1707 dim_road records
+[2026-03-01 07:38:23] INFO     data_pipeline.OSMTransformer | Transformed 4761 dim_way, 12285 dim_segment records
+[2026-03-01 07:38:23] INFO     data_pipeline.NodeLoader | Batch 1: upserted 1000 rows (raw SQL)
+[2026-03-01 07:38:23] INFO     data_pipeline.NodeLoader | Batch 2: upserted 1000 rows (raw SQL)
+[2026-03-01 07:38:24] INFO     data_pipeline.NodeLoader | Batch 3: upserted 1000 rows (raw SQL)
+[2026-03-01 07:38:24] INFO     data_pipeline.NodeLoader | Batch 4: upserted 1000 rows (raw SQL)
+[2026-03-01 07:38:24] INFO     data_pipeline.NodeLoader | Batch 5: upserted 1000 rows (raw SQL)
+[2026-03-01 07:38:25] INFO     data_pipeline.NodeLoader | Batch 6: upserted 462 rows (raw SQL)
+[2026-03-01 07:38:25] INFO     data_pipeline.osm_pipeline | Loaded 5462 records → dim_node
+[2026-03-01 07:38:25] INFO     data_pipeline.RoadLoader | Batch 1: upserted 200/200 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.RoadLoader | Batch 2: upserted 200/200 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.RoadLoader | Batch 3: upserted 200/200 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.RoadLoader | Batch 4: upserted 200/200 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.RoadLoader | Batch 5: upserted 200/200 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.RoadLoader | Batch 6: upserted 200/200 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.RoadLoader | Batch 7: upserted 200/200 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.RoadLoader | Batch 8: upserted 200/200 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.RoadLoader | Batch 9: upserted 107/107 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.osm_pipeline | Loaded 1707 records → dim_road
+[2026-03-01 07:38:25] INFO     data_pipeline.WayLoader | Batch 1: upserted 500/500 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.WayLoader | Batch 2: upserted 500/500 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.WayLoader | Batch 3: upserted 500/500 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.WayLoader | Batch 4: upserted 500/500 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.WayLoader | Batch 5: upserted 500/500 rows
+[2026-03-01 07:38:25] INFO     data_pipeline.WayLoader | Batch 6: upserted 500/500 rows
+[2026-03-01 07:38:26] INFO     data_pipeline.WayLoader | Batch 7: upserted 500/500 rows
+[2026-03-01 07:38:26] INFO     data_pipeline.WayLoader | Batch 8: upserted 500/500 rows
+[2026-03-01 07:38:26] INFO     data_pipeline.WayLoader | Batch 9: upserted 500/500 rows
+[2026-03-01 07:38:26] INFO     data_pipeline.WayLoader | Batch 10: upserted 261/261 rows
+[2026-03-01 07:38:26] INFO     data_pipeline.osm_pipeline | Loaded 4761 records → dim_way
+[2026-03-01 07:38:26] INFO     data_pipeline.SegmentLoader | Batch 1: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:26] INFO     data_pipeline.SegmentLoader | Batch 2: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:27] INFO     data_pipeline.SegmentLoader | Batch 3: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:27] INFO     data_pipeline.SegmentLoader | Batch 4: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:27] INFO     data_pipeline.SegmentLoader | Batch 5: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:28] INFO     data_pipeline.SegmentLoader | Batch 6: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:28] INFO     data_pipeline.SegmentLoader | Batch 7: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:28] INFO     data_pipeline.SegmentLoader | Batch 8: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:28] INFO     data_pipeline.SegmentLoader | Batch 9: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:29] INFO     data_pipeline.SegmentLoader | Batch 10: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:29] INFO     data_pipeline.SegmentLoader | Batch 11: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:29] INFO     data_pipeline.SegmentLoader | Batch 12: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:30] INFO     data_pipeline.SegmentLoader | Batch 13: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:30] INFO     data_pipeline.SegmentLoader | Batch 14: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:30] INFO     data_pipeline.SegmentLoader | Batch 15: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:31] INFO     data_pipeline.SegmentLoader | Batch 16: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:31] INFO     data_pipeline.SegmentLoader | Batch 17: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:31] INFO     data_pipeline.SegmentLoader | Batch 18: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:32] INFO     data_pipeline.SegmentLoader | Batch 19: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:32] INFO     data_pipeline.SegmentLoader | Batch 20: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:32] INFO     data_pipeline.SegmentLoader | Batch 21: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:32] INFO     data_pipeline.SegmentLoader | Batch 22: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:33] INFO     data_pipeline.SegmentLoader | Batch 23: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:33] INFO     data_pipeline.SegmentLoader | Batch 24: upserted 500 rows (raw SQL)
+[2026-03-01 07:38:33] INFO     data_pipeline.SegmentLoader | Batch 25: upserted 285 rows (raw SQL)
+[2026-03-01 07:38:33] INFO     data_pipeline.osm_pipeline | Loaded 12285 records → dim_segment
+[2026-03-01 07:38:33] INFO     data_pipeline.main | [run-spatial] osm_pipeline: 24215 records
+[2026-03-01 07:38:33] INFO     data_pipeline.WeatherExtractor | Extracting weather for (10.7764, 106.7011)
+[2026-03-01 07:38:33] DEBUG    data_pipeline.WeatherExtractor | GET https://api.openweathermap.org/data/2.5/weather params={'lat': 10.7764, 'lon': 106.7011, 'appid': '3ffe1f60270c3ea6568764bae7c95bc3', 'units': 'metric'}
+[2026-03-01 07:38:35] INFO     data_pipeline.weather_pipeline | Extracted weather data from OpenWeatherMap
+[2026-03-01 07:38:35] INFO     data_pipeline.WeatherTransformer | Transformed weather: id=803, category=Clouds, severity=0
+[2026-03-01 07:38:35] INFO     data_pipeline.WeatherLoader | Batch 1: upserted 1/1 rows
+[2026-03-01 07:38:35] INFO     data_pipeline.weather_pipeline | Loaded 1 records → dim_weather
+[2026-03-01 07:38:35] INFO     data_pipeline.main | [run-realtime] weather_pipeline: weather_key=803
+[2026-03-01 07:38:35] INFO     data_pipeline.TrafficExtractor | Extracting traffic flow for 0 segments
+[2026-03-01 07:38:35] INFO     data_pipeline.TrafficExtractor | Extracted 0/0 responses
+[2026-03-01 07:38:35] INFO     data_pipeline.traffic_pipeline | Extracted 0 raw responses
+[2026-03-01 07:38:35] INFO     data_pipeline.TrafficTransformer | Transformed 0 fact_traffic_flow records
+[2026-03-01 07:38:35] INFO     data_pipeline.traffic_pipeline | Transformed 0 records
+[2026-03-01 07:38:35] INFO     data_pipeline.traffic_pipeline | Loaded 0 records → fact_traffic_flow
+[2026-03-01 07:38:35] INFO     data_pipeline.main | [run-realtime] traffic_pipeline: 0 records
+[2026-03-01 07:38:35] INFO     data_pipeline.IncidentExtractor | Extracting incidents for bbox: 10.743,106.663,10.803,106.723
+[2026-03-01 07:38:35] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.743,106.663,10.803,106.723', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'vi-VN', 'timeValidityFilter': 'present'}
+[2026-03-01 07:38:36] ERROR    data_pipeline.main | [run-realtime] incident_pipeline failed: HTTP 400 from https://api.tomtom.com/traffic/services/5/incidentDetails | Detail: {"detailedError":{"code":"INVALID_REQUEST","message":"Unsupported language parameter value: vi-VN"}}
+[2026-03-01 07:38:36] INFO     data_pipeline.baseline_pipeline | Queried 0 aggregated baseline rows
+[2026-03-01 07:38:36] WARNING  data_pipeline.baseline_pipeline | No historical data for baseline computation
+[2026-03-01 07:38:36] INFO     data_pipeline.main | [run-batch] baseline_pipeline: 0 records
+[2026-03-01 07:38:36] INFO     data_pipeline.corridor_pipeline | Queried 0 corridor aggregation rows for date_key=20260301
+[2026-03-01 07:38:36] WARNING  data_pipeline.corridor_pipeline | No corridor data found
+[2026-03-01 07:38:36] INFO     data_pipeline.main | [run-batch] corridor_pipeline: 0 records
+[2026-03-01 07:40:08] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 07:40:08] INFO     data_pipeline.DateTimeTransformer | Generated 48 dim_month_year rows
+[2026-03-01 07:40:08] INFO     data_pipeline.DateTimeTransformer | Generated 4 dim_shift rows
+[2026-03-01 07:40:08] INFO     data_pipeline.DateTimeTransformer | Generated 1461 dim_date rows
+[2026-03-01 07:40:08] INFO     data_pipeline.DateTimeTransformer | Generated 1440 dim_time_of_day rows
+[2026-03-01 07:40:08] INFO     data_pipeline.MonthYearLoader | Batch 1: upserted 0/48 rows
+[2026-03-01 07:40:08] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_month_year
+[2026-03-01 07:40:08] INFO     data_pipeline.ShiftLoader | Batch 1: upserted 0/4 rows
+[2026-03-01 07:40:08] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_shift
+[2026-03-01 07:40:08] INFO     data_pipeline.DateLoader | Batch 1: upserted 0/500 rows
+[2026-03-01 07:40:09] INFO     data_pipeline.DateLoader | Batch 2: upserted 0/500 rows
+[2026-03-01 07:40:09] INFO     data_pipeline.DateLoader | Batch 3: upserted 0/461 rows
+[2026-03-01 07:40:09] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_date
+[2026-03-01 07:40:09] INFO     data_pipeline.TimeOfDayLoader | Batch 1: upserted 0/500 rows
+[2026-03-01 07:40:09] INFO     data_pipeline.TimeOfDayLoader | Batch 2: upserted 0/500 rows
+[2026-03-01 07:40:09] INFO     data_pipeline.TimeOfDayLoader | Batch 3: upserted 0/440 rows
+[2026-03-01 07:40:09] INFO     data_pipeline.date_time_pipeline | Loaded 0 records → dim_time_of_day
+[2026-03-01 07:40:09] INFO     data_pipeline.main | [run-static] date_time_pipeline: 0 records
+[2026-03-01 07:40:09] INFO     data_pipeline.HolidayTransformer | Generated 6 dim_holiday, 52 bridge_date_holiday rows
+[2026-03-01 07:40:09] INFO     data_pipeline.HolidayLoader | Batch 1: upserted 0/6 rows
+[2026-03-01 07:40:09] INFO     data_pipeline.holiday_pipeline | Loaded 0 records → dim_holiday
+[2026-03-01 07:40:09] INFO     data_pipeline.BridgeDateHolidayLoader | Batch 1: upserted 0/52 rows
+[2026-03-01 07:40:09] INFO     data_pipeline.holiday_pipeline | Loaded 0 records → bridge_date_holiday
+[2026-03-01 07:40:09] INFO     data_pipeline.main | [run-static] holiday_pipeline: 0 records
+[2026-03-01 07:40:09] INFO     data_pipeline.LocationTransformer | Generated 10 dim_location records
+[2026-03-01 07:40:09] INFO     data_pipeline.LocationLoader | Batch 1: upserted 0/10 rows
+[2026-03-01 07:40:09] INFO     data_pipeline.location_pipeline | Loaded 0 records → dim_location
+[2026-03-01 07:40:09] INFO     data_pipeline.main | [run-spatial] location_pipeline: 0 records
+[2026-03-01 07:40:10] INFO     data_pipeline.OSMExtractor | Downloading OSM network: bbox={'min_lon': 106.663, 'min_lat': 10.743, 'max_lon': 106.723, 'max_lat': 10.803}, type=drive
+[2026-03-01 07:40:16] INFO     data_pipeline.OSMExtractor | Extracted 5462 nodes, 12285 edges
+[2026-03-01 07:40:17] INFO     data_pipeline.OSMTransformer | Transformed 5462 dim_node records
+[2026-03-01 07:40:18] INFO     data_pipeline.OSMTransformer | Transformed 1719 dim_road records
+[2026-03-01 07:40:19] INFO     data_pipeline.OSMTransformer | Transformed 4761 dim_way, 12285 dim_segment records
+[2026-03-01 07:40:20] INFO     data_pipeline.NodeLoader | Batch 1: upserted 1000 rows (raw SQL)
+[2026-03-01 07:40:20] INFO     data_pipeline.NodeLoader | Batch 2: upserted 1000 rows (raw SQL)
+[2026-03-01 07:40:20] INFO     data_pipeline.NodeLoader | Batch 3: upserted 1000 rows (raw SQL)
+[2026-03-01 07:40:21] INFO     data_pipeline.NodeLoader | Batch 4: upserted 1000 rows (raw SQL)
+[2026-03-01 07:40:21] INFO     data_pipeline.NodeLoader | Batch 5: upserted 1000 rows (raw SQL)
+[2026-03-01 07:40:21] INFO     data_pipeline.NodeLoader | Batch 6: upserted 462 rows (raw SQL)
+[2026-03-01 07:40:21] INFO     data_pipeline.osm_pipeline | Loaded 5462 records → dim_node
+[2026-03-01 07:40:21] INFO     data_pipeline.RoadLoader | Batch 1: upserted 200/200 rows
+[2026-03-01 07:40:21] INFO     data_pipeline.RoadLoader | Batch 2: upserted 200/200 rows
+[2026-03-01 07:40:21] INFO     data_pipeline.RoadLoader | Batch 3: upserted 200/200 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.RoadLoader | Batch 4: upserted 200/200 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.RoadLoader | Batch 5: upserted 200/200 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.RoadLoader | Batch 6: upserted 200/200 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.RoadLoader | Batch 7: upserted 200/200 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.RoadLoader | Batch 8: upserted 200/200 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.RoadLoader | Batch 9: upserted 119/119 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.osm_pipeline | Loaded 1719 records → dim_road
+[2026-03-01 07:40:22] INFO     data_pipeline.WayLoader | Batch 1: upserted 500/500 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.WayLoader | Batch 2: upserted 500/500 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.WayLoader | Batch 3: upserted 500/500 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.WayLoader | Batch 4: upserted 500/500 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.WayLoader | Batch 5: upserted 500/500 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.WayLoader | Batch 6: upserted 500/500 rows
+[2026-03-01 07:40:22] INFO     data_pipeline.WayLoader | Batch 7: upserted 500/500 rows
+[2026-03-01 07:40:23] INFO     data_pipeline.WayLoader | Batch 8: upserted 500/500 rows
+[2026-03-01 07:40:23] INFO     data_pipeline.WayLoader | Batch 9: upserted 500/500 rows
+[2026-03-01 07:40:23] INFO     data_pipeline.WayLoader | Batch 10: upserted 261/261 rows
+[2026-03-01 07:40:23] INFO     data_pipeline.osm_pipeline | Loaded 4761 records → dim_way
+[2026-03-01 07:40:23] INFO     data_pipeline.SegmentLoader | Batch 1: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:23] INFO     data_pipeline.SegmentLoader | Batch 2: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:23] INFO     data_pipeline.SegmentLoader | Batch 3: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:24] INFO     data_pipeline.SegmentLoader | Batch 4: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:24] INFO     data_pipeline.SegmentLoader | Batch 5: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:24] INFO     data_pipeline.SegmentLoader | Batch 6: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:24] INFO     data_pipeline.SegmentLoader | Batch 7: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:24] INFO     data_pipeline.SegmentLoader | Batch 8: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:25] INFO     data_pipeline.SegmentLoader | Batch 9: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:25] INFO     data_pipeline.SegmentLoader | Batch 10: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:25] INFO     data_pipeline.SegmentLoader | Batch 11: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:25] INFO     data_pipeline.SegmentLoader | Batch 12: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:26] INFO     data_pipeline.SegmentLoader | Batch 13: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:26] INFO     data_pipeline.SegmentLoader | Batch 14: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:26] INFO     data_pipeline.SegmentLoader | Batch 15: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:26] INFO     data_pipeline.SegmentLoader | Batch 16: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:26] INFO     data_pipeline.SegmentLoader | Batch 17: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:27] INFO     data_pipeline.SegmentLoader | Batch 18: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:27] INFO     data_pipeline.SegmentLoader | Batch 19: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:27] INFO     data_pipeline.SegmentLoader | Batch 20: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:27] INFO     data_pipeline.SegmentLoader | Batch 21: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:28] INFO     data_pipeline.SegmentLoader | Batch 22: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:28] INFO     data_pipeline.SegmentLoader | Batch 23: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:28] INFO     data_pipeline.SegmentLoader | Batch 24: upserted 500 rows (raw SQL)
+[2026-03-01 07:40:28] INFO     data_pipeline.SegmentLoader | Batch 25: upserted 285 rows (raw SQL)
+[2026-03-01 07:40:28] INFO     data_pipeline.osm_pipeline | Loaded 12285 records → dim_segment
+[2026-03-01 07:40:28] INFO     data_pipeline.main | [run-spatial] osm_pipeline: 24227 records
+[2026-03-01 07:40:28] INFO     data_pipeline.WeatherExtractor | Extracting weather for (10.7764, 106.7011)
+[2026-03-01 07:40:28] DEBUG    data_pipeline.WeatherExtractor | GET https://api.openweathermap.org/data/2.5/weather params={'lat': 10.7764, 'lon': 106.7011, 'appid': '3ffe1f60270c3ea6568764bae7c95bc3', 'units': 'metric'}
+[2026-03-01 07:40:28] INFO     data_pipeline.weather_pipeline | Extracted weather data from OpenWeatherMap
+[2026-03-01 07:40:28] INFO     data_pipeline.WeatherTransformer | Transformed weather: id=803, category=Clouds, severity=0
+[2026-03-01 07:40:29] INFO     data_pipeline.WeatherLoader | Batch 1: upserted 0/1 rows
+[2026-03-01 07:40:29] INFO     data_pipeline.weather_pipeline | Loaded 0 records → dim_weather
+[2026-03-01 07:40:29] INFO     data_pipeline.main | [run-realtime] weather_pipeline: weather_key=803
+[2026-03-01 07:40:29] INFO     data_pipeline.TrafficExtractor | Extracting traffic flow for 0 segments
+[2026-03-01 07:40:29] INFO     data_pipeline.TrafficExtractor | Extracted 0/0 responses
+[2026-03-01 07:40:29] INFO     data_pipeline.traffic_pipeline | Extracted 0 raw responses
+[2026-03-01 07:40:29] INFO     data_pipeline.TrafficTransformer | Transformed 0 fact_traffic_flow records
+[2026-03-01 07:40:29] INFO     data_pipeline.traffic_pipeline | Transformed 0 records
+[2026-03-01 07:40:29] INFO     data_pipeline.traffic_pipeline | Loaded 0 records → fact_traffic_flow
+[2026-03-01 07:40:29] INFO     data_pipeline.main | [run-realtime] traffic_pipeline: 0 records
+[2026-03-01 07:40:29] INFO     data_pipeline.IncidentExtractor | Extracting incidents for bbox: 10.743,106.663,10.803,106.723
+[2026-03-01 07:40:29] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.743,106.663,10.803,106.723', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'vi-VN', 'timeValidityFilter': 'present'}
+[2026-03-01 07:40:30] ERROR    data_pipeline.main | [run-realtime] incident_pipeline failed: HTTP 400 from https://api.tomtom.com/traffic/services/5/incidentDetails | Detail: {"detailedError":{"code":"INVALID_REQUEST","message":"Unsupported language parameter value: vi-VN"}}
+[2026-03-01 07:40:30] INFO     data_pipeline.baseline_pipeline | Queried 0 aggregated baseline rows
+[2026-03-01 07:40:30] WARNING  data_pipeline.baseline_pipeline | No historical data for baseline computation
+[2026-03-01 07:40:30] INFO     data_pipeline.main | [run-batch] baseline_pipeline: 0 records
+[2026-03-01 07:40:30] INFO     data_pipeline.corridor_pipeline | Queried 0 corridor aggregation rows for date_key=20260301
+[2026-03-01 07:40:30] WARNING  data_pipeline.corridor_pipeline | No corridor data found
+[2026-03-01 07:40:30] INFO     data_pipeline.main | [run-batch] corridor_pipeline: 0 records
+[2026-03-01 07:43:11] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-01 07:43:11] INFO     data_pipeline.WeatherExtractor | Extracting weather for (10.7764, 106.7011)
+[2026-03-01 07:43:11] DEBUG    data_pipeline.WeatherExtractor | GET https://api.openweathermap.org/data/2.5/weather params={'lat': 10.7764, 'lon': 106.7011, 'appid': '3ffe1f60270c3ea6568764bae7c95bc3', 'units': 'metric'}
+[2026-03-01 07:43:11] INFO     data_pipeline.weather_pipeline | Extracted weather data from OpenWeatherMap
+[2026-03-01 07:43:11] INFO     data_pipeline.WeatherTransformer | Transformed weather: id=803, category=Clouds, severity=0
+[2026-03-01 07:43:11] INFO     data_pipeline.WeatherLoader | Batch 1: upserted 0/1 rows
+[2026-03-01 07:43:11] INFO     data_pipeline.weather_pipeline | Loaded 0 records → dim_weather
+[2026-03-01 07:43:11] INFO     data_pipeline.main | [run-realtime] weather_pipeline: weather_key=803
+[2026-03-01 07:43:11] INFO     data_pipeline.TrafficExtractor | Extracting traffic flow for 0 segments
+[2026-03-01 07:43:11] INFO     data_pipeline.TrafficExtractor | Extracted 0/0 responses
+[2026-03-01 07:43:11] INFO     data_pipeline.traffic_pipeline | Extracted 0 raw responses
+[2026-03-01 07:43:11] INFO     data_pipeline.TrafficTransformer | Transformed 0 fact_traffic_flow records
+[2026-03-01 07:43:11] INFO     data_pipeline.traffic_pipeline | Transformed 0 records
+[2026-03-01 07:43:11] INFO     data_pipeline.traffic_pipeline | Loaded 0 records → fact_traffic_flow
+[2026-03-01 07:43:11] INFO     data_pipeline.main | [run-realtime] traffic_pipeline: 0 records
+[2026-03-01 07:43:12] INFO     data_pipeline.IncidentExtractor | Extracting incidents for bbox: 10.743,106.663,10.803,106.723
+[2026-03-01 07:43:12] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.743,106.663,10.803,106.723', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'vi-VN', 'timeValidityFilter': 'present'}
+[2026-03-01 07:43:12] ERROR    data_pipeline.main | [run-realtime] incident_pipeline failed: HTTP 400 from https://api.tomtom.com/traffic/services/5/incidentDetails | Detail: {"detailedError":{"code":"INVALID_REQUEST","message":"Unsupported language parameter value: vi-VN"}}

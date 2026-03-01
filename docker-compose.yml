@@ -1,17 +1,19 @@
 services:
   # 1. Database với PostGIS (Trái tim dữ liệu địa lý)
   postgres:
-    image: postgis/postgis:15-3.3
+    image: pgrouting/pgrouting:15-3.5-4.0.1
     container_name: traffic_ioc_postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-traffic_ioc_db}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT:-5433}:5432"
     volumes:
-      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
-      - ./infrastructure/postgres/seed_data.sql:/docker-entrypoint-initdb.d/02-seed.sql
+      - ./infrastructure/postgres/1_init_extensions.sql:/docker-entrypoint-initdb.d/01-extensions.sql
+      - ./infrastructure/postgres/2_create_dims.sql:/docker-entrypoint-initdb.d/02-dims.sql
+      - ./infrastructure/postgres/3_create_facts.sql:/docker-entrypoint-initdb.d/03-facts.sql
+      - ./infrastructure/postgres/4_indexes.sql:/docker-entrypoint-initdb.d/04-indexes.sql
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
@@ -32,7 +34,9 @@ services:
     # Đổi sang cổng 8001 để không trùng với ai-core
     ports:
       - "8001:8000"
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    # CLI container – giữ sống, exec ETL commands vào:
+    #   docker-compose exec data-pipeline python -m src.main run-all
+    command: ["tail", "-f", "/dev/null"]
     env_file:
       - ./data-pipeline/.env
     depends_on:
