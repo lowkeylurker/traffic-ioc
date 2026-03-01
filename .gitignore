@@ -20,5 +20,3 @@ build/
 *.mp4
 *.pkl    # Có thể commit nếu file nhỏ, nếu to >100MB thì dùng Git LFS
 *.pt     # Model YOLO (thường to, nên cân nhắc)
-
-/openspec/specs
