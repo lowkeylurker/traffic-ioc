@@ -18,9 +18,9 @@ from sqlalchemy import Engine
 from src.core.config import settings
 from src.core.exceptions import DataExtractionError, DataValidationError
 from src.core.logger import get_logger
+from src.domain.weather import get_weather_severity
 from src.pipelines.base import BaseExtractor, BaseLoader, BaseTransformer
 from src.schemas.weather_schema import WeatherResponse
-from src.utils.weather_mapping import get_weather_severity
 
 
 # ═══════════════════════════════════════════════════════════
@@ -54,6 +54,7 @@ class WeatherExtractor(BaseExtractor):
             "lon": lon,
             "appid": self.api_key,
             "units": "metric",
+            "lang": "vi",  # Trả về description bằng tiếng Việt
         }
 
         self.logger.info(f"Extracting weather for ({lat}, {lon})")
@@ -90,12 +91,16 @@ class WeatherTransformer(BaseTransformer):
         condition = validated.weather[0]
         weather_id = condition.id
 
+        # Convert Unix timestamp to datetime UTC
+        record_timestamp = datetime.fromtimestamp(validated.dt, tz=None).replace(tzinfo=None)
+
         record = {
             "weather_key": weather_id,
             "weather_id": weather_id,
+            "name": condition.description or condition.main,
             "main_category": condition.main,
             "severity_level": get_weather_severity(weather_id),
-            "record_timestamp": datetime.utcnow(),
+            "record_timestamp": record_timestamp,
         }
 
         self.logger.info(
@@ -113,7 +118,7 @@ class WeatherTransformer(BaseTransformer):
 class WeatherLoader(BaseLoader):
     TABLE_NAME = "dim_weather"
     CONFLICT_KEYS = ["weather_key"]
-    UPDATE_COLUMNS = []  # DO NOTHING
+    UPDATE_COLUMNS = ["name", "main_category", "severity_level", "record_timestamp"]
     BATCH_SIZE = 50
 
     def load(self, records: list[dict]) -> int:

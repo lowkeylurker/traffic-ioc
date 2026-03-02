@@ -37,40 +37,74 @@ _DAY_NAMES_VI = [
 ]
 
 _SHIFTS = [
+    # Ban đêm (Night): 22–5
     {
         "shift_key": 1,
-        "shift_code": "SANG",
-        "shift_name_vi": "Ca sáng",
-        "start_minute": 360,
-        "end_minute": 720,
-        "is_business_shift": True,
+        "shift_code": "NIGHT",
+        "shift_name_vi": "Ban đêm",
+        "start_hour": 22,
+        "end_hour": 5,
+        "is_peak_hour": False,
         "record_timestamp": None,
     },
+    # Sáng sớm (Early Morning): 6
     {
         "shift_key": 2,
-        "shift_code": "TRUA",
-        "shift_name_vi": "Ca trưa",
-        "start_minute": 720,
-        "end_minute": 840,
-        "is_business_shift": True,
+        "shift_code": "EARLY_MORNING",
+        "shift_name_vi": "Sáng sớm",
+        "start_hour": 6,
+        "end_hour": 6,
+        "is_peak_hour": False,
         "record_timestamp": None,
     },
+    # Cao điểm sáng (Morning Peak): 7–9
     {
         "shift_key": 3,
-        "shift_code": "CHIEU",
-        "shift_name_vi": "Ca chiều",
-        "start_minute": 840,
-        "end_minute": 1320,
-        "is_business_shift": True,
+        "shift_code": "MORNING_PEAK",
+        "shift_name_vi": "Cao điểm sáng",
+        "start_hour": 7,
+        "end_hour": 9,
+        "is_peak_hour": True,
         "record_timestamp": None,
     },
+    # Bình thường ngày (Daytime Off-peak): 10–16
     {
         "shift_key": 4,
-        "shift_code": "DEM",
-        "shift_name_vi": "Ca đêm",
-        "start_minute": 1320,
-        "end_minute": 360,
-        "is_business_shift": False,
+        "shift_code": "DAYTIME_OFFPEAK",
+        "shift_name_vi": "Bình thường ngày",
+        "start_hour": 10,
+        "end_hour": 16,
+        "is_peak_hour": False,
+        "record_timestamp": None,
+    },
+    # Cao điểm chiều (Evening Peak): 17–19
+    {
+        "shift_key": 5,
+        "shift_code": "EVENING_PEAK",
+        "shift_name_vi": "Cao điểm chiều",
+        "start_hour": 17,
+        "end_hour": 19,
+        "is_peak_hour": True,
+        "record_timestamp": None,
+    },
+    # Buổi tối (Evening): 20–21
+    {
+        "shift_key": 6,
+        "shift_code": "EVENING",
+        "shift_name_vi": "Buổi tối",
+        "start_hour": 20,
+        "end_hour": 21,
+        "is_peak_hour": False,
+        "record_timestamp": None,
+    },
+    # Không xác định (Unknown/Default)
+    {
+        "shift_key": 99,
+        "shift_code": "UNKNOWN",
+        "shift_name_vi": "Không xác định",
+        "start_hour": -1,
+        "end_hour": -1,
+        "is_peak_hour": False,
         "record_timestamp": None,
     },
 ]
@@ -173,17 +207,24 @@ class DateTimeTransformer(BaseTransformer):
             mm = minute % 60
             hhmm = hh * 100 + mm
 
-            # Determine shift
-            if 360 <= minute < 720:
-                shift_key = 1  # SANG
-            elif 720 <= minute < 840:
-                shift_key = 2  # TRUA
-            elif 840 <= minute < 1320:
-                shift_key = 3  # CHIEU
+            # Determine shift based on 7-shift model per spec
+            if (22 <= hh <= 23) or (0 <= hh <= 5):
+                shift_key = 1  # NIGHT (22–5)
+            elif hh == 6:
+                shift_key = 2  # EARLY_MORNING (6)
+            elif 7 <= hh <= 9:
+                shift_key = 3  # MORNING_PEAK (7–9)
+            elif 10 <= hh <= 16:
+                shift_key = 4  # DAYTIME_OFFPEAK (10–16)
+            elif 17 <= hh <= 19:
+                shift_key = 5  # EVENING_PEAK (17–19)
+            elif 20 <= hh <= 21:
+                shift_key = 6  # EVENING (20–21)
             else:
-                shift_key = 4  # DEM
+                shift_key = 99  # UNKNOWN (fallback)
 
-            is_biz = 7 * 60 <= minute < 19 * 60  # 07:00–19:00
+            # is_business_hours: peak hours (7–9) + (17–19)
+            is_biz = (7 <= hh <= 9) or (17 <= hh <= 19)
 
             rows.append(
                 {
@@ -218,7 +259,7 @@ class MonthYearLoader(BaseLoader):
 class ShiftLoader(BaseLoader):
     TABLE_NAME = "dim_shift"
     CONFLICT_KEYS = ["shift_key"]
-    UPDATE_COLUMNS = []
+    UPDATE_COLUMNS = ["shift_code", "shift_name_vi", "start_hour", "end_hour", "is_peak_hour", "record_timestamp"]
     BATCH_SIZE = 10
 
     def load(self, records: list[dict]) -> int:
@@ -238,7 +279,7 @@ class DateLoader(BaseLoader):
 class TimeOfDayLoader(BaseLoader):
     TABLE_NAME = "dim_time_of_day"
     CONFLICT_KEYS = ["time_key"]
-    UPDATE_COLUMNS = []
+    UPDATE_COLUMNS = ["default_shift_key", "hhmm", "bucket_5min_key", "bucket_15min_key", "bucket_60min_key", "is_business_hours"]
     BATCH_SIZE = 500
 
     def load(self, records: list[dict]) -> int:

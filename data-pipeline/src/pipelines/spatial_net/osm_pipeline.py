@@ -19,10 +19,7 @@ from sqlalchemy import Engine, text
 
 from src.core.exceptions import DataExtractionError
 from src.core.logger import get_logger
-from src.pipelines.base import BaseExtractor, BaseLoader, BaseTransformer
-from src.utils.geo_ops import (
-    BBOX_DISTRICT_1,
-    DEFAULT_LANE_COUNT,
+from src.domain.geo import (
     calculate_design_capacity,
     coords_to_wkt_linestring,
     coords_to_wkt_point,
@@ -32,7 +29,9 @@ from src.utils.geo_ops import (
     parse_lanes,
     parse_maxspeed,
 )
-from src.utils.math_calc import generate_road_key, generate_segment_key
+from src.domain.geo.constants import BBOX_HCM, DEFAULT_LANE_COUNT
+from src.domain.math.key_generator import generate_road_key, generate_segment_key
+from src.pipelines.base import BaseExtractor, BaseLoader, BaseTransformer
 
 
 # ═══════════════════════════════════════════════════════════
@@ -51,7 +50,7 @@ class OSMExtractor(BaseExtractor):
         Raises:
             DataExtractionError: Khi OSMnx thất bại.
         """
-        bbox = kwargs.get("bbox", BBOX_DISTRICT_1)
+        bbox = kwargs.get("bbox", BBOX_HCM)
         network_type = kwargs.get("network_type", "drive")
 
         self.logger.info(

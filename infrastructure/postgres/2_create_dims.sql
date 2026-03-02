@@ -40,11 +40,11 @@ CREATE TABLE dim_date (
 -- Bảng ca làm việc – phục vụ phân tích theo ca trực
 CREATE TABLE dim_shift (
     shift_key           INT         PRIMARY KEY,
-    shift_code          VARCHAR(20),                -- VD: "SANG", "CHIEU"
-    shift_name_vi       VARCHAR(50),                -- "Ca sáng", "Ca chiều"
-    start_minute        SMALLINT,                   -- Phút bắt đầu (0–1439)
-    end_minute          SMALLINT,
-    is_business_shift   BOOLEAN     DEFAULT FALSE,
+    shift_code          VARCHAR(20),                -- VD: "NIGHT", "MORNING_PEAK"
+    shift_name_vi       VARCHAR(50),                -- "Ban đêm", "Cao điểm sáng"
+    start_hour          SMALLINT,                   -- Giờ bắt đầu (0–23)
+    end_hour            SMALLINT,                   -- Giờ kết thúc (0–23)
+    is_peak_hour        BOOLEAN     DEFAULT FALSE,  -- Cao điểm giao thông hay không
     record_timestamp    TIMESTAMP   DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -83,6 +83,7 @@ CREATE TABLE bridge_date_holiday (
 CREATE TABLE dim_weather (
     weather_key         INT         PRIMARY KEY,
     weather_id          INT,                        -- ID từ API thời tiết
+    name                VARCHAR(100) COLLATE "en_US.utf8",               -- Tên cụ thể của loại thời tiết (UTF-8)
     main_category       VARCHAR(50),                -- "Rain", "Clear", "Storm"
     severity_level      SMALLINT,                   -- Mức ảnh hưởng (0–5)
     record_timestamp    TIMESTAMP   DEFAULT CURRENT_TIMESTAMP

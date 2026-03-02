@@ -13,8 +13,9 @@ from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 
 from src.core.logger import get_logger
+from src.domain.math import derive_date_key, derive_time_key
+from src.domain.math.key_generator import generate_traffic_flow_key
 from src.pipelines.base import BaseLoader, BaseTransformer
-from src.utils.math_calc import derive_date_key, derive_time_key, generate_traffic_flow_key
 
 
 # ═══════════════════════════════════════════════════════════

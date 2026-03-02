@@ -17,11 +17,13 @@ from sqlalchemy import Engine
 from src.core.config import settings
 from src.core.exceptions import DataExtractionError
 from src.core.logger import get_logger
+from src.domain.geo import coords_to_wkt_point, linestring_centroid
+from src.domain.geo.constants import BBOX_DISTRICT_1
+from src.domain.math import TZ_HCM, derive_date_key, derive_time_key
+from src.domain.math.key_generator import generate_incident_key
+from src.domain.weather import derive_is_active, get_icon_category_type, normalize_magnitude
 from src.pipelines.base import BaseExtractor, BaseLoader, BaseTransformer
 from src.schemas.tomtom_schema import TomTomIncidentResponse
-from src.utils.geo_ops import coords_to_wkt_point, linestring_centroid
-from src.utils.math_calc import TZ_HCM, derive_date_key, derive_time_key, generate_incident_key
-from src.utils.weather_mapping import derive_is_active, get_icon_category_type, normalize_magnitude
 
 
 # ═══════════════════════════════════════════════════════════
@@ -43,8 +45,6 @@ class IncidentExtractor(BaseExtractor):
         Kwargs:
             bbox: dict with min_lon, min_lat, max_lon, max_lat
         """
-        from src.utils.geo_ops import BBOX_DISTRICT_1
-
         bbox = kwargs.get("bbox", BBOX_DISTRICT_1)
 
         bbox_str = (

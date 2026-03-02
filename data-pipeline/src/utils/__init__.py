@@ -1,17 +1,16 @@
 """Utils layer – Pure Functions (không side-effect).
 
-Re-exports:
-    math_calc       – Traffic metrics, PCU, key generation, time derivation
-    weather_mapping – Weather severity, icon category, incident helpers
-    geo_ops         – Spatial transforms, haversine, WKT helpers
+Re-exports from domain layer:
+    domain.math       – Traffic metrics, PCU, key generation, time derivation
+    domain.weather    – Weather severity, icon category, incident helpers
+    domain.geo        – Spatial transforms, haversine, WKT helpers
+
+Note: This module maintains backward compatibility by re-exporting domain modules.
+      For new code, import directly from domain.* modules.
 """
 
-from src.utils.geo_ops import (
-    BBOX_DISTRICT_1,
-    CENTER_HCM,
-    DEFAULT_LANE_COUNT,
-    DEFAULT_SPEED_LIMIT,
-    FRC_MAP,
+# Geospatial operations (domain.geo)
+from src.domain.geo import (
     calculate_design_capacity,
     coords_to_wkt_linestring,
     coords_to_wkt_point,
@@ -24,15 +23,16 @@ from src.utils.geo_ops import (
     parse_lanes,
     parse_maxspeed,
 )
-from src.utils.math_calc import (
-    BPR_ALPHA,
-    BPR_BETA,
-    LANE_CAPACITY,
-    LOS_THRESHOLDS,
-    PCU_BUS_TRUCK,
-    PCU_CAR,
-    PCU_MOTORCYCLE,
-    TZ_HCM,
+from src.domain.geo.constants import (
+    BBOX_DISTRICT_1,
+    CENTER_HCM,
+    DEFAULT_LANE_COUNT,
+    DEFAULT_SPEED_LIMIT,
+    FRC_MAP,
+)
+
+# Traffic metrics (domain.math)
+from src.domain.math import (
     calculate_congestion_level,
     calculate_delay_seconds,
     calculate_los_level,
@@ -43,18 +43,33 @@ from src.utils.math_calc import (
     derive_month_year_key,
     derive_time_key,
     estimate_pcu_from_speed,
+)
+from src.domain.math.constants import (
+    BPR_ALPHA,
+    BPR_BETA,
+    LANE_CAPACITY,
+    LOS_THRESHOLDS,
+    PCU_BUS_TRUCK,
+    PCU_CAR,
+    PCU_MOTORCYCLE,
+    TZ_HCM,
+)
+from src.domain.math.key_generator import (
+    generate_corridor_key,
     generate_incident_key,
     generate_road_key,
     generate_segment_key,
     generate_traffic_flow_key,
 )
-from src.utils.weather_mapping import (
-    ICON_CATEGORY_MAP,
+
+# Weather mapping (domain.weather)
+from src.domain.weather import (
     derive_is_active,
     get_icon_category_type,
     get_weather_severity,
     normalize_magnitude,
 )
+from src.domain.weather.mapping import ICON_CATEGORY_MAP
 
 __all__ = [
     # math_calc

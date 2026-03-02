@@ -79,7 +79,7 @@ def run(engine: Engine, **kwargs) -> int:
     """
     logger = get_logger("baseline_pipeline")
 
-    from src.utils.math_calc import derive_date_key
+    from src.domain.math import derive_date_key
 
     # Default: last 30 days
     since = kwargs.get("since_date_key", derive_date_key() - 100)  # YYYYMMDD - ~1 month

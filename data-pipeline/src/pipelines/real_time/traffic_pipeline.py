@@ -16,9 +16,7 @@ from sqlalchemy import Engine
 from src.core.config import settings
 from src.core.exceptions import DataExtractionError
 from src.core.logger import get_logger
-from src.pipelines.base import BaseExtractor, BaseLoader, BaseTransformer
-from src.schemas.tomtom_schema import TomTomFlowResponse
-from src.utils.math_calc import (
+from src.domain.math import (
     TZ_HCM,
     calculate_congestion_level,
     calculate_delay_seconds,
@@ -28,8 +26,10 @@ from src.utils.math_calc import (
     derive_date_key,
     derive_time_key,
     estimate_pcu_from_speed,
-    generate_traffic_flow_key,
 )
+from src.domain.math.key_generator import generate_traffic_flow_key
+from src.pipelines.base import BaseExtractor, BaseLoader, BaseTransformer
+from src.schemas.tomtom_schema import TomTomFlowResponse
 
 
 # ═══════════════════════════════════════════════════════════

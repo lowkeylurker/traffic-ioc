@@ -1,10 +1,25 @@
 """Pure functions cho Traffic Metrics, PCU Estimation, Key Generation, Time Derivation.
 
+DEPRECATED: This module is deprecated. Use src.domain.math instead.
+  - Constants: from src.domain.math.constants import ...
+  - Key generators: from src.domain.math.key_generator import ...
+  - Functions: from src.domain.math import ...
+
+This module is maintained for backward compatibility only.
+
 RÀNG BUỘC: KHÔNG import database, config, requests. Chỉ primitive types vào/ra.
 100% type-annotated, 0 side-effects.
 """
 
 from __future__ import annotations
+
+import warnings
+
+warnings.warn(
+    "math_calc module is deprecated. Use src.domain.math instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import hashlib
 import math
@@ -214,6 +229,12 @@ def generate_segment_key(from_node: int, to_node: int, osmid: int) -> int:
 def generate_road_key(road_name: str) -> int:
     """Sinh road_key (BIGINT PK) từ tên đường."""
     hex_hash = hashlib.sha256(road_name.encode("utf-8")).hexdigest()[:15]
+    return int(hex_hash, 16)
+
+
+def generate_corridor_key(corridor_name: str) -> int:
+    """Sinh corridor_key (BIGINT PK) từ tên hành lang giao thông."""
+    hex_hash = hashlib.sha256(corridor_name.encode("utf-8")).hexdigest()[:15]
     return int(hex_hash, 16)
 
 
