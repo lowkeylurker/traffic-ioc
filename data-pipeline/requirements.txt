@@ -27,4 +27,5 @@ tenacity>=8.0
 typer>=0.9
 pyproj>=3.6
 python-dateutil>=2.8
+rich>=13.0  # Console formatting and progress tracking
 

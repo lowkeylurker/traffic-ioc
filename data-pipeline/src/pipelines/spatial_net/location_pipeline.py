@@ -1,7 +1,10 @@
 """Location Dimension Pipeline.
 
-Populate dim_location từ hardcoded danh sách Phường/Quận TP.HCM Quận 1.
-(Phase 2 có thể mở rộng reverse geocode từ segment centroids.)
+Populate dim_location from complete HCM City administrative boundaries.
+Covers all 24 districts (19 urban + 5 rural) with ~312 wards/communes.
+
+Boundaries loaded from OpenStreetMap (Overpass API) for spatial queries.
+Each location has geometry_polygon for ST_Contains operations with segment centers.
 
 Đây là danh mục tĩnh → DO NOTHING on conflict.
 """
@@ -14,24 +17,9 @@ from datetime import datetime
 from sqlalchemy import Engine
 
 from src.core.logger import get_logger
+from src.domain.geo.hcm_locations import get_all_locations, get_total_count
+from src.domain.geo.osm_boundaries import download_hcm_boundaries
 from src.pipelines.base import BaseLoader, BaseTransformer
-
-# ═══════════════════════════════════════════════════════════
-# WARD DATA (Phường Quận 1, TP.HCM)
-# ═══════════════════════════════════════════════════════════
-
-_WARDS_DISTRICT_1 = [
-    "Bến Nghé",
-    "Bến Thành",
-    "Cầu Kho",
-    "Cầu Ông Lãnh",
-    "Cô Giang",
-    "Đa Kao",
-    "Nguyễn Cư Trinh",
-    "Nguyễn Thái Bình",
-    "Phạm Ngũ Lão",
-    "Tân Định",
-]
 
 
 def _generate_location_key(ward: str, district: str) -> int:
@@ -46,22 +34,48 @@ def _generate_location_key(ward: str, district: str) -> int:
 
 
 class LocationTransformer(BaseTransformer):
-    """Sinh dim_location rows từ catalog."""
+    """Sinh dim_location rows từ catalog + OSM boundaries."""
 
     def transform(self, raw_data: None = None) -> list[dict]:
         now = datetime.utcnow()
         records = []
-        for ward in _WARDS_DISTRICT_1:
+        
+        # Get all locations from HCM catalog
+        all_locations = get_all_locations()
+        stats = get_total_count()
+        
+        self.logger.info(
+            f"Loading HCM locations: {stats['districts']} districts "
+            f"({stats['urban_districts']} urban, {stats['rural_districts']} rural), "
+            f"{stats['wards']} wards/communes"
+        )
+        
+        # Download boundary polygons from OpenStreetMap
+        self.logger.info("Downloading boundary geometries from OpenStreetMap...")
+        boundaries = download_hcm_boundaries()
+        self.logger.info(f"Downloaded {len(boundaries)} boundary polygons")
+        
+        for ward, district in all_locations:
+            location_key = _generate_location_key(ward, district)
+            
+            # Get boundary polygon (WKT format)
+            boundary_wkt = boundaries.get((ward, district))
+            if not boundary_wkt:
+                # Fallback to district boundary if ward not available
+                boundary_wkt = boundaries.get((district, district))
+            
             records.append(
                 {
-                    "location_key": _generate_location_key(ward, "Quận 1"),
+                    "location_key": location_key,
                     "ward": ward,
-                    "district": "Quận 1",
+                    "district": district,
                     "city": "Hồ Chí Minh",
+                    "geometry_polygon": boundary_wkt,  # WKT format, PostGIS will parse it
                     "record_timestamp": now,
                 }
             )
-        self.logger.info(f"Generated {len(records)} dim_location records")
+        
+        self.logger.info(f"Generated {len(records)} dim_location records with geometry")
         return records
 
 
@@ -86,7 +100,9 @@ class LocationLoader(BaseLoader):
 
 
 def run(engine: Engine, **kwargs) -> int:
-    """UPSERT dim_location (phường Quận 1).
+    """UPSERT dim_location for all HCM City wards/communes.
+    
+    Loads 24 districts (19 urban + 5 rural) with ~312 wards.
 
     Returns:
         int: Số record đã upsert.

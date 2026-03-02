@@ -99,6 +99,7 @@ CREATE TABLE dim_location (
     ward                VARCHAR(100),               -- Phường
     district            VARCHAR(100),               -- Quận
     city                VARCHAR(100)    DEFAULT 'Hồ Chí Minh',
+    geometry_polygon    GEOMETRY(Polygon, 4326),     -- Boundary polygon từ OSM
     record_timestamp    TIMESTAMP   DEFAULT CURRENT_TIMESTAMP
 );
 

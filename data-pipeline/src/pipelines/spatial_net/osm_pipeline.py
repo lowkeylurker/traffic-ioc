@@ -53,8 +53,16 @@ class OSMExtractor(BaseExtractor):
         bbox = kwargs.get("bbox", BBOX_HCM)
         network_type = kwargs.get("network_type", "drive")
 
+        # Enable OSMnx cache to avoid re-downloading
+        ox.settings.use_cache = True
+        ox.settings.log_console = True
+
         self.logger.info(
             f"Downloading OSM network: bbox={bbox}, type={network_type}"
+        )
+        self.logger.info(
+            f"Coverage area: ~{abs(bbox['max_lon']-bbox['min_lon'])*111:.1f}km × "
+            f"{abs(bbox['max_lat']-bbox['min_lat'])*111:.1f}km"
         )
 
         try:
