@@ -320,7 +320,8 @@ def run_osm_district1() -> None:
 _SEGMENT_QUERY = text("""
     SELECT s.segment_key,
            ST_Y(s.geometry_center) AS lat,
-           ST_X(s.geometry_center) AS lon
+        ST_X(s.geometry_center) AS lon,
+        COALESCE(w.default_lane_count, 2) AS lane_count
     FROM   dim_segment s
     JOIN   dim_way w ON s.way_key = w.way_key
     WHERE  s.geometry_center IS NOT NULL
@@ -337,25 +338,28 @@ _MAX_SEGMENTS_PER_CYCLE = 25
 def _load_segment_points(
     engine: Engine,
     limit: int = _MAX_SEGMENTS_PER_CYCLE,
-) -> Tuple[list, list, dict]:
-    """Return (points, segment_keys, segment_key_map) from dim_segment.
+) -> Tuple[list, list, dict, dict]:
+    """Return (points, segment_keys, segment_key_map, lane_count_map) from dim_segment.
 
     points : list[(lat, lon)]  → fed to TrafficExtractor
     segment_keys : list[int]   → index-based lookup in TrafficTransformer
     segment_key_map : {(lat,lon): segment_key}  → fallback coordinate lookup
+    lane_count_map : {segment_key: lane_count} → PCU estimation enrichment
     """
     points = []
     seg_keys: list[int] = []
     seg_map: dict[tuple, int] = {}
+    lane_count_map: dict[int, int] = {}
     with engine.connect() as conn:
         rows = conn.execute(_SEGMENT_QUERY, {"limit": limit}).fetchall()
-    for seg_key, lat, lon in rows:
+    for seg_key, lat, lon, lane_count in rows:
         pt = (round(lat, 6), round(lon, 6))
         points.append(pt)
         seg_keys.append(seg_key)
         seg_map[pt] = seg_key
+        lane_count_map[int(seg_key)] = max(1, int(lane_count or 2))
     logger.info(f"[run-realtime] Loaded {len(points)} segment points from DB")
-    return points, seg_keys, seg_map
+    return points, seg_keys, seg_map, lane_count_map
 
 
 @app.command("run-realtime")
@@ -400,7 +404,7 @@ def run_realtime() -> None:
 
         # Load segment coordinates from DB
         task2 = progress.add_task("[cyan]Loading segment points...", total=None)
-        points, segment_keys, segment_key_map = _load_segment_points(engine)
+        points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(engine)
         progress.update(task2, completed=True)
 
         # Traffic Flow
@@ -414,6 +418,7 @@ def run_realtime() -> None:
                 points=points,
                 segment_keys=segment_keys,
                 segment_key_map=segment_key_map,
+                lane_count_map=lane_count_map,
             )
             logger.info(f"[run-realtime] traffic_pipeline: {count} records")
             total += count

@@ -12,13 +12,14 @@ from typing import Any
 
 from dateutil.parser import parse as dt_parse
 from pydantic import ValidationError
-from sqlalchemy import Engine
+from sqlalchemy import Engine, text
+from sqlalchemy.orm import Session
 
 from src.core.config import settings
 from src.core.exceptions import DataExtractionError
 from src.core.logger import get_logger
 from src.domain.geo import coords_to_wkt_point, linestring_centroid
-from src.domain.geo.constants import BBOX_DISTRICT_1
+from src.domain.geo.constants import BBOX_HCM, CENTER_HCM
 from src.domain.math import TZ_HCM, derive_date_key, derive_time_key
 from src.domain.math.key_generator import generate_incident_key
 from src.domain.weather import derive_is_active, get_icon_category_type, normalize_magnitude
@@ -45,7 +46,7 @@ class IncidentExtractor(BaseExtractor):
         Kwargs:
             bbox: dict with min_lon, min_lat, max_lon, max_lat
         """
-        bbox = kwargs.get("bbox", BBOX_DISTRICT_1)
+        bbox = kwargs.get("bbox", BBOX_HCM)
 
         bbox_str = (
             f"{bbox['min_lat']},{bbox['min_lon']},"
@@ -77,6 +78,19 @@ class IncidentExtractor(BaseExtractor):
 class IncidentTransformer(BaseTransformer):
     """Validate + transform TomTom incident data."""
 
+    def __init__(
+        self,
+        *,
+        segment_location_pairs: list[tuple[int, int | None]] | None = None,
+    ) -> None:
+        super().__init__()
+        self._segment_location_pairs = segment_location_pairs or []
+
+    def _resolve_segment_location(self, idx: int) -> tuple[int, int | None]:
+        if idx >= len(self._segment_location_pairs):
+            return (0, None)
+        return self._segment_location_pairs[idx]
+
     def transform(self, raw_data: dict) -> list[dict]:
         """Transform incidents response → fact_incident records.
 
@@ -91,12 +105,12 @@ class IncidentTransformer(BaseTransformer):
 
         records = []
 
-        for feature in validated.incidents:
+        for idx, feature in enumerate(validated.incidents):
             props = feature.properties
             geom = feature.geometry
 
             # Incident key
-            incident_id = props.id if props.id else f"unknown_{len(records)}"
+            incident_id = props.id if props.id else f"unknown_{idx}"
             incident_key = generate_incident_key(incident_id)
 
             # Timestamp
@@ -117,7 +131,14 @@ class IncidentTransformer(BaseTransformer):
             if geom and geom.coordinates:
                 centroid_lon, centroid_lat = linestring_centroid(geom.coordinates)
             else:
-                centroid_lon, centroid_lat = 106.7011, 10.7764  # HCM center
+                centroid_lon, centroid_lat = CENTER_HCM["lon"], CENTER_HCM["lat"]
+
+            segment_key, location_key = self._resolve_segment_location(idx)
+            if segment_key <= 0:
+                self.logger.warning(
+                    f"Skip incident {incident_id}: cannot resolve valid segment_key"
+                )
+                continue
 
             # Incident type & severity
             icon_cat = props.icon_category if props.icon_category is not None else 0
@@ -132,8 +153,8 @@ class IncidentTransformer(BaseTransformer):
                     "incident_key": incident_key,
                     "time_key": time_key,
                     "date_key": date_key,
-                    "segment_key": 0,  # requires spatial join, set downstream
-                    "location_key": None,
+                    "segment_key": segment_key,
+                    "location_key": location_key,
                     "incident_type": incident_type,
                     "timestamp": ts.replace(tzinfo=None),
                     "severity_level": severity,
@@ -142,7 +163,7 @@ class IncidentTransformer(BaseTransformer):
                     "is_simulated": False,
                     "is_active": is_active,
                     "inserted_at": datetime.utcnow(),
-                    "quality_flag": 5,  # medium confidence default
+                    "quality_flag": 5,
                 }
             )
 
@@ -218,8 +239,47 @@ def run(engine: Engine, api_key: str = "", **kwargs) -> int:
     raw = extractor.extract(**kwargs)
     logger.info("Extracted incidents from TomTom")
 
+    segment_location_pairs: list[tuple[int, int | None]] = []
+
+    try:
+        preview = TomTomIncidentResponse.model_validate(raw)
+    except ValidationError:
+        preview = None
+
+    if preview and preview.incidents:
+        nearest_sql = text("""
+            SELECT ds.segment_key, ds.location_key
+            FROM dim_segment ds
+            WHERE ds.geometry_center IS NOT NULL
+            ORDER BY ds.geometry_center <-> ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)
+            LIMIT 1
+        """)
+
+        with Session(engine) as session:
+            for feature in preview.incidents:
+                geom = feature.geometry
+                if geom and geom.coordinates:
+                    centroid_lon, centroid_lat = linestring_centroid(geom.coordinates)
+                else:
+                    centroid_lon, centroid_lat = CENTER_HCM["lon"], CENTER_HCM["lat"]
+
+                row = session.execute(
+                    nearest_sql,
+                    {"lon": centroid_lon, "lat": centroid_lat},
+                ).first()
+
+                if row is None:
+                    segment_location_pairs.append((0, None))
+                else:
+                    segment_location_pairs.append(
+                        (
+                            int(row[0]),
+                            int(row[1]) if row[1] is not None else None,
+                        )
+                    )
+
     # T
-    transformer = IncidentTransformer()
+    transformer = IncidentTransformer(segment_location_pairs=segment_location_pairs)
     records = transformer.transform(raw)
     logger.info(f"Transformed {len(records)} records")
 

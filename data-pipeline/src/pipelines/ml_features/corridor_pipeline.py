@@ -13,7 +13,8 @@ from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 
 from src.core.logger import get_logger
-from src.domain.math import derive_date_key, derive_time_key
+from src.domain.geo.constants import BBOX_DISTRICT_1
+from src.domain.math import derive_date_key
 from src.domain.math.key_generator import generate_traffic_flow_key
 from src.pipelines.base import BaseLoader, BaseTransformer
 
@@ -102,6 +103,14 @@ class CorridorPerformanceLoader(BaseLoader):
 # ═══════════════════════════════════════════════════════════
 
 _CORRIDOR_QUERY = text("""
+    WITH q1_corridors AS (
+        SELECT DISTINCT bcs.corridor_key
+        FROM bridge_corridor_segment bcs
+        JOIN dim_segment ds ON bcs.segment_key = ds.segment_key
+        WHERE ds.geometry_center IS NOT NULL
+          AND ST_X(ds.geometry_center) BETWEEN :min_lon AND :max_lon
+          AND ST_Y(ds.geometry_center) BETWEEN :min_lat AND :max_lat
+    )
     SELECT
         bcs.corridor_key,
         f.time_key,
@@ -125,6 +134,7 @@ _CORRIDOR_QUERY = text("""
            AND i.date_key = f.date_key AND i.is_active = TRUE), 0) AS incident_count
     FROM fact_traffic_flow f
     JOIN bridge_corridor_segment bcs ON f.segment_key = bcs.segment_key
+    JOIN q1_corridors qc ON qc.corridor_key = bcs.corridor_key
     WHERE f.date_key = :target_date_key
     GROUP BY bcs.corridor_key, f.time_key, f.date_key
 """)
@@ -142,9 +152,19 @@ def run(engine: Engine, **kwargs) -> int:
     logger = get_logger("corridor_pipeline")
 
     target_dk = kwargs.get("target_date_key", derive_date_key())
+    bbox = kwargs.get("bbox", BBOX_DISTRICT_1)
 
     with Session(engine) as session:
-        result = session.execute(_CORRIDOR_QUERY, {"target_date_key": target_dk})
+        result = session.execute(
+            _CORRIDOR_QUERY,
+            {
+                "target_date_key": target_dk,
+                "min_lon": bbox["min_lon"],
+                "min_lat": bbox["min_lat"],
+                "max_lon": bbox["max_lon"],
+                "max_lat": bbox["max_lat"],
+            },
+        )
         rows = [dict(r._mapping) for r in result]
 
     logger.info(f"Queried {len(rows)} corridor aggregation rows for date_key={target_dk}")

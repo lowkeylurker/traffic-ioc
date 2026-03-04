@@ -91,12 +91,15 @@ class TrafficTransformer(BaseTransformer):
         self,
         segment_keys: list[int] | None = None,
         segment_key_map: dict[tuple[float, float], int] | None = None,
+        lane_count_map: dict[int, int] | None = None,
     ) -> None:
         super().__init__()
         # Index-based lookup (preferred): response[i] → segment_keys[i]
         self._segment_keys = segment_keys or []
         # Fallback: coordinate-based lookup
         self._segment_key_map = segment_key_map or {}
+        # Optional enrichment from dim_way.default_lane_count
+        self._lane_count_map = lane_count_map or {}
 
     def _resolve_segment_key(self, idx: int, seg: Any) -> int:
         """Resolve segment_key by index first, then by coordinate lookup."""
@@ -166,7 +169,7 @@ class TrafficTransformer(BaseTransformer):
             flow_key = generate_traffic_flow_key(segment_key, date_key, time_key)
 
             # Estimate PCU volume
-            lane_count = 2  # default, can be enriched from dim_segment
+            lane_count = max(1, int(self._lane_count_map.get(segment_key, 2)))
             pcu_volume = estimate_pcu_from_speed(
                 current_speed, free_flow_speed, lane_count
             )
@@ -255,6 +258,7 @@ def run(engine: Engine, api_key: str = "", weather_key: int = 800, **kwargs) -> 
     transformer = TrafficTransformer(
         segment_keys=kwargs.get("segment_keys"),
         segment_key_map=kwargs.get("segment_key_map"),
+        lane_count_map=kwargs.get("lane_count_map"),
     )
     records = transformer.transform(raw, weather_key=weather_key)
     logger.info(f"Transformed {len(records)} records")
