@@ -14,12 +14,57 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime
 
-from sqlalchemy import Engine
+from sqlalchemy import Engine, text
 
 from src.core.logger import get_logger
 from src.domain.geo.hcm_locations import get_all_locations, get_total_count
 from src.domain.geo.osm_boundaries import download_hcm_boundaries
 from src.pipelines.base import BaseLoader, BaseTransformer
+
+
+def _resolve_geometry_column(engine: Engine) -> str:
+    """Resolve geometry column name for dim_location across schema versions."""
+    query = text("""
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'dim_location'
+          AND udt_name = 'geometry'
+    """)
+    with engine.connect() as conn:
+        columns = {row[0] for row in conn.execute(query).fetchall()}
+
+    if "geometry_polygon" in columns:
+        return "geometry_polygon"
+    if "geometry" in columns:
+        return "geometry"
+    if columns:
+        return sorted(columns)[0]
+
+    alter_sql = text(
+        "ALTER TABLE dim_location ADD COLUMN geometry_polygon GEOMETRY(Geometry, 4326)"
+    )
+    with engine.connect() as conn:
+        conn.execute(alter_sql)
+        conn.commit()
+    return "geometry_polygon"
+
+
+def _is_location_catalog_ready(
+    engine: Engine,
+    geometry_column: str,
+    expected_count: int,
+) -> bool:
+    """Check whether dim_location already has a complete boundary catalog."""
+    query = text(f"""
+        SELECT
+            COUNT(*) AS total_count,
+            COUNT({geometry_column}) AS geometry_count
+        FROM dim_location
+    """)
+    with engine.connect() as conn:
+        total_count, geometry_count = conn.execute(query).fetchone()
+
+    return total_count >= expected_count and geometry_count >= expected_count
 
 
 def _generate_location_key(ward: str, district: str) -> int:
@@ -70,7 +115,7 @@ class LocationTransformer(BaseTransformer):
                     "ward": ward,
                     "district": district,
                     "city": "Hồ Chí Minh",
-                    "geometry_polygon": boundary_wkt,  # WKT format, PostGIS will parse it
+                    "geometry_wkt": boundary_wkt,
                     "record_timestamp": now,
                 }
             )
@@ -85,13 +130,34 @@ class LocationTransformer(BaseTransformer):
 
 
 class LocationLoader(BaseLoader):
+    """UPSERT dim_location (có PostGIS geometry → raw SQL)."""
+
     TABLE_NAME = "dim_location"
     CONFLICT_KEYS = ["location_key"]
-    UPDATE_COLUMNS = []  # DO NOTHING
+    UPDATE_COLUMNS = []  # Handled in custom SQL
     BATCH_SIZE = 100
 
+    def __init__(self, engine: Engine, geometry_column: str) -> None:
+        super().__init__(engine)
+        self.geometry_column = geometry_column
+
+    @property
+    def upsert_sql(self) -> str:
+        return f"""
+            INSERT INTO dim_location (location_key, ward, district, city, {self.geometry_column}, record_timestamp)
+            VALUES (:location_key, :ward, :district, :city,
+                    ST_GeomFromText(:geometry_wkt, 4326), :record_timestamp)
+            ON CONFLICT (location_key) DO UPDATE SET
+                {self.geometry_column} = CASE
+                    WHEN EXCLUDED.{self.geometry_column} IS NOT NULL AND dim_location.{self.geometry_column} IS NULL
+                    THEN EXCLUDED.{self.geometry_column}
+                    ELSE dim_location.{self.geometry_column}
+                END,
+                record_timestamp = EXCLUDED.record_timestamp
+        """
+
     def load(self, records: list[dict]) -> int:
-        return self._upsert_batch(records)
+        return self._upsert_raw_sql(self.upsert_sql, records)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -109,10 +175,38 @@ def run(engine: Engine, **kwargs) -> int:
     """
     logger = get_logger("location_pipeline")
 
+    force_refresh = kwargs.get("force_refresh", False)
+
+    geometry_column = _resolve_geometry_column(engine)
+    expected_count = get_total_count()["wards"]
+
+    # Check if geometry is populated
+    with engine.connect() as conn:
+        result = conn.execute(
+            text(f"SELECT COUNT(*) FROM dim_location WHERE {geometry_column} IS NOT NULL")
+        )
+        geometry_count = result.scalar()
+    
+    if not force_refresh and _is_location_catalog_ready(
+        engine,
+        geometry_column,
+        expected_count,
+    ):
+        logger.info(
+            f"dim_location already ready ({expected_count} records, {geometry_count} with geometry); skip refresh"
+        )
+        return 0
+    
+    if geometry_count < expected_count:
+        logger.warning(
+            f"dim_location has {geometry_count}/{expected_count} geometries populated. "
+            "Force refresh to download boundaries from OSM (may take hours)."
+        )
+
     transformer = LocationTransformer()
     records = transformer.transform()
 
-    loader = LocationLoader(engine)
+    loader = LocationLoader(engine, geometry_column=geometry_column)
     count = loader.load(records)
     logger.info(f"Loaded {count} records → dim_location")
     return count

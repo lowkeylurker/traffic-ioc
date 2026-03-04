@@ -11,6 +11,7 @@ Strategy: Full DELETE + INSERT for bridge table (to handle route restructuring)
 from __future__ import annotations
 
 import time
+from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
@@ -43,56 +44,123 @@ console = Console()
 
 
 class CorridorExtractor(BaseExtractor):
-    """Load corridor config from static source (JSON file or hardcoded list).
-    
-    Returns dict with 'corridors' key containing list of corridor configs.
-    """
+    """Generate city-wide corridor config from dim_road/dim_way/dim_segment."""
+
+    @staticmethod
+    def _derive_importance_level(frc: int | None) -> int:
+        if frc is None:
+            return 4
+        if frc <= 1:
+            return 1
+        if frc == 2:
+            return 2
+        if frc == 3:
+            return 3
+        if frc == 4:
+            return 4
+        return 5
+
+    @staticmethod
+    def _normalize_direction(direction: str | None) -> str:
+        value = (direction or "").strip().lower()
+        if value == "forward":
+            return "Forward"
+        if value == "backward":
+            return "Backward"
+        if value == "both":
+            return "Both"
+        return "Mixed"
 
     def extract(self, **kwargs: Any) -> dict:
-        """Extract corridor config.
-        
-        For MVP: Return hardcoded sample data.
-        In production: Load from corridors_config.json.
-        """
+        """Extract full city-wide corridor config from existing spatial dims."""
         console.print("\n[bold cyan]📥 EXTRACTION PHASE[/bold cyan]")
-        console.print("[dim]Source: Static configuration[/dim]\n")
-        
-        # Sample HCM corridors
-        corridors_data = [
-            {
-                "corridor_name": "Nam Kỳ Khởi Nghĩa Inbound",
-                "importance_level": 3,
-                "target_avg_speed": 45.0,
-                "total_length_m": 1250.5,
-                "direction": "Inbound",
-                "segments": [
-                    {"segment_id_source": 817909615, "sequence_order": 1},
-                    {"segment_id_source": 817909616, "sequence_order": 2},
-                    {"segment_id_source": 817909617, "sequence_order": 3},
-                ],
-            },
-            {
-                "corridor_name": "Lê Lợi East-West",
-                "importance_level": 2,
-                "target_avg_speed": 50.0,
-                "total_length_m": 2100.75,
-                "direction": "East-West",
-                "segments": [
-                    {"segment_id_source": 817909618, "sequence_order": 1},
-                    {"segment_id_source": 817909619, "sequence_order": 2},
-                ],
-            },
-        ]
-        
-        # Display extracted corridors in table
+        console.print("[dim]Source: Dynamic generation from dim_road/dim_way/dim_segment[/dim]\n")
+
+        engine: Engine | None = kwargs.get("engine")
+        if engine is None:
+            raise ValueError("CorridorExtractor.extract requires engine=... in kwargs")
+
+        roads_sql = text("""
+            SELECT
+                r.road_key,
+                r.name AS road_name,
+                MIN(w.tomtom_frc) AS min_frc,
+                MAX(COALESCE(w.default_speed_limit, 0)) AS max_speed_limit,
+                MIN(w.direction) AS direction_hint,
+                COUNT(ds.segment_key) AS segment_count,
+                SUM(COALESCE(ds.length_m, 0)) AS total_length_m
+            FROM dim_road r
+            JOIN dim_way w ON w.road_key = r.road_key
+            JOIN dim_segment ds ON ds.way_key = w.way_key
+            GROUP BY r.road_key, r.name
+            HAVING COUNT(ds.segment_key) > 0
+            ORDER BY COUNT(ds.segment_key) DESC, SUM(COALESCE(ds.length_m, 0)) DESC
+        """)
+
+        segments_sql = text("""
+            SELECT
+                w.road_key,
+                ds.segment_key
+            FROM dim_segment ds
+            JOIN dim_way w ON w.way_key = ds.way_key
+            ORDER BY
+                w.road_key,
+                ds.location_key,
+                ds.segment_id_source NULLS LAST,
+                ds.segment_key
+        """)
+
+        with engine.connect() as conn:
+            road_rows = conn.execute(roads_sql).fetchall()
+            segment_rows = conn.execute(segments_sql).fetchall()
+
+        segments_by_road: dict[int, list[int]] = defaultdict(list)
+        for row in segment_rows:
+            segments_by_road[int(row.road_key)].append(int(row.segment_key))
+
+        corridors_data: list[dict[str, Any]] = []
+        for row in road_rows:
+            road_key = int(row.road_key)
+            segment_keys = segments_by_road.get(road_key, [])
+            if not segment_keys:
+                continue
+
+            road_name = (row.road_name or "Unnamed Road").strip() or "Unnamed Road"
+            if road_name.lower() in {"nan", "none", "null"}:
+                road_name = "Unnamed Road"
+            corridor_name = f"{road_name} Corridor"
+            importance_level = self._derive_importance_level(
+                int(row.min_frc) if row.min_frc is not None else None
+            )
+            target_avg_speed = float(row.max_speed_limit or 40.0)
+            if target_avg_speed <= 0:
+                target_avg_speed = 40.0
+
+            segments = [
+                {"segment_key": seg_key, "sequence_order": idx + 1}
+                for idx, seg_key in enumerate(segment_keys)
+            ]
+
+            corridors_data.append(
+                {
+                    "corridor_name": corridor_name,
+                    "importance_level": importance_level,
+                    "target_avg_speed": target_avg_speed,
+                    "total_length_m": float(row.total_length_m or 0.0),
+                    "direction": self._normalize_direction(row.direction_hint),
+                    "segments": segments,
+                }
+            )
+
+        # Display sample corridors in table
         table = Table(title="Extracted Corridors", show_header=True, header_style="bold magenta")
         table.add_column("Corridor Name", style="cyan", width=30)
         table.add_column("Direction", style="green", width=12)
         table.add_column("Importance", justify="center", style="yellow", width=10)
         table.add_column("Segments", justify="center", style="blue", width=10)
         table.add_column("Length (m)", justify="right", style="magenta", width=12)
-        
-        for corridor in corridors_data:
+
+        for corridor in corridors_data[:20]:
             table.add_row(
                 corridor["corridor_name"],
                 corridor["direction"],
@@ -100,8 +168,12 @@ class CorridorExtractor(BaseExtractor):
                 str(len(corridor["segments"])),
                 f"{corridor['total_length_m']:.1f}",
             )
-        
+
         console.print(table)
+        if len(corridors_data) > 20:
+            console.print(
+                f"[dim]... showing 20/{len(corridors_data)} corridors[/dim]"
+            )
         console.print(f"\n[green]✓[/green] Extracted [bold]{len(corridors_data)}[/bold] corridor configs\n")
         
         self.logger.info(f"Extracted {len(corridors_data)} corridor configs")
@@ -145,12 +217,12 @@ class CorridorTransformer(BaseTransformer):
             for idx, corridor_cfg in enumerate(corridors_data, 1):
                 corridor_name = corridor_cfg["corridor_name"]
                 corridor_key = generate_corridor_key(corridor_name)
-
-                console.print(
-                    f"  [dim]├─ [{idx}/{len(corridors_data)}][/dim] "
-                    f"[cyan]{corridor_name}[/cyan] "
-                    f"[dim](key: {corridor_key})[/dim]"
-                )
+                if idx <= 20:
+                    console.print(
+                        f"  [dim]├─ [{idx}/{len(corridors_data)}][/dim] "
+                        f"[cyan]{corridor_name}[/cyan] "
+                        f"[dim](key: {corridor_key})[/dim]"
+                    )
 
                 # ── dim_corridor record ────────────────────────────────
                 corridor_records.append({
@@ -165,14 +237,24 @@ class CorridorTransformer(BaseTransformer):
 
                 # ── bridge_corridor_segment records ────────────────────
                 # Segments must respect sequence_order (1, 2, 3, ...)
+                # Support both segment_key (preferred) and segment_id_source (fallback)
                 segments = corridor_cfg.get("segments", [])
-                console.print(
-                    f"     [dim]└─ Generating {len(segments)} bridge records[/dim]"
-                )
+                if idx <= 20:
+                    console.print(
+                        f"     [dim]└─ Generating {len(segments)} bridge records[/dim]"
+                    )
                 for seg_cfg in segments:
+                    # Prefer segment_key if provided, fallback to segment_id_source
+                    segment_ref = seg_cfg.get("segment_key") or seg_cfg.get("segment_id_source")
+                    if not segment_ref:
+                        self.logger.warning(
+                            f"Skipping segment in corridor {corridor_name}: missing segment_key or segment_id_source"
+                        )
+                        continue
+                    
                     bridge_records.append({
                         "corridor_key": corridor_key,
-                        "segment_key": int(seg_cfg["segment_id_source"]),  # Direct mapping to OSM segment
+                        "segment_key": int(segment_ref),
                         "sequence_order": int(seg_cfg["sequence_order"]),
                     })
 
@@ -182,6 +264,10 @@ class CorridorTransformer(BaseTransformer):
             f"\n[green]✓[/green] Transformed [bold]{len(corridor_records)}[/bold] corridor records, "
             f"[bold]{len(bridge_records)}[/bold] bridge records\n"
         )
+        if len(corridors_data) > 20:
+            console.print(
+                f"[dim]... transformed {len(corridors_data)} corridors (showing first 20 above)[/dim]\n"
+            )
 
         self.logger.info(
             f"Transformed {len(corridor_records)} corridor, "
@@ -251,9 +337,9 @@ def load_corridors(
 ) -> dict[str, int]:
     """Load corridors with full transaction control.
     
-    Strategy (per spec):
-    1. UPSERT dim_corridor → returns list of corridor_keys
-    2. DELETE FROM bridge_corridor_segment WHERE corridor_key IN (updated keys)
+    Strategy (city-wide refresh):
+    1. UPSERT dim_corridor from generated corridor records
+    2. DELETE FROM bridge_corridor_segment (full refresh)
     3. INSERT INTO bridge_corridor_segment (bulk insert)
     
     All in ONE transaction with rollback on error.
@@ -278,6 +364,8 @@ def load_corridors(
         "corridors_upserted": 0,
         "bridge_deleted": 0,
         "bridge_inserted": 0,
+        "bridge_skipped": 0,
+        "bridge_resolved": 0,
     }
 
     if not corridor_records:
@@ -310,38 +398,24 @@ def load_corridors(
                     console.print(f"  [green]✓[/green] UPSERT [bold]{corridors_upserted}[/bold] dim_corridor records")
                     logger.info(f"✓ Upserted {corridors_upserted} dim_corridor records")
 
-                    # Extract corridor_keys that were upserted
-                    corridor_keys = [r["corridor_key"] for r in corridor_records]
-
                     # ────────────────────────────────────────────────
-                    # STEP 2: DELETE old bridge records for these corridors
-                    # (Full replace strategy)
+                    # STEP 2: DELETE old bridge records (full refresh)
                     # ────────────────────────────────────────────────
                     task2 = progress.add_task(
                         "[cyan]Step 2/3: DELETE old bridge records...",
                         total=None
                     )
-                    
-                    if corridor_keys:
-                        # Build IN clause for batch delete
-                        placeholders = ", ".join(f":{i}" for i in range(len(corridor_keys)))
-                        delete_sql = (
-                            f"DELETE FROM bridge_corridor_segment "
-                            f"WHERE corridor_key IN ({placeholders})"
-                        )
-                        params = {str(i): k for i, k in enumerate(corridor_keys)}
-                        
-                        result_delete = session.execute(
-                            text(delete_sql),
-                            params,
-                        )
-                        result["bridge_deleted"] = result_delete.rowcount
-                        
-                        progress.update(task2, completed=True)
-                        console.print(f"  [green]✓[/green] DELETE [bold]{result['bridge_deleted']}[/bold] old bridge records")
-                        logger.info(
-                            f"✓ Deleted {result['bridge_deleted']} old bridge_corridor_segment records"
-                        )
+
+                    result_delete = session.execute(
+                        text("DELETE FROM bridge_corridor_segment")
+                    )
+                    result["bridge_deleted"] = result_delete.rowcount
+
+                    progress.update(task2, completed=True)
+                    console.print(f"  [green]✓[/green] DELETE [bold]{result['bridge_deleted']}[/bold] old bridge records")
+                    logger.info(
+                        f"✓ Deleted {result['bridge_deleted']} old bridge_corridor_segment records"
+                    )
 
                     # ────────────────────────────────────────────────
                     # STEP 3: INSERT new bridge records (bulk)
@@ -352,17 +426,39 @@ def load_corridors(
                     )
                     
                     if bridge_records:
+                        resolved_bridge_records = [
+                            {
+                                "corridor_key": int(record["corridor_key"]),
+                                "segment_key": int(record["segment_key"]),
+                                "sequence_order": int(record["sequence_order"]),
+                            }
+                            for record in bridge_records
+                        ]
+
+                        result["bridge_resolved"] = 0
+                        result["bridge_skipped"] = 0
+
                         bridge_table = get_table("bridge_corridor_segment", engine)
-                        insert_stmt = pg_insert(bridge_table).values(bridge_records)
-                        
-                        result_insert = session.execute(insert_stmt)
-                        result["bridge_inserted"] = len(bridge_records)
-                        
+                        insert_stmt = pg_insert(bridge_table).values(resolved_bridge_records)
+                        if resolved_bridge_records:
+                            session.execute(insert_stmt)
+                        result["bridge_inserted"] = len(resolved_bridge_records)
+
                         progress.update(task3, completed=True)
                         console.print(f"  [green]✓[/green] INSERT [bold]{result['bridge_inserted']}[/bold] new bridge records")
                         logger.info(
                             f"✓ Inserted {result['bridge_inserted']} new bridge_corridor_segment records"
                         )
+
+                    cleanup_sql = text("""
+                        DELETE FROM dim_corridor dc
+                        WHERE NOT EXISTS (
+                            SELECT 1
+                            FROM bridge_corridor_segment bcs
+                            WHERE bcs.corridor_key = dc.corridor_key
+                        )
+                    """)
+                    session.execute(cleanup_sql)
 
                     # Transaction auto-commits here (successful session.begin() context exit)
                     console.print("\n[green]✅ Transaction committed successfully![/green]")
@@ -370,7 +466,9 @@ def load_corridors(
                         f"✅ Corridor load transaction committed: "
                         f"corridors={result['corridors_upserted']}, "
                         f"bridge_deleted={result['bridge_deleted']}, "
-                        f"bridge_inserted={result['bridge_inserted']}"
+                        f"bridge_inserted={result['bridge_inserted']}, "
+                        f"bridge_skipped={result['bridge_skipped']}, "
+                        f"bridge_resolved={result['bridge_resolved']}"
                     )
 
     except Exception as e:
@@ -407,7 +505,7 @@ def run(engine: Engine, **kwargs) -> int:
 
     # Extract
     extractor = CorridorExtractor()
-    raw_data = extractor.extract(**kwargs)
+    raw_data = extractor.extract(engine=engine, **kwargs)
 
     # Transform
     transformer = CorridorTransformer()
@@ -434,6 +532,8 @@ def run(engine: Engine, **kwargs) -> int:
     summary_table.add_row("Corridors Upserted", f"{result['corridors_upserted']:,}")
     summary_table.add_row("Bridge Records Deleted", f"{result['bridge_deleted']:,}")
     summary_table.add_row("Bridge Records Inserted", f"{result['bridge_inserted']:,}")
+    summary_table.add_row("Bridge Records Skipped", f"{result['bridge_skipped']:,}")
+    summary_table.add_row("Segment Refs Resolved", f"{result['bridge_resolved']:,}")
     summary_table.add_row("─" * 35, "─" * 15)
     summary_table.add_row("[bold]Total Records Loaded[/bold]", f"[bold]{total:,}[/bold]")
     summary_table.add_row("[bold]Execution Time[/bold]", f"[bold]{elapsed:.2f}s[/bold]")

@@ -123,7 +123,16 @@ def run_static() -> None:
 
 
 @app.command("run-spatial")
-def run_spatial() -> None:
+def run_spatial(
+    skip_location: bool = typer.Option(False, help="Skip location catalog step"),
+    skip_osm: bool = typer.Option(False, help="Skip OSM road network step"),
+    skip_mapper: bool = typer.Option(False, help="Skip segment-location mapper step"),
+    skip_corridor: bool = typer.Option(False, help="Skip corridor infrastructure step"),
+    force_location_refresh: bool = typer.Option(
+        False,
+        help="Force refresh dim_location even when catalog already complete",
+    ),
+) -> None:
     """Phase 2: Download OSM network + UPSERT spatial dimensions + map segments to locations.
 
     Pipeline order:
@@ -157,62 +166,78 @@ def run_spatial() -> None:
     ) as progress:
         # Location (wards catalog)
         task1 = progress.add_task("[cyan]Location catalog...", total=None)
-        try:
-            from src.pipelines.spatial_net.location_pipeline import run as run_loc
+        if skip_location:
+            results.append(("Location Catalog", 0, "✓"))
+            progress.update(task1, completed=True)
+        else:
+            try:
+                from src.pipelines.spatial_net.location_pipeline import run as run_loc
 
-            count = run_loc(engine)
-            logger.info(f"[run-spatial] location_pipeline: {count} records")
-            total += count
-            results.append(("Location Catalog", count, "✓"))
-            progress.update(task1, completed=True)
-        except PipelineError as e:
-            logger.error(f"[run-spatial] location_pipeline failed: {e}")
-            results.append(("Location Catalog", 0, "✗"))
-            progress.update(task1, completed=True)
+                count = run_loc(engine, force_refresh=force_location_refresh)
+                logger.info(f"[run-spatial] location_pipeline: {count} records")
+                total += count
+                results.append(("Location Catalog", count, "✓"))
+                progress.update(task1, completed=True)
+            except PipelineError as e:
+                logger.error(f"[run-spatial] location_pipeline failed: {e}")
+                results.append(("Location Catalog", 0, "✗"))
+                progress.update(task1, completed=True)
 
         # OSM road network
         task2 = progress.add_task("[cyan]OSM road network...", total=None)
-        try:
-            from src.pipelines.spatial_net.osm_pipeline import run as run_osm
+        if skip_osm:
+            results.append(("OSM Road Network", 0, "✓"))
+            progress.update(task2, completed=True)
+        else:
+            try:
+                from src.pipelines.spatial_net.osm_pipeline import run as run_osm
 
-            count = run_osm(engine)
-            logger.info(f"[run-spatial] osm_pipeline: {count} records")
-            total += count
-            results.append(("OSM Road Network", count, "✓"))
-            progress.update(task2, completed=True)
-        except PipelineError as e:
-            logger.error(f"[run-spatial] osm_pipeline failed: {e}")
-            results.append(("OSM Road Network", 0, "✗"))
-            progress.update(task2, completed=True)
+                count = run_osm(engine)
+                logger.info(f"[run-spatial] osm_pipeline: {count} records")
+                total += count
+                results.append(("OSM Road Network", count, "✓"))
+                progress.update(task2, completed=True)
+            except PipelineError as e:
+                logger.error(f"[run-spatial] osm_pipeline failed: {e}")
+                results.append(("OSM Road Network", 0, "✗"))
+                progress.update(task2, completed=True)
 
         # Segment-Location spatial mapper
         task3 = progress.add_task("[cyan]Segment-location mapping...", total=None)
-        try:
-            from src.pipelines.spatial_net.segment_location_mapper import run as run_mapper
+        if skip_mapper:
+            results.append(("Segment-Location Mapper", 0, "✓"))
+            progress.update(task3, completed=True)
+        else:
+            try:
+                from src.pipelines.spatial_net.segment_location_mapper import run as run_mapper
 
-            count = run_mapper(engine)
-            logger.info(f"[run-spatial] segment_location_mapper: {count} records")
-            results.append(("Segment-Location Mapper", count, "✓"))
-            progress.update(task3, completed=True)
-        except Exception as e:
-            logger.error(f"[run-spatial] segment_location_mapper failed: {e}")
-            results.append(("Segment-Location Mapper", 0, "✗"))
-            progress.update(task3, completed=True)
+                count = run_mapper(engine)
+                logger.info(f"[run-spatial] segment_location_mapper: {count} records")
+                results.append(("Segment-Location Mapper", count, "✓"))
+                progress.update(task3, completed=True)
+            except Exception as e:
+                logger.error(f"[run-spatial] segment_location_mapper failed: {e}")
+                results.append(("Segment-Location Mapper", 0, "✗"))
+                progress.update(task3, completed=True)
 
         # Corridor infrastructure
         task4 = progress.add_task("[cyan]Corridor infrastructure...", total=None)
-        try:
-            from src.pipelines.spatial_net.corridor_pipeline import run as run_corridor
+        if skip_corridor:
+            results.append(("Corridor Infrastructure", 0, "✓"))
+            progress.update(task4, completed=True)
+        else:
+            try:
+                from src.pipelines.spatial_net.corridor_pipeline import run as run_corridor
 
-            count = run_corridor(engine)
-            logger.info(f"[run-spatial] corridor_pipeline: {count} records")
-            total += count
-            results.append(("Corridor Infrastructure", count, "✓"))
-            progress.update(task4, completed=True)
-        except PipelineError as e:
-            logger.error(f"[run-spatial] corridor_pipeline failed: {e}")
-            results.append(("Corridor Infrastructure", 0, "✗"))
-            progress.update(task4, completed=True)
+                count = run_corridor(engine)
+                logger.info(f"[run-spatial] corridor_pipeline: {count} records")
+                total += count
+                results.append(("Corridor Infrastructure", count, "✓"))
+                progress.update(task4, completed=True)
+            except PipelineError as e:
+                logger.error(f"[run-spatial] corridor_pipeline failed: {e}")
+                results.append(("Corridor Infrastructure", 0, "✗"))
+                progress.update(task4, completed=True)
 
     elapsed = time.time() - start_time
     _print_phase_summary("PHASE 2 COMPLETE", results, total, elapsed)
@@ -236,6 +261,28 @@ def run_corridors() -> None:
     except PipelineError as e:
         logger.error(f"[run-corridors] corridor_pipeline failed: {e}")
         typer.echo(f"❌ run-corridors failed: {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command("run-location")
+def run_location(
+    force_refresh: bool = typer.Option(
+        False,
+        help="Force refresh dim_location even when catalog already complete",
+    ),
+) -> None:
+    """Load dim_location only (useful for quick recovery after spatial failures)."""
+    engine = get_engine()
+
+    try:
+        from src.pipelines.spatial_net.location_pipeline import run as run_loc
+
+        count = run_loc(engine, force_refresh=force_refresh)
+        logger.info(f"[run-location] location_pipeline: {count} records")
+        typer.echo(f"✅ run-location complete: {count} records")
+    except Exception as e:
+        logger.error(f"[run-location] location_pipeline failed: {e}")
+        typer.echo(f"❌ run-location failed: {e}")
         raise typer.Exit(code=1)
 
 
