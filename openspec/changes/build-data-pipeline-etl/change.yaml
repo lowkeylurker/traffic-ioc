@@ -1,0 +1,20 @@
+name: build-data-pipeline-etl
+schema: spec-driven
+description: >
+  Build the entire data-pipeline ETL module following DDD standards.
+  Enterprise-grade ETL system for real-time traffic data processing,
+  spatial network infrastructure, and simulation input generation.
+created: "2026-02-28"
+status: in-progress
+artifacts:
+  - id: proposal
+    status: not-started
+    description: Design Proposal - architecture, schemas, pure functions, pipeline flow
+  - id: spec
+    status: not-started
+    description: Detailed implementation specification
+    depends_on: [proposal]
+  - id: tasks
+    status: not-started
+    description: Break down implementation into executable tasks
+    depends_on: [spec]

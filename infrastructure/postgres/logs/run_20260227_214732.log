@@ -1,0 +1,28 @@
+2026-02-27 21:47:32 | INFO     | ============================================================
+2026-02-27 21:47:32 | INFO     |   SMART TRAFFIC IOC – Database Schema Initialization
+2026-02-27 21:47:32 | INFO     |   Thời gian: 2026-02-27 21:47:32
+2026-02-27 21:47:32 | INFO     |   Log file : C:\Users\Thanh Dung\Documents\MYDATA\BKU\4\2\DATN\project_folder\traffic-ioc\infrastructure\postgres\logs\run_20260227_214732.log
+2026-02-27 21:47:32 | INFO     | ============================================================
+2026-02-27 21:47:32 | INFO     | Đã load .env từ: C:\Users\Thanh Dung\Documents\MYDATA\BKU\4\2\DATN\project_folder\traffic-ioc\.env
+2026-02-27 21:47:32 | DEBUG    | DB config: host=localhost, port=5432, dbname=traffic_ioc_db, user=postgres, sslmode=disable
+2026-02-27 21:47:32 | INFO     | 
+2026-02-27 21:47:32 | INFO     | Kiểm tra file SQL:
+2026-02-27 21:47:32 | INFO     |   ✓ 1_init_extensions.sql (811 bytes)
+2026-02-27 21:47:32 | INFO     |   ✓ 2_create_dims.sql (8,521 bytes)
+2026-02-27 21:47:32 | INFO     |   ✓ 3_create_facts.sql (12,632 bytes)
+2026-02-27 21:47:32 | INFO     |   ✓ 4_indexes.sql (8,339 bytes)
+2026-02-27 21:47:32 | INFO     | 
+2026-02-27 21:47:32 | INFO     | Đang kết nối tới postgres@localhost:5432/traffic_ioc_db ...
+2026-02-27 21:47:32 | CRITICAL | Không thể kết nối database!
+2026-02-27 21:47:32 | CRITICAL | Chi tiết lỗi: connection to server at "localhost" (::1), port 5432 failed: FATAL:  password authentication failed for user "postgres"
+
+2026-02-27 21:47:32 | DEBUG    | Traceback (most recent call last):
+  File "C:\Users\Thanh Dung\Documents\MYDATA\BKU\4\2\DATN\project_folder\traffic-ioc\infrastructure\postgres\run.py", line 97, in connect_db
+    conn = psycopg2.connect(
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\Thanh Dung\AppData\Local\Programs\Python\Python312\Lib\site-packages\psycopg2\__init__.py", line 135, in connect
+    conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.OperationalError: connection to server at "localhost" (::1), port 5432 failed: FATAL:  password authentication failed for user "postgres"
+
+
