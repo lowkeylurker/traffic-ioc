@@ -150,6 +150,19 @@ class TrafficTransformer(BaseTransformer):
             confidence = seg.confidence
             is_closed = seg.road_closure
 
+            # ⚠️ Validate critical fields (skip if invalid)
+            if free_flow_speed <= 0:
+                self.logger.warning(
+                    f"Skip record {idx}: invalid free_flow_speed={free_flow_speed}"
+                )
+                continue
+            
+            if current_speed < 0:
+                self.logger.warning(
+                    f"Skip record {idx}: invalid current_speed={current_speed}"
+                )
+                continue
+
             # Derived metrics
             traffic_index = calculate_traffic_index(current_speed, free_flow_speed)
             los = calculate_los_level(traffic_index)

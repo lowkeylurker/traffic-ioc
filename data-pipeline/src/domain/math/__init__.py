@@ -36,11 +36,16 @@ def calculate_traffic_index(current_speed: float, free_flow_speed: float) -> flo
         free_flow_speed: Free-flow speed (km/h)
 
     Returns:
-        float in [0.0, 1.0]
+        float in [0.0, 1.0], defaults to 0.0 (free flow) on invalid input
     """
+    # Validate: free_flow_speed must be positive
     if free_flow_speed <= 0:
-        return 0.0
-    ratio = current_speed / free_flow_speed
+        return 0.0  # Default to free flow if invalid
+    
+    # Ensure current_speed is non-negative
+    safe_speed = max(0.0, current_speed)
+    
+    ratio = safe_speed / free_flow_speed
     index = 1.0 - ratio
     return max(0.0, min(1.0, index))
 
@@ -164,15 +169,19 @@ def estimate_pcu_from_speed(
         return 0.0
     if current_speed <= 0:
         return float(lane_count * LANE_CAPACITY)
-    if current_speed >= free_flow_speed:
-        return 0.0
-
+    
     capacity = lane_count * LANE_CAPACITY
+    
+    # Free flow: still has baseline traffic (10-15% capacity)
+    if current_speed >= free_flow_speed:
+        return round(capacity * 0.12, 2)
+
     time_ratio = free_flow_speed / current_speed  # t / t0
 
     excess = (time_ratio - 1.0) / BPR_ALPHA
     if excess <= 0:
-        return 0.0
+        # Near free-flow conditions
+        return round(capacity * 0.12, 2)
 
     v_c_ratio = excess ** (1.0 / BPR_BETA)
     pcu_volume = capacity * v_c_ratio
