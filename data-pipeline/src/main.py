@@ -42,8 +42,22 @@ app = typer.Typer(
 )
 
 logger = get_logger("main")
+"""Data Pipeline CLI – Typer entrypoint.
 
+Commands:
+    run-static                     Sinh + UPSERT dimension thời gian + ngày lễ
+    run-spatial                    Download OSM network + UPSERT spatial dims
+    run-osm-district1              Download OSM for District 1 only (fast, MVP)
+    run-osm-central-districts      Download OSM for central districts (expanded)
+    run-realtime                   Weather → Traffic Flow → Incident (all data)
+    run-realtime-central-districts Weather → Traffic Flow → Incident (central only)
+    run-batch                      Nightly: baseline + corridor performance (all)
+    run-corridor-central-districts Corridor performance for central districts only
+    run-all                        Chạy tất cả theo thứ tự FK
+    health                         Kiểm tra kết nối Database
 
+Central Districts: Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, 10, 11
+"""
 # ═══════════════════════════════════════════════════════════
 # COMMANDS
 # ═══════════════════════════════════════════════════════════
@@ -148,6 +162,11 @@ def run_spatial(
     """
     start_time = time.time()
     engine = get_engine()
+    skip_location = bool(_resolve_option_default(skip_location))
+    skip_osm = bool(_resolve_option_default(skip_osm))
+    skip_mapper = bool(_resolve_option_default(skip_mapper))
+    skip_corridor = bool(_resolve_option_default(skip_corridor))
+    force_location_refresh = bool(_resolve_option_default(force_location_refresh))
     total = 0
     results = []
 
@@ -273,6 +292,7 @@ def run_location(
 ) -> None:
     """Load dim_location only (useful for quick recovery after spatial failures)."""
     engine = get_engine()
+    force_refresh = bool(_resolve_option_default(force_refresh))
 
     try:
         from src.pipelines.spatial_net.location_pipeline import run as run_loc
@@ -315,6 +335,35 @@ def run_osm_district1() -> None:
         raise typer.Exit(code=1)
 
 
+@app.command("run-osm-central-districts")
+def run_osm_central_districts() -> None:
+    """Download OSM network for CENTRAL DISTRICTS (Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, 10, 11).
+
+    Uses BBOX_CENTRAL_DISTRICTS (~22km × 17km) - Expanded coverage area.
+    Moderate speed: ~60-90 seconds for central districts.
+    """
+    from src.domain.geo.constants import BBOX_CENTRAL_DISTRICTS
+
+    engine = get_engine()
+
+    console.print(Panel.fit(
+        "[bold yellow]🗺️  OSM CENTRAL DISTRICTS[/bold yellow]\n"
+        "[dim]Coverage: Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, 10, 11[/dim]",
+        border_style="yellow"
+    ))
+
+    try:
+        from src.pipelines.spatial_net.osm_pipeline import run as run_osm
+
+        count = run_osm(engine, bbox=BBOX_CENTRAL_DISTRICTS)
+        logger.info(f"[run-osm-central-districts] osm_pipeline: {count} records")
+        console.print(f"[green]✅ run-osm-central-districts complete: {count} total records[/green]")
+    except PipelineError as e:
+        logger.error(f"[run-osm-central-districts] osm_pipeline failed: {e}")
+        console.print(f"[red]❌ run-osm-central-districts failed: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
 # ── Segment query helpers ─────────────────────────────────
 
 _SEGMENT_QUERY = text("""
@@ -330,14 +379,39 @@ _SEGMENT_QUERY = text("""
     LIMIT  :limit
 """)
 
+_SEGMENT_QUERY_WITH_BBOX = text("""
+        SELECT s.segment_key,
+                     ST_Y(s.geometry_center) AS lat,
+                ST_X(s.geometry_center) AS lon,
+                COALESCE(w.default_lane_count, 2) AS lane_count
+        FROM   dim_segment s
+        JOIN   dim_way w ON s.way_key = w.way_key
+        WHERE  s.geometry_center IS NOT NULL
+            AND  w.osm_highway_type IN ('primary','secondary','tertiary','trunk')
+            AND  ST_Y(s.geometry_center) >= :min_lat
+            AND  ST_Y(s.geometry_center) <= :max_lat
+            AND  ST_X(s.geometry_center) >= :min_lon
+            AND  ST_X(s.geometry_center) <= :max_lon
+        ORDER  BY s.length_m DESC
+        LIMIT  :limit
+""")
+
 # Max segments per realtime cycle (TomTom free ≈ 2 500 calls/day,
 # 96 cycles@15 min → ~25 per cycle).  Increase if paid plan.
 _MAX_SEGMENTS_PER_CYCLE = 25
+_OVERFETCH_FACTOR = 3
+
+
+def _resolve_option_default(value):
+    """Return concrete value when receiving Typer OptionInfo defaults."""
+    return getattr(value, "default", value)
 
 
 def _load_segment_points(
     engine: Engine,
     limit: int = _MAX_SEGMENTS_PER_CYCLE,
+    bbox: dict | None = None,
+    overfetch_factor: int = _OVERFETCH_FACTOR,
 ) -> Tuple[list, list, dict, dict]:
     """Return (points, segment_keys, segment_key_map, lane_count_map) from dim_segment.
 
@@ -345,25 +419,71 @@ def _load_segment_points(
     segment_keys : list[int]   → index-based lookup in TrafficTransformer
     segment_key_map : {(lat,lon): segment_key}  → fallback coordinate lookup
     lane_count_map : {segment_key: lane_count} → PCU estimation enrichment
+    
+    Args:
+        engine: SQLAlchemy Engine
+        limit: Max segments to load (default 25 for TomTom free tier)
+        bbox: Optional bounding box dict {min_lon, max_lon, min_lat, max_lat} to filter segments
+        overfetch_factor: Fetch extra candidates to compensate invalid/duplicate points
     """
     points = []
     seg_keys: list[int] = []
     seg_map: dict[tuple, int] = {}
     lane_count_map: dict[int, int] = {}
+    
+    # Ensure limit is int (Typer OptionInfo → int when called from run_all)
+    limit = int(_resolve_option_default(limit)) if not isinstance(limit, int) else limit
+    query_limit = max(limit, int(limit * max(1, overfetch_factor)))
+
     with engine.connect() as conn:
-        rows = conn.execute(_SEGMENT_QUERY, {"limit": limit}).fetchall()
+        if bbox:
+            # Use query with bbox filter for central districts
+            params = {
+                "limit": query_limit,
+                "min_lon": bbox.get("min_lon", 106.4),
+                "max_lon": bbox.get("max_lon", 107.1),
+                "min_lat": bbox.get("min_lat", 10.4),
+                "max_lat": bbox.get("max_lat", 10.95),
+            }
+            rows = conn.execute(_SEGMENT_QUERY_WITH_BBOX, params).fetchall()
+        else:
+            # Use original query without bbox filter
+            rows = conn.execute(_SEGMENT_QUERY, {"limit": query_limit}).fetchall()
+    
+    seen_points: set[tuple[float, float]] = set()
+    duplicate_count = 0
     for seg_key, lat, lon, lane_count in rows:
         pt = (round(lat, 6), round(lon, 6))
+        if pt in seen_points:
+            duplicate_count += 1
+            continue
+        seen_points.add(pt)
+
         points.append(pt)
         seg_keys.append(seg_key)
         seg_map[pt] = seg_key
         lane_count_map[int(seg_key)] = max(1, int(lane_count or 2))
-    logger.info(f"[run-realtime] Loaded {len(points)} segment points from DB")
+
+        if len(points) >= limit:
+            break
+    
+    bbox_label = f" (bbox: {bbox})" if bbox else ""
+    logger.info(
+        f"[run-realtime] Loaded {len(points)} segment points from DB{bbox_label} "
+        f"(query_limit={query_limit}, duplicates_skipped={duplicate_count})"
+    )
     return points, seg_keys, seg_map, lane_count_map
 
 
 @app.command("run-realtime")
-def run_realtime() -> None:
+def run_realtime(
+    segment_limit: int = typer.Option(
+        _MAX_SEGMENTS_PER_CYCLE,
+        min=1,
+        max=500,
+        help="Max number of segment points queried per realtime cycle",
+    ),
+) -> None:
     """Phase 3: Weather → Traffic Flow → Incident (1 cycle, cron 15p).
 
     Thứ tự:
@@ -371,6 +491,7 @@ def run_realtime() -> None:
     """
     start_time = time.time()
     engine = get_engine()
+    segment_limit = int(_resolve_option_default(segment_limit))
     total = 0
     results = []
 
@@ -404,7 +525,10 @@ def run_realtime() -> None:
 
         # Load segment coordinates from DB
         task2 = progress.add_task("[cyan]Loading segment points...", total=None)
-        points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(engine)
+        points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(
+            engine,
+            limit=segment_limit,
+        )
         progress.update(task2, completed=True)
 
         # Traffic Flow
@@ -446,6 +570,105 @@ def run_realtime() -> None:
 
     elapsed = time.time() - start_time
     _print_phase_summary("PHASE 3 COMPLETE", results, total, elapsed)
+    typer.echo("")
+
+
+@app.command("run-realtime-central-districts")
+def run_realtime_central_districts(
+    segment_limit: int = typer.Option(
+        _MAX_SEGMENTS_PER_CYCLE,
+        min=1,
+        max=500,
+        help="Max number of segment points queried per realtime cycle for central districts",
+    ),
+) -> None:
+    """Phase 3 - Extended: Weather → Traffic Flow → Incident for CENTRAL DISTRICTS.
+
+    Coverage: Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, Quận 10, 11
+
+    Thứ tự:
+        dim_weather (trả weather_key) → fact_traffic_flow → fact_incident
+    """
+    from src.domain.geo.constants import BBOX_CENTRAL_DISTRICTS
+
+    start_time = time.time()
+    engine = get_engine()
+    segment_limit = int(_resolve_option_default(segment_limit))
+    total = 0
+    results = []
+
+    console.print(Panel.fit(
+        "[bold cyan]🌤️  PHASE 3 - CENTRAL DISTRICTS[/bold cyan]\n"
+        "[dim]Weather + Traffic Flow + Incidents (multiple districts)[/dim]",
+        border_style="cyan"
+    ))
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        weather_key = 800
+        task1 = progress.add_task("[cyan]Current weather...", total=None)
+        try:
+            from src.pipelines.real_time.weather_pipeline import run as run_weather
+
+            weather_key = run_weather(engine)
+            logger.info(f"[run-realtime-central-districts] weather_pipeline: weather_key={weather_key}")
+            results.append(("Weather Data", 1, "✓"))
+            progress.update(task1, completed=True)
+        except PipelineError as e:
+            logger.error(f"[run-realtime-central-districts] weather_pipeline failed: {e}")
+            results.append(("Weather Data", 0, "✗"))
+            progress.update(task1, completed=True)
+
+        task2 = progress.add_task("[cyan]Loading segment points (central)...", total=None)
+        points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(
+            engine,
+            limit=segment_limit,
+            bbox=BBOX_CENTRAL_DISTRICTS,
+        )
+        progress.update(task2, completed=True)
+
+        task3 = progress.add_task("[cyan]Traffic flow data (central)...", total=None)
+        try:
+            from src.pipelines.real_time.traffic_pipeline import run as run_traffic
+
+            count = run_traffic(
+                engine,
+                weather_key=weather_key,
+                points=points,
+                segment_keys=segment_keys,
+                segment_key_map=segment_key_map,
+                lane_count_map=lane_count_map,
+            )
+            logger.info(f"[run-realtime-central-districts] traffic_pipeline: {count} records")
+            total += count
+            results.append(("Traffic Flow", count, "✓"))
+            progress.update(task3, completed=True)
+        except PipelineError as e:
+            logger.error(f"[run-realtime-central-districts] traffic_pipeline failed: {e}")
+            results.append(("Traffic Flow", 0, "✗"))
+            progress.update(task3, completed=True)
+
+        task4 = progress.add_task("[cyan]Traffic incidents (central)...", total=None)
+        try:
+            from src.pipelines.real_time.incident_pipeline import run as run_incident
+
+            count = run_incident(engine, bbox=BBOX_CENTRAL_DISTRICTS)
+            logger.info(f"[run-realtime-central-districts] incident_pipeline: {count} records")
+            total += count
+            results.append(("Traffic Incidents", count, "✓"))
+            progress.update(task4, completed=True)
+        except PipelineError as e:
+            logger.error(f"[run-realtime-central-districts] incident_pipeline failed: {e}")
+            results.append(("Traffic Incidents", 0, "✗"))
+            progress.update(task4, completed=True)
+
+    elapsed = time.time() - start_time
+    _print_phase_summary("PHASE 3 EXTENDED COMPLETE", results, total, elapsed)
     typer.echo("")
 
 
@@ -505,6 +728,51 @@ def run_batch() -> None:
     typer.echo("")
 
 
+@app.command("run-corridor-central-districts")
+def run_corridor_central_districts() -> None:
+    """Calculate corridor performance for CENTRAL DISTRICTS only (Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, 10, 11).
+
+    This processes fact_corridor_performance for central districts instead of all districts.
+    """
+    from src.domain.geo.constants import BBOX_CENTRAL_DISTRICTS
+
+    start_time = time.time()
+    engine = get_engine()
+    total = 0
+    results = []
+
+    console.print(Panel.fit(
+        "[bold magenta]📊 CORRIDOR PERFORMANCE - CENTRAL DISTRICTS[/bold magenta]\n"
+        "[dim]Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, 10, 11[/dim]",
+        border_style="magenta"
+    ))
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        task1 = progress.add_task("[cyan]Corridor performance (central)...", total=None)
+        try:
+            from src.pipelines.ml_features.corridor_pipeline import run as run_corr
+
+            count = run_corr(engine, bbox=BBOX_CENTRAL_DISTRICTS)
+            logger.info(f"[run-corridor-central-districts] corridor_pipeline: {count} records")
+            total += count
+            results.append(("Corridor Performance", count, "✓"))
+            progress.update(task1, completed=True)
+        except PipelineError as e:
+            logger.error(f"[run-corridor-central-districts] corridor_pipeline failed: {e}")
+            results.append(("Corridor Performance", 0, "✗"))
+            progress.update(task1, completed=True)
+
+    elapsed = time.time() - start_time
+    _print_phase_summary("CORRIDOR PERFORMANCE COMPLETE", results, total, elapsed)
+    typer.echo("")
+
+
 @app.command("run-all")
 def run_all() -> None:
     """Chạy TẤT CẢ pipeline theo thứ tự FK.
@@ -523,8 +791,8 @@ def run_all() -> None:
 
     run_static()
     run_spatial()
-    run_realtime()
-    run_batch()
+    run_realtime_central_districts()
+    run_corridor_central_districts()
 
     overall_elapsed = time.time() - overall_start
     

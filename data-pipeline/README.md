@@ -149,7 +149,7 @@ Entrypoint: `python -m src.main <command>`
 |------------------|-----------------------------------------------------|------------------|
 | `health`         | Kiểm tra kết nối PostgreSQL                        | –                |
 | `run-static`     | Phase 1: Sinh dimension thời gian + ngày lễ        | Chạy 1 lần / setup |
-| `run-spatial`    | Phase 2: Download OSM network + spatial dims        | Chạy 1 lần / setup |
+| `run-spatial`    | Phase 2: OSM network + spatial dims + priority corridors | Chạy 1 lần / setup |
 | `run-realtime`   | Phase 3: Weather → Traffic Flow → Incident (1 cycle)| `*/15 * * * *`   |
 | `run-batch`      | Phase 4: Baseline speed + corridor performance      | `0 2 * * *`      |
 | `run-all`        | Chạy Phase 1 → 2 → 3 → 4 tuần tự                  | Lần chạy đầu     |
@@ -205,6 +205,7 @@ Phase 1: run-static
 
 Phase 2: run-spatial
   └─ dim_location → dim_node → dim_road → dim_way → dim_segment
+     → dim_corridor → bridge_corridor_segment
 
 Phase 3: run-realtime  (phụ thuộc Phase 1 + 2)
   └─ dim_weather → fact_traffic_flow → fact_incident
@@ -268,6 +269,12 @@ class BasePipeline:
 |----------------------|----------------------------------------------|------------|
 | `location_pipeline`  | `dim_location`                               | Hardcode catalog |
 | `osm_pipeline`       | `dim_node`, `dim_road`, `dim_way`, `dim_segment` | Overpass API |
+| `corridor_pipeline`  | `dim_corridor`, `bridge_corridor_segment`    | Ranking từ DB (traffic + incident + hạ tầng) |
+
+**Corridor Selection Strategy (mới):**
+- Không còn tạo corridor cho mọi road.
+- Chỉ chọn các tuyến trọng yếu theo điểm ưu tiên đa yếu tố: lưu lượng (`pcu_volume`), mức tắc (`traffic_index`), tần suất sự cố (`fact_incident`), và mức quan trọng hạ tầng (FRC/làn/arterial type).
+- Kết quả là tập corridor ưu tiên (mặc định top 40), sau đó nạp toàn bộ segment tương ứng vào `bridge_corridor_segment` theo `sequence_order`.
 
 ### Phase 3 – Real-Time (`real_time/`)
 
