@@ -39,15 +39,36 @@ Hệ thống Kho dữ liệu và Điều hành giao thông thông minh phục v�
 ## 3. Kiến trúc Dữ liệu (Galaxy Schema)
 
 ### Bảng Fact (Sự kiện)
-- `fact_traffic_flow`: Lưu lượng, tốc độ, LOS (cập nhật 15p/lần).
-- `fact_incident`: Sự cố giao thông (tai nạn, ngập).
-- `fact_weather_impact`: Tác động thời tiết lên hạ tầng.
+- `fact_traffic_flow`: Dòng chảy giao thông – lưu lượng PCU, tốc độ, LOS, congestion_level (cập nhật 15p/lần). **Partitioned theo tháng**.
+- `fact_incident`: Sự cố giao thông – tai nạn, ngập, roadwork, severity 1–5. **Partitioned theo tháng**.
+- `fact_event`: Sự kiện xã hội – concert, sport, festival với bán kính ảnh hưởng.
+- `fact_traffic_risk_prediction`: Dự báo rủi ro – predicted_risk_score, confidence_level, model_version. **Partitioned theo tháng**.
+- `fact_simulation_scenario`: Kịch bản giả lập CityFlow – sim_avg_speed, improvement_pct.
+- `fact_corridor_performance`: Hiệu suất hành lang – TTI, corridor_efficiency, bottleneck.
 
 ### Bảng Dimension (Chiều)
-- `dim_time`, `dim_date`: Thời gian chuẩn hóa.
-- `dim_segment`: Đoạn đường (LineString) từ OSM.
-- `dim_location`: Đơn vị hành chính (Quận/Phường).
-- `dim_vehicle_type`: Loại xe & hệ số PCU.
+
+#### Nhóm Hạ tầng Giao thông (Road Infrastructure)
+- `dim_node`: Điểm nút giao thông (Point geometry).
+- `dim_segment`: Phân đoạn đường chi tiết (LineString geometry) từ OSM/TomTom.
+- `dim_way`: Thông số kỹ thuật tuyến đường (lane_count, speed_limit, tomtom_frc).
+- `dim_road`: Danh mục tên đường.
+
+#### Nhóm Quản lý & Vị trí (Management & Location)
+- `dim_corridor`: Hành lang giao thông trọng điểm.
+- `bridge_corridor_segment`: Cầu nối N-N Hành lang ↔ Đoạn đường (có thứ tự).
+- `dim_location`: Đơn vị hành chính (Phường/Quận/Thành phố).
+
+#### Nhóm Thời gian & Lịch (Time & Calendar)
+- `dim_date`: Ngày (Smart Key YYYYMMDD, weekend, holiday).
+- `dim_time_of_day`: Phút trong ngày (0–1439), bucket 5/15/60 phút.
+- `dim_shift`: Ca làm việc (sáng, chiều, đêm).
+- `dim_month_year`: Phân cấp tháng/năm/quý.
+- `dim_holiday`: Danh mục ngày lễ.
+- `bridge_date_holiday`: Cầu nối N-N Ngày ↔ Ngày lễ.
+
+#### Nhóm Bối cảnh (Contextual)
+- `dim_weather`: Thời tiết (main_category, severity_level).
 
 ## 4. Danh sách Nghiệp vụ (Core Features)
 
