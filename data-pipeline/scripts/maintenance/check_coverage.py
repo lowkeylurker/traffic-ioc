@@ -1,8 +1,16 @@
 """Check record counts for all dim and bridge tables."""
+from pathlib import Path
+import sys
+
 from sqlalchemy import text
-from src.core.database import get_engine
 from rich.console import Console
 from rich.table import Table
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from src.core.database import get_engine
 
 console = Console()
 engine = get_engine()

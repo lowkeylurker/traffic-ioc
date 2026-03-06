@@ -24,7 +24,7 @@ OSM boundary download từ Overpass API **rất chậm** (~60s/ward × 320 wards
 - **After**: `ON CONFLICT DO UPDATE SET geometry_polygon = CASE WHEN...`
 
 ### 2. Loaded Real Boundaries from Cache
-- **Script**: `load_real_boundaries.py`
+- **Script**: `scripts/maintenance/load_real_boundaries.py`
 - Used existing OSM cache (`hcm_boundaries_cache.json`, 1.8MB, 344 polygons)
 - Updated all 320 locations with real WKT POLYGON geometries
 - Replaced mock grid data with actual ward/district boundaries
@@ -64,13 +64,13 @@ docker-compose exec data-pipeline python -m src.main run-spatial --force-locatio
 
 ### Quick Fix Using Cache
 ```bash
-docker-compose exec data-pipeline python load_real_boundaries.py
+docker-compose exec data-pipeline python scripts/maintenance/load_real_boundaries.py
 docker-compose exec data-pipeline python -c "from src.pipelines.spatial_net.segment_location_mapper import run; from src.core.database import get_engine; run(get_engine())"
 ```
 
 ### Verify Status
 ```bash
-docker-compose exec data-pipeline python check_coverage.py
+docker-compose exec data-pipeline python scripts/maintenance/check_coverage.py
 ```
 
 ## Files Modified
@@ -79,10 +79,10 @@ docker-compose exec data-pipeline python check_coverage.py
    - Updated LocationLoader.upsert_sql to UPDATE geometry on conflict
    - Added geometry count check and warning in run()
 
-2. `data-pipeline/load_real_boundaries.py` (new)
+2. `data-pipeline/scripts/maintenance/load_real_boundaries.py` (new)
    - Utility script to load boundaries from cache
    
-3. `data-pipeline/fix_location_geometry.py` (new, deprecated)
+3. `data-pipeline/scripts/maintenance/fix_location_geometry.py` (new, deprecated)
    - Mock geometry generator (replaced by real boundaries)
 
 ## Next Steps for Production

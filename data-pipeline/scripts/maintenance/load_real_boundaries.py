@@ -1,8 +1,16 @@
 """Load REAL HCM boundaries from cache and update dim_location."""
+from pathlib import Path
+import sys
+
+from sqlalchemy import text
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from src.core.database import get_engine
 from src.domain.geo.osm_boundaries import download_hcm_boundaries
 from src.pipelines.spatial_net.location_pipeline import _generate_location_key
-from sqlalchemy import text
 
 engine = get_engine()
 

@@ -1,5 +1,13 @@
 """Find real corridor segments from dim_segment for HCM routes."""
+from pathlib import Path
+import sys
+
 from sqlalchemy import text
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from src.core.database import get_engine
 
 engine = get_engine()
