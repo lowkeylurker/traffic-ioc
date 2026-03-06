@@ -77,11 +77,11 @@ def load_env() -> None:
 def get_db_config() -> dict:
     """Đọc thông tin kết nối DB từ biến môi trường."""
     config = {
-        "host": os.getenv("DB_HOST", "localhost"),
-        "port": int(os.getenv("DB_PORT", "5432")),
-        "dbname": os.getenv("DB_NAME", "traffic_ioc_db"),
-        "user": os.getenv("DB_USER", "postgres"),
-        "password": os.getenv("DB_PASSWORD", "postgres"),
+        "host": os.getenv("DB_HOST"),
+        "port": int(os.getenv("DB_PORT")),
+        "dbname": os.getenv("DB_NAME"),
+        "user": os.getenv("DB_USER"),
+        "password": os.getenv("DB_PASSWORD"),
         "sslmode": os.getenv("DB_SSLMODE", "disable"),
     }
     logger.debug(f"DB config: host={config['host']}, port={config['port']}, "
