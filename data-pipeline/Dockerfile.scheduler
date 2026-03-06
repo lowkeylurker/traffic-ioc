@@ -1,0 +1,50 @@
+# Multi-stage build for ETL Scheduler
+# Runs APScheduler to manage periodic ETL jobs (real-time + batch)
+
+FROM python:3.11-slim as builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Create wheels
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements.txt && \
+    pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels APScheduler
+
+# ─────────────────────────────────────────────────────────
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy wheels from builder
+COPY --from=builder /build/wheels /wheels
+
+# Install wheels
+COPY requirements.txt .
+RUN pip install --no-cache /wheels/* && rm -rf /wheels
+
+# Copy application code
+COPY . .
+
+# Create logs directory
+RUN mkdir -p logs
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/health 2>/dev/null || exit 1
+
+# Run scheduler
+CMD ["python", "scheduler.py"]

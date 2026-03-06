@@ -8556,3 +8556,388 @@ DETAIL:  Key (corridor_key)=(526882305916073953) is still referenced from table 
 [2026-03-05 09:57:50] INFO     data_pipeline.CorridorPerformanceLoader | Batch 1: upserted 48/48 rows
 [2026-03-05 09:57:50] INFO     data_pipeline.corridor_pipeline | Loaded 48 records → fact_corridor_performance
 [2026-03-05 09:57:50] INFO     data_pipeline.main | [run-corridor-central-districts] corridor_pipeline: 48 records
+[2026-03-06 03:43:42] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-06 03:43:43] INFO     data_pipeline.WeatherExtractor | Extracting weather for (10.7764, 106.7011)
+[2026-03-06 03:43:43] DEBUG    data_pipeline.WeatherExtractor | GET https://api.openweathermap.org/data/2.5/weather params={'lat': 10.7764, 'lon': 106.7011, 'appid': '3ffe1f60270c3ea6568764bae7c95bc3', 'units': 'metric', 'lang': 'vi'}
+[2026-03-06 03:43:45] INFO     data_pipeline.weather_pipeline | Extracted weather data from OpenWeatherMap
+[2026-03-06 03:43:45] INFO     data_pipeline.WeatherTransformer | Transformed weather: id=500, category=Rain, severity=3
+[2026-03-06 03:43:45] INFO     data_pipeline.WeatherLoader | Batch 1: upserted 1/1 rows
+[2026-03-06 03:43:45] INFO     data_pipeline.weather_pipeline | Loaded 1 records → dim_weather
+[2026-03-06 03:43:45] INFO     data_pipeline.main | [run-realtime] weather_pipeline: weather_key=500
+[2026-03-06 03:43:46] INFO     data_pipeline.main | [run-realtime] Loaded 25 segment points from DB (query_limit=75, duplicates_skipped=11)
+[2026-03-06 03:43:46] INFO     data_pipeline.TrafficExtractor | Extracting traffic flow for 25 segments
+[2026-03-06 03:43:46] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.907282,106.497314', 'unit': 'KMPH'}
+[2026-03-06 03:43:49] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.639254,106.842468', 'unit': 'KMPH'}
+[2026-03-06 03:43:50] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.930813,106.474887', 'unit': 'KMPH'}
+[2026-03-06 03:43:50] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.494615,106.765546', 'unit': 'KMPH'}
+[2026-03-06 03:43:50] WARNING  data_pipeline.TrafficExtractor | Skip point (10.494615,106.765546): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:43:50] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637961,106.982398', 'unit': 'KMPH'}
+[2026-03-06 03:43:51] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637961,106.982398): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:43:51] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637897,106.98228', 'unit': 'KMPH'}
+[2026-03-06 03:43:51] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637897,106.98228): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:43:51] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.916966,106.859714', 'unit': 'KMPH'}
+[2026-03-06 03:43:51] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.495411,106.558755', 'unit': 'KMPH'}
+[2026-03-06 03:43:52] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702449,106.876166', 'unit': 'KMPH'}
+[2026-03-06 03:43:52] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702161,106.876227', 'unit': 'KMPH'}
+[2026-03-06 03:43:52] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697576,106.622656', 'unit': 'KMPH'}
+[2026-03-06 03:43:53] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519207,107.024265', 'unit': 'KMPH'}
+[2026-03-06 03:43:53] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519157,107.024354', 'unit': 'KMPH'}
+[2026-03-06 03:43:53] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697937,106.622361', 'unit': 'KMPH'}
+[2026-03-06 03:43:53] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.749745,107.064428', 'unit': 'KMPH'}
+[2026-03-06 03:43:54] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.463979,106.736248', 'unit': 'KMPH'}
+[2026-03-06 03:43:54] WARNING  data_pipeline.TrafficExtractor | Skip point (10.463979,106.736248): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:43:54] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.553224,106.782909', 'unit': 'KMPH'}
+[2026-03-06 03:43:54] WARNING  data_pipeline.TrafficExtractor | Skip point (10.553224,106.782909): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:43:54] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.557853,106.817557', 'unit': 'KMPH'}
+[2026-03-06 03:43:55] WARNING  data_pipeline.TrafficExtractor | Skip point (10.557853,106.817557): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:43:55] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.760116,106.508824', 'unit': 'KMPH'}
+[2026-03-06 03:43:55] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.709364,106.642459', 'unit': 'KMPH'}
+[2026-03-06 03:43:55] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.551974,107.02861', 'unit': 'KMPH'}
+[2026-03-06 03:43:55] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.616374,107.017737', 'unit': 'KMPH'}
+[2026-03-06 03:43:56] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705496,106.650968', 'unit': 'KMPH'}
+[2026-03-06 03:43:56] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.767791,107.085828', 'unit': 'KMPH'}
+[2026-03-06 03:43:56] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705323,106.650806', 'unit': 'KMPH'}
+[2026-03-06 03:43:57] INFO     data_pipeline.TrafficExtractor | Extracted 19/25 responses
+[2026-03-06 03:43:57] INFO     data_pipeline.traffic_pipeline | Extracted 19 raw responses
+[2026-03-06 03:43:57] INFO     data_pipeline.TrafficTransformer | Transformed 19 fact_traffic_flow records
+[2026-03-06 03:43:57] INFO     data_pipeline.traffic_pipeline | Transformed 19 records
+[2026-03-06 03:43:57] INFO     data_pipeline.TrafficLoader | Ensured partition fact_traffic_flow_202603
+[2026-03-06 03:43:57] INFO     data_pipeline.TrafficLoader | Batch 1: upserted 19/19 rows
+[2026-03-06 03:43:57] INFO     data_pipeline.traffic_pipeline | Loaded 19 records → fact_traffic_flow
+[2026-03-06 03:43:57] INFO     data_pipeline.main | [run-realtime] traffic_pipeline: 19 records
+[2026-03-06 03:43:57] INFO     data_pipeline.IncidentExtractor | Extracting incidents for bbox: 10.4,106.4,10.95,107.1 (timeValidityFilter=present)
+[2026-03-06 03:43:57] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'present'}
+[2026-03-06 03:43:59] INFO     data_pipeline.IncidentExtractor | Incident API returned 0 incidents with filter=present
+[2026-03-06 03:43:59] INFO     data_pipeline.IncidentExtractor | No present incidents found; retrying Incident API with timeValidityFilter=all
+[2026-03-06 03:43:59] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'all'}
+[2026-03-06 03:43:59] ERROR    data_pipeline.main | [run-realtime] incident_pipeline failed: HTTP 400 from https://api.tomtom.com/traffic/services/5/incidentDetails | Detail: {"detailedError":{"code":"INVALID_REQUEST","message":"Unsupported timeValidityFilter parameter value: all"}}
+[2026-03-06 03:46:30] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-06 03:46:31] INFO     data_pipeline.WeatherExtractor | Extracting weather for (10.7764, 106.7011)
+[2026-03-06 03:46:31] DEBUG    data_pipeline.WeatherExtractor | GET https://api.openweathermap.org/data/2.5/weather params={'lat': 10.7764, 'lon': 106.7011, 'appid': '3ffe1f60270c3ea6568764bae7c95bc3', 'units': 'metric', 'lang': 'vi'}
+[2026-03-06 03:46:32] INFO     data_pipeline.weather_pipeline | Extracted weather data from OpenWeatherMap
+[2026-03-06 03:46:32] INFO     data_pipeline.WeatherTransformer | Transformed weather: id=500, category=Rain, severity=3
+[2026-03-06 03:46:33] INFO     data_pipeline.WeatherLoader | Batch 1: upserted 1/1 rows
+[2026-03-06 03:46:33] INFO     data_pipeline.weather_pipeline | Loaded 1 records → dim_weather
+[2026-03-06 03:46:33] INFO     data_pipeline.main | [run-realtime] weather_pipeline: weather_key=500
+[2026-03-06 03:46:33] INFO     data_pipeline.main | [run-realtime] Loaded 25 segment points from DB (query_limit=75, duplicates_skipped=11)
+[2026-03-06 03:46:33] INFO     data_pipeline.TrafficExtractor | Extracting traffic flow for 25 segments
+[2026-03-06 03:46:33] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.907282,106.497314', 'unit': 'KMPH'}
+[2026-03-06 03:46:34] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.639254,106.842468', 'unit': 'KMPH'}
+[2026-03-06 03:46:34] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.930813,106.474887', 'unit': 'KMPH'}
+[2026-03-06 03:46:34] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.494615,106.765546', 'unit': 'KMPH'}
+[2026-03-06 03:46:35] WARNING  data_pipeline.TrafficExtractor | Skip point (10.494615,106.765546): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:46:35] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637961,106.982398', 'unit': 'KMPH'}
+[2026-03-06 03:46:35] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637961,106.982398): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:46:35] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637897,106.98228', 'unit': 'KMPH'}
+[2026-03-06 03:46:35] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637897,106.98228): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:46:35] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.916966,106.859714', 'unit': 'KMPH'}
+[2026-03-06 03:46:35] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.495411,106.558755', 'unit': 'KMPH'}
+[2026-03-06 03:46:36] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702449,106.876166', 'unit': 'KMPH'}
+[2026-03-06 03:46:36] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702161,106.876227', 'unit': 'KMPH'}
+[2026-03-06 03:46:36] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697576,106.622656', 'unit': 'KMPH'}
+[2026-03-06 03:46:36] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519207,107.024265', 'unit': 'KMPH'}
+[2026-03-06 03:46:37] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519157,107.024354', 'unit': 'KMPH'}
+[2026-03-06 03:46:37] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697937,106.622361', 'unit': 'KMPH'}
+[2026-03-06 03:46:37] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.749745,107.064428', 'unit': 'KMPH'}
+[2026-03-06 03:46:37] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.463979,106.736248', 'unit': 'KMPH'}
+[2026-03-06 03:46:38] WARNING  data_pipeline.TrafficExtractor | Skip point (10.463979,106.736248): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:46:38] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.553224,106.782909', 'unit': 'KMPH'}
+[2026-03-06 03:46:38] WARNING  data_pipeline.TrafficExtractor | Skip point (10.553224,106.782909): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:46:38] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.557853,106.817557', 'unit': 'KMPH'}
+[2026-03-06 03:46:38] WARNING  data_pipeline.TrafficExtractor | Skip point (10.557853,106.817557): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:46:38] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.760116,106.508824', 'unit': 'KMPH'}
+[2026-03-06 03:46:40] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.709364,106.642459', 'unit': 'KMPH'}
+[2026-03-06 03:46:40] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.551974,107.02861', 'unit': 'KMPH'}
+[2026-03-06 03:46:40] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.616374,107.017737', 'unit': 'KMPH'}
+[2026-03-06 03:46:40] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705496,106.650968', 'unit': 'KMPH'}
+[2026-03-06 03:46:41] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.767791,107.085828', 'unit': 'KMPH'}
+[2026-03-06 03:46:41] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705323,106.650806', 'unit': 'KMPH'}
+[2026-03-06 03:46:41] INFO     data_pipeline.TrafficExtractor | Extracted 19/25 responses
+[2026-03-06 03:46:41] INFO     data_pipeline.traffic_pipeline | Extracted 19 raw responses
+[2026-03-06 03:46:41] INFO     data_pipeline.TrafficTransformer | Transformed 19 fact_traffic_flow records
+[2026-03-06 03:46:41] INFO     data_pipeline.traffic_pipeline | Transformed 19 records
+[2026-03-06 03:46:41] INFO     data_pipeline.TrafficLoader | Ensured partition fact_traffic_flow_202603
+[2026-03-06 03:46:41] INFO     data_pipeline.TrafficLoader | Batch 1: upserted 19/19 rows
+[2026-03-06 03:46:41] INFO     data_pipeline.traffic_pipeline | Loaded 19 records → fact_traffic_flow
+[2026-03-06 03:46:41] INFO     data_pipeline.main | [run-realtime] traffic_pipeline: 19 records
+[2026-03-06 03:46:42] INFO     data_pipeline.IncidentExtractor | Extracting incidents for bbox: 10.4,106.4,10.95,107.1 (timeValidityFilter=present)
+[2026-03-06 03:46:42] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'present'}
+[2026-03-06 03:46:42] INFO     data_pipeline.IncidentExtractor | Incident API returned 0 incidents with filter=present
+[2026-03-06 03:46:42] INFO     data_pipeline.IncidentExtractor | No present incidents found; retrying Incident API with timeValidityFilter=all
+[2026-03-06 03:46:42] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'all'}
+[2026-03-06 03:46:43] ERROR    data_pipeline.main | [run-realtime] incident_pipeline failed: HTTP 400 from https://api.tomtom.com/traffic/services/5/incidentDetails | Detail: {"detailedError":{"code":"INVALID_REQUEST","message":"Unsupported timeValidityFilter parameter value: all"}}
+[2026-03-06 03:46:52] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-06 03:46:52] INFO     data_pipeline.WeatherExtractor | Extracting weather for (10.7764, 106.7011)
+[2026-03-06 03:46:52] DEBUG    data_pipeline.WeatherExtractor | GET https://api.openweathermap.org/data/2.5/weather params={'lat': 10.7764, 'lon': 106.7011, 'appid': '3ffe1f60270c3ea6568764bae7c95bc3', 'units': 'metric', 'lang': 'vi'}
+[2026-03-06 03:46:53] INFO     data_pipeline.weather_pipeline | Extracted weather data from OpenWeatherMap
+[2026-03-06 03:46:53] INFO     data_pipeline.WeatherTransformer | Transformed weather: id=500, category=Rain, severity=3
+[2026-03-06 03:46:53] INFO     data_pipeline.WeatherLoader | Batch 1: upserted 1/1 rows
+[2026-03-06 03:46:53] INFO     data_pipeline.weather_pipeline | Loaded 1 records → dim_weather
+[2026-03-06 03:46:53] INFO     data_pipeline.main | [run-realtime] weather_pipeline: weather_key=500
+[2026-03-06 03:46:53] INFO     data_pipeline.main | [run-realtime] Loaded 25 segment points from DB (query_limit=75, duplicates_skipped=11)
+[2026-03-06 03:46:53] INFO     data_pipeline.TrafficExtractor | Extracting traffic flow for 25 segments
+[2026-03-06 03:46:53] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.907282,106.497314', 'unit': 'KMPH'}
+[2026-03-06 03:46:56] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.639254,106.842468', 'unit': 'KMPH'}
+[2026-03-06 03:46:56] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.930813,106.474887', 'unit': 'KMPH'}
+[2026-03-06 03:46:55] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.494615,106.765546', 'unit': 'KMPH'}
+[2026-03-06 03:46:55] WARNING  data_pipeline.TrafficExtractor | Skip point (10.494615,106.765546): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:46:55] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637961,106.982398', 'unit': 'KMPH'}
+[2026-03-06 03:46:56] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637961,106.982398): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:46:56] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637897,106.98228', 'unit': 'KMPH'}
+[2026-03-06 03:46:56] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637897,106.98228): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:46:56] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.916966,106.859714', 'unit': 'KMPH'}
+[2026-03-06 03:46:56] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.495411,106.558755', 'unit': 'KMPH'}
+[2026-03-06 03:46:56] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702449,106.876166', 'unit': 'KMPH'}
+[2026-03-06 03:46:57] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702161,106.876227', 'unit': 'KMPH'}
+[2026-03-06 03:46:57] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697576,106.622656', 'unit': 'KMPH'}
+[2026-03-06 03:46:57] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519207,107.024265', 'unit': 'KMPH'}
+[2026-03-06 03:46:58] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519157,107.024354', 'unit': 'KMPH'}
+[2026-03-06 03:46:58] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697937,106.622361', 'unit': 'KMPH'}
+[2026-03-06 03:46:58] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.749745,107.064428', 'unit': 'KMPH'}
+[2026-03-06 03:46:58] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.463979,106.736248', 'unit': 'KMPH'}
+[2026-03-06 03:46:59] WARNING  data_pipeline.TrafficExtractor | Skip point (10.463979,106.736248): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:46:59] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.553224,106.782909', 'unit': 'KMPH'}
+[2026-03-06 03:46:59] WARNING  data_pipeline.TrafficExtractor | Skip point (10.553224,106.782909): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:46:59] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.557853,106.817557', 'unit': 'KMPH'}
+[2026-03-06 03:47:00] WARNING  data_pipeline.TrafficExtractor | Skip point (10.557853,106.817557): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:47:00] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.760116,106.508824', 'unit': 'KMPH'}
+[2026-03-06 03:47:00] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.709364,106.642459', 'unit': 'KMPH'}
+[2026-03-06 03:47:01] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.551974,107.02861', 'unit': 'KMPH'}
+[2026-03-06 03:47:01] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.616374,107.017737', 'unit': 'KMPH'}
+[2026-03-06 03:47:01] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705496,106.650968', 'unit': 'KMPH'}
+[2026-03-06 03:47:02] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.767791,107.085828', 'unit': 'KMPH'}
+[2026-03-06 03:47:02] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705323,106.650806', 'unit': 'KMPH'}
+[2026-03-06 03:47:02] INFO     data_pipeline.TrafficExtractor | Extracted 19/25 responses
+[2026-03-06 03:47:02] INFO     data_pipeline.traffic_pipeline | Extracted 19 raw responses
+[2026-03-06 03:47:02] INFO     data_pipeline.TrafficTransformer | Transformed 19 fact_traffic_flow records
+[2026-03-06 03:47:02] INFO     data_pipeline.traffic_pipeline | Transformed 19 records
+[2026-03-06 03:47:02] INFO     data_pipeline.TrafficLoader | Ensured partition fact_traffic_flow_202603
+[2026-03-06 03:47:03] INFO     data_pipeline.TrafficLoader | Batch 1: upserted 19/19 rows
+[2026-03-06 03:47:03] INFO     data_pipeline.traffic_pipeline | Loaded 19 records → fact_traffic_flow
+[2026-03-06 03:47:03] INFO     data_pipeline.main | [run-realtime] traffic_pipeline: 19 records
+[2026-03-06 03:47:03] INFO     data_pipeline.IncidentExtractor | Extracting incidents for bbox: 10.4,106.4,10.95,107.1 (timeValidityFilter=present)
+[2026-03-06 03:47:03] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'present'}
+[2026-03-06 03:47:04] INFO     data_pipeline.IncidentExtractor | Incident API returned 0 incidents with filter=present
+[2026-03-06 03:47:04] INFO     data_pipeline.IncidentExtractor | No present incidents found; retrying Incident API with timeValidityFilter=all
+[2026-03-06 03:47:04] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'all'}
+[2026-03-06 03:47:04] ERROR    data_pipeline.main | [run-realtime] incident_pipeline failed: HTTP 400 from https://api.tomtom.com/traffic/services/5/incidentDetails | Detail: {"detailedError":{"code":"INVALID_REQUEST","message":"Unsupported timeValidityFilter parameter value: all"}}
+[2026-03-06 03:47:13] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-06 03:47:14] INFO     data_pipeline.WeatherExtractor | Extracting weather for (10.7764, 106.7011)
+[2026-03-06 03:47:14] DEBUG    data_pipeline.WeatherExtractor | GET https://api.openweathermap.org/data/2.5/weather params={'lat': 10.7764, 'lon': 106.7011, 'appid': '3ffe1f60270c3ea6568764bae7c95bc3', 'units': 'metric', 'lang': 'vi'}
+[2026-03-06 03:47:15] INFO     data_pipeline.weather_pipeline | Extracted weather data from OpenWeatherMap
+[2026-03-06 03:47:15] INFO     data_pipeline.WeatherTransformer | Transformed weather: id=500, category=Rain, severity=3
+[2026-03-06 03:47:15] INFO     data_pipeline.WeatherLoader | Batch 1: upserted 1/1 rows
+[2026-03-06 03:47:15] INFO     data_pipeline.weather_pipeline | Loaded 1 records → dim_weather
+[2026-03-06 03:47:15] INFO     data_pipeline.main | [run-realtime] weather_pipeline: weather_key=500
+[2026-03-06 03:47:16] INFO     data_pipeline.main | [run-realtime] Loaded 25 segment points from DB (query_limit=75, duplicates_skipped=11)
+[2026-03-06 03:47:16] INFO     data_pipeline.TrafficExtractor | Extracting traffic flow for 25 segments
+[2026-03-06 03:47:16] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.907282,106.497314', 'unit': 'KMPH'}
+[2026-03-06 03:47:17] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.639254,106.842468', 'unit': 'KMPH'}
+[2026-03-06 03:47:17] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.930813,106.474887', 'unit': 'KMPH'}
+[2026-03-06 03:47:17] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.494615,106.765546', 'unit': 'KMPH'}
+[2026-03-06 03:47:17] WARNING  data_pipeline.TrafficExtractor | Skip point (10.494615,106.765546): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:47:17] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637961,106.982398', 'unit': 'KMPH'}
+[2026-03-06 03:47:18] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637961,106.982398): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:47:18] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637897,106.98228', 'unit': 'KMPH'}
+[2026-03-06 03:47:18] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637897,106.98228): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:47:18] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.916966,106.859714', 'unit': 'KMPH'}
+[2026-03-06 03:47:18] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.495411,106.558755', 'unit': 'KMPH'}
+[2026-03-06 03:47:18] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702449,106.876166', 'unit': 'KMPH'}
+[2026-03-06 03:47:19] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702161,106.876227', 'unit': 'KMPH'}
+[2026-03-06 03:47:19] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697576,106.622656', 'unit': 'KMPH'}
+[2026-03-06 03:47:19] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519207,107.024265', 'unit': 'KMPH'}
+[2026-03-06 03:47:19] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519157,107.024354', 'unit': 'KMPH'}
+[2026-03-06 03:47:19] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697937,106.622361', 'unit': 'KMPH'}
+[2026-03-06 03:47:20] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.749745,107.064428', 'unit': 'KMPH'}
+[2026-03-06 03:47:20] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.463979,106.736248', 'unit': 'KMPH'}
+[2026-03-06 03:47:20] WARNING  data_pipeline.TrafficExtractor | Skip point (10.463979,106.736248): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:47:20] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.553224,106.782909', 'unit': 'KMPH'}
+[2026-03-06 03:47:20] WARNING  data_pipeline.TrafficExtractor | Skip point (10.553224,106.782909): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:47:20] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.557853,106.817557', 'unit': 'KMPH'}
+[2026-03-06 03:47:21] WARNING  data_pipeline.TrafficExtractor | Skip point (10.557853,106.817557): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:47:21] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.760116,106.508824', 'unit': 'KMPH'}
+[2026-03-06 03:47:21] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.709364,106.642459', 'unit': 'KMPH'}
+[2026-03-06 03:47:21] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.551974,107.02861', 'unit': 'KMPH'}
+[2026-03-06 03:47:21] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.616374,107.017737', 'unit': 'KMPH'}
+[2026-03-06 03:47:22] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705496,106.650968', 'unit': 'KMPH'}
+[2026-03-06 03:47:23] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.767791,107.085828', 'unit': 'KMPH'}
+[2026-03-06 03:47:23] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705323,106.650806', 'unit': 'KMPH'}
+[2026-03-06 03:47:23] INFO     data_pipeline.TrafficExtractor | Extracted 19/25 responses
+[2026-03-06 03:47:23] INFO     data_pipeline.traffic_pipeline | Extracted 19 raw responses
+[2026-03-06 03:47:23] INFO     data_pipeline.TrafficTransformer | Transformed 19 fact_traffic_flow records
+[2026-03-06 03:47:23] INFO     data_pipeline.traffic_pipeline | Transformed 19 records
+[2026-03-06 03:47:23] INFO     data_pipeline.TrafficLoader | Ensured partition fact_traffic_flow_202603
+[2026-03-06 03:47:23] INFO     data_pipeline.TrafficLoader | Batch 1: upserted 19/19 rows
+[2026-03-06 03:47:23] INFO     data_pipeline.traffic_pipeline | Loaded 19 records → fact_traffic_flow
+[2026-03-06 03:47:23] INFO     data_pipeline.main | [run-realtime] traffic_pipeline: 19 records
+[2026-03-06 03:47:24] INFO     data_pipeline.IncidentExtractor | Extracting incidents for bbox: 10.4,106.4,10.95,107.1 (timeValidityFilter=present)
+[2026-03-06 03:47:24] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'present'}
+[2026-03-06 03:47:24] INFO     data_pipeline.IncidentExtractor | Incident API returned 0 incidents with filter=present
+[2026-03-06 03:47:24] INFO     data_pipeline.IncidentExtractor | No present incidents found; retrying Incident API with timeValidityFilter=all
+[2026-03-06 03:47:24] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'all'}
+[2026-03-06 03:47:25] ERROR    data_pipeline.main | [run-realtime] incident_pipeline failed: HTTP 400 from https://api.tomtom.com/traffic/services/5/incidentDetails | Detail: {"detailedError":{"code":"INVALID_REQUEST","message":"Unsupported timeValidityFilter parameter value: all"}}
+[2026-03-06 03:47:55] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-06 03:47:56] INFO     data_pipeline.WeatherExtractor | Extracting weather for (10.7764, 106.7011)
+[2026-03-06 03:47:56] DEBUG    data_pipeline.WeatherExtractor | GET https://api.openweathermap.org/data/2.5/weather params={'lat': 10.7764, 'lon': 106.7011, 'appid': '3ffe1f60270c3ea6568764bae7c95bc3', 'units': 'metric', 'lang': 'vi'}
+[2026-03-06 03:47:57] INFO     data_pipeline.weather_pipeline | Extracted weather data from OpenWeatherMap
+[2026-03-06 03:47:57] INFO     data_pipeline.WeatherTransformer | Transformed weather: id=500, category=Rain, severity=3
+[2026-03-06 03:47:57] INFO     data_pipeline.WeatherLoader | Batch 1: upserted 1/1 rows
+[2026-03-06 03:47:57] INFO     data_pipeline.weather_pipeline | Loaded 1 records → dim_weather
+[2026-03-06 03:47:57] INFO     data_pipeline.main | [run-realtime] weather_pipeline: weather_key=500
+[2026-03-06 03:47:57] INFO     data_pipeline.main | [run-realtime] Loaded 25 segment points from DB (query_limit=75, duplicates_skipped=11)
+[2026-03-06 03:47:57] INFO     data_pipeline.TrafficExtractor | Extracting traffic flow for 25 segments
+[2026-03-06 03:47:57] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.907282,106.497314', 'unit': 'KMPH'}
+[2026-03-06 03:47:58] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.639254,106.842468', 'unit': 'KMPH'}
+[2026-03-06 03:47:59] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.930813,106.474887', 'unit': 'KMPH'}
+[2026-03-06 03:47:59] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.494615,106.765546', 'unit': 'KMPH'}
+[2026-03-06 03:47:59] WARNING  data_pipeline.TrafficExtractor | Skip point (10.494615,106.765546): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:47:59] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637961,106.982398', 'unit': 'KMPH'}
+[2026-03-06 03:47:59] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637961,106.982398): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:47:59] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637897,106.98228', 'unit': 'KMPH'}
+[2026-03-06 03:47:59] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637897,106.98228): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:47:59] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.916966,106.859714', 'unit': 'KMPH'}
+[2026-03-06 03:48:00] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.495411,106.558755', 'unit': 'KMPH'}
+[2026-03-06 03:48:00] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702449,106.876166', 'unit': 'KMPH'}
+[2026-03-06 03:48:00] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702161,106.876227', 'unit': 'KMPH'}
+[2026-03-06 03:48:00] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697576,106.622656', 'unit': 'KMPH'}
+[2026-03-06 03:48:01] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519207,107.024265', 'unit': 'KMPH'}
+[2026-03-06 03:48:01] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519157,107.024354', 'unit': 'KMPH'}
+[2026-03-06 03:48:01] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697937,106.622361', 'unit': 'KMPH'}
+[2026-03-06 03:48:01] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.749745,107.064428', 'unit': 'KMPH'}
+[2026-03-06 03:48:01] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.463979,106.736248', 'unit': 'KMPH'}
+[2026-03-06 03:48:02] WARNING  data_pipeline.TrafficExtractor | Skip point (10.463979,106.736248): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:02] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.553224,106.782909', 'unit': 'KMPH'}
+[2026-03-06 03:48:02] WARNING  data_pipeline.TrafficExtractor | Skip point (10.553224,106.782909): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:02] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.557853,106.817557', 'unit': 'KMPH'}
+[2026-03-06 03:48:02] WARNING  data_pipeline.TrafficExtractor | Skip point (10.557853,106.817557): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:02] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.760116,106.508824', 'unit': 'KMPH'}
+[2026-03-06 03:48:02] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.709364,106.642459', 'unit': 'KMPH'}
+[2026-03-06 03:48:03] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.551974,107.02861', 'unit': 'KMPH'}
+[2026-03-06 03:48:03] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.616374,107.017737', 'unit': 'KMPH'}
+[2026-03-06 03:48:04] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705496,106.650968', 'unit': 'KMPH'}
+[2026-03-06 03:48:04] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.767791,107.085828', 'unit': 'KMPH'}
+[2026-03-06 03:48:04] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705323,106.650806', 'unit': 'KMPH'}
+[2026-03-06 03:48:05] INFO     data_pipeline.TrafficExtractor | Extracted 19/25 responses
+[2026-03-06 03:48:05] INFO     data_pipeline.traffic_pipeline | Extracted 19 raw responses
+[2026-03-06 03:48:05] INFO     data_pipeline.TrafficTransformer | Transformed 19 fact_traffic_flow records
+[2026-03-06 03:48:05] INFO     data_pipeline.traffic_pipeline | Transformed 19 records
+[2026-03-06 03:48:05] INFO     data_pipeline.TrafficLoader | Ensured partition fact_traffic_flow_202603
+[2026-03-06 03:48:05] INFO     data_pipeline.TrafficLoader | Batch 1: upserted 19/19 rows
+[2026-03-06 03:48:05] INFO     data_pipeline.traffic_pipeline | Loaded 19 records → fact_traffic_flow
+[2026-03-06 03:48:05] INFO     data_pipeline.main | [run-realtime] traffic_pipeline: 19 records
+[2026-03-06 03:48:05] INFO     data_pipeline.IncidentExtractor | Extracting incidents for bbox: 10.4,106.4,10.95,107.1 (timeValidityFilter=present)
+[2026-03-06 03:48:05] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'present'}
+[2026-03-06 03:48:06] INFO     data_pipeline.IncidentExtractor | Incident API returned 0 incidents with filter=present
+[2026-03-06 03:48:06] INFO     data_pipeline.IncidentExtractor | No present incidents found; retrying Incident API with timeValidityFilter=all
+[2026-03-06 03:48:06] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'all'}
+[2026-03-06 03:48:06] ERROR    data_pipeline.main | [run-realtime] incident_pipeline failed: HTTP 400 from https://api.tomtom.com/traffic/services/5/incidentDetails | Detail: {"detailedError":{"code":"INVALID_REQUEST","message":"Unsupported timeValidityFilter parameter value: all"}}
+[2026-03-06 03:48:12] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-06 03:48:13] INFO     data_pipeline.WeatherExtractor | Extracting weather for (10.7764, 106.7011)
+[2026-03-06 03:48:13] DEBUG    data_pipeline.WeatherExtractor | GET https://api.openweathermap.org/data/2.5/weather params={'lat': 10.7764, 'lon': 106.7011, 'appid': '3ffe1f60270c3ea6568764bae7c95bc3', 'units': 'metric', 'lang': 'vi'}
+[2026-03-06 03:48:13] INFO     data_pipeline.weather_pipeline | Extracted weather data from OpenWeatherMap
+[2026-03-06 03:48:13] INFO     data_pipeline.WeatherTransformer | Transformed weather: id=500, category=Rain, severity=3
+[2026-03-06 03:48:13] INFO     data_pipeline.WeatherLoader | Batch 1: upserted 1/1 rows
+[2026-03-06 03:48:13] INFO     data_pipeline.weather_pipeline | Loaded 1 records → dim_weather
+[2026-03-06 03:48:13] INFO     data_pipeline.main | [run-realtime] weather_pipeline: weather_key=500
+[2026-03-06 03:48:13] INFO     data_pipeline.main | [run-realtime] Loaded 25 segment points from DB (query_limit=75, duplicates_skipped=11)
+[2026-03-06 03:48:13] INFO     data_pipeline.TrafficExtractor | Extracting traffic flow for 25 segments
+[2026-03-06 03:48:13] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.907282,106.497314', 'unit': 'KMPH'}
+[2026-03-06 03:48:14] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.639254,106.842468', 'unit': 'KMPH'}
+[2026-03-06 03:48:14] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.930813,106.474887', 'unit': 'KMPH'}
+[2026-03-06 03:48:15] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.494615,106.765546', 'unit': 'KMPH'}
+[2026-03-06 03:48:15] WARNING  data_pipeline.TrafficExtractor | Skip point (10.494615,106.765546): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:15] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637961,106.982398', 'unit': 'KMPH'}
+[2026-03-06 03:48:15] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637961,106.982398): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:15] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637897,106.98228', 'unit': 'KMPH'}
+[2026-03-06 03:48:16] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637897,106.98228): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:16] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.916966,106.859714', 'unit': 'KMPH'}
+[2026-03-06 03:48:16] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.495411,106.558755', 'unit': 'KMPH'}
+[2026-03-06 03:48:16] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702449,106.876166', 'unit': 'KMPH'}
+[2026-03-06 03:48:16] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702161,106.876227', 'unit': 'KMPH'}
+[2026-03-06 03:48:16] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697576,106.622656', 'unit': 'KMPH'}
+[2026-03-06 03:48:17] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519207,107.024265', 'unit': 'KMPH'}
+[2026-03-06 03:48:17] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519157,107.024354', 'unit': 'KMPH'}
+[2026-03-06 03:48:17] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697937,106.622361', 'unit': 'KMPH'}
+[2026-03-06 03:48:17] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.749745,107.064428', 'unit': 'KMPH'}
+[2026-03-06 03:48:18] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.463979,106.736248', 'unit': 'KMPH'}
+[2026-03-06 03:48:19] WARNING  data_pipeline.TrafficExtractor | Skip point (10.463979,106.736248): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:19] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.553224,106.782909', 'unit': 'KMPH'}
+[2026-03-06 03:48:19] WARNING  data_pipeline.TrafficExtractor | Skip point (10.553224,106.782909): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:19] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.557853,106.817557', 'unit': 'KMPH'}
+[2026-03-06 03:48:19] WARNING  data_pipeline.TrafficExtractor | Skip point (10.557853,106.817557): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:19] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.760116,106.508824', 'unit': 'KMPH'}
+[2026-03-06 03:48:19] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.709364,106.642459', 'unit': 'KMPH'}
+[2026-03-06 03:48:20] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.551974,107.02861', 'unit': 'KMPH'}
+[2026-03-06 03:48:20] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.616374,107.017737', 'unit': 'KMPH'}
+[2026-03-06 03:48:20] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705496,106.650968', 'unit': 'KMPH'}
+[2026-03-06 03:48:20] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.767791,107.085828', 'unit': 'KMPH'}
+[2026-03-06 03:48:21] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705323,106.650806', 'unit': 'KMPH'}
+[2026-03-06 03:48:21] INFO     data_pipeline.TrafficExtractor | Extracted 19/25 responses
+[2026-03-06 03:48:21] INFO     data_pipeline.traffic_pipeline | Extracted 19 raw responses
+[2026-03-06 03:48:21] INFO     data_pipeline.TrafficTransformer | Transformed 19 fact_traffic_flow records
+[2026-03-06 03:48:21] INFO     data_pipeline.traffic_pipeline | Transformed 19 records
+[2026-03-06 03:48:21] INFO     data_pipeline.TrafficLoader | Ensured partition fact_traffic_flow_202603
+[2026-03-06 03:48:21] INFO     data_pipeline.TrafficLoader | Batch 1: upserted 19/19 rows
+[2026-03-06 03:48:21] INFO     data_pipeline.traffic_pipeline | Loaded 19 records → fact_traffic_flow
+[2026-03-06 03:48:21] INFO     data_pipeline.main | [run-realtime] traffic_pipeline: 19 records
+[2026-03-06 03:48:21] INFO     data_pipeline.IncidentExtractor | Extracting incidents for bbox: 10.4,106.4,10.95,107.1 (timeValidityFilter=present)
+[2026-03-06 03:48:21] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'present'}
+[2026-03-06 03:48:21] INFO     data_pipeline.IncidentExtractor | Incident API returned 0 incidents with filter=present
+[2026-03-06 03:48:21] INFO     data_pipeline.IncidentExtractor | No present incidents found; retrying Incident API with timeValidityFilter=all
+[2026-03-06 03:48:21] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'all'}
+[2026-03-06 03:48:21] ERROR    data_pipeline.main | [run-realtime] incident_pipeline failed: HTTP 400 from https://api.tomtom.com/traffic/services/5/incidentDetails | Detail: {"detailedError":{"code":"INVALID_REQUEST","message":"Unsupported timeValidityFilter parameter value: all"}}
+[2026-03-06 03:48:32] INFO     data_pipeline.database | SQLAlchemy Engine created
+[2026-03-06 03:48:32] INFO     data_pipeline.WeatherExtractor | Extracting weather for (10.7764, 106.7011)
+[2026-03-06 03:48:32] DEBUG    data_pipeline.WeatherExtractor | GET https://api.openweathermap.org/data/2.5/weather params={'lat': 10.7764, 'lon': 106.7011, 'appid': '3ffe1f60270c3ea6568764bae7c95bc3', 'units': 'metric', 'lang': 'vi'}
+[2026-03-06 03:48:32] INFO     data_pipeline.weather_pipeline | Extracted weather data from OpenWeatherMap
+[2026-03-06 03:48:32] INFO     data_pipeline.WeatherTransformer | Transformed weather: id=500, category=Rain, severity=3
+[2026-03-06 03:48:33] INFO     data_pipeline.WeatherLoader | Batch 1: upserted 1/1 rows
+[2026-03-06 03:48:33] INFO     data_pipeline.weather_pipeline | Loaded 1 records → dim_weather
+[2026-03-06 03:48:33] INFO     data_pipeline.main | [run-realtime] weather_pipeline: weather_key=500
+[2026-03-06 03:48:33] INFO     data_pipeline.main | [run-realtime] Loaded 25 segment points from DB (query_limit=75, duplicates_skipped=11)
+[2026-03-06 03:48:33] INFO     data_pipeline.TrafficExtractor | Extracting traffic flow for 25 segments
+[2026-03-06 03:48:33] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.907282,106.497314', 'unit': 'KMPH'}
+[2026-03-06 03:48:34] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.639254,106.842468', 'unit': 'KMPH'}
+[2026-03-06 03:48:34] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.930813,106.474887', 'unit': 'KMPH'}
+[2026-03-06 03:48:34] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.494615,106.765546', 'unit': 'KMPH'}
+[2026-03-06 03:48:35] WARNING  data_pipeline.TrafficExtractor | Skip point (10.494615,106.765546): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:35] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637961,106.982398', 'unit': 'KMPH'}
+[2026-03-06 03:48:35] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637961,106.982398): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:35] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.637897,106.98228', 'unit': 'KMPH'}
+[2026-03-06 03:48:35] WARNING  data_pipeline.TrafficExtractor | Skip point (10.637897,106.98228): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:35] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.916966,106.859714', 'unit': 'KMPH'}
+[2026-03-06 03:48:35] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.495411,106.558755', 'unit': 'KMPH'}
+[2026-03-06 03:48:36] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702449,106.876166', 'unit': 'KMPH'}
+[2026-03-06 03:48:36] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.702161,106.876227', 'unit': 'KMPH'}
+[2026-03-06 03:48:37] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697576,106.622656', 'unit': 'KMPH'}
+[2026-03-06 03:48:37] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519207,107.024265', 'unit': 'KMPH'}
+[2026-03-06 03:48:37] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.519157,107.024354', 'unit': 'KMPH'}
+[2026-03-06 03:48:37] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.697937,106.622361', 'unit': 'KMPH'}
+[2026-03-06 03:48:38] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.749745,107.064428', 'unit': 'KMPH'}
+[2026-03-06 03:48:38] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.463979,106.736248', 'unit': 'KMPH'}
+[2026-03-06 03:48:38] WARNING  data_pipeline.TrafficExtractor | Skip point (10.463979,106.736248): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:38] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.553224,106.782909', 'unit': 'KMPH'}
+[2026-03-06 03:48:40] WARNING  data_pipeline.TrafficExtractor | Skip point (10.553224,106.782909): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:40] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.557853,106.817557', 'unit': 'KMPH'}
+[2026-03-06 03:48:40] WARNING  data_pipeline.TrafficExtractor | Skip point (10.557853,106.817557): HTTP 400 from https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
+[2026-03-06 03:48:40] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.760116,106.508824', 'unit': 'KMPH'}
+[2026-03-06 03:48:40] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.709364,106.642459', 'unit': 'KMPH'}
+[2026-03-06 03:48:40] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.551974,107.02861', 'unit': 'KMPH'}
+[2026-03-06 03:48:41] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.616374,107.017737', 'unit': 'KMPH'}
+[2026-03-06 03:48:41] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705496,106.650968', 'unit': 'KMPH'}
+[2026-03-06 03:48:41] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.767791,107.085828', 'unit': 'KMPH'}
+[2026-03-06 03:48:42] DEBUG    data_pipeline.TrafficExtractor | GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'point': '10.705323,106.650806', 'unit': 'KMPH'}
+[2026-03-06 03:48:42] INFO     data_pipeline.TrafficExtractor | Extracted 19/25 responses
+[2026-03-06 03:48:42] INFO     data_pipeline.traffic_pipeline | Extracted 19 raw responses
+[2026-03-06 03:48:42] INFO     data_pipeline.TrafficTransformer | Transformed 19 fact_traffic_flow records
+[2026-03-06 03:48:42] INFO     data_pipeline.traffic_pipeline | Transformed 19 records
+[2026-03-06 03:48:42] INFO     data_pipeline.TrafficLoader | Ensured partition fact_traffic_flow_202603
+[2026-03-06 03:48:42] INFO     data_pipeline.TrafficLoader | Batch 1: upserted 19/19 rows
+[2026-03-06 03:48:42] INFO     data_pipeline.traffic_pipeline | Loaded 19 records → fact_traffic_flow
+[2026-03-06 03:48:42] INFO     data_pipeline.main | [run-realtime] traffic_pipeline: 19 records
+[2026-03-06 03:48:42] INFO     data_pipeline.IncidentExtractor | Extracting incidents for bbox: 10.4,106.4,10.95,107.1 (timeValidityFilter=present)
+[2026-03-06 03:48:42] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'present'}
+[2026-03-06 03:48:43] INFO     data_pipeline.IncidentExtractor | Incident API returned 0 incidents with filter=present
+[2026-03-06 03:48:43] INFO     data_pipeline.IncidentExtractor | No present incidents found; retrying Incident API with timeValidityFilter=all
+[2026-03-06 03:48:43] DEBUG    data_pipeline.IncidentExtractor | GET https://api.tomtom.com/traffic/services/5/incidentDetails params={'key': 'nYiEtOLKFLyDntCB7Lyb8O8pzaiV6eWx', 'bbox': '10.4,106.4,10.95,107.1', 'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,startTime,endTime,from,to,delay,length}}}', 'language': 'en-US', 'timeValidityFilter': 'all'}
+[2026-03-06 03:48:43] ERROR    data_pipeline.main | [run-realtime] incident_pipeline failed: HTTP 400 from https://api.tomtom.com/traffic/services/5/incidentDetails | Detail: {"detailedError":{"code":"INVALID_REQUEST","message":"Unsupported timeValidityFilter parameter value: all"}}
