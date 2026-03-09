@@ -19,17 +19,17 @@ version: '3.8'
 
 services:
   # ─────────────────────────────────────────────────────────
-  # PostgreSQL 14 - Data Warehouse
+  # PostgreSQL 15 with PostGIS + pgRouting - Data Warehouse
   # ─────────────────────────────────────────────────────────
   postgres:
-    image: postgres:14-alpine
-    container_name: postgres-traffic-ioc
+    image: pgrouting/pgrouting:15-3.5-4.0.1
+    container_name: traffic_ioc_postgres
     environment:
       POSTGRES_USER: ${DB_USER:-traffic_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-traffic_password}
       POSTGRES_DB: ${DB_NAME:-traffic_ioc}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/postgres:/docker-entrypoint-initdb.d
@@ -81,6 +81,7 @@ services:
       - TZ=UTC
     volumes:
       - pipeline_logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock  # Mount Docker socket
     depends_on:
       postgres:
         condition: service_healthy

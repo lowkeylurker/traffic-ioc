@@ -22,9 +22,9 @@ class Settings(BaseSettings):
     # ── Database ──────────────────────────────────────────
     db_host: str = "localhost"
     db_port: int = 5432
-    db_name: str = "datn-traffic-ioc"
-    db_user: str = "postgres"
-    db_password: str = ""
+    db_name: str = "traffic_ioc"
+    db_user: str = "traffic_user"
+    db_password: str = "traffic_password"
     db_sslmode: str = "disable"
 
     # ── API Keys ──────────────────────────────────────────

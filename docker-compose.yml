@@ -4,9 +4,9 @@ services:
     image: pgrouting/pgrouting:15-3.5-4.0.1
     container_name: traffic_ioc_postgres
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-traffic_ioc_db}
+      POSTGRES_USER: ${DB_USER:-traffic_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-traffic_password}
+      POSTGRES_DB: ${DB_NAME:-traffic_ioc}
     ports:
       - "${DB_PORT:-5433}:5432"
     volumes:
@@ -16,7 +16,7 @@ services:
       - ./infrastructure/postgres/4_indexes.sql:/docker-entrypoint-initdb.d/04-indexes.sql
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-traffic_user}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -67,9 +67,9 @@ services:
       # Override từ .env file, ưu tiên ENV vars
       DB_HOST: ${DB_HOST:-postgres}
       DB_PORT: ${DB_PORT:-5432}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      DB_NAME: ${DB_NAME:-traffic_ioc_db}
+      DB_USER: ${DB_USER:-traffic_user}
+      DB_PASSWORD: ${DB_PASSWORD:-traffic_password}
+      DB_NAME: ${DB_NAME:-traffic_ioc}
       DB_SCHEMA: ${DB_SCHEMA:-public}
     networks:
       - traffic-network

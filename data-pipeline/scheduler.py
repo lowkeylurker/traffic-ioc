@@ -139,13 +139,13 @@ class ETLJob:
 # Job definitions
 REALTIME_JOB = ETLJob(
     name="Real-time ETL",
-    command=["docker", "exec", "utraffic-data-pipeline", "python", "-m", "src.main", "run-realtime"],
+    command=["docker", "exec", "data-pipeline", "python", "-m", "src.main", "run-realtime"],
     timeout=300  # 5 minutes
 )
 
 BATCH_JOB = ETLJob(
     name="Batch Analytics",
-    command=["docker", "exec", "utraffic-data-pipeline", "python", "-m", "src.main", "run-batch"],
+    command=["docker", "exec", "data-pipeline", "python", "-m", "src.main", "run-batch"],
     timeout=1800  # 30 minutes
 )
 
