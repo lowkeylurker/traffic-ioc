@@ -1,0 +1,26 @@
+road_name|priority_score|segment_count|length_m|avg_traffic_index|avg_pcu_volume|incident_count|already_in_dim_corridor
+Mai Chí Thọ|51.64|34|7918|0.230|8256.0|0|YES
+Võ Văn Kiệt|49.85|46|7437|0.200|7943.4|0|NO
+nan|45.79|1425|59458|0.111|2584.4|0|NO
+Nguyễn Văn Linh|43.99|6|4782|0.028|2204.4|0|YES
+Điện Biên Phủ|14.13|152|16868|0.000|0.0|0|YES
+Phan Đình Phùng|13.10|22|2191|0.000|0.0|0|NO
+Đường Võ Văn Kiệt|12.79|72|11590|0.000|0.0|0|NO
+Đinh Tiên Hoàng|12.65|21|1382|0.000|0.0|0|YES
+Lê Duẩn|12.62|38|2749|0.000|0.0|0|NO
+Võ Thị Sáu|12.21|26|2185|0.000|0.0|0|NO
+Hoàng Văn Thụ|12.19|35|3391|0.000|0.0|0|NO
+Hùng Vương|12.15|17|1972|0.000|0.0|0|NO
+Tôn Đức Thắng|12.10|28|2645|0.000|0.0|0|NO
+Đường Nguyễn Văn Trỗi|12.02|46|4143|0.000|0.0|0|NO
+Công trường Quách Thị Trang|11.89|17|1222|0.000|0.0|0|NO
+Nguyễn Bỉnh Khiêm|11.82|23|1772|0.000|0.0|0|NO
+Nam Kỳ Khởi Nghĩa|11.78|53|5106|0.000|0.0|0|NO
+Nguyễn Hữu Cảnh|11.68|70|6800|0.000|0.0|0|NO
+Cầu Thị Nghè 2|11.65|6|2023|0.000|0.0|0|NO
+Ngô Gia Tự|11.61|36|3412|0.000|0.0|0|NO
+Lê Lai|11.57|13|1233|0.000|0.0|0|NO
+Phan Đăng Lưu|11.55|25|2469|0.000|0.0|0|NO
+Trần Phú|11.55|20|2737|0.000|0.0|0|NO
+Đường Phạm Hùng|11.40|16|2471|0.000|0.0|0|NO
+Đường Nguyễn Văn Cừ|11.38|39|3336|0.000|0.0|0|NO

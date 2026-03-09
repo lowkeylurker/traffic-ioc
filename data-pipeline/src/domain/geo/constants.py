@@ -63,6 +63,10 @@ BBOX_DISTRICT_10: dict[str, float] = {
     "max_lat": 10.870,
 }
 
+# Target district for corridor-focused realtime/batch ETL
+# Scope: Quận 1 only (~920 segments, manageable for API limits)
+BBOX_TARGET_DISTRICT: dict[str, float] = BBOX_DISTRICT_1
+
 BBOX_DISTRICT_11: dict[str, float] = {
     "min_lon": 106.600,
     "min_lat": 10.780,

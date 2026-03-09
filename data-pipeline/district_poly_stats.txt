@@ -1,0 +1,24 @@
+Huyện Củ Chi|21|14
+Quận Bình Thạnh|20|13
+Quận 11|16|13
+Quận 8|16|13
+Quận Gò Vấp|16|12
+Huyện Bình Chánh|16|13
+Quận 10|15|13
+Quận Tân Bình|15|13
+Quận 5|15|13
+Quận Phú Nhuận|14|11
+Quận 3|14|12
+Quận 6|14|12
+Quận 4|14|10
+Quận 9|13|12
+Huyện Hóc Môn|12|10
+Quận Thủ Đức|12|12
+Quận 12|11|8
+Quận Tân Phú|11|9
+Quận 2|11|8
+Quận 1|10|9
+Quận 7|10|8
+Quận Bình Tân|10|10
+Huyện Nhà Bè|7|4
+Huyện Cần Giờ|7|5

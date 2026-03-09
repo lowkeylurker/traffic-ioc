@@ -103,13 +103,30 @@ class CorridorPerformanceLoader(BaseLoader):
 # ═══════════════════════════════════════════════════════════
 
 _CORRIDOR_QUERY = text("""
-    WITH q1_corridors AS (
+        WITH q1_boundary AS (
+                SELECT ST_UnaryUnion(ST_Collect(dl.geometry_polygon)) AS geom
+                FROM dim_location dl
+                WHERE dl.geometry_polygon IS NOT NULL
+                    AND (
+                                LOWER(TRIM(dl.district)) IN ('quận 1', 'quan 1', 'district 1', 'q1')
+                         OR LOWER(TRIM(dl.district)) LIKE '%quận 1%'
+                         OR LOWER(TRIM(dl.district)) LIKE '%district 1%'
+                    )
+        ),
+        target_corridors AS (
         SELECT DISTINCT bcs.corridor_key
         FROM bridge_corridor_segment bcs
         JOIN dim_segment ds ON bcs.segment_key = ds.segment_key
+                CROSS JOIN q1_boundary qb
         WHERE ds.geometry_center IS NOT NULL
-          AND ST_X(ds.geometry_center) BETWEEN :min_lon AND :max_lon
-          AND ST_Y(ds.geometry_center) BETWEEN :min_lat AND :max_lat
+                    AND (
+                                (qb.geom IS NOT NULL AND ST_Within(ds.geometry_center, qb.geom))
+                         OR (
+                                        qb.geom IS NULL
+                                AND ST_X(ds.geometry_center) BETWEEN :min_lon AND :max_lon
+                                AND ST_Y(ds.geometry_center) BETWEEN :min_lat AND :max_lat
+                         )
+                    )
     )
     SELECT
         bcs.corridor_key,
@@ -134,7 +151,7 @@ _CORRIDOR_QUERY = text("""
            AND i.date_key = f.date_key AND i.is_active = TRUE), 0) AS incident_count
     FROM fact_traffic_flow f
     JOIN bridge_corridor_segment bcs ON f.segment_key = bcs.segment_key
-    JOIN q1_corridors qc ON qc.corridor_key = bcs.corridor_key
+    JOIN target_corridors tc ON tc.corridor_key = bcs.corridor_key
     WHERE f.date_key = :target_date_key
     GROUP BY bcs.corridor_key, f.time_key, f.date_key
 """)
@@ -145,6 +162,7 @@ def run(engine: Engine, **kwargs) -> int:
 
     Kwargs:
         target_date_key: int – ngày cần tính (default: hôm nay).
+        bbox: dict – bounding box cho target district (default: Q1).
 
     Returns:
         int: Số record đã upsert.

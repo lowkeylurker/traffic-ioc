@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 
 from src.core.exceptions import DatabaseLoadError
 from src.core.logger import get_logger
+from src.domain.geo.constants import BBOX_DISTRICT_1
 from src.domain.math import derive_date_key
 from src.domain.math.key_generator import generate_corridor_key
 from src.pipelines.base import BaseExtractor, BaseLoader, BaseTransformer, get_table
@@ -53,9 +54,20 @@ console = Console()
 class CorridorExtractor(BaseExtractor):
     """Generate prioritized corridor config from road + realtime facts."""
 
-    DEFAULT_CORRIDOR_LIMIT = 40
+    DEFAULT_CORRIDOR_LIMIT = 60
     MIN_SEGMENTS_PER_CORRIDOR = 4
     MIN_CORRIDOR_LENGTH_M = 1200.0
+    # Relaxed thresholds for roads with meaningful footprint inside Q1.
+    MIN_Q1_SEGMENTS_PER_CORRIDOR = 2
+    MIN_Q1_CORRIDOR_LENGTH_M = 800.0
+
+    @staticmethod
+    def _is_valid_road_name(road_name: str | None) -> bool:
+        """Filter out noisy unnamed/invalid road labels from OSM."""
+        if not road_name:
+            return False
+        normalized = road_name.strip().lower()
+        return normalized not in {"", "nan", "none", "null", "unknown", "unnamed road"}
 
     @staticmethod
     def _derive_importance_level(frc: int | None) -> int:
@@ -118,6 +130,13 @@ class CorridorExtractor(BaseExtractor):
         corridor_limit = int(kwargs.get("corridor_limit", self.DEFAULT_CORRIDOR_LIMIT))
         min_segments = int(kwargs.get("min_segments", self.MIN_SEGMENTS_PER_CORRIDOR))
         min_length_m = float(kwargs.get("min_length_m", self.MIN_CORRIDOR_LENGTH_M))
+        min_q1_segments = int(
+            kwargs.get("min_q1_segments", self.MIN_Q1_SEGMENTS_PER_CORRIDOR)
+        )
+        min_q1_length_m = float(
+            kwargs.get("min_q1_length_m", self.MIN_Q1_CORRIDOR_LENGTH_M)
+        )
+        q1_bbox = kwargs.get("q1_bbox", BBOX_DISTRICT_1)
         since_date_key = int(
             kwargs.get(
                 "since_date_key",
@@ -126,7 +145,17 @@ class CorridorExtractor(BaseExtractor):
         )
 
         roads_sql = text("""
-            WITH road_base AS (
+            WITH q1_boundary AS (
+                SELECT ST_UnaryUnion(ST_Collect(dl.geometry_polygon)) AS geom
+                FROM dim_location dl
+                WHERE dl.geometry_polygon IS NOT NULL
+                  AND (
+                        LOWER(TRIM(dl.district)) IN ('quận 1', 'quan 1', 'district 1', 'q1')
+                     OR LOWER(TRIM(dl.district)) LIKE '%quận 1%'
+                     OR LOWER(TRIM(dl.district)) LIKE '%district 1%'
+                  )
+            ),
+            road_base AS (
                 SELECT
                     r.road_key,
                     r.name AS road_name,
@@ -136,6 +165,33 @@ class CorridorExtractor(BaseExtractor):
                     AVG(COALESCE(w.default_lane_count, 2)) AS avg_lane_count,
                     COUNT(ds.segment_key) AS segment_count,
                     SUM(COALESCE(ds.length_m, 0)) AS total_length_m,
+                    COUNT(
+                        CASE
+                            WHEN ds.geometry_center IS NOT NULL AND (
+                                 (qb.geom IS NOT NULL AND ST_Intersects(ds.geometry_center, qb.geom))
+                                 OR (
+                                     qb.geom IS NULL
+                                     AND ST_X(ds.geometry_center) BETWEEN :q1_min_lon AND :q1_max_lon
+                                     AND ST_Y(ds.geometry_center) BETWEEN :q1_min_lat AND :q1_max_lat
+                                 )
+                            )
+                            THEN ds.segment_key
+                        END
+                    ) AS q1_segment_count,
+                    SUM(
+                        CASE
+                            WHEN ds.geometry_center IS NOT NULL AND (
+                                 (qb.geom IS NOT NULL AND ST_Intersects(ds.geometry_center, qb.geom))
+                                 OR (
+                                     qb.geom IS NULL
+                                     AND ST_X(ds.geometry_center) BETWEEN :q1_min_lon AND :q1_max_lon
+                                     AND ST_Y(ds.geometry_center) BETWEEN :q1_min_lat AND :q1_max_lat
+                                 )
+                            )
+                            THEN COALESCE(ds.length_m, 0)
+                            ELSE 0
+                        END
+                    ) AS q1_total_length_m,
                     BOOL_OR(
                         w.osm_highway_type IN (
                             'motorway', 'motorway_link',
@@ -147,6 +203,7 @@ class CorridorExtractor(BaseExtractor):
                 FROM dim_road r
                 JOIN dim_way w ON w.road_key = r.road_key
                 JOIN dim_segment ds ON ds.way_key = w.way_key
+                CROSS JOIN q1_boundary qb
                 GROUP BY r.road_key, r.name
             ),
             traffic_30d AS (
@@ -180,6 +237,8 @@ class CorridorExtractor(BaseExtractor):
                 rb.avg_lane_count,
                 rb.segment_count,
                 rb.total_length_m,
+                rb.q1_segment_count,
+                rb.q1_total_length_m,
                 COALESCE(t.avg_pcu_volume, 0) AS avg_pcu_volume,
                 COALESCE(t.avg_traffic_index, 0) AS avg_traffic_index,
                 COALESCE(t.flow_samples, 0) AS flow_samples,
@@ -203,8 +262,16 @@ class CorridorExtractor(BaseExtractor):
             FROM road_base rb
             LEFT JOIN traffic_30d t ON t.road_key = rb.road_key
             LEFT JOIN incident_30d i ON i.road_key = rb.road_key
-            WHERE rb.segment_count >= :min_segments
-              AND rb.total_length_m >= :min_length_m
+            WHERE (
+                    (
+                        rb.segment_count >= :min_segments
+                        AND rb.total_length_m >= :min_length_m
+                    )
+                    OR (
+                        rb.q1_segment_count >= :min_q1_segments
+                        AND rb.q1_total_length_m >= :min_q1_length_m
+                    )
+                  )
               AND (rb.has_arterial_type = TRUE OR COALESCE(rb.min_frc, 6) <= 3)
             ORDER BY priority_score DESC, COALESCE(t.flow_samples, 0) DESC, rb.segment_count DESC
             LIMIT :limit
@@ -230,6 +297,12 @@ class CorridorExtractor(BaseExtractor):
                     "since_date_key": since_date_key,
                     "min_segments": min_segments,
                     "min_length_m": min_length_m,
+                    "min_q1_segments": min_q1_segments,
+                    "min_q1_length_m": min_q1_length_m,
+                    "q1_min_lon": q1_bbox["min_lon"],
+                    "q1_max_lon": q1_bbox["max_lon"],
+                    "q1_min_lat": q1_bbox["min_lat"],
+                    "q1_max_lat": q1_bbox["max_lat"],
                     "limit": corridor_limit,
                 },
             ).fetchall()
@@ -244,6 +317,12 @@ class CorridorExtractor(BaseExtractor):
                         "since_date_key": since_date_key,
                         "min_segments": 1,
                         "min_length_m": 300.0,
+                        "min_q1_segments": 1,
+                        "min_q1_length_m": 300.0,
+                        "q1_min_lon": q1_bbox["min_lon"],
+                        "q1_max_lon": q1_bbox["max_lon"],
+                        "q1_min_lat": q1_bbox["min_lat"],
+                        "q1_max_lat": q1_bbox["max_lat"],
                         "limit": corridor_limit,
                     },
                 ).fetchall()
@@ -261,9 +340,9 @@ class CorridorExtractor(BaseExtractor):
             if not segment_keys:
                 continue
 
-            road_name = (row.road_name or "Unnamed Road").strip() or "Unnamed Road"
-            if road_name.lower() in {"nan", "none", "null"}:
-                road_name = "Unnamed Road"
+            road_name = (row.road_name or "").strip()
+            if not self._is_valid_road_name(road_name):
+                continue
             corridor_name = f"Priority Corridor – {road_name}"
             priority_score = float(row.priority_score or 0.0)
             importance_level = self._derive_importance_from_priority(priority_score)
