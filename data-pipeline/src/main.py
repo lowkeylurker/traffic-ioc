@@ -404,16 +404,13 @@ _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
                 SELECT ST_UnaryUnion(ST_Collect(dl.geometry_polygon)) AS geom
                 FROM dim_location dl
                 WHERE dl.geometry_polygon IS NOT NULL
-                    AND (
-                                LOWER(TRIM(dl.district)) IN ('quận 1', 'quan 1', 'district 1', 'q1')
-                         OR LOWER(TRIM(dl.district)) LIKE '%quận 1%'
-                         OR LOWER(TRIM(dl.district)) LIKE '%district 1%'
-                    )
+          AND (LOWER(TRIM(dl.district)) IN ('quan 1', 'district 1', 'q1')
+               OR LOWER(TRIM(dl.district)) LIKE '%quan 1%')
         ),
         all_corridor_segments AS (
                 -- Count total segments for each corridor
                 SELECT bcs.corridor_key,
-                       COUNT(*) AS total_segments,
+               COUNT(DISTINCT bcs.segment_key) AS total_segments,
                        SUM(ds.length_m) AS total_length_m
                 FROM bridge_corridor_segment bcs
                 JOIN dim_segment ds ON ds.segment_key = bcs.segment_key
@@ -421,16 +418,22 @@ _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
                 GROUP BY bcs.corridor_key
         ),
         q1_corridor_segments AS (
-                -- Count segments within Q1 for each corridor
+                -- Count segments within Q1 + calculate distance to boundary
                 SELECT bcs.corridor_key,
-                       COUNT(*) AS q1_segments,
-                       SUM(ds.length_m) AS q1_length_m
+               COUNT(DISTINCT bcs.segment_key) AS q1_segments,
+                       SUM(ds.length_m) AS q1_length_m,
+                       MIN(
+                           CASE
+                               WHEN qb.geom IS NOT NULL THEN ST_Distance(ds.geometry_center::geography, qb.geom::geography)
+                               ELSE 0
+                           END
+                       ) AS min_dist_to_q1_m
                 FROM bridge_corridor_segment bcs
                 JOIN dim_segment ds ON ds.segment_key = bcs.segment_key
                 CROSS JOIN q1_boundary qb
                 WHERE ds.geometry_center IS NOT NULL
                     AND (
-                                (qb.geom IS NOT NULL AND ST_Within(ds.geometry_center, qb.geom))
+                                (qb.geom IS NOT NULL AND ST_DWithin(ds.geometry_center::geography, qb.geom::geography, :gateway_distance_m))
                          OR (
                                         qb.geom IS NULL
                                 AND ST_X(ds.geometry_center) BETWEEN :min_lon AND :max_lon
@@ -439,26 +442,51 @@ _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
                     )
                 GROUP BY bcs.corridor_key
         ),
-        target_corridors AS (
-                -- Filter corridors by coverage threshold (≥50% of segments OR length in Q1)
-                SELECT acs.corridor_key
+        selected_corridors AS (
+                SELECT
+                    acs.corridor_key,
+                    acs.total_segments,
+                    acs.total_length_m,
+                    COALESCE(qcs.q1_segments, 0) AS q1_segments,
+                    COALESCE(qcs.q1_length_m, 0) AS q1_length_m,
+                    COALESCE(qcs.min_dist_to_q1_m, 999999.0) AS min_dist_to_q1_m,
+                    COALESCE(qcs.q1_length_m / NULLIF(acs.total_length_m, 0), 0.0) AS q1_length_pct
                 FROM all_corridor_segments acs
-                JOIN q1_corridor_segments qcs ON qcs.corridor_key = acs.corridor_key
-                WHERE (qcs.q1_segments::DECIMAL / acs.total_segments >= 0.5)
-                   OR (qcs.q1_length_m / acs.total_length_m >= 0.5)
+                LEFT JOIN q1_corridor_segments qcs ON qcs.corridor_key = acs.corridor_key
+                WHERE (
+                    COALESCE(qcs.q1_length_m / NULLIF(acs.total_length_m, 0), 0.0) >= :q1_length_threshold
+                    OR (
+                        COALESCE(qcs.q1_length_m / NULLIF(acs.total_length_m, 0), 0.0) >= :gateway_length_threshold
+                        AND COALESCE(qcs.min_dist_to_q1_m, 999999.0) <= :gateway_distance_m
+                    )
+                )
+        ),
+        etl_segments AS (
+                SELECT DISTINCT
+                    s.segment_key,
+                    ST_Y(s.geometry_center) AS lat,
+                    ST_X(s.geometry_center) AS lon,
+                    COALESCE(w.default_lane_count, 2) AS lane_count,
+                    COALESCE(c.importance_level, 0) AS importance_level,
+                    COALESCE(s.length_m, 0) AS length_m
+                FROM dim_segment s
+                JOIN dim_way w ON s.way_key = w.way_key
+                JOIN bridge_corridor_segment bcs ON bcs.segment_key = s.segment_key
+                JOIN selected_corridors sc ON sc.corridor_key = bcs.corridor_key
+                JOIN dim_corridor c ON c.corridor_key = bcs.corridor_key
+                CROSS JOIN q1_boundary qb
+                WHERE s.geometry_center IS NOT NULL
+                  AND w.osm_highway_type IN ('primary','secondary','tertiary','trunk')
+                  AND (
+                      (qb.geom IS NOT NULL AND ST_DWithin(s.geometry_center::geography, qb.geom::geography, :gateway_distance_m))
+                      OR (qb.geom IS NULL
+                          AND ST_X(s.geometry_center) BETWEEN :min_lon AND :max_lon
+                          AND ST_Y(s.geometry_center) BETWEEN :min_lat AND :max_lat)
+                  )
         )
-    SELECT DISTINCT
-           s.segment_key,
-           ST_Y(s.geometry_center) AS lat,
-           ST_X(s.geometry_center) AS lon,
-           COALESCE(w.default_lane_count, 2) AS lane_count
-    FROM   dim_segment s
-    JOIN   dim_way w ON s.way_key = w.way_key
-    JOIN   bridge_corridor_segment bcs ON bcs.segment_key = s.segment_key
-    JOIN   target_corridors tc ON tc.corridor_key = bcs.corridor_key
-    WHERE  s.geometry_center IS NOT NULL
-      AND  w.osm_highway_type IN ('primary','secondary','tertiary','trunk')
-    ORDER  BY s.segment_key
+    SELECT segment_key, lat, lon, lane_count
+    FROM etl_segments
+    ORDER BY importance_level DESC, length_m DESC, segment_key
     LIMIT  :limit
 """)
 
@@ -482,6 +510,7 @@ def _load_segment_points(
     limit: int = _MAX_SEGMENTS_PER_CYCLE,
     bbox: dict | None = None,
     target_corridor_mode: bool = False,
+    full_target_coverage: bool = True,
     overfetch_factor: int = _OVERFETCH_FACTOR,
 ) -> Tuple[list, list, dict, dict]:
     """Return (points, segment_keys, segment_key_map, lane_count_map) from dim_segment.
@@ -496,6 +525,7 @@ def _load_segment_points(
         limit: Max segments to load (default 25 for TomTom free tier)
         bbox: Optional bounding box dict {min_lon, max_lon, min_lat, max_lat} to filter segments
         target_corridor_mode: If True, use corridor-based filtering with BBOX_TARGET_DISTRICT (Q1 only)
+        full_target_coverage: If True, force full target-corridor coverage.
         overfetch_factor: Fetch extra candidates to compensate invalid/duplicate points
     """
     points = []
@@ -506,11 +536,15 @@ def _load_segment_points(
     # Ensure limit is int (Typer OptionInfo → int when called from run_all)
     limit = int(_resolve_option_default(limit)) if not isinstance(limit, int) else limit
     
-    # For target corridors mode: use higher limit to capture all segments
+    # For target corridors mode: full mode captures all selected segments;
+    # budget mode honors caller-provided limit.
     if target_corridor_mode:
         from src.domain.geo.constants import BBOX_TARGET_DISTRICT
-        # Q1 has ~920 segments, use generous limit
-        effective_limit = max(limit, _MAX_SEGMENTS_TARGET_CORRIDORS)
+        effective_limit = (
+            max(limit, _MAX_SEGMENTS_TARGET_CORRIDORS)
+            if full_target_coverage
+            else limit
+        )
         query_limit = effective_limit  # No overfetch factor needed, we want all
         target_bbox = BBOX_TARGET_DISTRICT
     else:
@@ -525,6 +559,9 @@ def _load_segment_points(
                 "max_lon": target_bbox["max_lon"],
                 "min_lat": target_bbox["min_lat"],
                 "max_lat": target_bbox["max_lat"],
+                "q1_length_threshold": 0.40,       # 40% Q1 coverage = main corridor
+                "gateway_length_threshold": 0.15,  # 15% Q1 coverage = gateway candidate
+                "gateway_distance_m": 1500,        # Must be within 1500m of Q1 boundary
             }
             rows = conn.execute(_SEGMENT_QUERY_BY_TARGET_CORRIDORS, params).fetchall()
         elif bbox:
@@ -541,7 +578,6 @@ def _load_segment_points(
             # Use original query without bbox filter
             rows = conn.execute(_SEGMENT_QUERY, {"limit": query_limit}).fetchall()
     
-    seen_points: set[tuple[float, float]] = set()
     seen_segment_keys: set[int] = set()
     duplicate_count = 0
     for seg_key, lat, lon, lane_count in rows:
@@ -550,12 +586,7 @@ def _load_segment_points(
             continue
 
         pt = (round(lat, 6), round(lon, 6))
-        if pt in seen_points:
-            duplicate_count += 1
-            continue
-
         seen_segment_keys.add(int(seg_key))
-        seen_points.add(pt)
 
         points.append(pt)
         seg_keys.append(seg_key)
@@ -583,6 +614,10 @@ def run_realtime(
         max=2000,
         help="Max number of segment points queried per realtime cycle",
     ),
+    budget_mode: bool = typer.Option(
+        False,
+        help="Enable budget mode to honor --segment-limit instead of forcing full target coverage",
+    ),
 ) -> None:
     """Phase 3: Weather → Traffic Flow → Incident (1 cycle, cron 15p).
 
@@ -594,6 +629,12 @@ def run_realtime(
     start_time = time.time()
     engine = get_engine()
     segment_limit = int(_resolve_option_default(segment_limit))
+    budget_mode = bool(_resolve_option_default(budget_mode))
+    if budget_mode and segment_limit >= _MAX_SEGMENTS_TARGET_CORRIDORS:
+        segment_limit = 120
+        logger.info(
+            "[run-realtime] budget_mode enabled without strict --segment-limit; fallback to 120 segments"
+        )
     total = 0
     results = []
 
@@ -631,6 +672,7 @@ def run_realtime(
             engine,
             limit=segment_limit,
             target_corridor_mode=True,
+            full_target_coverage=not budget_mode,
         )
         progress.update(task2, completed=True)
 

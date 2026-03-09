@@ -14,7 +14,8 @@ All modules initialized, documented, and ready for development.
 - **Infrastructure:** [docker-compose.yml](docker-compose.yml) - Database & Redis setup
 
 ### Documentation
-- **Overall:** [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) - Complete overview
+- **Overall:** [IMPLEMENTATION_SUMMARY.md](data-pipeline/docs/IMPLEMENTATION_SUMMARY.md) - Complete overview
+- **Data Pipeline Docs:** [data-pipeline/docs/README.md](data-pipeline/docs/README.md) - All ETL documentation
 - **Conventions:** [openspec/specs/AGENTS.md](openspec/specs/AGENTS.md) - Code standards
 - **Specs:** [openspec/specs/project.md](openspec/specs/project.md) - Requirements
 
@@ -133,12 +134,12 @@ npm run dev
 ## 📚 Documentation Structure
 
 ```
-📄 Root Level
+📄 Root Level (Core Entry Points)
 ├─ README.md                          (this file)
-├─ IMPLEMENTATION_SUMMARY.md          (complete overview)
-├─ .env.example                       (env template)
-├─ docker-compose.yml                 (infrastructure)
-└─ .gitignore
+├─ DEPLOYMENT.md                      (deployment guide)
+├─ START.md                           (quick start)
+├─ AGENTS.md                          (agent configurations)
+└─ docker-compose.yml                 (infrastructure)
 
 📄 Frontend Module
 ├─ frontend/README.md                 (setup guide)
@@ -150,10 +151,21 @@ npm run dev
 📄 Backend Module
 └─ backend/README.md                  (API docs)
 
-📄 Specifications
-└─ openspec/specs/
-   ├─ AGENTS.md                       (conventions)
-   └─ project.md                      (requirements)
+📄 Data Pipeline Documentation
+├─ data-pipeline/docs/README.md                    (overview & index)
+├─ data-pipeline/docs/IMPLEMENTATION_SUMMARY.md   (complete overview)
+├─ data-pipeline/docs/IMPLEMENTATION_GUIDE.md     (step-by-step)
+├─ data-pipeline/docs/ETL_SCHEDULER_QUICKSTART.md (scheduler setup)
+├─ data-pipeline/docs/analysis/                   (deep analysis)
+│   ├─ CORRIDOR_FALSE_POSITIVE_ANALYSIS.md
+│   ├─ Q1_QUERY_COMPARISON_ANALYSIS.md
+│   └─ QUERY_COMPARISON_QUICK_REFERENCE.md
+└─ data-pipeline/scripts/README.md                (utility scripts)
+
+📄 Design & Proposals
+├─ openspec/specs/AGENTS.md           (conventions)
+├─ openspec/specs/project.md          (requirements)
+└─ openspec/proposals/                (design proposals)
 ```
 
 ## 🔑 Key Features
@@ -226,6 +238,23 @@ traffic-ioc-monorepo/
 │   │   ├── extractors/                # Data sources
 │   │   ├── transformers/              # Data processing
 │   │   └── loaders/                   # Data persistence
+│   ├── docs/                          # 📚 Complete documentation
+│   │   ├── README.md                  # Documentation index
+│   │   ├── analysis/                  # Deep analysis docs
+│   │   │   ├─ CORRIDOR_FALSE_POSITIVE_ANALYSIS.md
+│   │   │   ├─ Q1_QUERY_COMPARISON_ANALYSIS.md
+│   │   │   └─ QUERY_COMPARISON_QUICK_REFERENCE.md
+│   │   ├─ IMPLEMENTATION_SUMMARY.md
+│   │   ├─ IMPLEMENTATION_GUIDE.md
+│   │   ├─ ETL_SCHEDULER_QUICKSTART.md
+│   │   └─ Q1_ETL_CORRIDORS_GUIDE.txt
+│   ├── scripts/                       # 🔧 Utility scripts
+│   │   ├─ README.md                   # Scripts documentation
+│   │   ├─ get_q1_stats.py
+│   │   ├─ query_q1_etl.py
+│   │   └─ ... (other analysis scripts)
+│   ├── tests/                         # Test coverage
+│   ├── scheduler.py                   # ETL orchestration
 │   └── requirements.txt
 │
 ├── ai-core/                           # Python ML/AI
