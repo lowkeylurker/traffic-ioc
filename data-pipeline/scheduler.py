@@ -3,8 +3,12 @@
 ETL Scheduler for Traffic IoC Data Pipeline.
 
 Manages periodic execution of:
-- Real-time ETL: Every 15 minutes (weather → traffic → incidents)
-- Batch Analytics: Daily at 2 AM (baseline speed + corridor performance)
+- Real-time ETL: Every 15 minutes (weather → traffic → incidents)  [Quận 1 corridors only]
+- Batch Analytics: Daily at 2 AM (baseline speed + corridor performance) [Q1 corridors]
+
+**OFFICIAL Q1 MODE (Mar 2026)**: 
+- run-realtime uses target_corridor_mode for ~920 segments in Quận 1
+- run-batch runs baseline (all segments) + corridor perf (Quận 1 only)
 
 Usage:
     python scheduler.py
@@ -149,6 +153,10 @@ BATCH_JOB = ETLJob(
     timeout=1800  # 30 minutes
 )
 
+# NOTE: As of Mar 2026, run-realtime and run-batch officially use Quận 1 corridor logic:
+#   - run-realtime: target_corridor_mode=True (~920 Q1 corridor segments)
+#   - run-batch: baseline (all) + corridor_pipeline(bbox=BBOX_TARGET_DISTRICT)
+
 # ═══════════════════════════════════════════════════════════
 # SCHEDULER SETUP
 # ═══════════════════════════════════════════════════════════
@@ -184,15 +192,15 @@ def setup_scheduler():
     logger.info("🚀 ETL SCHEDULER INITIALIZED")
     logger.info("=" * 80)
     logger.info("📅 Scheduled Jobs:")
-    logger.info("  1. Real-time ETL")
+    logger.info("  1. Real-time ETL (Quận 1)")
     logger.info("     ⏱️  Frequency: Every 15 minutes")
     logger.info("     ⏱️  Timeout: 5 minutes")
-    logger.info("     📦 Pipeline: Weather → Traffic Flow → Incidents")
+    logger.info("     📦 Pipeline: Weather → Traffic Flow (~920 Q1 segments) → Incidents")
     logger.info("")
-    logger.info("  2. Batch Analytics")
+    logger.info("  2. Batch Analytics (Quận 1)")
     logger.info("     ⏱️  Frequency: Daily at 2:00 AM UTC")
     logger.info("     ⏱️  Timeout: 30 minutes")
-    logger.info("     📦 Pipeline: Baseline Speed + Corridor Performance")
+    logger.info("     📦 Pipeline: Baseline Speed (All) + Corridor Performance (Q1)")
     logger.info("")
     logger.info(f"📝 Logs: {LOG_DIR}")
     logger.info("=" * 80)

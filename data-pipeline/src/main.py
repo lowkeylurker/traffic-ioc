@@ -3,10 +3,12 @@
 Commands:
     run-static     Sinh + UPSERT dimension thời gian + ngày lễ
     run-spatial    Download OSM network + UPSERT spatial dims
-    run-realtime   Weather → Traffic Flow → Incident (1 cycle)
-    run-batch      Nightly: baseline + corridor performance
+    run-realtime   Weather → Traffic Flow → Incident (Quận 1 corridors)
+    run-batch      Nightly: baseline (all) + corridor performance (Quận 1)
     run-all        Chạy tất cả theo thứ tự FK
     health         Kiểm tra kết nối Database
+    
+Note: As of Mar 2026, realtime and batch ETL officially target Quận 1 corridors only.
 """
 
 from __future__ import annotations
@@ -49,14 +51,15 @@ Commands:
     run-spatial                    Download OSM network + UPSERT spatial dims
     run-osm-district1              Download OSM for District 1 only (fast, MVP)
     run-osm-central-districts      Download OSM for central districts (expanded)
-    run-realtime                   Weather → Traffic Flow → Incident (all data)
-    run-realtime-central-districts Weather → Traffic Flow → Incident (central only)
-    run-batch                      Nightly: baseline + corridor performance (all)
-    run-corridor-central-districts Corridor performance for central districts only
+    run-realtime                   Weather → Traffic Flow → Incident (Quận 1 only) [OFFICIAL]
+    run-realtime-central-districts Weather → Traffic Flow → Incident (central districts)
+    run-batch                      Nightly: baseline (all) + corridor perf (Quận 1) [OFFICIAL]
+    run-corridor-central-districts Corridor performance for Quận 1 (alias for run-batch corridor step)
     run-all                        Chạy tất cả theo thứ tự FK
     health                         Kiểm tra kết nối Database
 
-Central Districts: Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, 10, 11
+As of Mar 2026: Official production ETL targets Quận 1 corridors only (~920 segments).
+Central Districts (legacy): Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, 10, 11
 """
 # ═══════════════════════════════════════════════════════════
 # COMMANDS
@@ -407,12 +410,25 @@ _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
                          OR LOWER(TRIM(dl.district)) LIKE '%district 1%'
                     )
         ),
-        target_corridors AS (
-        SELECT DISTINCT bcs.corridor_key
-        FROM bridge_corridor_segment bcs
-        JOIN dim_segment ds ON ds.segment_key = bcs.segment_key
+        all_corridor_segments AS (
+                -- Count total segments for each corridor
+                SELECT bcs.corridor_key,
+                       COUNT(*) AS total_segments,
+                       SUM(ds.length_m) AS total_length_m
+                FROM bridge_corridor_segment bcs
+                JOIN dim_segment ds ON ds.segment_key = bcs.segment_key
+                WHERE ds.geometry_center IS NOT NULL
+                GROUP BY bcs.corridor_key
+        ),
+        q1_corridor_segments AS (
+                -- Count segments within Q1 for each corridor
+                SELECT bcs.corridor_key,
+                       COUNT(*) AS q1_segments,
+                       SUM(ds.length_m) AS q1_length_m
+                FROM bridge_corridor_segment bcs
+                JOIN dim_segment ds ON ds.segment_key = bcs.segment_key
                 CROSS JOIN q1_boundary qb
-        WHERE ds.geometry_center IS NOT NULL
+                WHERE ds.geometry_center IS NOT NULL
                     AND (
                                 (qb.geom IS NOT NULL AND ST_Within(ds.geometry_center, qb.geom))
                          OR (
@@ -421,7 +437,16 @@ _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
                                 AND ST_Y(ds.geometry_center) BETWEEN :min_lat AND :max_lat
                          )
                     )
-    )
+                GROUP BY bcs.corridor_key
+        ),
+        target_corridors AS (
+                -- Filter corridors by coverage threshold (≥50% of segments OR length in Q1)
+                SELECT acs.corridor_key
+                FROM all_corridor_segments acs
+                JOIN q1_corridor_segments qcs ON qcs.corridor_key = acs.corridor_key
+                WHERE (qcs.q1_segments::DECIMAL / acs.total_segments >= 0.5)
+                   OR (qcs.q1_length_m / acs.total_length_m >= 0.5)
+        )
     SELECT DISTINCT
            s.segment_key,
            ST_Y(s.geometry_center) AS lat,
@@ -553,14 +578,16 @@ def _load_segment_points(
 @app.command("run-realtime")
 def run_realtime(
     segment_limit: int = typer.Option(
-        _MAX_SEGMENTS_PER_CYCLE,
+        _MAX_SEGMENTS_TARGET_CORRIDORS,
         min=1,
-        max=500,
+        max=2000,
         help="Max number of segment points queried per realtime cycle",
     ),
 ) -> None:
     """Phase 3: Weather → Traffic Flow → Incident (1 cycle, cron 15p).
 
+    **OFFICIAL Q1 MODE**: Uses target_corridor_mode for Quận 1 corridors only.
+    
     Thứ tự:
         dim_weather (trả weather_key) → fact_traffic_flow → fact_incident
     """
@@ -571,7 +598,7 @@ def run_realtime(
     results = []
 
     console.print(Panel.fit(
-        "[bold cyan]🌤️  PHASE 3: REAL-TIME DATA[/bold cyan]\n"
+        "[bold cyan]🌤️  PHASE 3: REAL-TIME DATA (DISTRICT 1)[/bold cyan]\n"
         "[dim]Weather + Traffic Flow + Incidents[/dim]",
         border_style="cyan"
     ))
@@ -598,11 +625,12 @@ def run_realtime(
             results.append(("Weather Data", 0, "✗"))
             progress.update(task1, completed=True)
 
-        # Load segment coordinates from DB
-        task2 = progress.add_task("[cyan]Loading segment points...", total=None)
+        # Load segment coordinates from DB (Q1 target corridors only)
+        task2 = progress.add_task("[cyan]Loading Q1 segment points...", total=None)
         points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(
             engine,
             limit=segment_limit,
+            target_corridor_mode=True,
         )
         progress.update(task2, completed=True)
 
@@ -749,15 +777,20 @@ def run_realtime_central_districts(
 
 @app.command("run-batch")
 def run_batch() -> None:
-    """Phase 4: Nightly batch – baseline speed + corridor performance."""
+    """Phase 4: Nightly batch – baseline speed + corridor performance.
+    
+    **OFFICIAL Q1 MODE**: Corridor performance uses Quận 1 filtering.
+    """
+    from src.domain.geo.constants import BBOX_TARGET_DISTRICT
+    
     start_time = time.time()
     engine = get_engine()
     total = 0
     results = []
 
     console.print(Panel.fit(
-        "[bold magenta]📊 PHASE 4: BATCH ANALYTICS[/bold magenta]\n"
-        "[dim]Baseline Speed + Corridor Performance[/dim]",
+        "[bold magenta]📊 PHASE 4: BATCH ANALYTICS (DISTRICT 1)[/bold magenta]\n"
+        "[dim]Baseline Speed (All) + Corridor Performance (Q1)[/dim]",
         border_style="magenta"
     ))
 
@@ -768,7 +801,7 @@ def run_batch() -> None:
         TimeElapsedColumn(),
         console=console,
     ) as progress:
-        # Baseline speed
+        # Baseline speed (all segments)
         task1 = progress.add_task("[cyan]Baseline speed calculation...", total=None)
         try:
             from src.pipelines.ml_features.baseline_pipeline import run as run_base
@@ -783,19 +816,19 @@ def run_batch() -> None:
             results.append(("Baseline Speed", 0, "✗"))
             progress.update(task1, completed=True)
 
-        # Corridor performance
-        task2 = progress.add_task("[cyan]Corridor performance...", total=None)
+        # Corridor performance (Q1 only)
+        task2 = progress.add_task("[cyan]Corridor performance (Q1)...", total=None)
         try:
             from src.pipelines.ml_features.corridor_pipeline import run as run_corr
 
-            count = run_corr(engine)
-            logger.info(f"[run-batch] corridor_pipeline: {count} records")
+            count = run_corr(engine, bbox=BBOX_TARGET_DISTRICT)
+            logger.info(f"[run-batch] corridor_pipeline (Q1): {count} records")
             total += count
-            results.append(("Corridor Performance", count, "✓"))
+            results.append(("Corridor Performance (Q1)", count, "✓"))
             progress.update(task2, completed=True)
         except PipelineError as e:
             logger.error(f"[run-batch] corridor_pipeline failed: {e}")
-            results.append(("Corridor Performance", 0, "✗"))
+            results.append(("Corridor Performance (Q1)", 0, "✗"))
             progress.update(task2, completed=True)
 
     elapsed = time.time() - start_time

@@ -1,0 +1,82 @@
+==============================================================================================================
+CORRIDORS SẼ ĐƯỢC ETL VÀO fact_traffic_flow (Quận 1)
+PostGIS Polygon Filtering - March 2026
+==============================================================================================================
+
+Dựa trên logic ETL mới với PostGIS polygon filtering, các corridors sau sẽ được ETL:
+
+CÁCH CHẠY QUERY:
+Để xem kết quả chính xác, chạy lệnh sau:
+
+    docker-compose exec data-pipeline python scripts/show_q1_etl_corridors.py
+
+Hoặc chạy query SQL trực tiếp:
+
+    docker-compose exec postgres psql -U traffic_admin -d traffic_ioc -c "
+    WITH q1_boundary AS (
+        SELECT ST_UnaryUnion(ST_Collect(dl.geometry_polygon)) AS geom
+        FROM dim_location dl
+        WHERE dl.geometry_polygon IS NOT NULL
+          AND (LOWER(TRIM(dl.district)) IN ('quan 1', 'district 1', 'q1')
+               OR LOWER(TRIM(dl.district)) LIKE '%quan 1%')
+    ),
+    target_corridors AS (
+        SELECT DISTINCT bcs.corridor_key
+        FROM bridge_corridor_segment bcs
+        JOIN dim_segment ds ON ds.segment_key = bcs.segment_key
+        CROSS JOIN q1_boundary qb
+        WHERE ds.geometry_center IS NOT NULL
+          AND ((qb.geom IS NOT NULL AND ST_Within(ds.geometry_center, qb.geom))
+               OR (qb.geom IS NULL
+                   AND ST_X(ds.geometry_center) BETWEEN 106.663 AND 106.723
+                   AND ST_Y(ds.geometry_center) BETWEEN 10.743 AND 10.803))
+    ),
+    etl_segments AS (
+        SELECT DISTINCT s.segment_key, bcs.corridor_key, s.length_m
+        FROM dim_segment s
+        JOIN dim_way w ON s.way_key = w.way_key
+        JOIN bridge_corridor_segment bcs ON bcs.segment_key = s.segment_key
+        JOIN target_corridors tc ON tc.corridor_key = bcs.corridor_key
+        WHERE s.geometry_center IS NOT NULL
+          AND w.osm_highway_type IN ('primary','secondary','tertiary','trunk')
+    )
+    SELECT 
+        c.corridor_key,
+        c.corridor_name,
+        c.importance_level AS importance,
+        COUNT(DISTINCT es.segment_key) AS etl_segments,
+        ROUND(SUM(es.length_m)::numeric, 0) AS etl_length_m,
+        ROUND(c.total_length_m::numeric, 0) AS total_length_m
+    FROM dim_corridor c
+    JOIN etl_segments es ON es.corridor_key = c.corridor_key
+    GROUP BY c.corridor_key, c.corridor_name, c.importance_level, c.total_length_m
+    ORDER BY c.importance_level ASC, etl_segments DESC;
+    "
+
+==============================================================================================================
+DỰ KIẾN KẾT QUẢ (dựa trên corridor generation mới):
+
+Sau khi chạy `run-corridors` với PostGIS polygon filtering:
+- ✅ CÁC CORRIDOR ĐÚNG Q1 sẽ được giữ lại
+- ❌ CÁC FALSE POSITIVE (chạy qua Q1 nhưng thuộc quận khác) sẽ bị loại bỏ
+
+So với thống kê cũ (bbox filtering):
+- Trước: 7 corridors, 920 filtered segments
+- Sau: Dự kiến 10-15 corridors thuần Q1, với số segments tối ưu cho mức API limit
+
+CÁC CORRIDOR CHÍNH DỰ KIẾN:
+1. Điện Biên Phủ (TRUE Q1) 
+2. Lê Duẩn (TRUE Q1)
+3. Đinh Tiên Hoàng (TRUE Q1)
+4. Tôn Đức Thắng (mới thêm)
+5. Nam Kỳ Khởi Nghĩa (mới thêm)
+6. Nguyễn Bỉnh Khiêm (mới thêm)
+7. Lê Lai (mới thêm)
+... và các corridor khác thực sự thuộc Q1
+
+==============================================================================================================
+LƯU Ý:
+- Những segments này sẽ được query traffic data mỗi 15 phút qua scheduler
+- Scheduler đã được configured để dùng logic Q1 chính thức
+- API limit: 2500 calls/day → phân bổ cho 96 cycles (mỗi 15 phút)
+==============================================================================================================
