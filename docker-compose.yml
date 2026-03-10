@@ -63,6 +63,7 @@ services:
     environment:
       - DB_CONNECTION_STRING=postgresql://${DB_USER:-traffic_user}:${DB_PASSWORD:-traffic_password}@postgres:5432/${DB_NAME:-traffic_ioc}
       - LOG_LEVEL=INFO
+      - TZ=Asia/Ho_Chi_Minh
     env_file:
       - ./data-pipeline/.env
     depends_on:
@@ -81,7 +82,7 @@ services:
     environment:
       - DB_CONNECTION_STRING=postgresql://${DB_USER:-traffic_user}:${DB_PASSWORD:-traffic_password}@postgres:5432/${DB_NAME:-traffic_ioc}
       - LOG_LEVEL=INFO
-      - TZ=UTC
+      - TZ=Asia/Ho_Chi_Minh
     volumes:
       - pipeline_logs:/app/logs
       - /var/run/docker.sock:/var/run/docker.sock  # Access Docker to exec into data-pipeline
