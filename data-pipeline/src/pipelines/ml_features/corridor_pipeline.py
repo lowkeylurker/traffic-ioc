@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from src.core.logger import get_logger
 from src.domain.geo.constants import BBOX_DISTRICT_1
-from src.domain.math import derive_date_key
+from src.domain.math import TZ_HCM, derive_date_key
 from src.domain.math.key_generator import generate_traffic_flow_key
 from src.pipelines.base import BaseLoader, BaseTransformer
 
@@ -36,7 +36,8 @@ class CorridorTransformer(BaseTransformer):
             incident_count
         """
         records = []
-        now = datetime.utcnow()
+        # Keep DB TIMESTAMP values aligned with Asia/Ho_Chi_Minh local time.
+        now = datetime.now(tz=TZ_HCM).replace(tzinfo=None)
 
         for row in raw_data:
             avg_speed = float(row.get("avg_speed", 0))

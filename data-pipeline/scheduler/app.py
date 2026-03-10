@@ -22,8 +22,10 @@ Environment:
 import logging
 import logging.handlers
 from datetime import timezone, timedelta
+import os
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -39,6 +41,12 @@ from apscheduler.triggers.interval import IntervalTrigger
 LOG_DIR = Path("/app/logs")
 LOG_DIR.mkdir(exist_ok=True)
 VN_TZ = timezone(timedelta(hours=7))
+RUN_ON_START = os.getenv("RUN_ON_START", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 
 class VietnamTimeFormatter(logging.Formatter):
@@ -274,6 +282,11 @@ def setup_scheduler():
         max_instances=1,    # Only 1 instance at a time
         misfire_grace_time=60  # Allow 1 min late start
     )
+
+    job_obj = scheduler.get_job("etl-chained")
+    next_run = getattr(job_obj, "next_run_time", None)
+    if next_run is None:
+        next_run = getattr(job_obj, "next_fire_time", None)
     
     # Print schedule info
     logger.info("=" * 80)
@@ -287,6 +300,8 @@ def setup_scheduler():
     logger.info("        → Real-time: Weather → Traffic Flow (~920 Q1 segments) → Incidents")
     logger.info("        → Batch: Baseline Speed (All) + Corridor Performance (Q1)")
     logger.info("     ✨ Batch runs IMMEDIATELY after realtime completes successfully")
+    logger.info(f"     🕒 Next scheduled run: {next_run or 'available after scheduler starts'}")
+    logger.info(f"     ⚡ Run on startup: {'enabled' if RUN_ON_START else 'disabled'}")
     logger.info("")
     logger.info(f"📝 Logs: {LOG_DIR}")
     logger.info("🔎 Failure diagnosis order:")
@@ -305,6 +320,14 @@ if __name__ == "__main__":
     try:
         scheduler = setup_scheduler()
         scheduler.start()
+
+        if RUN_ON_START:
+            logger.info("⚡ Triggering immediate ETL cycle on startup...")
+            threading.Thread(
+                target=run_realtime_then_batch,
+                name="startup-etl-cycle",
+                daemon=True,
+            ).start()
         
         logger.info("✅ Scheduler running. Press Ctrl+C to stop.")
         

@@ -28,10 +28,12 @@ services:
   postgres:
     image: pgrouting/pgrouting:15-3.5-4.0.1
     container_name: traffic_ioc_postgres
+    command: ["postgres", "-c", "timezone=Asia/Ho_Chi_Minh"]
     environment:
       POSTGRES_USER: ${DB_USER:-traffic_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-traffic_password}
       POSTGRES_DB: ${DB_NAME:-traffic_ioc}
+      TZ: Asia/Ho_Chi_Minh
     ports:
       - "${DB_PORT:-5433}:5432"
     volumes:

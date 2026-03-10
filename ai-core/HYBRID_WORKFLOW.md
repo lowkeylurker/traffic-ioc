@@ -26,29 +26,20 @@ Chọn **Docker** nếu:
 
 ## 3. One-time setup (làm 1 lần)
 
-### 3.1 Tạo và cài Python env cho ai-core
-
-Chạy tại thư mục gốc repo:
+### 3.1 Khởi động Postgres (và service cần thiết) bằng Docker
 
 ```powershell
 cd "c:\Users\Thanh Dung\Documents\MYDATA\BKU\4\2\DATN\project_folder\traffic-ioc"
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install --upgrade pip
-
-# Cài runtime dependencies (nhanh ~2-3 phút)
-pip install -r ai-core/requirements.txt
-
-# [Tùy chọn] Cài dev tools (pytest, linting)
-pip install -r ai-core/requirements-dev.txt
-
-# [Tùy chọn] Cài ML packages (chậm ~15-20 phút, cài khi cần train model)
-# pip install -r ai-core/requirements-ml.txt
+docker-compose up -d postgres
 ```
 
-**Lưu ý:** Với hybrid workflow, chỉ cần cài `requirements.txt` là đủ để code API. Cài `requirements-ml.txt` sau khi cần training/inference thật sự.
+Có thể thêm redis nếu cần:
 
-### 3.2 Tạo file env cho ai-core
+```powershell
+docker-compose --profile with-redis up -d redis
+```
+
+### 3.2 [OPTIONAL] Tạo file env cho ai-core (nếu chạy local hoặc test)
 
 ```powershell
 Copy-Item ai-core/.env.example ai-core/.env -Force
@@ -60,21 +51,45 @@ Nếu chạy local cùng Postgres trong Docker, dùng host/port sau trong `ai-co
 
 Lý do: Postgres container map `5433 -> 5432` trên máy host.
 
-### 3.3 Khởi động Postgres (và service cần thiết) bằng Docker
+### 3.3 [OPTIONAL] Tạo Python env cho local development chỉ khi cần debug
 
 ```powershell
-docker-compose up -d postgres
-```
+# SKIP phần này nếu bạn quyết định chạy Docker luôn
+# Chỉ chạy nếu cần debug breakpoint/coding cường độ cao trên local
 
-Có thể thêm redis nếu cần:
-
-```powershell
-docker-compose --profile with-redis up -d redis
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install --upgrade pip
+pip install -r ai-core/requirements.txt
+pip install -r ai-core/requirements-dev.txt
 ```
 
 ## 4. Daily workflow (đề nghị)
 
-## 4.1 Buổi sáng: vào local mode để code nhanh
+## 4.1 Nếu chạy Docker: khởi động ai-core service
+
+```powershell
+cd "c:\Users\Thanh Dung\Documents\MYDATA\BKU\4\2\DATN\project_folder\traffic-ioc"
+
+# Step 1: Đảm bảo Postgres chạy
+docker-compose ps postgres
+
+# Step 2: Build ai-core image (lần đầu hoặc khi dependencies thay đổi)
+docker-compose build ai-core
+
+# Step 3: Chạy ai-core
+docker-compose up -d ai-core
+
+# Step 4: Kiểm tra log
+docker-compose logs -f ai-core
+```
+
+Kiểm tra nhanh:
+- Health: `http://localhost:5000/health-check`
+- Swagger: `http://localhost:5000/docs`
+- Logs: `docker-compose logs ai-core` hoặc `docker-compose logs -f ai-core --tail 50`
+
+## 4.2 [OPTIONAL] Nếu cần debug local: buổi sáng vào local mode
 
 ```powershell
 cd "c:\Users\Thanh Dung\Documents\MYDATA\BKU\4\2\DATN\project_folder\traffic-ioc"
@@ -92,40 +107,7 @@ Nếu cần test:
 pytest ai-core/src/tests -v
 ```
 
-## 4.2 Trong ngày: lặp vòng nhỏ
-
-Mỗi task nhỏ làm theo thứ tự:
-1. sửa code
-2. reload local
-3. test file liên quan
-4. commit nhỏ
-
-Mục tiêu: giữ feedback loop ngắn, không rebuild docker mỗi lần.
-
-## 4.3 Cuối ngày hoặc trước push: chạy Docker gate
-
-### Build ai-core image
-
-```powershell
-docker-compose build ai-core
-```
-
-### Chạy ai-core trong compose
-
-```powershell
-docker-compose up -d ai-core
-```
-
-### Kiểm tra log và health
-
-```powershell
-docker-compose logs -f ai-core
-```
-
-Smoke check:
-- `http://localhost:5000/health-check`
-
-Nếu bước này OK thì mới push/merge.
+## 4.3 Trong ngày: lặp vòng development
 
 ## 5. Weekly hygiene (nên làm)
 
