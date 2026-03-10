@@ -85,16 +85,16 @@ class IncidentExtractor(BaseExtractor):
             and not incidents
         ):
             fallback_params = dict(params)
-            fallback_params["timeValidityFilter"] = "all"
+            fallback_params["timeValidityFilter"] = "present,future"  # Valid API value
             self.logger.info(
-                "No present incidents found; retrying Incident API with timeValidityFilter=all"
+                "No present incidents found; retrying Incident API with timeValidityFilter=present,future"
             )
             fallback_data = self._get(url, params=fallback_params)
             fallback_incidents = (
                 fallback_data.get("incidents", []) if isinstance(fallback_data, dict) else []
             )
             self.logger.info(
-                f"Incident API returned {len(fallback_incidents)} incidents with filter=all"
+                f"Incident API returned {len(fallback_incidents)} incidents with filter=present,future"
             )
             return fallback_data
 
@@ -193,7 +193,7 @@ class IncidentTransformer(BaseTransformer):
                     "geometry_wkt": coords_to_wkt_point(centroid_lon, centroid_lat),
                     "is_simulated": False,
                     "is_active": is_active,
-                    "inserted_at": datetime.utcnow(),
+                    # inserted_at: không set (dùng DB DEFAULT CURRENT_TIMESTAMP)
                     "quality_flag": 5,
                 }
             )
@@ -217,7 +217,7 @@ class IncidentLoader(BaseLoader):
         "delay_seconds",
         "is_active",
         "quality_flag",
-        "inserted_at",
+        # Không include inserted_at - lần insert đầu tiên dùng DB DEFAULT
     ]
     BATCH_SIZE = 500
 
@@ -225,24 +225,22 @@ class IncidentLoader(BaseLoader):
         INSERT INTO fact_incident (
             incident_key, time_key, date_key, segment_key, location_key,
             incident_type, timestamp, severity_level, delay_seconds,
-            geometry, is_simulated, is_active, inserted_at, quality_flag
+            geometry, is_simulated, is_active, quality_flag
         ) VALUES (
             :incident_key, :time_key, :date_key, :segment_key, :location_key,
             :incident_type, :timestamp, :severity_level, :delay_seconds,
             ST_GeomFromText(:geometry_wkt, 4326), :is_simulated, :is_active,
-            :inserted_at, :quality_flag
+            :quality_flag
         )
         ON CONFLICT (incident_key, date_key) DO UPDATE SET
             severity_level = EXCLUDED.severity_level,
             delay_seconds = EXCLUDED.delay_seconds,
             is_active = EXCLUDED.is_active,
-            quality_flag = EXCLUDED.quality_flag,
-            inserted_at = EXCLUDED.inserted_at
+            quality_flag = EXCLUDED.quality_flag
     """
 
     def load(self, records: list[dict]) -> int:
-        for r in records:
-            r["inserted_at"] = datetime.utcnow()
+        # Không set inserted_at - để database tự set DEFAULT CURRENT_TIMESTAMP
         return self._upsert_raw_sql(self._SQL, records)
 
 

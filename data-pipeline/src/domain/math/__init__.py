@@ -156,6 +156,10 @@ def estimate_pcu_from_speed(
     travel_time / t0 = 1 + α(v/c)^β
 
     Rearranged to estimate v/c ratio from speed ratio.
+    
+    ⚠️ IMPORTANT: BPR inverse is only valid for v/c ≤ 1.0 (at or below capacity).
+    When speed drops significantly, it may indicate incidents/signals rather than volume.
+    We cap v/c at 1.0 to avoid unrealistic over-capacity estimates.
 
     Args:
         current_speed: Current speed (km/h)
@@ -163,16 +167,17 @@ def estimate_pcu_from_speed(
         lane_count: Number of lanes
 
     Returns:
-        float: Estimated PCU volume (max capacity × 1.5)
+        float: Estimated PCU volume (max 100% capacity)
     """
     if free_flow_speed <= 0 or lane_count <= 0:
         return 0.0
     if current_speed <= 0:
+        # Complete stop → assume at capacity (not over-capacity)
         return float(lane_count * LANE_CAPACITY)
     
     capacity = lane_count * LANE_CAPACITY
     
-    # Free flow: still has baseline traffic (10-15% capacity)
+    # Free flow: baseline traffic (10-15% capacity)
     if current_speed >= free_flow_speed:
         return round(capacity * 0.12, 2)
 
@@ -184,10 +189,14 @@ def estimate_pcu_from_speed(
         return round(capacity * 0.12, 2)
 
     v_c_ratio = excess ** (1.0 / BPR_BETA)
+    
+    # ⚠️ FIX: Cap v/c at 1.0 (100% capacity) - BPR inverse invalid beyond this point
+    # Speed reduction may be due to incidents/signals, not necessarily high volume
+    v_c_ratio = min(v_c_ratio, 1.0)
+    
     pcu_volume = capacity * v_c_ratio
 
-    # Clamp to 1.5× capacity
-    return round(min(pcu_volume, capacity * 1.5), 2)
+    return round(pcu_volume, 2)
 
 
 # ═══════════════════════════════════════════════════════════

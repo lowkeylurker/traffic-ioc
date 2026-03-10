@@ -1,84 +1,49 @@
 # ════════════════════════════════════════════════════════════════════════════════
-# DOCKERFILE - AI-CORE SERVICE
-# Traffic Forecasting, Congestion Prediction & Data Imputation
+# AI-CORE MACHINE LEARNING DEPENDENCIES
+# PyTorch, RL, Classical ML, Visualization
+# Cài sau khi đã code logic cơ bản và cần training/inference
 # ════════════════════════════════════════════════════════════════════════════════
 
 # ════════════════════════════════════════════════════════════════════════════════
-# STAGE 1: BASE IMAGE - Python 3.9 slim
+# DEEP LEARNING
 # ════════════════════════════════════════════════════════════════════════════════
-FROM python:3.9-slim as base
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
-# Install system dependencies (cần cho numpy, scipy, torch, psycopg2)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libpq-dev \
-    git \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
-WORKDIR /app
+torch==2.1.0                  # PyTorch for LSTM, DQN, PPO
+torchvision==0.16.0           # Vision utilities (nếu cần image-based features)
 
 # ════════════════════════════════════════════════════════════════════════════════
-# STAGE 2: DEPENDENCIES - Install Python packages
+# CLASSICAL MACHINE LEARNING
 # ════════════════════════════════════════════════════════════════════════════════
-# Copy requirements trước để tận dụng Docker layer caching
-COPY requirements.txt .
-COPY requirements-ml.txt .
-
-# Build argument để chọn có cài ML dependencies hay không
-ARG INSTALL_ML=false
-
-# Install runtime dependencies (luôn luôn cài)
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Install ML dependencies (chỉ khi cần - mất ~15-20 phút)
-# Build với: docker-compose build --build-arg INSTALL_ML=true ai-core
-RUN if [ "$INSTALL_ML" = "true" ]; then \
-        pip install --no-cache-dir -r requirements-ml.txt; \
-    fi
+scikit-learn==1.3.2           # Random Forest, clustering, preprocessing
+scipy==1.11.4                 # Scientific computing
+joblib==1.3.2                 # Model serialization
 
 # ════════════════════════════════════════════════════════════════════════════════
-# STAGE 3: APPLICATION - Copy source code
+# REINFORCEMENT LEARNING
 # ════════════════════════════════════════════════════════════════════════════════
-# Copy toàn bộ code
-COPY . .
-
-# Tạo thư mục models nếu chưa tồn tại (do .gitignore)
-RUN mkdir -p ./models/traffic_forecast ./models/congestion_rl ./models/clustering
+gymnasium==0.28.1             # RL environment framework
+stable-baselines3==2.0.0      # DQN, PPO, và các thuật toán RL khác
+tensorboard==2.14.1           # Monitoring training progress
 
 # ════════════════════════════════════════════════════════════════════════════════
-# STAGE 4: HEALTH CHECK
+# DATA VISUALIZATION
 # ════════════════════════════════════════════════════════════════════════════════
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5000/health-check || exit 1
+matplotlib==3.8.2             # Plotting & visualization
+seaborn==0.13.0               # Statistical data visualization
+plotly==5.18.0                # Interactive plots
 
 # ════════════════════════════════════════════════════════════════════════════════
-# STAGE 5: EXPOSE & ENTRY POINT
+# CLI & UTILITIES
 # ════════════════════════════════════════════════════════════════════════════════
-# Expose port
-EXPOSE 5000
+typer==0.9.0                  # CLI framework
+click==8.1.7                  # CLI utilities
+python-dateutil==2.8.2        # Date utilities
+pytz==2023.3                  # Timezone handling
+tqdm==4.66.1                  # Progress bars
+structlog==23.2.0             # Structured logging
+python-json-logger==2.0.7     # JSON logging formatter
 
-# Default command: Run FastAPI server
-CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "5000"]
-
 # ════════════════════════════════════════════════════════════════════════════════
-# BUILD INSTRUCTIONS:
+# OPTIONAL: TRAFFIC SIMULATION & DETECTION
 # ════════════════════════════════════════════════════════════════════════════════
-# Runtime only (nhanh ~2-3 phút):
-#   docker build -t traffic-ioc/ai-core:latest .
-#   docker run -p 5000:5000 --env-file .env traffic-ioc/ai-core:latest
-#
-# Với ML dependencies (chậm ~15-20 phút):
-#   docker build --build-arg INSTALL_ML=true -t traffic-ioc/ai-core:ml .
-#   docker run -p 5000:5000 --env-file .env traffic-ioc/ai-core:ml
-#
-# Với docker-compose:
-#   docker-compose build ai-core                                    # Runtime only
-#   docker-compose build --build-arg INSTALL_ML=true ai-core        # With ML
+# cityflow==1.1  # NOTE: CityFlow không có trên PyPI, cần build từ source
+# ultralytics==8.0.200  # YOLOv8 (nếu cần vehicle detection)

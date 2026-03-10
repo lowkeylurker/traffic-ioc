@@ -203,7 +203,7 @@ class TrafficTransformer(BaseTransformer):
                     "los_level": los,
                     "congestion_level": congestion,
                     "is_closed": is_closed,
-                    "inserted_at": datetime.utcnow(),
+                    # inserted_at: không set (dùng DB DEFAULT CURRENT_TIMESTAMP)
                     "quality_flag": quality,
                 }
             )
@@ -230,13 +230,12 @@ class TrafficLoader(BaseLoader):
         "congestion_level",
         "is_closed",
         "quality_flag",
-        "inserted_at",
+        # Không include inserted_at - lần insert đầu tiên dùng DB DEFAULT
     ]
     BATCH_SIZE = 500
 
     def load(self, records: list[dict]) -> int:
-        for r in records:
-            r["inserted_at"] = datetime.utcnow()
+        # Không set inserted_at - để database tự set DEFAULT CURRENT_TIMESTAMP
         return self._upsert_batch(records)
 
 

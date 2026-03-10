@@ -158,8 +158,8 @@ REALTIME_JOB = ETLJob(
 
 BATCH_JOB = ETLJob(
     name="Batch Analytics",
-        command=["docker", "exec", "data-pipeline", "python", "-m", "src.main", "run-batch"],
-        timeout=1800  # 30 minutes
+    command=["docker", "exec", "data-pipeline", "python", "-m", "src.main", "run-batch"],
+    timeout=1800  # 30 minutes
 )
 
 # ═══════════════════════════════════════════════════════════
@@ -170,16 +170,23 @@ def run_realtime_then_batch():
     """Run realtime ETL, then immediately run batch if successful."""
     logger.info("🔗 Starting chained job: Realtime → Batch")
     
-    # Run realtime
-    realtime_success = REALTIME_JOB.run()
-    
-    # If realtime succeeded, run batch immediately
-    if realtime_success:
-        logger.info("✅ Realtime succeeded, starting batch analytics...")
-        time.sleep(2)  # Short pause
-        BATCH_JOB.run()
-    else:
-        logger.warning("⚠️ Realtime failed, skipping batch analytics")
+    try:
+        # Run realtime
+        logger.info("▶️  Executing realtime ETL...")
+        realtime_success = REALTIME_JOB.run()
+        logger.info(f"[Realtime Result] Success: {realtime_success}")
+        
+        # If realtime succeeded, run batch immediately
+        if realtime_success:
+            logger.info("✅ Realtime succeeded, starting batch analytics immediately...")
+            time.sleep(2)  # Short pause between jobs
+            logger.info("▶️  Executing batch ETL...")
+            BATCH_JOB.run()
+            logger.info("✅ Batch analytics completed")
+        else:
+            logger.warning("⚠️ Realtime failed, skipping batch analytics")
+    except Exception as e:
+        logger.error(f"❌ Chained job exception: {e}", exc_info=True)
 
 # ═══════════════════════════════════════════════════════════
 # SCHEDULER SETUP
