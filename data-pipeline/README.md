@@ -228,13 +228,13 @@ def run_realtime(
 
 ### Scheduler Integration (Recommended)
 
-Edit `scheduler.py` to use time-based budget modes:
+Edit [`scheduler/app.py`](scheduler/app.py) to use time-based budget modes:
 
 ```python
 # Off-peak hours (10 PM - 6 AM): Budget mode
 scheduler.add_job(
     lambda: ETLJob(
-        command=["docker", "exec", "utraffic-data-pipeline",
+        command=["docker", "exec", "data-pipeline",
                  "python", "-m", "src.main", "run-realtime",
                  "--budget-mode", "--segment-limit", "120"]
     ).run(),
@@ -315,10 +315,10 @@ docker exec utraffic-data-pipeline python -m src.main run-realtime
 
 **Configuration:**
 ```python
-# scheduler.py
+# scheduler/app.py
 REALTIME_JOB = ETLJob(
     name="Real-time ETL",
-    command=["docker", "exec", "utraffic-data-pipeline", 
+    command=["docker", "exec", "data-pipeline", 
              "python", "-m", "src.main", "run-realtime"],
     timeout=300  # 5 minutes max
 )
@@ -366,10 +366,10 @@ docker exec utraffic-data-pipeline python -m src.main run-batch
 
 **Configuration:**
 ```python
-# scheduler.py
+# scheduler/app.py
 BATCH_JOB = ETLJob(
     name="Batch Analytics",
-    command=["docker", "exec", "utraffic-data-pipeline", 
+    command=["docker", "exec", "data-pipeline", 
              "python", "-m", "src.main", "run-batch"],
     timeout=1800  # 30 minutes max
 )
@@ -494,7 +494,7 @@ docker-compose -f docker-compose.scheduler.yml up -d etl-scheduler
 ```
 
 **Change Schedule:**
-Edit `scheduler.py` and rebuild:
+Edit [`scheduler/app.py`](scheduler/app.py) and rebuild:
 ```python
 # Change from 15 min to 30 min
 scheduler.add_job(
@@ -544,10 +544,11 @@ docker logs -f etl-scheduler
 
 ```bash
 # Quick scheduler test (runs one real-time job after 10 seconds)
-docker exec etl-scheduler python test_scheduler.py
+cd data-pipeline/scheduler
+python tests/test_scheduler.py
 
 # Manual trigger (bypass scheduler)
-docker exec utraffic-data-pipeline python -m src.main run-realtime
+docker exec data-pipeline python -m src.main run-realtime
 
 # Verify data ingestion
 docker exec postgres psql -U traffic_user -d traffic_ioc \
@@ -980,16 +981,21 @@ data-pipeline/
 ├── tests/
 │   ├── test_pipelines.py
 │   └── test_api_clients.py
+├── scheduler/                       # ETL Scheduler (APScheduler)
+│   ├── __init__.py
+│   ├── app.py                       # Main scheduler daemon
+│   ├── requirements.txt             # Scheduler dependencies
+│   ├── Dockerfile                   # Scheduler container
+│   ├── README.md                    # Scheduler documentation
+│   └── tests/
+│       └── test_scheduler.py        # Scheduler test script
 ├── logs/                            # Runtime logs (gitignored)
 ├── cache/                           # API response cache (gitignored)
 ├── docs/                            # Implementation guides
 ├── specs/                           # Technical specifications
-├── scheduler.py                     # APScheduler daemon
-├── test_scheduler.py                # Scheduler test script
 ├── run_full_etl.sh                  # Bash wrapper for run-all
 ├── requirements.txt
 ├── Dockerfile                       # CLI container
-├── Dockerfile.scheduler             # Scheduler container
 └── README.md                        # This file
 ```
 
@@ -1019,7 +1025,8 @@ pytest tests/ --cov=src --cov-report=html
 pytest tests/test_pipelines.py::test_traffic_flow_pipeline
 
 # Test scheduler locally
-python test_scheduler.py
+cd scheduler
+python tests/test_scheduler.py
 ```
 
 ### Adding New Pipeline
@@ -1053,13 +1060,13 @@ docker-compose -f docker-compose.scheduler.yml restart etl-scheduler
 
 ```bash
 # Verify scheduler config
-docker exec etl-scheduler cat scheduler.py | grep "add_job"
+docker exec etl-scheduler cat scheduler/app.py | grep "add_job"
 
 # Check timezone
 docker exec etl-scheduler date
 
 # Test manual execution
-docker exec utraffic-data-pipeline python -m src.main run-realtime
+docker exec data-pipeline python -m src.main run-realtime
 ```
 
 #### Database Connection Errors
@@ -1211,7 +1218,7 @@ All detailed documentation has been consolidated from 30+ markdown files. Key re
 ### External Resources
 
 - [ETL Scheduling Proposal](../ETL_SCHEDULING_PROPOSAL.md) – Detailed scheduler design
-- [ETL Scheduler Quick Start](../ETL_SCHEDULER_QUICKSTART.md) – Step-by-step setup guide
+- [ETL Scheduler Quick Start](scheduler/README.md) – Step-by-step setup guide
 - [TomTom Traffic API Docs](https://developer.tomtom.com/traffic-api)
 - [OpenWeather API Docs](https://openweathermap.org/api)
 - [PostGIS Documentation](https://postgis.net/docs/)
@@ -1331,8 +1338,8 @@ This project is licensed under the MIT License – see [LICENSE](../LICENSE) fil
 ---
 
 **For detailed scheduler documentation, see:**
-- [ETL_SCHEDULING_PROPOSAL.md](../ETL_SCHEDULING_PROPOSAL.md) – Comprehensive design doc
-- [ETL_SCHEDULER_QUICKSTART.md](../ETL_SCHEDULER_QUICKSTART.md) – Quick start guide
+- [Scheduler README](scheduler/README.md) – Quick start guide and configuration
+- [`scheduler/app.py`](scheduler/app.py) – Source code with inline documentation
 - [`scheduler.py`](scheduler.py) – Source code with inline documentation
 
 **Last Updated:** March 9, 2026  

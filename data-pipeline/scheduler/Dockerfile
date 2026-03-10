@@ -11,10 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements (scheduler-specific, minimal)
-COPY requirements-scheduler.txt .
+COPY requirements.txt .
 
 # Create wheels
-RUN pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements-scheduler.txt
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements.txt
 
 # ─────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /build/wheels /wheels
 
 # Install wheels
-COPY requirements-scheduler.txt .
+COPY requirements.txt .
 RUN pip install --no-cache /wheels/* && rm -rf /wheels
 
 # Copy application code
@@ -51,7 +51,7 @@ RUN mkdir -p logs
 
 # Health check - verify scheduler process is running
 HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=3 \
-    CMD pgrep -f "python scheduler.py" > /dev/null || exit 1
+    CMD pgrep -f "python app.py" > /dev/null || exit 1
 
 # Run scheduler
-CMD ["python", "scheduler.py"]
+CMD ["python", "app.py"]

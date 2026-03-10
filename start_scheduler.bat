@@ -11,7 +11,7 @@ echo.
 echo Starting scheduler...
 echo.
 
-cd /d "%~dp0data-pipeline"
+cd /d "%~dp0data-pipeline\scheduler"
 
 REM Check if Python is available
 python --version >nul 2>&1
@@ -30,6 +30,6 @@ if errorlevel 1 (
 )
 
 REM Run scheduler
-python scheduler.py
+python app.py
 
 pause

@@ -5,7 +5,7 @@ Complete documentation and guides for the Traffic IoC Data Pipeline ETL system.
 ## 📚 Documentation Structure
 
 ### Quick Starts & Guides
-- **[ETL Scheduler Quickstart](./ETL_SCHEDULER_QUICKSTART.md)** - Get the scheduler running in 10 minutes
+- **[ETL Scheduler Quickstart](../scheduler/README.md)** - Get the scheduler running in 10 minutes
 - **[Q1 ETL Corridors Guide](./Q1_ETL_CORRIDORS_GUIDE.txt)** - Specialized guide for Q1 corridor analysis
 - **[Implementation Summary](./IMPLEMENTATION_SUMMARY.md)** - Complete overview of implementation
 - **[Implementation Guide](./IMPLEMENTATION_GUIDE.md)** - Detailed implementation steps

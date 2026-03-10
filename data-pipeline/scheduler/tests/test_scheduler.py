@@ -16,7 +16,7 @@ def test_job():
     logger.info("🧪 Testing real-time ETL via scheduler...")
     try:
         result = subprocess.run(
-            ["docker", "exec", "utraffic-data-pipeline", "python", "-m", "src.main", "run-realtime"],
+            ["docker", "exec", "data-pipeline", "python", "-m", "src.main", "run-realtime"],
             capture_output=True,
             text=True,
             encoding='utf-8',

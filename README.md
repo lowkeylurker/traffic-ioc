@@ -155,7 +155,7 @@ npm run dev
 ├─ data-pipeline/docs/README.md                    (overview & index)
 ├─ data-pipeline/docs/IMPLEMENTATION_SUMMARY.md   (complete overview)
 ├─ data-pipeline/docs/IMPLEMENTATION_GUIDE.md     (step-by-step)
-├─ data-pipeline/docs/ETL_SCHEDULER_QUICKSTART.md (scheduler setup)
+├─ data-pipeline/scheduler/README.md (scheduler setup)
 ├─ data-pipeline/docs/analysis/                   (deep analysis)
 │   ├─ CORRIDOR_FALSE_POSITIVE_ANALYSIS.md
 │   ├─ Q1_QUERY_COMPARISON_ANALYSIS.md
@@ -246,15 +246,20 @@ traffic-ioc-monorepo/
 │   │   │   └─ QUERY_COMPARISON_QUICK_REFERENCE.md
 │   │   ├─ IMPLEMENTATION_SUMMARY.md
 │   │   ├─ IMPLEMENTATION_GUIDE.md
-│   │   ├─ ETL_SCHEDULER_QUICKSTART.md
 │   │   └─ Q1_ETL_CORRIDORS_GUIDE.txt
+│   ├── scheduler/                     # ⏰ ETL Scheduler
+│   │   ├── app.py                     # Main scheduler daemon
+│   │   ├── requirements.txt           # Scheduler dependencies
+│   │   ├── Dockerfile                 # Scheduler container
+│   │   ├── README.md                  # Scheduler documentation
+│   │   └── tests/
+│   │       └── test_scheduler.py      # Scheduler tests
 │   ├── scripts/                       # 🔧 Utility scripts
 │   │   ├─ README.md                   # Scripts documentation
 │   │   ├─ get_q1_stats.py
 │   │   ├─ query_q1_etl.py
 │   │   └─ ... (other analysis scripts)
 │   ├── tests/                         # Test coverage
-│   ├── scheduler.py                   # ETL orchestration
 │   └── requirements.txt
 │
 ├── ai-core/                           # Python ML/AI

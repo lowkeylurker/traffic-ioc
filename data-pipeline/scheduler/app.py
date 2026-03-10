@@ -4,14 +4,15 @@ ETL Scheduler for Traffic IoC Data Pipeline.
 
 Manages periodic execution of:
 - Real-time ETL: Every 15 minutes (weather → traffic → incidents)  [Quận 1 corridors only]
-- Batch Analytics: Daily at 2 AM (baseline speed + corridor performance) [Q1 corridors]
+- Batch Analytics: Runs immediately after each successful real-time ETL [Q1 corridors]
 
 **OFFICIAL Q1 MODE (Mar 2026)**: 
 - run-realtime uses target_corridor_mode for ~920 segments in Quận 1
 - run-batch runs baseline (all segments) + corridor perf (Quận 1 only)
+- Batch always runs after realtime completes successfully
 
 Usage:
-    python scheduler.py
+    python app.py
     
 Environment:
     DB_CONNECTION_STRING: PostgreSQL connection string
@@ -27,7 +28,6 @@ from datetime import datetime
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 # ═══════════════════════════════════════════════════════════
@@ -87,6 +87,7 @@ class ETLJob:
         self.command = command
         self.timeout = timeout
         self.log_file = LOG_DIR / f"{name.lower().replace(' ', '-')}.log"
+        self.last_success = False  # Track if last run was successful
     
     def run(self):
         """Execute the ETL command."""
@@ -121,23 +122,31 @@ class ETLJob:
                 logger.info(
                     f"[{self.name}] ✅ Completed in {elapsed:.1f}s"
                 )
+                self.last_success = True
+                return True  # Return success status
             else:
                 logger.error(
                     f"[{self.name}] ❌ Failed (exit={result.returncode}) "
                     f"in {elapsed:.1f}s\n{result.stderr[:200]}"
                 )
+                self.last_success = False
+                return False
         
         except subprocess.TimeoutExpired:
             elapsed = time.time() - start_time
             logger.error(
                 f"[{self.name}] ❌ Timeout (>{self.timeout}s after {elapsed:.1f}s)"
             )
+            self.last_success = False
+            return False
         
         except Exception as e:
             elapsed = time.time() - start_time
             logger.error(
                 f"[{self.name}] ❌ Exception: {e} (after {elapsed:.1f}s)"
             )
+            self.last_success = False
+            return False
 
 
 # Job definitions
@@ -149,13 +158,28 @@ REALTIME_JOB = ETLJob(
 
 BATCH_JOB = ETLJob(
     name="Batch Analytics",
-    command=["docker", "exec", "data-pipeline", "python", "-m", "src.main", "run-batch"],
-    timeout=1800  # 30 minutes
+        command=["docker", "exec", "data-pipeline", "python", "-m", "src.main", "run-batch"],
+        timeout=1800  # 30 minutes
 )
 
-# NOTE: As of Mar 2026, run-realtime and run-batch officially use Quận 1 corridor logic:
-#   - run-realtime: target_corridor_mode=True (~920 Q1 corridor segments)
-#   - run-batch: baseline (all) + corridor_pipeline(bbox=BBOX_TARGET_DISTRICT)
+# ═══════════════════════════════════════════════════════════
+# CHAINED JOB EXECUTION
+# ═══════════════════════════════════════════════════════════
+
+def run_realtime_then_batch():
+    """Run realtime ETL, then immediately run batch if successful."""
+    logger.info("🔗 Starting chained job: Realtime → Batch")
+    
+    # Run realtime
+    realtime_success = REALTIME_JOB.run()
+    
+    # If realtime succeeded, run batch immediately
+    if realtime_success:
+        logger.info("✅ Realtime succeeded, starting batch analytics...")
+        time.sleep(2)  # Short pause
+        BATCH_JOB.run()
+    else:
+        logger.warning("⚠️ Realtime failed, skipping batch analytics")
 
 # ═══════════════════════════════════════════════════════════
 # SCHEDULER SETUP
@@ -165,42 +189,29 @@ def setup_scheduler():
     """Configure and start the APScheduler."""
     scheduler = BackgroundScheduler()
     
-    # Real-time: Every 15 minutes
+    # Chained job: Real-time + Batch (every 15 minutes)
     scheduler.add_job(
-        REALTIME_JOB.run,
+        run_realtime_then_batch,
         trigger=IntervalTrigger(minutes=15),
-        id='etl-realtime',
-        name='Real-time ETL (Weather → Traffic → Incidents)',
+        id='etl-chained',
+        name='Chained ETL (Realtime → Batch)',
         coalesce=True,      # Skip if previous still running
         max_instances=1,    # Only 1 instance at a time
         misfire_grace_time=60  # Allow 1 min late start
     )
     
-    # Batch: Daily 2 AM
-    scheduler.add_job(
-        BATCH_JOB.run,
-        trigger=CronTrigger(hour=2, minute=0, timezone="UTC"),
-        id='etl-batch',
-        name='Batch Analytics (Baseline + Corridor)',
-        coalesce=True,
-        max_instances=1,
-        misfire_grace_time=600  # Allow 10 min late start
-    )
-    
     # Print schedule info
     logger.info("=" * 80)
-    logger.info("🚀 ETL SCHEDULER INITIALIZED")
+    logger.info("🚀 ETL SCHEDULER INITIALIZED (Auto-Start Mode)")
     logger.info("=" * 80)
     logger.info("📅 Scheduled Jobs:")
-    logger.info("  1. Real-time ETL (Quận 1)")
+    logger.info("  1. Chained ETL (Realtime → Batch)")
     logger.info("     ⏱️  Frequency: Every 15 minutes")
-    logger.info("     ⏱️  Timeout: 5 minutes")
-    logger.info("     📦 Pipeline: Weather → Traffic Flow (~920 Q1 segments) → Incidents")
-    logger.info("")
-    logger.info("  2. Batch Analytics (Quận 1)")
-    logger.info("     ⏱️  Frequency: Daily at 2:00 AM UTC")
-    logger.info("     ⏱️  Timeout: 30 minutes")
-    logger.info("     📦 Pipeline: Baseline Speed (All) + Corridor Performance (Q1)")
+    logger.info("     ⏱️  Timeout: 5 min (realtime) + 30 min (batch)")
+    logger.info("     📦 Pipeline:")
+    logger.info("        → Real-time: Weather → Traffic Flow (~920 Q1 segments) → Incidents")
+    logger.info("        → Batch: Baseline Speed (All) + Corridor Performance (Q1)")
+    logger.info("     ✨ Batch runs IMMEDIATELY after realtime completes successfully")
     logger.info("")
     logger.info(f"📝 Logs: {LOG_DIR}")
     logger.info("=" * 80)
