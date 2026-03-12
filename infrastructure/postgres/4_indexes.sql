@@ -160,6 +160,9 @@ CREATE INDEX idx_fact_sim_scenario_id
 CREATE INDEX idx_fact_corridor_perf_corridor
     ON fact_corridor_performance (corridor_key);
 
+CREATE INDEX idx_fact_corridor_perf_corridor_version
+    ON fact_corridor_performance (corridor_key, corridor_version);
+
 CREATE INDEX idx_fact_corridor_perf_date
     ON fact_corridor_performance (date_key);
 

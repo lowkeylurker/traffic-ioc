@@ -1,0 +1,35 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "probe-tomtom-req-once",
+			"type": "shell",
+			"command": "docker compose exec data-pipeline python /app/tmp_req_probe.py",
+			"isBackground": false
+		},
+		{
+			"label": "probe-priority-critical-req",
+			"type": "shell",
+			"command": "docker compose exec data-pipeline python /app/tmp_priority_probe.py",
+			"isBackground": false
+		},
+		{
+			"label": "verify-corridor-performance-after-priority-switch",
+			"type": "shell",
+			"command": "docker compose exec data-pipeline python -m src.main run-corridor-central-districts",
+			"isBackground": false
+		},
+		{
+			"label": "diagnose-tomtom-403",
+			"type": "shell",
+			"command": "docker compose exec data-pipeline python -c \"import os, requests; from sqlalchemy import create_engine, text; db=os.getenv('DB_CONNECTION_STRING'); key=os.getenv('TOMTOM_API_KEY',''); print('has_key=', bool(key), 'key_len=', len(key)); eng=create_engine(db); \nwith eng.connect() as c:\n  row=c.execute(text('SELECT ST_Y(geometry_center) AS lat, ST_X(geometry_center) AS lon FROM dim_segment WHERE geometry_center IS NOT NULL LIMIT 1')).mappings().first()\nlat,lon=row['lat'],row['lon']\nurl='https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json'\nparams={'key':key,'point':f'{lat},{lon}','unit':'KMPH'}\nr=requests.get(url,params=params,timeout=15)\nprint('status=',r.status_code)\nprint('content_type=',r.headers.get('content-type'))\nprint('body=',r.text[:800])\"",
+			"isBackground": false
+		},
+		{
+			"label": "diagnose-tomtom-403-script",
+			"type": "shell",
+			"command": "docker compose exec data-pipeline python /app/tmp_diag_403.py",
+			"isBackground": false
+		}
+	]
+}

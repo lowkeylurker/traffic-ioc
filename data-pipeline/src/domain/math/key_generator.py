@@ -82,3 +82,25 @@ def generate_traffic_flow_key(segment_key: int, date_key: int, time_key: int) ->
     raw = f"{segment_key}:{date_key}:{time_key}"
     hex_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:15]
     return int(hex_hash, 16)
+
+
+def generate_corridor_perf_key(
+    corridor_key: int,
+    date_key: int,
+    time_key: int,
+    corridor_version: int,
+) -> int:
+    """Generate surrogate key for fact_corridor_performance with versioning.
+
+    Args:
+        corridor_key: Corridor identifier
+        date_key: Date in YYYYMMDD format
+        time_key: Time of day in minutes (0-1439)
+        corridor_version: Active corridor config version used for computation
+
+    Returns:
+        int: Corridor performance fact key (BIGINT)
+    """
+    raw = f"{corridor_key}:{date_key}:{time_key}:{corridor_version}"
+    hex_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:15]
+    return int(hex_hash, 16)

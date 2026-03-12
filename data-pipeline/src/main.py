@@ -3,12 +3,13 @@
 Commands:
     run-static     Sinh + UPSERT dimension thời gian + ngày lễ
     run-spatial    Download OSM network + UPSERT spatial dims
-    run-realtime   Weather → Traffic Flow → Incident (Quận 1 corridors)
-    run-batch      Nightly: baseline (all) + corridor performance (Quận 1)
+    run-realtime   Weather → Traffic Flow → Incident (priority corridors, critical segments)
+    run-batch      Nightly: baseline (all) + corridor performance (priority corridors)
     run-all        Chạy tất cả theo thứ tự FK
     health         Kiểm tra kết nối Database
     
-Note: As of Mar 2026, realtime and batch ETL officially target Quận 1 corridors only.
+Note: As of Mar 2026, realtime ETL selects critical segments from priority corridors
+under request budget constraints.
 """
 
 from __future__ import annotations
@@ -400,94 +401,105 @@ _SEGMENT_QUERY_WITH_BBOX = text("""
 """)
 
 _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
-        WITH q1_boundary AS (
-                SELECT ST_UnaryUnion(ST_Collect(dl.geometry_polygon)) AS geom
-                FROM dim_location dl
-                WHERE dl.geometry_polygon IS NOT NULL
-          AND (LOWER(TRIM(dl.district)) IN ('quan 1', 'district 1', 'q1')
-               OR LOWER(TRIM(dl.district)) LIKE '%quan 1%')
+        WITH active_corridors AS (
+            SELECT c.corridor_key,
+                   COALESCE(c.importance_level, 0) AS importance_level
+            FROM dim_corridor c
+            WHERE c.corridor_version = (SELECT COALESCE(MAX(corridor_version), 1) FROM dim_corridor)
         ),
-        all_corridor_segments AS (
-                -- Count total segments for each corridor
-                SELECT bcs.corridor_key,
-               COUNT(DISTINCT bcs.segment_key) AS total_segments,
-                       SUM(ds.length_m) AS total_length_m
-                FROM bridge_corridor_segment bcs
-                JOIN dim_segment ds ON ds.segment_key = bcs.segment_key
-                WHERE ds.geometry_center IS NOT NULL
-                GROUP BY bcs.corridor_key
+        recent_traffic AS (
+            SELECT f.segment_key,
+                   AVG(COALESCE(f.delay_seconds, 0)) AS avg_delay_seconds,
+                   AVG(
+                       CASE
+                           WHEN f.free_flow_speed_kmh > 0 THEN f.free_flow_speed_kmh / NULLIF(f.current_speed_kmh, 0)
+                           ELSE 1.0
+                       END
+                   ) AS avg_tti,
+                   COUNT(*) AS sample_count
+            FROM fact_traffic_flow f
+            WHERE f.timestamp >= (NOW() - INTERVAL '7 days')
+            GROUP BY f.segment_key
         ),
-        q1_corridor_segments AS (
-                -- Count segments within Q1 + calculate distance to boundary
-                SELECT bcs.corridor_key,
-               COUNT(DISTINCT bcs.segment_key) AS q1_segments,
-                       SUM(ds.length_m) AS q1_length_m,
-                       MIN(
-                           CASE
-                               WHEN qb.geom IS NOT NULL THEN ST_Distance(ds.geometry_center::geography, qb.geom::geography)
-                               ELSE 0
-                           END
-                       ) AS min_dist_to_q1_m
-                FROM bridge_corridor_segment bcs
-                JOIN dim_segment ds ON ds.segment_key = bcs.segment_key
-                CROSS JOIN q1_boundary qb
-                WHERE ds.geometry_center IS NOT NULL
-                    AND (
-                                (qb.geom IS NOT NULL AND ST_DWithin(ds.geometry_center::geography, qb.geom::geography, :gateway_distance_m))
-                         OR (
-                                        qb.geom IS NULL
-                                AND ST_X(ds.geometry_center) BETWEEN :min_lon AND :max_lon
-                                AND ST_Y(ds.geometry_center) BETWEEN :min_lat AND :max_lat
-                         )
-                    )
-                GROUP BY bcs.corridor_key
+        recent_incident AS (
+            SELECT i.segment_key,
+                   COUNT(*) AS incident_count
+            FROM fact_incident i
+            WHERE i.timestamp >= (NOW() - INTERVAL '14 days')
+            GROUP BY i.segment_key
         ),
-        selected_corridors AS (
-                SELECT
-                    acs.corridor_key,
-                    acs.total_segments,
-                    acs.total_length_m,
-                    COALESCE(qcs.q1_segments, 0) AS q1_segments,
-                    COALESCE(qcs.q1_length_m, 0) AS q1_length_m,
-                    COALESCE(qcs.min_dist_to_q1_m, 999999.0) AS min_dist_to_q1_m,
-                    COALESCE(qcs.q1_length_m / NULLIF(acs.total_length_m, 0), 0.0) AS q1_length_pct
-                FROM all_corridor_segments acs
-                LEFT JOIN q1_corridor_segments qcs ON qcs.corridor_key = acs.corridor_key
-                WHERE (
-                    COALESCE(qcs.q1_length_m / NULLIF(acs.total_length_m, 0), 0.0) >= :q1_length_threshold
-                    OR (
-                        COALESCE(qcs.q1_length_m / NULLIF(acs.total_length_m, 0), 0.0) >= :gateway_length_threshold
-                        AND COALESCE(qcs.min_dist_to_q1_m, 999999.0) <= :gateway_distance_m
-                    )
-                )
+        corridor_segment_candidates AS (
+            SELECT
+                ac.corridor_key,
+                ac.importance_level,
+                s.segment_key,
+                ST_Y(s.geometry_center) AS lat,
+                ST_X(s.geometry_center) AS lon,
+                COALESCE(w.default_lane_count, 2) AS lane_count,
+                COALESCE(s.length_m, 0) AS length_m,
+                (
+                    COALESCE(rt.avg_delay_seconds, 0) * 0.50
+                    + COALESCE(rt.avg_tti - 1.0, 0) * 120.0
+                    + COALESCE(ri.incident_count, 0) * 8.0
+                    + CASE
+                        WHEN ac.importance_level >= 5 THEN 40.0
+                        WHEN ac.importance_level = 4 THEN 24.0
+                        ELSE 12.0
+                      END
+                ) AS critical_score
+            FROM active_corridors ac
+            JOIN bridge_corridor_segment bcs ON bcs.corridor_key = ac.corridor_key
+            JOIN dim_segment s ON s.segment_key = bcs.segment_key
+            JOIN dim_way w ON w.way_key = s.way_key
+            LEFT JOIN recent_traffic rt ON rt.segment_key = s.segment_key
+            LEFT JOIN recent_incident ri ON ri.segment_key = s.segment_key
+            WHERE s.geometry_center IS NOT NULL
+              AND w.osm_highway_type IN ('primary', 'secondary', 'tertiary', 'trunk')
         ),
-        etl_segments AS (
-                SELECT DISTINCT
-                    s.segment_key,
-                    ST_Y(s.geometry_center) AS lat,
-                    ST_X(s.geometry_center) AS lon,
-                    COALESCE(w.default_lane_count, 2) AS lane_count,
-                    COALESCE(c.importance_level, 0) AS importance_level,
-                    COALESCE(s.length_m, 0) AS length_m
-                FROM dim_segment s
-                JOIN dim_way w ON s.way_key = w.way_key
-                JOIN bridge_corridor_segment bcs ON bcs.segment_key = s.segment_key
-                JOIN selected_corridors sc ON sc.corridor_key = bcs.corridor_key
-                JOIN dim_corridor c ON c.corridor_key = bcs.corridor_key
-                CROSS JOIN q1_boundary qb
-                WHERE s.geometry_center IS NOT NULL
-                  AND w.osm_highway_type IN ('primary','secondary','tertiary','trunk')
-                  AND (
-                      (qb.geom IS NOT NULL AND ST_DWithin(s.geometry_center::geography, qb.geom::geography, :gateway_distance_m))
-                      OR (qb.geom IS NULL
-                          AND ST_X(s.geometry_center) BETWEEN :min_lon AND :max_lon
-                          AND ST_Y(s.geometry_center) BETWEEN :min_lat AND :max_lat)
-                  )
+        ranked_by_corridor AS (
+            SELECT *,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY corridor_key
+                       ORDER BY critical_score DESC, length_m DESC, segment_key
+                   ) AS corridor_rank
+            FROM corridor_segment_candidates
+        ),
+        quota_filtered AS (
+            SELECT *,
+                   CASE
+                       WHEN importance_level >= 5 THEN :critical_per_l5
+                       WHEN importance_level = 4 THEN :critical_per_l4
+                       ELSE :critical_per_l3
+                   END AS corridor_quota
+            FROM ranked_by_corridor
+        ),
+        corridor_top AS (
+            SELECT *
+            FROM quota_filtered
+            WHERE corridor_rank <= corridor_quota
+        ),
+        deduped AS (
+            SELECT *,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY segment_key
+                       ORDER BY importance_level DESC, critical_score DESC, corridor_rank ASC
+                   ) AS segment_pick_rank
+            FROM corridor_top
+        ),
+        final_ranked AS (
+            SELECT segment_key,
+                   lat,
+                   lon,
+                   lane_count,
+                   importance_level,
+                   critical_score
+            FROM deduped
+            WHERE segment_pick_rank = 1
         )
     SELECT segment_key, lat, lon, lane_count
-    FROM etl_segments
-    ORDER BY importance_level DESC, length_m DESC, segment_key
-    LIMIT  :limit
+    FROM final_ranked
+    ORDER BY importance_level DESC, critical_score DESC, segment_key
+    LIMIT :limit
 """)
 
 # Max segments per realtime cycle (TomTom free ≈ 2 500 calls/day,
@@ -495,9 +507,12 @@ _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
 _MAX_SEGMENTS_PER_CYCLE = 25
 _OVERFETCH_FACTOR = 3
 
-# For target corridor mode (Q1 only): fetch all segments (920 as of Mar 2026)
-# Use this for batch ETL or when you want complete coverage
+# Target corridor mode cap. In realtime budget mode we honor the provided limit.
 _MAX_SEGMENTS_TARGET_CORRIDORS = 1000
+
+# Realtime budget mode target (TomTom budget <= 250 req/cycle total)
+# Reserve ~3 req for weather+incidents and keep ~10% retry headroom.
+_BUDGET_SAFE_SEGMENTS_PER_CYCLE = 220
 
 
 def _resolve_option_default(value):
@@ -524,7 +539,7 @@ def _load_segment_points(
         engine: SQLAlchemy Engine
         limit: Max segments to load (default 25 for TomTom free tier)
         bbox: Optional bounding box dict {min_lon, max_lon, min_lat, max_lat} to filter segments
-        target_corridor_mode: If True, use corridor-based filtering with BBOX_TARGET_DISTRICT (Q1 only)
+        target_corridor_mode: If True, use priority corridor critical-segment selection
         full_target_coverage: If True, force full target-corridor coverage.
         overfetch_factor: Fetch extra candidates to compensate invalid/duplicate points
     """
@@ -536,32 +551,20 @@ def _load_segment_points(
     # Ensure limit is int (Typer OptionInfo → int when called from run_all)
     limit = int(_resolve_option_default(limit)) if not isinstance(limit, int) else limit
     
-    # For target corridors mode: full mode captures all selected segments;
-    # budget mode honors caller-provided limit.
+    # For target corridor mode we always honor caller-provided limit.
     if target_corridor_mode:
-        from src.domain.geo.constants import BBOX_TARGET_DISTRICT
-        effective_limit = (
-            max(limit, _MAX_SEGMENTS_TARGET_CORRIDORS)
-            if full_target_coverage
-            else limit
-        )
-        query_limit = effective_limit  # No overfetch factor needed, we want all
-        target_bbox = BBOX_TARGET_DISTRICT
+        effective_limit = limit
+        query_limit = limit
     else:
         query_limit = max(limit, int(limit * max(1, overfetch_factor)))
-        target_bbox = None
 
     with engine.connect() as conn:
         if target_corridor_mode:
             params = {
                 "limit": query_limit,
-                "min_lon": target_bbox["min_lon"],
-                "max_lon": target_bbox["max_lon"],
-                "min_lat": target_bbox["min_lat"],
-                "max_lat": target_bbox["max_lat"],
-                "q1_length_threshold": 0.40,       # 40% Q1 coverage = main corridor
-                "gateway_length_threshold": 0.15,  # 15% Q1 coverage = gateway candidate
-                "gateway_distance_m": 1500,        # Must be within 1500m of Q1 boundary
+                "critical_per_l5": 12,
+                "critical_per_l4": 8,
+                "critical_per_l3": 5,
             }
             rows = conn.execute(_SEGMENT_QUERY_BY_TARGET_CORRIDORS, params).fetchall()
         elif bbox:
@@ -598,7 +601,7 @@ def _load_segment_points(
         if len(points) >= actual_limit:
             break
     
-    mode_label = "target_corridors_Q1" if target_corridor_mode else (f"bbox: {bbox}" if bbox else "all")
+    mode_label = "priority_corridors_critical" if target_corridor_mode else (f"bbox: {bbox}" if bbox else "all")
     logger.info(
         f"[run-realtime] Loaded {len(points)} segment points from DB ({mode_label}) "
         f"(query_limit={query_limit}, duplicates_skipped={duplicate_count})"
@@ -609,10 +612,10 @@ def _load_segment_points(
 @app.command("run-realtime")
 def run_realtime(
     segment_limit: int = typer.Option(
-        _MAX_SEGMENTS_TARGET_CORRIDORS,
+        _BUDGET_SAFE_SEGMENTS_PER_CYCLE,
         min=1,
         max=2000,
-        help="Max number of segment points queried per realtime cycle",
+        help="Max number of critical segment points queried per realtime cycle",
     ),
     budget_mode: bool = typer.Option(
         False,
@@ -621,7 +624,7 @@ def run_realtime(
 ) -> None:
     """Phase 3: Weather → Traffic Flow → Incident (1 cycle, cron 15p).
 
-    **OFFICIAL Q1 MODE**: Uses target_corridor_mode for Quận 1 corridors only.
+    **OFFICIAL MODE**: Uses priority corridors + critical segments from dim_corridor.
     
     Thứ tự:
         dim_weather (trả weather_key) → fact_traffic_flow → fact_incident
@@ -631,16 +634,17 @@ def run_realtime(
     segment_limit = int(_resolve_option_default(segment_limit))
     budget_mode = bool(_resolve_option_default(budget_mode))
     if budget_mode and segment_limit >= _MAX_SEGMENTS_TARGET_CORRIDORS:
-        segment_limit = 120
+        segment_limit = _BUDGET_SAFE_SEGMENTS_PER_CYCLE
         logger.info(
-            "[run-realtime] budget_mode enabled without strict --segment-limit; fallback to 120 segments"
+            "[run-realtime] budget_mode enabled without strict --segment-limit; "
+            f"fallback to {_BUDGET_SAFE_SEGMENTS_PER_CYCLE} segments"
         )
     total = 0
     results = []
 
     console.print(Panel.fit(
-        "[bold cyan]🌤️  PHASE 3: REAL-TIME DATA (DISTRICT 1)[/bold cyan]\n"
-        "[dim]Weather + Traffic Flow + Incidents[/dim]",
+        "[bold cyan]🌤️  PHASE 3: REAL-TIME DATA (PRIORITY CORRIDORS)[/bold cyan]\n"
+        "[dim]Weather + Traffic Flow + Incidents (critical segments)[/dim]",
         border_style="cyan"
     ))
 
@@ -666,8 +670,8 @@ def run_realtime(
             results.append(("Weather Data", 0, "✗"))
             progress.update(task1, completed=True)
 
-        # Load segment coordinates from DB (Q1 target corridors only)
-        task2 = progress.add_task("[cyan]Loading Q1 segment points...", total=None)
+        # Load segment coordinates from DB (priority corridors + critical segments)
+        task2 = progress.add_task("[cyan]Loading critical segment points...", total=None)
         points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(
             engine,
             limit=segment_limit,

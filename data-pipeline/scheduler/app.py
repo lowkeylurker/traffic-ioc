@@ -32,7 +32,7 @@ from datetime import datetime
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 
 # ═══════════════════════════════════════════════════════════
 # LOGGING SETUP
@@ -47,6 +47,16 @@ RUN_ON_START = os.getenv("RUN_ON_START", "true").strip().lower() in {
     "yes",
     "on",
 }
+
+# Request budget guardrail (TomTom + weather + incidents)
+REQ_BUDGET_PER_CYCLE = int(os.getenv("REQ_BUDGET_PER_CYCLE", "250"))
+NON_TRAFFIC_REQ_RESERVE = int(os.getenv("NON_TRAFFIC_REQ_RESERVE", "3"))
+TRAFFIC_REQ_HEADROOM_PCT = float(os.getenv("TRAFFIC_REQ_HEADROOM_PCT", "0.10"))
+_traffic_budget_raw = max(1, REQ_BUDGET_PER_CYCLE - NON_TRAFFIC_REQ_RESERVE)
+SAFE_TRAFFIC_SEGMENT_LIMIT = max(
+    1,
+    int(_traffic_budget_raw * (1.0 - max(0.0, min(0.5, TRAFFIC_REQ_HEADROOM_PCT)))),
+)
 
 
 class VietnamTimeFormatter(logging.Formatter):
@@ -89,6 +99,26 @@ def setup_logging():
     return logging.getLogger(__name__)
 
 logger = setup_logging()
+
+
+def is_within_etl_window(now: datetime | None = None) -> bool:
+    """Return True if current Vietnam local time is inside allowed ETL windows.
+
+    Windows:
+    - Morning: 06:00 to 10:00 (inclusive at 10:00 only)
+    - Evening: 16:00 to 20:00 (inclusive at 20:00 only)
+    """
+    current = now or datetime.now(VN_TZ)
+    hhmm = current.hour * 60 + current.minute
+
+    morning_start = 6 * 60
+    morning_end = 10 * 60
+    evening_start = 16 * 60
+    evening_end = 20 * 60
+
+    in_morning = morning_start <= hhmm <= morning_end
+    in_evening = evening_start <= hhmm <= evening_end
+    return in_morning or in_evening
 
 # ═══════════════════════════════════════════════════════════
 # ETL COMMANDS
@@ -209,7 +239,18 @@ class ETLJob:
 # Job definitions
 REALTIME_JOB = ETLJob(
     name="Real-time ETL",
-    command=["docker", "exec", "data-pipeline", "python", "-m", "src.main", "run-realtime"],
+    command=[
+        "docker",
+        "exec",
+        "data-pipeline",
+        "python",
+        "-m",
+        "src.main",
+        "run-realtime",
+        "--budget-mode",
+        "--segment-limit",
+        str(SAFE_TRAFFIC_SEGMENT_LIMIT),
+    ],
     timeout=300  # 5 minutes
 )
 
@@ -270,23 +311,61 @@ def run_realtime_then_batch():
 
 def setup_scheduler():
     """Configure and start the APScheduler."""
-    scheduler = BackgroundScheduler()
-    
-    # Chained job: Real-time + Batch (every 15 minutes)
+    scheduler = BackgroundScheduler(timezone=VN_TZ)
+
+    # Morning window: 06:00-09:45 every 15 minutes
     scheduler.add_job(
         run_realtime_then_batch,
-        trigger=IntervalTrigger(minutes=15),
-        id='etl-chained',
-        name='Chained ETL (Realtime → Batch)',
+        trigger=CronTrigger(hour="6-9", minute="0,15,30,45", timezone=VN_TZ),
+        id='etl-chained-morning',
+        name='Chained ETL (Morning 06:00-10:00)',
         coalesce=True,      # Skip if previous still running
         max_instances=1,    # Only 1 instance at a time
         misfire_grace_time=60  # Allow 1 min late start
     )
 
-    job_obj = scheduler.get_job("etl-chained")
-    next_run = getattr(job_obj, "next_run_time", None)
-    if next_run is None:
-        next_run = getattr(job_obj, "next_fire_time", None)
+    # Morning boundary: 10:00
+    scheduler.add_job(
+        run_realtime_then_batch,
+        trigger=CronTrigger(hour="10", minute="0", timezone=VN_TZ),
+        id='etl-chained-morning-boundary',
+        name='Chained ETL (Morning boundary 10:00)',
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=60
+    )
+
+    # Evening window: 16:00-19:45 every 15 minutes
+    scheduler.add_job(
+        run_realtime_then_batch,
+        trigger=CronTrigger(hour="16-19", minute="0,15,30,45", timezone=VN_TZ),
+        id='etl-chained-evening',
+        name='Chained ETL (Evening 16:00-20:00)',
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=60
+    )
+
+    # Evening boundary: 20:00
+    scheduler.add_job(
+        run_realtime_then_batch,
+        trigger=CronTrigger(hour="20", minute="0", timezone=VN_TZ),
+        id='etl-chained-evening-boundary',
+        name='Chained ETL (Evening boundary 20:00)',
+        coalesce=True,      # Skip if previous still running
+        max_instances=1,    # Only 1 instance at a time
+        misfire_grace_time=60  # Allow 1 min late start
+    )
+
+    next_runs = []
+    for job in scheduler.get_jobs():
+        next_run = getattr(job, "next_run_time", None)
+        if next_run is None:
+            next_run = getattr(job, "next_fire_time", None)
+        next_runs.append((job.id, next_run))
+
+    next_runs.sort(key=lambda item: item[1] or datetime.max.replace(tzinfo=VN_TZ))
+    nearest_run = next_runs[0][1] if next_runs else None
     
     # Print schedule info
     logger.info("=" * 80)
@@ -294,13 +373,20 @@ def setup_scheduler():
     logger.info("=" * 80)
     logger.info("📅 Scheduled Jobs:")
     logger.info("  1. Chained ETL (Realtime → Batch)")
-    logger.info("     ⏱️  Frequency: Every 15 minutes")
+    logger.info("     ⏱️  Frequency: Every 15 minutes (within time windows)")
+    logger.info("     🕒 Windows (Asia/Ho_Chi_Minh): 06:00-10:00 and 16:00-20:00")
     logger.info("     ⏱️  Timeout: 5 min (realtime) + 30 min (batch)")
     logger.info("     📦 Pipeline:")
-    logger.info("        → Real-time: Weather → Traffic Flow (~920 Q1 segments) → Incidents")
+    logger.info(
+        "        → Real-time: Weather → Traffic Flow (budget-capped) → Incidents"
+    )
+    logger.info(
+        "        → Request budget: "
+        f"{REQ_BUDGET_PER_CYCLE}/cycle, traffic limit={SAFE_TRAFFIC_SEGMENT_LIMIT} segments"
+    )
     logger.info("        → Batch: Baseline Speed (All) + Corridor Performance (Q1)")
     logger.info("     ✨ Batch runs IMMEDIATELY after realtime completes successfully")
-    logger.info(f"     🕒 Next scheduled run: {next_run or 'available after scheduler starts'}")
+    logger.info(f"     🕒 Next scheduled run: {nearest_run or 'available after scheduler starts'}")
     logger.info(f"     ⚡ Run on startup: {'enabled' if RUN_ON_START else 'disabled'}")
     logger.info("")
     logger.info(f"📝 Logs: {LOG_DIR}")
@@ -322,12 +408,17 @@ if __name__ == "__main__":
         scheduler.start()
 
         if RUN_ON_START:
-            logger.info("⚡ Triggering immediate ETL cycle on startup...")
-            threading.Thread(
-                target=run_realtime_then_batch,
-                name="startup-etl-cycle",
-                daemon=True,
-            ).start()
+            if is_within_etl_window():
+                logger.info("⚡ Startup is within ETL window -> triggering immediate ETL cycle...")
+                threading.Thread(
+                    target=run_realtime_then_batch,
+                    name="startup-etl-cycle",
+                    daemon=True,
+                ).start()
+            else:
+                logger.info(
+                    "⏭️ Startup is outside ETL windows (06:00-10:00, 16:00-20:00) -> skip immediate run"
+                )
         
         logger.info("✅ Scheduler running. Press Ctrl+C to stop.")
         

@@ -161,6 +161,8 @@ CREATE TABLE dim_corridor (
     corridor_key        BIGINT      PRIMARY KEY,
     corridor_name       VARCHAR(255)    NOT NULL,
     importance_level    SMALLINT,                   -- Mức ưu tiên
+    corridor_version    INT         NOT NULL DEFAULT 1,
+    seed_signature      VARCHAR(64),
     target_avg_speed    DECIMAL(5,2),               -- Vận tốc mục tiêu (km/h)
     total_length_m      DECIMAL(12,2),
     direction           VARCHAR(10),                -- NB / SB / EB / WB
