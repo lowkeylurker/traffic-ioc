@@ -15,8 +15,10 @@ under request budget constraints.
 from __future__ import annotations
 
 import time
+import os
 from typing import Tuple
 
+import requests
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -76,6 +78,94 @@ def health() -> None:
         raise typer.Exit(code=0)
     else:
         typer.echo("❌ Database connection FAILED")
+        raise typer.Exit(code=1)
+
+
+@app.command("health-tomtom-keys")
+def health_tomtom_keys(
+    timeout_sec: int = typer.Option(
+        8,
+        min=3,
+        max=30,
+        help="HTTP timeout per key probe (seconds)",
+    ),
+) -> None:
+    """Daily TomTom key health check.
+
+    Reports:
+      - usable_keys
+      - blocked_keys
+      - effective_budget/cycle (req)
+      - safe_traffic_segment_limit/cycle
+    """
+
+    keys = settings.get_tomtom_keys()
+    if not keys:
+        typer.echo("❌ No TomTom keys configured (TOMTOM_API_KEYS / TOMTOM_API_KEY)")
+        raise typer.Exit(code=1)
+
+    base_url = "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json"
+    probe_params = {
+        "point": "10.7764,106.7011",
+        "unit": "KMPH",
+    }
+
+    rows: list[tuple[str, str, str]] = []
+    usable = 0
+    blocked = 0
+
+    for key in keys:
+        masked = f"...{key[-8:]}"
+        params = dict(probe_params)
+        params["key"] = key
+        try:
+            r = requests.get(base_url, params=params, timeout=timeout_sec)
+            if r.status_code == 200:
+                usable += 1
+                rows.append((masked, "usable", "HTTP 200"))
+            elif r.status_code == 403:
+                blocked += 1
+                detail = "HTTP 403 (Forbidden / entitlement / quota)"
+                rows.append((masked, "blocked", detail))
+            else:
+                blocked += 1
+                rows.append((masked, "blocked", f"HTTP {r.status_code}"))
+        except requests.RequestException as e:
+            blocked += 1
+            rows.append((masked, "blocked", f"network error: {e.__class__.__name__}"))
+
+    cycles_per_day = 34
+    daily_limit = int(settings.tomtom_daily_limit_per_key or 2500)
+    reserve = int(os.getenv("NON_TRAFFIC_REQ_RESERVE", "3"))
+    headroom = float(os.getenv("TRAFFIC_REQ_HEADROOM_PCT", "0.10"))
+    effective_budget_per_cycle = (usable * daily_limit) // cycles_per_day
+    safe_traffic_limit = max(
+        1,
+        int(max(1, effective_budget_per_cycle - reserve) * (1.0 - headroom)),
+    )
+
+    console.print(Panel.fit(
+        "[bold cyan]🔎 TOMTOM KEY HEALTH CHECK[/bold cyan]\n"
+        "[dim]Probe endpoint: traffic flow absolute/10/json[/dim]",
+        border_style="cyan",
+    ))
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Key", style="magenta", width=14)
+    table.add_column("Status", style="green", width=10)
+    table.add_column("Detail", style="dim", width=48)
+    for masked, status, detail in rows:
+        color = "green" if status == "usable" else "red"
+        table.add_row(masked, f"[{color}]{status}[/{color}]", detail)
+    console.print(table)
+
+    console.print(
+        f"usable_keys={usable} | blocked_keys={blocked} | "
+        f"effective_budget/cycle={effective_budget_per_cycle} req | "
+        f"safe_traffic_segment_limit/cycle={safe_traffic_limit}"
+    )
+
+    if usable == 0:
         raise typer.Exit(code=1)
 
 
@@ -502,17 +592,28 @@ _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
     LIMIT :limit
 """)
 
-# Max segments per realtime cycle (TomTom free ≈ 2 500 calls/day,
-# 96 cycles@15 min → ~25 per cycle).  Increase if paid plan.
+# Legacy fallback limit (non-corridor mode, single key free tier).
 _MAX_SEGMENTS_PER_CYCLE = 25
 _OVERFETCH_FACTOR = 3
 
-# Target corridor mode cap. In realtime budget mode we honor the provided limit.
-_MAX_SEGMENTS_TARGET_CORRIDORS = 1000
+# Hard safety cap for target-corridor mode – set above max full-coverage budget
+# so it never truncates legitimate high-key pools (e.g. 20 keys → ~1 323 segs/cycle).
+_MAX_SEGMENTS_TARGET_CORRIDORS = 2000
 
-# Realtime budget mode target (TomTom budget <= 250 req/cycle total)
-# Reserve ~3 req for weather+incidents and keep ~10% retry headroom.
-_BUDGET_SAFE_SEGMENTS_PER_CYCLE = 220
+# Realtime budget mode default: auto-computed from key pool at startup.
+# Formula: (N_keys × daily_limit ÷ 34 cycles) - reserve - 10% headroom
+# Examples: 1 key ≈ 63, 3 keys ≈ 192, 5 keys ≈ 327, 10 keys ≈ 656, 20 keys ≈ 1 323
+def _compute_budget_safe_segments() -> int:
+    n_keys = max(1, len(settings.get_tomtom_keys()))
+    daily_limit = int(settings.tomtom_daily_limit_per_key or 2500)
+    cycles = 34
+    reserve = int(os.getenv("NON_TRAFFIC_REQ_RESERVE", "3"))
+    headroom = float(os.getenv("TRAFFIC_REQ_HEADROOM_PCT", "0.10"))
+    raw = max(1, n_keys * daily_limit // cycles - reserve)
+    return max(1, int(raw * (1.0 - headroom)))
+
+
+_BUDGET_SAFE_SEGMENTS_PER_CYCLE = _compute_budget_safe_segments()
 
 
 def _resolve_option_default(value):
@@ -560,11 +661,19 @@ def _load_segment_points(
 
     with engine.connect() as conn:
         if target_corridor_mode:
+            # Scale per-corridor quotas proportionally to budget so Full-Coverage
+            # mode (≥ 10 keys) doesn't get artificially capped by low hard-coded
+            # quotas.  Base ratios (5:8:12) are preserved; floor ensures at least
+            # 1 critical segment per corridor even at very low budgets.
+            _budget_ratio = max(1.0, limit / 100.0)  # 100 segs ≈ base quota total
+            _q_l5 = max(12, int(12 * _budget_ratio))
+            _q_l4 = max(8, int(8 * _budget_ratio))
+            _q_l3 = max(5, int(5 * _budget_ratio))
             params = {
                 "limit": query_limit,
-                "critical_per_l5": 12,
-                "critical_per_l4": 8,
-                "critical_per_l3": 5,
+                "critical_per_l5": _q_l5,
+                "critical_per_l4": _q_l4,
+                "critical_per_l3": _q_l3,
             }
             rows = conn.execute(_SEGMENT_QUERY_BY_TARGET_CORRIDORS, params).fetchall()
         elif bbox:
@@ -614,7 +723,7 @@ def run_realtime(
     segment_limit: int = typer.Option(
         _BUDGET_SAFE_SEGMENTS_PER_CYCLE,
         min=1,
-        max=2000,
+        max=5000,
         help="Max number of critical segment points queried per realtime cycle",
     ),
     budget_mode: bool = typer.Option(

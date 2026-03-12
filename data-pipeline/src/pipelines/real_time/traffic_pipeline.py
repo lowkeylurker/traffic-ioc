@@ -45,6 +45,12 @@ class TrafficExtractor(BaseExtractor):
     MAX_RETRIES = 3
     RETRY_WAIT = 2
 
+    def __init__(self, api_key: str = "", key_pool=None, **kwargs: Any) -> None:
+        super().__init__(api_key=api_key, **kwargs)
+        # key_pool: TomTomKeyPool instance (optional).  When supplied,
+        # each request draws the key with the most remaining daily budget.
+        self._key_pool = key_pool
+
     def extract(self, **kwargs: Any) -> list[dict]:
         """Gọi API cho danh sách tọa độ (lat, lon).
 
@@ -56,26 +62,47 @@ class TrafficExtractor(BaseExtractor):
         """
         points: list[tuple[float, float]] = kwargs.get("points", [])
         results = []
+        pool = self._key_pool
 
-        self.logger.info(f"Extracting traffic flow for {len(points)} segments")
+        pool_desc = f"pool({pool.pool_size} keys)" if pool else "single-key"
+        self.logger.info(
+            "Extracting traffic flow for %d segments [%s]", len(points), pool_desc
+        )
 
         for lat, lon in points:
+            # Pick key: pool mode selects the key with lowest usage today
+            key = pool.get_next_key() if pool else self.api_key
+            if key is None:
+                self.logger.error(
+                    "All TomTom API keys exhausted for today — stopping extraction"
+                )
+                break
+
             url = f"{self.BASE_URL}/absolute/10/json"
             params = {
-                "key": self.api_key,
+                "key": key,
                 "point": f"{lat},{lon}",
                 "unit": "KMPH",
             }
             try:
                 data = self._get(url, params=params)
+                if pool:
+                    pool.record_success(key)
                 results.append(data)
             except DataExtractionError as e:
-                self.logger.warning(f"Skip point ({lat},{lon}): {e.message}")
+                # 403 = key is forbidden/blocked (entitlement / quota limit hit)
+                if pool and "403" in (e.message or ""):
+                    pool.mark_blocked(key)
+                self.logger.warning("Skip point (%s,%s): %s", lat, lon, e.message)
                 continue
 
-        self.logger.info(
-            f"Extracted {len(results)}/{len(points)} responses"
-        )
+        if pool:
+            self.logger.info(
+                "Extracted %d/%d responses | pool status: %s",
+                len(results), len(points), pool.status(),
+            )
+        else:
+            self.logger.info("Extracted %d/%d responses", len(results), len(points))
         return results
 
 
@@ -258,11 +285,18 @@ def run(engine: Engine, api_key: str = "", weather_key: int = 800, **kwargs) -> 
     """
     logger = get_logger("traffic_pipeline")
 
-    key = api_key or settings.tomtom_api_key
+    from src.core.api_key_pool import get_key_pool
+
     points = kwargs.get("points", [])
 
-    # E
-    extractor = TrafficExtractor(api_key=key)
+    # Use explicit key in legacy single-key mode; otherwise use pool
+    if api_key:
+        extractor = TrafficExtractor(api_key=api_key)
+    else:
+        extractor = TrafficExtractor(
+            api_key=settings.tomtom_api_key,
+            key_pool=get_key_pool(),
+        )
     raw = extractor.extract(points=points)
     logger.info(f"Extracted {len(raw)} raw responses")
 

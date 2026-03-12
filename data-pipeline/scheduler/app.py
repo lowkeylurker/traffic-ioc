@@ -48,8 +48,15 @@ RUN_ON_START = os.getenv("RUN_ON_START", "true").strip().lower() in {
     "on",
 }
 
-# Request budget guardrail (TomTom + weather + incidents)
-REQ_BUDGET_PER_CYCLE = int(os.getenv("REQ_BUDGET_PER_CYCLE", "250"))
+# ── Request budget: auto-compute from API key pool size ────────────────────
+# Active ETL cycles per day: 17 morning (06:00-10:00) + 17 evening (16:00-20:00)
+_CYCLES_PER_DAY = 34
+_tomtom_keys_env = os.getenv("TOMTOM_API_KEYS", os.getenv("TOMTOM_API_KEY", ""))
+_tomtom_key_count = max(1, len([k for k in _tomtom_keys_env.split(",") if k.strip()]))
+TOMTOM_DAILY_LIMIT_PER_KEY = int(os.getenv("TOMTOM_DAILY_LIMIT_PER_KEY", "2500"))
+# Per-cycle ceiling from pool (overrideable by REQ_BUDGET_PER_CYCLE env var)
+_auto_budget = _tomtom_key_count * TOMTOM_DAILY_LIMIT_PER_KEY // _CYCLES_PER_DAY
+REQ_BUDGET_PER_CYCLE = int(os.getenv("REQ_BUDGET_PER_CYCLE", str(_auto_budget)))
 NON_TRAFFIC_REQ_RESERVE = int(os.getenv("NON_TRAFFIC_REQ_RESERVE", "3"))
 TRAFFIC_REQ_HEADROOM_PCT = float(os.getenv("TRAFFIC_REQ_HEADROOM_PCT", "0.10"))
 _traffic_budget_raw = max(1, REQ_BUDGET_PER_CYCLE - NON_TRAFFIC_REQ_RESERVE)
@@ -260,6 +267,20 @@ BATCH_JOB = ETLJob(
     timeout=1800  # 30 minutes
 )
 
+KEY_HEALTHCHECK_JOB = ETLJob(
+    name="TomTom Key Healthcheck",
+    command=[
+        "docker",
+        "exec",
+        "data-pipeline",
+        "python",
+        "-m",
+        "src.main",
+        "health-tomtom-keys",
+    ],
+    timeout=180,  # 3 minutes
+)
+
 # ═══════════════════════════════════════════════════════════
 # CHAINED JOB EXECUTION
 # ═══════════════════════════════════════════════════════════
@@ -304,6 +325,26 @@ def run_realtime_then_batch():
         logger.error(f"[{cycle_id}] CYCLE EXCEPTION: {e}", exc_info=True)
     finally:
         logger.info(f"[{cycle_id}] CYCLE END")
+
+
+def run_daily_key_healthcheck():
+    """Run TomTom key health-check once per day for observability."""
+    cycle_id = "daily-health-" + datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    logger.info("=" * 80)
+    logger.info(f"[{cycle_id}] DAILY TOMTOM KEY HEALTHCHECK START")
+    logger.info("=" * 80)
+    result = KEY_HEALTHCHECK_JOB.run(cycle_id=cycle_id)
+    if result.get("success"):
+        logger.info(
+            f"[{cycle_id}] DAILY TOMTOM KEY HEALTHCHECK SUCCESS "
+            f"(duration={result.get('duration_sec')}s)"
+        )
+    else:
+        logger.error(
+            f"[{cycle_id}] DAILY TOMTOM KEY HEALTHCHECK FAIL "
+            f"(log={result.get('log_file')})"
+        )
+    logger.info(f"[{cycle_id}] DAILY TOMTOM KEY HEALTHCHECK END")
 
 # ═══════════════════════════════════════════════════════════
 # SCHEDULER SETUP
@@ -357,6 +398,17 @@ def setup_scheduler():
         misfire_grace_time=60  # Allow 1 min late start
     )
 
+    # Daily key health-check at 05:50 (before morning ETL window)
+    scheduler.add_job(
+        run_daily_key_healthcheck,
+        trigger=CronTrigger(hour="5", minute="50", timezone=VN_TZ),
+        id='tomtom-key-healthcheck-daily',
+        name='TomTom Key Healthcheck (Daily 05:50)',
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=300,
+    )
+
     next_runs = []
     for job in scheduler.get_jobs():
         next_run = getattr(job, "next_run_time", None)
@@ -386,6 +438,9 @@ def setup_scheduler():
     )
     logger.info("        → Batch: Baseline Speed (All) + Corridor Performance (Q1)")
     logger.info("     ✨ Batch runs IMMEDIATELY after realtime completes successfully")
+    logger.info("  2. TomTom Key Healthcheck")
+    logger.info("     ⏱️  Frequency: Daily at 05:50 (Asia/Ho_Chi_Minh)")
+    logger.info("     📦 Output: usable_keys, blocked_keys, effective_budget/cycle")
     logger.info(f"     🕒 Next scheduled run: {nearest_run or 'available after scheduler starts'}")
     logger.info(f"     ⚡ Run on startup: {'enabled' if RUN_ON_START else 'disabled'}")
     logger.info("")

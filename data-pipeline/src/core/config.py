@@ -28,13 +28,30 @@ class Settings(BaseSettings):
     db_sslmode: str = "disable"
 
     # ── API Keys ──────────────────────────────────────────
-    tomtom_api_key: str = ""
+    tomtom_api_key: str = ""             # single-key fallback
+    tomtom_api_keys: str = ""            # comma-separated pool (takes priority)
+    tomtom_daily_limit_per_key: int = 2500  # default TomTom free tier
     openweather_api_key: str = ""
     serpapi_key: str = ""
 
     # ── Logging ───────────────────────────────────────────
     log_level: str = "INFO"
     log_dir: Optional[str] = None
+
+    def get_tomtom_keys(self) -> list[str]:
+        """Return list of TomTom API keys.
+
+        Priority:
+          1. TOMTOM_API_KEYS (comma-separated, for multi-key pool mode)
+          2. TOMTOM_API_KEY  (single-key legacy mode)
+        """
+        if self.tomtom_api_keys:
+            keys = [k.strip() for k in self.tomtom_api_keys.split(",") if k.strip()]
+            if keys:
+                return keys
+        if self.tomtom_api_key:
+            return [self.tomtom_api_key]
+        return []
 
     @property
     def database_url(self) -> str:

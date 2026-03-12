@@ -81,6 +81,8 @@ services:
       context: ./data-pipeline/scheduler
       dockerfile: Dockerfile
     container_name: etl-scheduler
+    env_file:
+      - ./data-pipeline/.env
     environment:
       - DB_CONNECTION_STRING=postgresql://${DB_USER:-traffic_user}:${DB_PASSWORD:-traffic_password}@postgres:5432/${DB_NAME:-traffic_ioc}
       - LOG_LEVEL=INFO
