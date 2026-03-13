@@ -70,31 +70,44 @@ class TrafficExtractor(BaseExtractor):
         )
 
         for lat, lon in points:
-            # Pick key: pool mode selects the key with lowest usage today
-            key = pool.get_next_key() if pool else self.api_key
-            if key is None:
-                self.logger.error(
-                    "All TomTom API keys exhausted for today — stopping extraction"
-                )
-                break
+            # Retry the same point with another key when a key gets blocked (403).
+            while True:
+                # Pick key: pool mode selects the key with lowest usage today
+                key = pool.get_next_key() if pool else self.api_key
+                if key is None:
+                    if pool:
+                        self.logger.error(
+                            "All TomTom API keys exhausted/blocked for today — stopping extraction"
+                        )
+                        return results
+                    self.logger.warning("Skip point (%s,%s): no API key configured", lat, lon)
+                    break
 
-            url = f"{self.BASE_URL}/absolute/10/json"
-            params = {
-                "key": key,
-                "point": f"{lat},{lon}",
-                "unit": "KMPH",
-            }
-            try:
-                data = self._get(url, params=params)
-                if pool:
-                    pool.record_success(key)
-                results.append(data)
-            except DataExtractionError as e:
-                # 403 = key is forbidden/blocked (entitlement / quota limit hit)
-                if pool and "403" in (e.message or ""):
-                    pool.mark_blocked(key)
-                self.logger.warning("Skip point (%s,%s): %s", lat, lon, e.message)
-                continue
+                url = f"{self.BASE_URL}/absolute/10/json"
+                params = {
+                    "key": key,
+                    "point": f"{lat},{lon}",
+                    "unit": "KMPH",
+                }
+                try:
+                    data = self._get(url, params=params)
+                    if pool:
+                        pool.record_success(key)
+                    results.append(data)
+                    break
+                except DataExtractionError as e:
+                    message = e.message or ""
+                    # 403 = key is forbidden/blocked (entitlement / quota limit hit).
+                    # Mark blocked then retry this same point with the next usable key.
+                    if pool and "403" in message:
+                        pool.mark_blocked(key)
+                        self.logger.warning(
+                            "Retry point (%s,%s) with next key after 403", lat, lon
+                        )
+                        continue
+
+                    self.logger.warning("Skip point (%s,%s): %s", lat, lon, message)
+                    break
 
         if pool:
             self.logger.info(

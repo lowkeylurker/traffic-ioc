@@ -14,6 +14,8 @@ under request budget constraints.
 
 from __future__ import annotations
 
+from collections import defaultdict
+from math import ceil
 import time
 import os
 from typing import Tuple
@@ -494,6 +496,7 @@ _SEGMENT_QUERY_WITH_BBOX = text("""
 _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
         WITH active_corridors AS (
             SELECT c.corridor_key,
+                   c.corridor_name,
                    COALESCE(c.importance_level, 0) AS importance_level
             FROM dim_corridor c
             WHERE c.corridor_version = (SELECT COALESCE(MAX(corridor_version), 1) FROM dim_corridor)
@@ -522,12 +525,14 @@ _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
         corridor_segment_candidates AS (
             SELECT
                 ac.corridor_key,
+                ac.corridor_name,
                 ac.importance_level,
                 s.segment_key,
                 ST_Y(s.geometry_center) AS lat,
                 ST_X(s.geometry_center) AS lon,
                 COALESCE(w.default_lane_count, 2) AS lane_count,
                 COALESCE(s.length_m, 0) AS length_m,
+                COUNT(*) OVER (PARTITION BY ac.corridor_key) AS corridor_total_segments,
                 (
                     COALESCE(rt.avg_delay_seconds, 0) * 0.50
                     + COALESCE(rt.avg_tti - 1.0, 0) * 120.0
@@ -546,51 +551,19 @@ _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
             LEFT JOIN recent_incident ri ON ri.segment_key = s.segment_key
             WHERE s.geometry_center IS NOT NULL
               AND w.osm_highway_type IN ('primary', 'secondary', 'tertiary', 'trunk')
-        ),
-        ranked_by_corridor AS (
-            SELECT *,
-                   ROW_NUMBER() OVER (
-                       PARTITION BY corridor_key
-                       ORDER BY critical_score DESC, length_m DESC, segment_key
-                   ) AS corridor_rank
-            FROM corridor_segment_candidates
-        ),
-        quota_filtered AS (
-            SELECT *,
-                   CASE
-                       WHEN importance_level >= 5 THEN :critical_per_l5
-                       WHEN importance_level = 4 THEN :critical_per_l4
-                       ELSE :critical_per_l3
-                   END AS corridor_quota
-            FROM ranked_by_corridor
-        ),
-        corridor_top AS (
-            SELECT *
-            FROM quota_filtered
-            WHERE corridor_rank <= corridor_quota
-        ),
-        deduped AS (
-            SELECT *,
-                   ROW_NUMBER() OVER (
-                       PARTITION BY segment_key
-                       ORDER BY importance_level DESC, critical_score DESC, corridor_rank ASC
-                   ) AS segment_pick_rank
-            FROM corridor_top
-        ),
-        final_ranked AS (
-            SELECT segment_key,
-                   lat,
-                   lon,
-                   lane_count,
-                   importance_level,
-                   critical_score
-            FROM deduped
-            WHERE segment_pick_rank = 1
         )
-    SELECT segment_key, lat, lon, lane_count
-    FROM final_ranked
-    ORDER BY importance_level DESC, critical_score DESC, segment_key
-    LIMIT :limit
+    SELECT corridor_key,
+           corridor_name,
+           importance_level,
+           corridor_total_segments,
+           segment_key,
+           lat,
+           lon,
+           lane_count,
+           length_m,
+           critical_score
+    FROM corridor_segment_candidates
+    ORDER BY importance_level DESC, corridor_key, critical_score DESC, length_m DESC, segment_key
 """)
 
 # Legacy fallback limit (non-corridor mode, single key free tier).
@@ -617,9 +590,226 @@ def _compute_budget_safe_segments() -> int:
 _BUDGET_SAFE_SEGMENTS_PER_CYCLE = _compute_budget_safe_segments()
 
 
+def _get_min_corridor_coverage_pct() -> float:
+        """Minimum corridor coverage guaranteed in pass 1.
+
+        Environment override:
+            TARGET_CORRIDOR_MIN_COVERAGE_PCT, default=0.60
+        """
+        raw = float(os.getenv("TARGET_CORRIDOR_MIN_COVERAGE_PCT", "0.60"))
+        return max(0.05, min(0.80, raw))
+
+
 def _resolve_option_default(value):
     """Return concrete value when receiving Typer OptionInfo defaults."""
     return getattr(value, "default", value)
+
+
+def _allocate_target_corridor_segments(rows, limit: int) -> list[dict]:
+    """Allocate segments using two-pass corridor coverage logic.
+
+    Pass 1:
+            Admit only the subset of corridors that the budget can support at the
+            configured minimum coverage ratio.
+    Pass 2:
+            Use remaining budget to top up admitted high-priority corridors.
+    """
+    corridor_meta: dict[int, dict] = {}
+    corridor_candidates: dict[int, list[tuple[int, float, float]]] = defaultdict(list)
+    segment_memberships: dict[int, set[int]] = defaultdict(set)
+    segment_records: dict[int, dict] = {}
+
+    for row in rows:
+        record = dict(row._mapping)
+        corridor_key = int(record["corridor_key"])
+        segment_key = int(record["segment_key"])
+        importance_level = int(record["importance_level"] or 0)
+        corridor_total_segments = int(record["corridor_total_segments"] or 0)
+        critical_score = float(record["critical_score"] or 0.0)
+        length_m = float(record["length_m"] or 0.0)
+
+        corridor_meta.setdefault(
+            corridor_key,
+            {
+                "name": record["corridor_name"] or f"corridor_{corridor_key}",
+                "importance_level": importance_level,
+                "total_segments": max(1, corridor_total_segments),
+            },
+        )
+        corridor_candidates[corridor_key].append((segment_key, critical_score, length_m))
+        segment_memberships[segment_key].add(corridor_key)
+        segment_records.setdefault(
+            segment_key,
+            {
+                "segment_key": segment_key,
+                "lat": float(record["lat"]),
+                "lon": float(record["lon"]),
+                "lane_count": max(1, int(record["lane_count"] or 2)),
+            },
+        )
+
+    for corridor_key in corridor_candidates:
+        corridor_candidates[corridor_key].sort(key=lambda item: (-item[1], -item[2], item[0]))
+
+    min_pct = _get_min_corridor_coverage_pct()
+    min_targets = {
+        corridor_key: min(
+            meta["total_segments"],
+            max(1, int(ceil(meta["total_segments"] * min_pct))),
+        )
+        for corridor_key, meta in corridor_meta.items()
+    }
+    corridor_priority = sorted(
+        corridor_meta,
+        key=lambda corridor_key: (
+            -corridor_meta[corridor_key]["importance_level"],
+            -corridor_meta[corridor_key]["total_segments"],
+            corridor_key,
+        ),
+    )
+    admitted_corridors: list[int] = []
+    admitted_floor_cost = 0
+    for corridor_key in corridor_priority:
+        floor_cost = min_targets[corridor_key]
+        if admitted_floor_cost + floor_cost <= limit:
+            admitted_corridors.append(corridor_key)
+            admitted_floor_cost += floor_cost
+    if not admitted_corridors and corridor_priority:
+        admitted_corridors.append(corridor_priority[0])
+        admitted_floor_cost = min_targets[corridor_priority[0]]
+
+    admitted_set = set(admitted_corridors)
+    selected_segments: set[int] = set()
+    selected_order: list[int] = []
+    corridor_selected_counts = {corridor_key: 0 for corridor_key in corridor_meta}
+    corridor_cursors = {corridor_key: 0 for corridor_key in corridor_meta}
+
+    def _select_segment(segment_key: int) -> bool:
+        if segment_key in selected_segments:
+            return False
+        selected_segments.add(segment_key)
+        selected_order.append(segment_key)
+        for member_corridor in segment_memberships.get(segment_key, set()):
+            corridor_selected_counts[member_corridor] += 1
+        return True
+
+    def _next_available_segment(corridor_key: int) -> int | None:
+        candidates = corridor_candidates[corridor_key]
+        cursor = corridor_cursors[corridor_key]
+        while cursor < len(candidates) and candidates[cursor][0] in selected_segments:
+            cursor += 1
+        corridor_cursors[corridor_key] = cursor
+        if cursor >= len(candidates):
+            return None
+        return int(candidates[cursor][0])
+
+    # Pass 1: minimum coverage floor for admitted corridors only.
+    while len(selected_segments) < limit:
+        pending = [
+            corridor_key
+            for corridor_key in admitted_corridors
+            if corridor_selected_counts[corridor_key] < min_targets[corridor_key]
+        ]
+        if not pending:
+            break
+
+        pending.sort(
+            key=lambda corridor_key: (
+                corridor_selected_counts[corridor_key] / max(1, min_targets[corridor_key]),
+                -corridor_meta[corridor_key]["importance_level"],
+                corridor_meta[corridor_key]["total_segments"],
+                corridor_key,
+            )
+        )
+
+        progress = False
+        for corridor_key in pending:
+            next_segment = _next_available_segment(corridor_key)
+            if next_segment is None:
+                continue
+            corridor_cursors[corridor_key] += 1
+            if _select_segment(next_segment):
+                progress = True
+                if len(selected_segments) >= limit:
+                    break
+        if not progress:
+            break
+
+    pass1_selected = len(selected_segments)
+
+    # Pass 2: top up admitted corridors only, prioritizing L5 then L4 then the rest.
+    for eligible in (
+        [corridor_key for corridor_key in admitted_corridors if corridor_meta[corridor_key]["importance_level"] >= 5],
+        [corridor_key for corridor_key in admitted_corridors if corridor_meta[corridor_key]["importance_level"] == 4],
+        [corridor_key for corridor_key in admitted_corridors if corridor_meta[corridor_key]["importance_level"] < 4],
+    ):
+        if not eligible:
+            continue
+
+        while len(selected_segments) < limit:
+            progress = False
+            ordered = sorted(
+                eligible,
+                key=lambda corridor_key: (
+                    corridor_selected_counts[corridor_key] / max(1, corridor_meta[corridor_key]["total_segments"]),
+                    -corridor_meta[corridor_key]["importance_level"],
+                    -corridor_meta[corridor_key]["total_segments"],
+                    corridor_key,
+                ),
+            )
+            for corridor_key in ordered:
+                next_segment = _next_available_segment(corridor_key)
+                if next_segment is None:
+                    continue
+                corridor_cursors[corridor_key] += 1
+                if _select_segment(next_segment):
+                    progress = True
+                    if len(selected_segments) >= limit:
+                        break
+            if not progress:
+                break
+        if len(selected_segments) >= limit:
+            break
+
+    logger.info(
+        "[run-realtime] two-pass allocation: pass1_target_pct=%.2f, admitted_corridors=%d/%d, admitted_floor_cost=%d, pass1_selected=%d, total_selected=%d",
+        min_pct,
+        len(admitted_corridors),
+        len(corridor_meta),
+        admitted_floor_cost,
+        pass1_selected,
+        len(selected_segments),
+    )
+
+    coverage_preview = sorted(
+        [
+            (
+                corridor_meta[corridor_key]["name"],
+                corridor_selected_counts[corridor_key],
+                corridor_meta[corridor_key]["total_segments"],
+                corridor_selected_counts[corridor_key] / max(1, corridor_meta[corridor_key]["total_segments"]),
+            )
+            for corridor_key in admitted_corridors
+        ],
+        key=lambda item: (item[3], item[2], item[0]),
+    )
+    for corridor_name, selected_count, total_segments, coverage in coverage_preview[:8]:
+        logger.info(
+            "[run-realtime] coverage preview: %s -> %d/%d (%.1f%%)",
+            corridor_name,
+            selected_count,
+            total_segments,
+            coverage * 100.0,
+        )
+
+    skipped_preview = [corridor_meta[corridor_key]["name"] for corridor_key in corridor_priority if corridor_key not in admitted_set]
+    if skipped_preview:
+        logger.info(
+            "[run-realtime] skipped corridors due to quality floor budget: %s",
+            ", ".join(skipped_preview[:12]),
+        )
+
+    return [segment_records[segment_key] for segment_key in selected_order[:limit]]
 
 
 def _load_segment_points(
@@ -662,21 +852,7 @@ def _load_segment_points(
 
     with engine.connect() as conn:
         if target_corridor_mode:
-            # Scale per-corridor quotas proportionally to budget so Full-Coverage
-            # mode (≥ 10 keys) doesn't get artificially capped by low hard-coded
-            # quotas.  Base ratios (5:8:12) are preserved; floor ensures at least
-            # 1 critical segment per corridor even at very low budgets.
-            _budget_ratio = max(1.0, limit / 100.0)  # 100 segs ≈ base quota total
-            _q_l5 = max(12, int(12 * _budget_ratio))
-            _q_l4 = max(8, int(8 * _budget_ratio))
-            _q_l3 = max(5, int(5 * _budget_ratio))
-            params = {
-                "limit": query_limit,
-                "critical_per_l5": _q_l5,
-                "critical_per_l4": _q_l4,
-                "critical_per_l3": _q_l3,
-            }
-            rows = conn.execute(_SEGMENT_QUERY_BY_TARGET_CORRIDORS, params).fetchall()
+            rows = conn.execute(_SEGMENT_QUERY_BY_TARGET_CORRIDORS).fetchall()
         elif bbox:
             # Use query with bbox filter for central districts
             params = {
@@ -691,9 +867,19 @@ def _load_segment_points(
             # Use original query without bbox filter
             rows = conn.execute(_SEGMENT_QUERY, {"limit": query_limit}).fetchall()
     
+    if target_corridor_mode:
+        rows = _allocate_target_corridor_segments(rows, effective_limit)
+
     seen_segment_keys: set[int] = set()
     duplicate_count = 0
-    for seg_key, lat, lon, lane_count in rows:
+    for row in rows:
+        if target_corridor_mode:
+            seg_key = int(row["segment_key"])
+            lat = float(row["lat"])
+            lon = float(row["lon"])
+            lane_count = int(row["lane_count"])
+        else:
+            seg_key, lat, lon, lane_count = row
         if int(seg_key) in seen_segment_keys:
             duplicate_count += 1
             continue
