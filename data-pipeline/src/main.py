@@ -591,13 +591,18 @@ _BUDGET_SAFE_SEGMENTS_PER_CYCLE = _compute_budget_safe_segments()
 
 
 def _get_min_corridor_coverage_pct() -> float:
-        """Minimum corridor coverage guaranteed in pass 1.
+    """Minimum corridor coverage guaranteed in pass 1.
 
-        Environment override:
-            TARGET_CORRIDOR_MIN_COVERAGE_PCT, default=0.60
-        """
-        raw = float(os.getenv("TARGET_CORRIDOR_MIN_COVERAGE_PCT", "0.60"))
-        return max(0.05, min(0.80, raw))
+    Environment override:
+      TARGET_CORRIDOR_MIN_COVERAGE_PCT, default=0.60
+    """
+    raw = float(os.getenv("TARGET_CORRIDOR_MIN_COVERAGE_PCT", "0.60"))
+    return max(0.05, min(0.80, raw))
+
+
+def _get_gold_corridor_name_set() -> set[str]:
+    """Return configured gold corridor whitelist as a normalized set."""
+    return {name.strip() for name in settings.get_gold_corridor_names() if name.strip()}
 
 
 def _resolve_option_default(value):
@@ -618,9 +623,13 @@ def _allocate_target_corridor_segments(rows, limit: int) -> list[dict]:
     corridor_candidates: dict[int, list[tuple[int, float, float]]] = defaultdict(list)
     segment_memberships: dict[int, set[int]] = defaultdict(set)
     segment_records: dict[int, dict] = {}
+    gold_corridors = _get_gold_corridor_name_set()
 
     for row in rows:
         record = dict(row._mapping)
+        corridor_name = (record["corridor_name"] or f"corridor_{record['corridor_key']}").strip()
+        if gold_corridors and corridor_name not in gold_corridors:
+            continue
         corridor_key = int(record["corridor_key"])
         segment_key = int(record["segment_key"])
         importance_level = int(record["importance_level"] or 0)
@@ -631,7 +640,7 @@ def _allocate_target_corridor_segments(rows, limit: int) -> list[dict]:
         corridor_meta.setdefault(
             corridor_key,
             {
-                "name": record["corridor_name"] or f"corridor_{corridor_key}",
+                "name": corridor_name,
                 "importance_level": importance_level,
                 "total_segments": max(1, corridor_total_segments),
             },
@@ -650,6 +659,10 @@ def _allocate_target_corridor_segments(rows, limit: int) -> list[dict]:
 
     for corridor_key in corridor_candidates:
         corridor_candidates[corridor_key].sort(key=lambda item: (-item[1], -item[2], item[0]))
+
+    if not corridor_meta:
+        logger.warning("[run-realtime] no corridors available after applying gold whitelist")
+        return []
 
     min_pct = _get_min_corridor_coverage_pct()
     min_targets = {
@@ -772,8 +785,9 @@ def _allocate_target_corridor_segments(rows, limit: int) -> list[dict]:
             break
 
     logger.info(
-        "[run-realtime] two-pass allocation: pass1_target_pct=%.2f, admitted_corridors=%d/%d, admitted_floor_cost=%d, pass1_selected=%d, total_selected=%d",
+        "[run-realtime] two-pass allocation: pass1_target_pct=%.2f, gold_whitelist=%d, admitted_corridors=%d/%d, admitted_floor_cost=%d, pass1_selected=%d, total_selected=%d",
         min_pct,
+        len(gold_corridors),
         len(admitted_corridors),
         len(corridor_meta),
         admitted_floor_cost,

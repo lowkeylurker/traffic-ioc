@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 
+from src.core.config import settings
 from src.core.logger import get_logger
 from src.domain.math import TZ_HCM, derive_date_key
 from src.domain.math.key_generator import generate_corridor_perf_key
@@ -108,6 +109,7 @@ class CorridorPerformanceLoader(BaseLoader):
 _CORRIDOR_QUERY = text("""
         WITH active_corridors AS (
             SELECT corridor_key,
+                   corridor_name,
                    COALESCE(corridor_version, 1) AS corridor_version
             FROM dim_corridor
             WHERE corridor_version = (SELECT COALESCE(MAX(corridor_version), 1) FROM dim_corridor)
@@ -121,6 +123,7 @@ _CORRIDOR_QUERY = text("""
         )
     SELECT
         bcs.corridor_key,
+        ac.corridor_name,
         ac.corridor_version,
         f.time_key,
         f.date_key,
@@ -146,7 +149,7 @@ _CORRIDOR_QUERY = text("""
     JOIN active_corridors ac ON ac.corridor_key = bcs.corridor_key
         WHERE f.date_key = :target_date_key
             AND f.time_key = (SELECT lt.time_key FROM latest_time lt)
-    GROUP BY bcs.corridor_key, ac.corridor_version, f.time_key, f.date_key
+    GROUP BY bcs.corridor_key, ac.corridor_name, ac.corridor_version, f.time_key, f.date_key
 """)
 
 
@@ -163,6 +166,7 @@ def run(engine: Engine, **kwargs) -> int:
     logger = get_logger("corridor_pipeline")
 
     target_dk = kwargs.get("target_date_key", derive_date_key())
+    gold_corridors = {name.strip() for name in settings.get_gold_corridor_names() if name.strip()}
 
     with Session(engine) as session:
         result = session.execute(
@@ -173,12 +177,16 @@ def run(engine: Engine, **kwargs) -> int:
         )
         rows = [dict(r._mapping) for r in result]
 
+    if gold_corridors:
+        rows = [row for row in rows if str(row.get("corridor_name", "")).strip() in gold_corridors]
+
     distinct_corridors = len({int(r["corridor_key"]) for r in rows}) if rows else 0
     logger.info(
-        "Queried %s corridor aggregation rows for date_key=%s (distinct_corridors=%s)",
+        "Queried %s corridor aggregation rows for date_key=%s (distinct_corridors=%s, gold_whitelist=%s)",
         len(rows),
         target_dk,
         distinct_corridors,
+        len(gold_corridors),
     )
 
     if not rows:

@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     tomtom_api_key: str = ""             # single-key fallback
     tomtom_api_keys: str = ""            # comma-separated pool (takes priority)
     tomtom_daily_limit_per_key: int = 2500  # default TomTom free tier
+    gold_corridor_names: str = ""        # comma-separated corridor whitelist for quality dataset
     openweather_api_key: str = ""
     serpapi_key: str = ""
 
@@ -52,6 +53,12 @@ class Settings(BaseSettings):
         if self.tomtom_api_key:
             return [self.tomtom_api_key]
         return []
+
+    def get_gold_corridor_names(self) -> list[str]:
+        """Return configured gold corridor whitelist by corridor_name."""
+        if not self.gold_corridor_names:
+            return []
+        return [name.strip() for name in self.gold_corridor_names.split(",") if name.strip()]
 
     @property
     def database_url(self) -> str:
