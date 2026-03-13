@@ -2,7 +2,7 @@
 
 > **Phiên bản**: Mar 2026  
 > **Scope**: Quận 1 (60 corridors, ~11,678 segments)  
-> **Mode hiện tại**: Multi-Key TomTom Pool — Budget-Gated (≤ 9 keys) hoặc Full-Coverage (≥ 10 keys)
+> **Mode hiện tại**: Multi-Key TomTom Pool + Gold Corridors (quality-first corridor dataset)
 
 ---
 
@@ -51,8 +51,8 @@ Giải pháp: **pool N keys** → tăng budget tuyến tính:
 | 10     | 25,000      | ~735         | ~656            | Full-Coverage* |
 | 20     | 50,000      | ~1,470       | **~1,323**      | **Full-Coverage** |
 
-> \* **Full-Coverage**: `safe segs/cycle > max corridor size` → có thể load toàn bộ segments trong 1 corridor mỗi cycle, không cần cắt dữ liệu.
-> Với 20 keys: `1,323 segs/cycle > 734` (corridor lớn nhất L5) → **tất cả 60 corridors** đều fit trong budget 1 cycle.
+> Với runtime hiện tại, budget lớn không còn được dùng để phủ rộng toàn bộ network trước.
+> Budget được dồn trước cho **gold corridor whitelist** để đảm bảo chất lượng corridor-level.
 
 > **Công thức**: `budget/cycle = (N × 2500) ÷ 34`  
 > **Safe limit** = `max(1, (budget/cycle − 3) × 0.90)` (trừ 3 req non-traffic, headroom 10%)
@@ -67,6 +67,13 @@ TomTomKeyPool
 ├── mark_blocked(key)   → Block key đến hết ngày (khi nhận HTTP 403)
 └── status()            → Dict usage, blocked set, budget/cycle
 ```
+
+**Cập nhật mới:** Khi một request traffic gặp `HTTP 403`, extractor sẽ:
+1. `mark_blocked(key)` cho key hiện tại
+2. retry lại **chính point đó** với key tiếp theo
+3. chỉ bỏ point nếu không còn key usable
+
+Điều này giảm mất dữ liệu theo point khi trong pool có key hỏng/quota lỗi.
 
 **Auto-reset**: Mỗi khi `date.today()` thay đổi, toàn bộ counter và blocked set được reset.
 
@@ -83,9 +90,17 @@ TOMTOM_API_KEY=key1
 
 # Giới hạn/ngày/key (mặc định: 2500 free tier)
 TOMTOM_DAILY_LIMIT_PER_KEY=2500
+
+# Gold corridor dataset
+TARGET_CORRIDOR_MIN_COVERAGE_PCT=0.60
+GOLD_CORRIDOR_NAMES=Cách Mạng Tháng 8,Nguyễn Văn Linh,Nguyễn Hữu Thọ,Phạm Văn Đồng,Quốc lộ 1A Urban,Trường Chinh
 ```
 
 Priority đọc key: `TOMTOM_API_KEYS` → `TOMTOM_API_KEY`.
+
+Priority corridor filter:
+- Nếu `GOLD_CORRIDOR_NAMES` rỗng: allocator dùng toàn bộ corridor candidates
+- Nếu `GOLD_CORRIDOR_NAMES` có giá trị: realtime và batch chỉ xử lý corridor nằm trong whitelist này
 
 ---
 
@@ -107,68 +122,85 @@ Tổng: **34 cycles/ngày** — đây là hằng số `_CYCLES_PER_ACTIVE_DAY = 
   │
   ├─► run-realtime --budget-mode --segment-limit <SAFE_TRAFFIC_SEGMENT_LIMIT>
   │     ├─ weather ETL     (OpenWeatherMap API)
-  │     ├─ traffic ETL     (TomTom Flow API, dùng pool, ≤ safe limit segs)
+  │     ├─ traffic ETL     (TomTom Flow API, chỉ cho gold corridors đã admit)
   │     └─ incident ETL    (TomTom Incident API)
   │
   └─► [nếu realtime thành công] run-batch  (ngay lập tức, không delay 15 phút)
         ├─ baseline ETL   (all segments → summary statistics)
-        └─ corridor perf  (Quận 1 corridors performance metrics)
+        └─ corridor perf  (chỉ gold corridors để đồng nhất chất lượng)
 ```
 
 **Timeout**: Realtime = 5 phút, Batch = 30 phút.
 
-### 3.3 Budget-gated vs Full-Coverage segment selection
+### 3.3 Quality-First Gold Corridor Selection
 
-`run-realtime` luôn truyền `--segment-limit N` (N = `SAFE_TRAFFIC_SEGMENT_LIMIT`). Logic xử lý tùy theo tỉ lệ `N / max_corridor_size`:
+`run-realtime` luôn truyền `--segment-limit N` (N = `SAFE_TRAFFIC_SEGMENT_LIMIT`).
+Khác với mode cũ “phủ rộng trước”, runtime hiện tại dùng **quality-first subset admission**:
 
-**Chế độ Budget-Gated** (`N < tổng segments`, thường ≤ 9 keys):
-1. Sort corridors theo priority (L5 → L4 → L3)
-2. Với mỗi corridor, lấy tối đa `min(corridor_size, remaining_budget)` segments
-3. Dừng khi tổng segments đã chọn đạt `N`
-4. Kết quả: mỗi cycle chỉ cover một phần corridors, xoay vòng qua các cycles
+**Bước 1 – Whitelist filter**
+1. Nếu có `GOLD_CORRIDOR_NAMES`, chỉ giữ corridor trong whitelist
+2. Các corridor ngoài whitelist bị loại khỏi tập corridor-quality dataset
 
-**Chế độ Full-Coverage** (`N ≥ 1,323` — 20 keys):
-- `N = 1,323 > 734` (corridor lớn nhất) → **mọi corridor đều fit trong 1 cycle**
-- Tổng segments = 11,678 → cần **8.8 cycles để cover 1 vòng đầy đủ** tất cả segments
-- Với 34 cycles/ngày: hệ thống hoàn thành **~3.8 vòng coverage đầy đủ/ngày**
-- Cache chuyển từ vai trò **primary** sang **failsafe** (dữ liệu live luôn fresh hơn cache)
-- `--segment-limit` vẫn được truyền vào như cơ chế safety cap, không phải bottleneck
+**Bước 2 – Corridor admission**
+1. Tính `min_target = ceil(total_segments * TARGET_CORRIDOR_MIN_COVERAGE_PCT)` cho từng corridor
+2. Admit corridor theo thứ tự ưu tiên: `importance_level DESC`, sau đó corridor lớn trước
+3. Chỉ admit thêm corridor nếu tổng floor cost vẫn nằm trong budget cycle
+
+**Bước 3 – Pass 1**
+1. Cấp đủ `min_target` cho tất cả corridor đã admit
+2. Mục tiêu: mọi corridor trong tập gold đạt coverage sàn giống nhau
+
+**Bước 4 – Pass 2**
+1. Nếu còn budget, top-up tiếp cho corridor đã admit
+2. Ưu tiên: L5 → L4 → còn lại
+
+Kết quả:
+- Ít corridor hơn
+- Coverage per corridor cao hơn nhiều
+- `fact_corridor_performance` đáng tin cậy hơn ở cấp corridor
 
 ---
 
-## 4. Scaling Mode Reference
+## 4. Gold Corridor Reference
 
-### 4.1 Budget-Gated Mode (1–9 keys)
+### 4.1 Tại sao bỏ “phủ rộng tất cả corridor”
 
-- `safe segs/cycle < tổng segments` → phải chọn lọc, không load hết
-- Chiến lược ACR (Atomic Corridor Rotation): ưu tiên corridors L5 trước, load đủ budget rồi dừng
-- Cache quan trọng: segments chưa được ETL trong cycle này dựa vào cached data từ cycle trước
-- ML data quality: có thể có temporal gaps giữa các corridors (L3 ít được refresh hơn)
+- Khi budget bị dàn đều trên quá nhiều corridor, coverage từng corridor thấp
+- Coverage thấp làm `fact_corridor_performance` bị bias mạnh theo hotspot segments
+- ML/corridor analytics không còn đủ đại diện cho toàn corridor
 
-### 4.2 Full-Coverage Mode (≥ 10 keys, ví dụ 20 keys)
+### 4.2 Gold Corridor Mode (hiện tại)
 
-| Chỉ số | Giá trị với 20 keys |
-|--------|---------------------|
-| Safe segs/cycle | ~1,323 |
-| Cycles để 1 vòng đầy đủ | 11,678 ÷ 1,323 ≈ **8.8 cycles** (~2.2 giờ) |
-| Vòng đầy đủ/ngày | 34 ÷ 8.8 ≈ **3.8 vòng** |
-| Max corridor size (L5) | 734 segs < 1,323 → **fit 1 cycle** |
-| Cache strategy | Failsafe only (không cần cho data freshness) |
+| Thành phần | Vai trò |
+|------------|---------|
+| `GOLD_CORRIDOR_NAMES` | Chọn tập corridor vàng cần dữ liệu chất lượng cao |
+| `TARGET_CORRIDOR_MIN_COVERAGE_PCT` | Coverage floor tối thiểu cho từng corridor được admit |
+| `SAFE_TRAFFIC_SEGMENT_LIMIT` | Tổng budget segs/cycle |
+| `run-batch` | Chỉ aggregate lại đúng tập corridor vàng |
 
-**Lợi ích Full-Coverage cho ML:**
-- Không có spatial bias: tất cả corridors được update đồng đều
-- Temporal freshness: mọi segment có data ≤ 2.5 giờ cũ (worst case)
-- Đủ dữ liệu để huấn luyện sequence model trên toàn mạng lưới
+**Lợi ích Gold Corridor Mode:**
+- Corridor-level coverage cao, ổn định hơn
+- Dữ liệu phù hợp hơn cho dashboard/KPI/ML ở cấp corridor
+- Dễ giải thích với business: tập dữ liệu vàng có phạm vi rõ ràng
 
-### 4.3 Transition giữa hai mode
+### 4.3 Runtime Example
 
-Không cần thay đổi code khi thêm key. Budget và mode tự động điều chỉnh:
+Ví dụ runtime đã verify:
 ```
-.env: TOMTOM_API_KEYS=... (thêm/bớt keys)
-  └► scheduler auto-compute SAFE_TRAFFIC_SEGMENT_LIMIT
-  └► traffic_pipeline dùng pool mới
-  └► Nếu limit > max_corridor: effectively full-coverage
+gold_whitelist=6
+admitted_corridors=6/6
+total_selected=1410
+
+coverage preview:
+  Nguyễn Hữu Thọ       -> 149/149 (100.0%)
+  Trường Chinh         -> 190/190 (100.0%)
+  Phạm Văn Đồng        -> 192/192 (100.0%)
+  Cách Mạng Tháng 8    -> 241/241 (100.0%)
+  Nguyễn Văn Linh      -> 271/271 (100.0%)
+  Quốc lộ 1A Urban     -> 367/367 (100.0%)
 ```
+
+Điểm quan trọng: đây là **100% trên tập segment đã được admit cho corridor-quality dataset**.
 
 ---
 
@@ -181,6 +213,11 @@ Chạy trước khi cửa sổ sáng bắt đầu (05:50) để:
 - Phát hiện key bị block 403 (hết quota, bị thu hồi, lỗi entitlement)
 - Tính `effective_budget/cycle` với số key thực sự usable
 - Cảnh báo qua log nếu có key bị block
+
+Ngoài ra, log realtime sẽ cho biết:
+- key nào bị block trong cycle
+- point nào được retry với key khác
+- pool status cuối cycle (`BLOCKED` / `used/daily_limit`)
 
 ### 4.2 Cách chạy thủ công
 
@@ -206,6 +243,14 @@ docker compose exec data-pipeline python -m src.main health-tomtom-keys
 
 usable_keys=5 | blocked_keys=1 | effective_budget/cycle=368 req | safe_traffic_segment_limit/cycle=328
 ```
+
+**Behavior mới khi ETL realtime:**
+```text
+TomTomKeyPool: key …de6etDq0 blocked for today (403/Forbidden)
+Retry point (lat,lon) with next key after 403
+```
+
+Điều này có nghĩa là point đó **không bị mất ngay**, mà sẽ thử lại với key kế tiếp trong pool.
 
 ### 4.3 Ý nghĩa các chỉ số
 
@@ -236,13 +281,16 @@ Kết quả được ghi vào `scheduler/logs/tomtom-key-healthcheck.log`.
 
 ---
 
-## 6. Thêm / thay key mới
+## 6. Thêm / thay key mới hoặc đổi Gold Corridors
 
-### 5.1 Các bước
+### 6.1 Các bước
 
 ```powershell
 # Bước 1: Mở và chỉnh sửa data-pipeline/.env
-# Thêm key mới vào TOMTOM_API_KEYS (nối tiếp sau dấu phẩy)
+# Có thể cập nhật:
+#   - TOMTOM_API_KEYS
+#   - TARGET_CORRIDOR_MIN_COVERAGE_PCT
+#   - GOLD_CORRIDOR_NAMES
 
 # Bước 2: Recreate containers để load env mới
 docker compose up -d --force-recreate data-pipeline etl-scheduler
@@ -257,9 +305,19 @@ for k in keys: print(f'  ...{k[-8:]}')
 
 # Bước 4: Probe tất cả key và xem budget mới
 docker compose exec data-pipeline python -m src.main health-tomtom-keys
+
+# Bước 5: Chạy thử 1 cycle để verify whitelist/corridor coverage
+docker compose exec data-pipeline python -m src.main run-cycle
 ```
 
-### 5.2 Bảng tham chiếu nhanh
+### 6.2 Gợi ý vận hành Gold Corridors
+
+- Bắt đầu với `5-8` corridor thực sự quan trọng
+- Giữ `TARGET_CORRIDOR_MIN_COVERAGE_PCT=0.60` hoặc cao hơn
+- Chỉ mở rộng whitelist khi coverage thực tế của tập hiện tại vẫn đạt yêu cầu
+- Nếu nhiều key bị block, giảm số corridor vàng trước khi tăng whitelist
+
+### 6.3 Bảng tham chiếu nhanh
 
 ```
 .env comment đã có sẵn các mốc phổ biến:
@@ -271,8 +329,8 @@ docker compose exec data-pipeline python -m src.main health-tomtom-keys
 #  20 keys ≈ 1,323 segs/cycle
 ```
 
-> Với 60 corridors và L5 trung bình 302 segs (max 734), cần **≥ 10 keys** để cover hết tất cả corridors L5 trong 1 cycle.  
-> Với **20 keys** (~1,323 segs/cycle): toàn bộ 60 corridors fit trong 1 cycle, đạt **full-coverage mode** — 3.8 vòng quét đầy đủ mỗi ngày.
+> Với chiến lược hiện tại, mục tiêu không còn là cover toàn bộ 60 corridors trong 1 cycle.  
+> Mục tiêu là đảm bảo tập **gold corridors** có coverage cao và ổn định.
 
 ---
 
@@ -308,7 +366,25 @@ curl "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
 
 **Nếu chỉ 1 key bị block**: Đó là key đã hết quota hoặc bị TomTom thu hồi. Loại key đó khỏi `TOMTOM_API_KEYS` và thay bằng key mới.
 
-### 6.3 ETL không chạy trong cửa sổ
+### 7.3 Batch vẫn ra nhiều corridor hơn whitelist
+
+**Triệu chứng**: `fact_corridor_performance` vẫn có quá nhiều corridor.
+
+**Kiểm tra**:
+```powershell
+docker compose exec data-pipeline python -m src.main run-batch
+```
+Log đúng phải có dạng:
+```text
+distinct_corridors=6, gold_whitelist=6
+Loaded 6 records → fact_corridor_performance
+```
+
+**Nguyên nhân thường gặp**:
+- container chưa rebuild sau khi đổi code/config
+- `GOLD_CORRIDOR_NAMES` chưa được load vào container
+
+### 7.4 ETL không chạy trong cửa sổ
 
 **Kiểm tra lịch APScheduler**:
 ```powershell
@@ -327,9 +403,10 @@ docker compose logs etl-scheduler | Select-String "CYCLE START|CYCLE END|coalesc
 | File | Thay đổi |
 |------|----------|
 | `src/core/api_key_pool.py` | **MỚI** — `TomTomKeyPool` singleton, thread-safe rotation |
-| `src/core/config.py` | Thêm `tomtom_api_keys`, `tomtom_daily_limit_per_key`, `get_tomtom_keys()` |
-| `src/pipelines/real_time/traffic_pipeline.py` | `TrafficExtractor` nhận `key_pool`, gọi `get_key_pool()` auto |
-| `src/main.py` | Dynamic budget compute; command `health-tomtom-keys`; `import os` fix |
+| `src/core/config.py` | Thêm `tomtom_api_keys`, `tomtom_daily_limit_per_key`, `gold_corridor_names`, helper getters |
+| `src/pipelines/real_time/traffic_pipeline.py` | Retry cùng point với key kế tiếp khi gặp `403` |
+| `src/pipelines/ml_features/corridor_pipeline.py` | Batch aggregate chỉ cho gold corridors |
+| `src/main.py` | Dynamic budget compute; `health-tomtom-keys`; `run-cycle`; quality-first gold corridor allocator |
 | `scheduler/app.py` | Auto-budget từ env; `KEY_HEALTHCHECK_JOB`; daily cron 05:50 |
-| `.env` | `TOMTOM_API_KEYS` với N keys; `TOMTOM_DAILY_LIMIT_PER_KEY` |
+| `.env` | `TOMTOM_API_KEYS`; `TOMTOM_DAILY_LIMIT_PER_KEY`; `TARGET_CORRIDOR_MIN_COVERAGE_PCT`; `GOLD_CORRIDOR_NAMES` |
 | `docker-compose.yml` | `etl-scheduler` service: thêm `env_file: - ./data-pipeline/.env` |

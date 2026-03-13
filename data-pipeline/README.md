@@ -15,11 +15,12 @@ This pipeline:
 
 - Extracts weather, traffic flow, and incidents every 15 minutes during active windows.
 - Uses a TomTom API key pool with per-key rotation, blocking, and daily reset.
+- Retries the same traffic point with the next usable key when a key returns HTTP 403.
 - Auto-computes request budget from key count (`N_keys x 2500 / 34 cycles`).
 - Writes realtime facts (`fact_traffic_flow`, `fact_incident`) and batch metrics (`fact_corridor_performance`).
 - Runs as chained scheduler jobs: realtime first, then batch immediately on success.
 
-Current design target is Quận 1 priority corridors with budget-gated selection that scales up to full-coverage mode when key pool is large enough.
+Current design target is a quality-first gold corridor dataset: a small whitelist of priority corridors is selected first, then budget is concentrated to keep corridor-level coverage high.
 
 ---
 
@@ -43,6 +44,20 @@ There is also a daily key health check at `05:50` VN:
 
 - `python -m src.main health-tomtom-keys`
 - Reports: `usable_keys`, `blocked_keys`, `effective_budget/cycle`, `safe_traffic_segment_limit/cycle`
+
+### Gold Corridor Mode
+
+The current production strategy is `quality-first gold corridors`:
+
+- Only corridors listed in `GOLD_CORRIDOR_NAMES` are eligible for the corridor-quality dataset.
+- Realtime allocation first guarantees a minimum corridor coverage floor.
+- Remaining budget is used to top up only those admitted gold corridors.
+- Batch corridor performance is filtered to the same whitelist, so `fact_corridor_performance` stays aligned with the realtime gold dataset.
+
+Current runtime knobs:
+
+- `TARGET_CORRIDOR_MIN_COVERAGE_PCT=0.60`
+- `GOLD_CORRIDOR_NAMES=...`
 
 ---
 
@@ -73,8 +88,8 @@ Default reserve/headroom:
 
 Notes:
 
-- For large pools (>=10 keys), runtime behaves close to full-coverage because each corridor can fit within cycle budget.
-- Segment selection in `run-realtime` scales corridor quotas dynamically with the provided limit.
+- Budget is still computed globally, but consumed only by admitted gold corridors.
+- This design intentionally sacrifices breadth to improve corridor-level data quality.
 
 ---
 
@@ -91,6 +106,9 @@ docker compose exec data-pipeline python -m src.main health
 
 # Run one realtime cycle manually
 docker compose exec data-pipeline python -m src.main run-realtime --budget-mode
+
+# Run one full cycle manually (realtime -> batch)
+docker compose exec data-pipeline python -m src.main run-cycle
 
 # Check TomTom keys health
 docker compose exec data-pipeline python -m src.main health-tomtom-keys
@@ -113,6 +131,7 @@ Main CLI entrypoint: `python -m src.main`
 | `run-spatial` | Build spatial dimensions / corridors |
 | `run-realtime` | One realtime cycle (weather -> traffic -> incidents) |
 | `run-batch` | Batch analytics (baseline + corridor performance) |
+| `run-cycle` | One-shot ETL cycle: realtime then batch |
 | `run-all` | Full initialization sequence |
 
 Realtime options:
@@ -128,6 +147,9 @@ docker compose exec data-pipeline python -m src.main run-realtime --budget-mode
 
 # Custom cap
 docker compose exec data-pipeline python -m src.main run-realtime --budget-mode --segment-limit 500
+
+# Run full chained cycle without waiting for scheduler window
+docker compose exec data-pipeline python -m src.main run-cycle
 ```
 
 ---
@@ -150,6 +172,10 @@ TOMTOM_API_KEYS=key1,key2,key3
 TOMTOM_API_KEY=key1
 TOMTOM_DAILY_LIMIT_PER_KEY=2500
 
+# Quality-first gold corridor dataset
+TARGET_CORRIDOR_MIN_COVERAGE_PCT=0.60
+GOLD_CORRIDOR_NAMES=Cách Mạng Tháng 8,Nguyễn Văn Linh,Nguyễn Hữu Thọ,Phạm Văn Đồng,Quốc lộ 1A Urban,Trường Chinh
+
 # Budget safety knobs
 NON_TRAFFIC_REQ_RESERVE=3
 TRAFFIC_REQ_HEADROOM_PCT=0.10
@@ -163,6 +189,7 @@ Important:
 
 - `etl-scheduler` and `data-pipeline` must both load the same `.env`.
 - After adding/removing keys, recreate both containers.
+- After changing `GOLD_CORRIDOR_NAMES` or `TARGET_CORRIDOR_MIN_COVERAGE_PCT`, rebuild/recreate runtime containers so scheduler and manual runs use the same logic.
 
 ```bash
 docker compose up -d --force-recreate data-pipeline etl-scheduler
@@ -179,6 +206,13 @@ It defines:
 - `REALTIME_JOB` timeout: 300s
 - `BATCH_JOB` timeout: 1800s
 - `KEY_HEALTHCHECK_JOB` timeout: 180s
+
+Scheduler behavior summary:
+
+- Realtime uses `run-realtime --budget-mode --segment-limit <SAFE_TRAFFIC_SEGMENT_LIMIT>`
+- Realtime selection is quality-first and gold-corridor-only
+- Batch runs immediately after realtime success
+- Daily key health check runs at `05:50` VN
 
 Windows and jobs are configured with `CronTrigger` in Asia/Ho_Chi_Minh timezone.
 
@@ -225,6 +259,37 @@ GROUP BY c.corridor_name
 ORDER BY segments_loaded DESC;
 ```
 
+### Gold Corridor Coverage Check
+
+```sql
+WITH latest_cycle AS (
+  SELECT MAX(created_at) AS max_ts
+  FROM fact_traffic_flow
+), latest_rows AS (
+  SELECT f.segment_key
+  FROM fact_traffic_flow f
+  WHERE f.created_at >= (SELECT max_ts - INTERVAL '5 minutes' FROM latest_cycle)
+)
+SELECT
+  c.corridor_name,
+  COUNT(DISTINCT lr.segment_key) AS segments_loaded,
+  COUNT(DISTINCT bcs.segment_key) AS total_segments,
+  ROUND(100.0 * COUNT(DISTINCT lr.segment_key) / NULLIF(COUNT(DISTINCT bcs.segment_key), 0), 2) AS coverage_percent
+FROM dim_corridor c
+JOIN bridge_corridor_segment bcs ON bcs.corridor_key = c.corridor_key
+LEFT JOIN latest_rows lr ON lr.segment_key = bcs.segment_key
+WHERE c.corridor_name IN (
+  'Cách Mạng Tháng 8',
+  'Nguyễn Văn Linh',
+  'Nguyễn Hữu Thọ',
+  'Phạm Văn Đồng',
+  'Quốc lộ 1A Urban',
+  'Trường Chinh'
+)
+GROUP BY c.corridor_name
+ORDER BY coverage_percent DESC;
+```
+
 ### Batch Output Health
 
 ```sql
@@ -253,6 +318,17 @@ docker compose exec data-pipeline python -c "from src.core.config import setting
 docker compose exec data-pipeline python -m src.main health-tomtom-keys
 ```
 
+3. If many keys are blocked, realtime still retries the same point with the next usable key, but effective capacity drops:
+
+```bash
+docker compose exec etl-scheduler tail -n 200 /app/logs/real-time-etl.log
+```
+
+Look for:
+
+- `Retry point (...) with next key after 403`
+- many keys marked `BLOCKED` in pool status
+
 3. Check scheduler startup log budget line:
 
 ```bash
@@ -265,7 +341,8 @@ Possible reasons:
 
 - Some keys returned `403` and were blocked.
 - TomTom endpoint transient errors for subset of points.
-- Selected critical candidates did not produce valid deduped points.
+- Gold corridor whitelist is intentionally narrow.
+- Allocator is enforcing a high minimum corridor coverage floor.
 
 Inspect:
 
@@ -291,6 +368,7 @@ Core files:
 - `src/core/config.py` - env settings and key parsing
 - `src/core/api_key_pool.py` - key rotation and blocking
 - `src/pipelines/real_time/traffic_pipeline.py` - TomTom extraction using key pool
+- `src/pipelines/ml_features/corridor_pipeline.py` - batch corridor aggregation with gold corridor filtering
 - `scheduler/app.py` - chained scheduler and dynamic budget calculation
 
 ---
