@@ -55,6 +55,7 @@ Commands:
     run-osm-district1              Download OSM for District 1 only (fast, MVP)
     run-osm-central-districts      Download OSM for central districts (expanded)
     run-realtime                   Weather → Traffic Flow → Incident (Quận 1 only) [OFFICIAL]
+    run-cycle                      One-shot cycle: run-realtime → run-batch
     run-realtime-central-districts Weather → Traffic Flow → Incident (central districts)
     run-batch                      Nightly: baseline (all) + corridor perf (Quận 1) [OFFICIAL]
     run-corridor-central-districts Corridor performance for Quận 1 (alias for run-batch corridor step)
@@ -988,6 +989,56 @@ def run_batch() -> None:
 
     elapsed = time.time() - start_time
     _print_phase_summary("PHASE 4 COMPLETE", results, total, elapsed)
+    typer.echo("")
+
+
+@app.command("run-cycle")
+def run_cycle(
+    segment_limit: int = typer.Option(
+        _BUDGET_SAFE_SEGMENTS_PER_CYCLE,
+        min=1,
+        max=5000,
+        help="Segment cap for realtime step in this cycle",
+    ),
+    budget_mode: bool = typer.Option(
+        True,
+        help="Run realtime step in budget mode (recommended for scheduler parity)",
+    ),
+) -> None:
+    """Run one full ETL cycle: realtime then batch.
+
+    This command is designed for dry-run/manual triggering of a single cycle
+    without waiting for scheduler cron windows.
+    """
+    overall_start = time.time()
+    segment_limit = int(_resolve_option_default(segment_limit))
+    budget_mode = bool(_resolve_option_default(budget_mode))
+
+    console.print("\n" + "═" * 80)
+    console.print(Panel.fit(
+        "[bold white]🔁 ONE-SHOT ETL CYCLE[/bold white]\n"
+        "[dim]Step 1: run-realtime  →  Step 2: run-batch[/dim]",
+        border_style="bold white"
+    ))
+    console.print("═" * 80 + "\n")
+
+    logger.info(
+        "[run-cycle] starting one-shot cycle (budget_mode=%s, segment_limit=%s)",
+        budget_mode,
+        segment_limit,
+    )
+
+    run_realtime(segment_limit=segment_limit, budget_mode=budget_mode)
+    run_batch()
+
+    overall_elapsed = time.time() - overall_start
+    logger.info("[run-cycle] cycle completed in %.1fs", overall_elapsed)
+
+    console.print(Panel.fit(
+        f"[bold green]✅ ONE-SHOT CYCLE COMPLETE[/bold green]\n"
+        f"[dim]Total execution time: {overall_elapsed:.2f}s ({overall_elapsed/60:.1f} minutes)[/dim]",
+        border_style="green"
+    ))
     typer.echo("")
 
 
