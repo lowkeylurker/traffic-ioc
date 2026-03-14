@@ -31,11 +31,12 @@ export interface Alert {
 }
 
 export interface WeatherData {
-  temperature: number
-  condition: string
+  temp_c: number
+  condition_code: string
   humidity: number
-  windSpeed: number
-  rainfall: number
+  wind_kph: number
+  impact_level: 'NONE' | 'MEDIUM' | 'HIGH' | 'UNKNOWN'
+  warning_message: string
 }
 
 export interface VehicleMixData {

@@ -1,2 +1,2 @@
-# Placeholder cho việc triển khai đếm ô tô
-# TODO: Triển khai nhận diện và đếm xe dựa trên YOLOv8
+# Placeholder for vehicle counter implementation
+# TODO: Implement YOLOv8-based vehicle detection and counting

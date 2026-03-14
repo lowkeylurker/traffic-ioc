@@ -10,6 +10,7 @@ import { RealTimePage } from '@/pages/RealTimePage'
 import { AnalyticsPage } from '@/pages/AnalyticsPage'
 import { SimulationPage } from '@/pages/SimulationPage'
 import { UserProfilePage } from '@/pages/UserProfilePage'
+import { WeatherWidgetPage } from '@/pages/WeatherWidgetPage'
 import { RoleGuard } from '@/components'
 import { Result, Button } from 'antd'
 
@@ -59,6 +60,7 @@ function App() {
               </RoleGuard>
             }
           />
+          <Route path="weather-widget" element={<WeatherWidgetPage />} />
         </Route>
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
       </Routes>
