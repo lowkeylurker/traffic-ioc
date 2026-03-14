@@ -39,9 +39,9 @@ class CorridorTransformer(BaseTransformer):
         now = datetime.utcnow()
 
         for row in raw_data:
-            avg_speed = float(row.get("avg_speed", 0))
-            total_delay = int(row.get("total_delay", 0))
-            tti = float(row.get("travel_time_index", 1.0))
+            avg_speed = float(row.get("avg_speed") or 0.0)
+            total_delay = int(row.get("total_delay") or 0)
+            tti = float(row.get("travel_time_index") or 1.0)
 
             # Corridor efficiency = 1 / TTI (capped at 1.0)
             efficiency = round(min(1.0, 1.0 / tti) if tti > 0 else 0.0, 2)

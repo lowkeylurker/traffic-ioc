@@ -1,13 +1,22 @@
 // API Service Configuration
 
 import axios, { AxiosInstance, AxiosError } from 'axios'
-import { ApiResponse } from '@/types'
+import {
+  ApiResponse,
+  Segment,
+  TrafficStatus,
+  VehicleMixData,
+  SpeedComparisonData,
+  ReliabilityRankData,
+  ForecastData,
+  RoutingData,
+} from '@/types'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL
 
 const axiosInstance: AxiosInstance = axios.create({
   baseURL,
-  timeout: 10000,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -27,32 +36,32 @@ axiosInstance.interceptors.response.use(
 
 // Map API
 export const mapApi = {
-  getSegments: (): Promise<ApiResponse> =>
+  getSegments: (): Promise<ApiResponse<Segment[]>> =>
     axiosInstance.get('/map/segments'),
-  getStatus: (): Promise<ApiResponse> =>
+  getStatus: (): Promise<ApiResponse<TrafficStatus[]>> =>
     axiosInstance.get('/map/status'),
-  getSegmentStatus: (segmentId: number): Promise<ApiResponse> =>
+  getSegmentStatus: (segmentId: number): Promise<ApiResponse<TrafficStatus>> =>
     axiosInstance.get(`/map/status/${segmentId}`),
 }
 
 // Analytics API
 export const analyticsApi = {
-  getVehicleMix: (): Promise<ApiResponse> =>
+  getVehicleMix: (): Promise<ApiResponse<VehicleMixData[]>> =>
     axiosInstance.get('/analytics/vehicle-mix'),
-  getSpeedComparison: (): Promise<ApiResponse> =>
+  getSpeedComparison: (): Promise<ApiResponse<SpeedComparisonData[]>> =>
     axiosInstance.get('/analytics/speed-comparison'),
-  getReliabilityRanking: (): Promise<ApiResponse> =>
+  getReliabilityRanking: (): Promise<ApiResponse<ReliabilityRankData[]>> =>
     axiosInstance.get('/analytics/reliability-ranking'),
 }
 
 // Simulation API
 export const simulationApi = {
-  runForecast: (segmentId: number, horizonMinutes?: number): Promise<ApiResponse> =>
+  runForecast: (segmentId: number, horizonMinutes?: number): Promise<ApiResponse<ForecastData[]>> =>
     axiosInstance.post('/simulation/forecast', {
       segmentId,
       horizonMinutes,
     }),
-  runRouting: (startPoint: [number, number], endPoint: [number, number], blockedSegments?: number[]): Promise<ApiResponse> =>
+  runRouting: (startPoint: [number, number], endPoint: [number, number], blockedSegments?: number[]): Promise<ApiResponse<RoutingData>> =>
     axiosInstance.post('/simulation/routing', {
       startPoint,
       endPoint,

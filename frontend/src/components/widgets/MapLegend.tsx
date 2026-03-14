@@ -10,8 +10,8 @@ interface LegendItem {
 
 export const MapLegend: React.FC = () => {
   const items: LegendItem[] = [
-    { label: 'Thông thoáng', color: '#52c41a', range: '> 40 km/h' },
-    { label: 'Đông xe', color: '#faad14', range: '15 - 40 km/h' },
+    { label: 'Thông thoáng', color: '#52c41a', range: '> 30 km/h' },
+    { label: 'Đông xe', color: '#faad14', range: '15 - 30 km/h' },
     { label: 'Ùn tắc', color: '#ff4d4f', range: '< 15 km/h' },
   ]
 

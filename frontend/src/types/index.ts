@@ -74,7 +74,7 @@ export interface RoutingData {
   estimatedTime: number
 }
 
-export interface ApiResponse<T> {
+export interface ApiResponse<T = any> {
   success: boolean
   statusCode: number
   message: string
