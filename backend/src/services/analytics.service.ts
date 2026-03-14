@@ -40,7 +40,7 @@ export class AnalyticsService {
 
       // Raw query để so sánh tốc độ hiện tại vs trung bình lịch sử
       const comparison = await prisma.$queryRaw`
-        SELECT
+        SELECT 
           s.segment_id as "segmentId",
           s.segment_name as "segmentName",
           COALESCE(f.avg_speed, 0)::numeric as "currentSpeed",
@@ -49,8 +49,8 @@ export class AnalyticsService {
         FROM dim_segment s
         LEFT JOIN fact_traffic_flow f ON s.segment_id = f.segment_id
           AND f.flow_id = (
-            SELECT flow_id FROM fact_traffic_flow
-            WHERE segment_id = s.segment_id
+            SELECT flow_id FROM fact_traffic_flow 
+            WHERE segment_id = s.segment_id 
             ORDER BY flow_id DESC LIMIT 1
           )
         ORDER BY "speedRatio" ASC
@@ -75,20 +75,20 @@ export class AnalyticsService {
 
       // Raw query để tính Buffer Index và xếp hạng
       const ranking = await prisma.$queryRaw`
-        SELECT
+        SELECT 
           s.segment_id as "segmentId",
           s.segment_name as "segmentName",
           COALESCE(f.avg_speed, 0)::numeric as "currentSpeed",
           COALESCE(s.speed_limit_kmh, 50)::numeric as "baselineSpeed",
           ROUND((
-            (COALESCE(s.speed_limit_kmh, 50)::numeric - COALESCE(f.avg_speed, 0)::numeric)
+            (COALESCE(s.speed_limit_kmh, 50)::numeric - COALESCE(f.avg_speed, 0)::numeric) 
             / COALESCE(s.speed_limit_kmh, 50)::numeric * 100
           )::numeric, 2) as "bufferIndex"
         FROM dim_segment s
         LEFT JOIN fact_traffic_flow f ON s.segment_id = f.segment_id
           AND f.flow_id = (
-            SELECT flow_id FROM fact_traffic_flow
-            WHERE segment_id = s.segment_id
+            SELECT flow_id FROM fact_traffic_flow 
+            WHERE segment_id = s.segment_id 
             ORDER BY flow_id DESC LIMIT 1
           )
         ORDER BY "bufferIndex" DESC
