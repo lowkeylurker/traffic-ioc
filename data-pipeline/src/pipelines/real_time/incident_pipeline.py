@@ -47,8 +47,6 @@ class IncidentExtractor(BaseExtractor):
             bbox: dict with min_lon, min_lat, max_lon, max_lat
         """
         bbox = kwargs.get("bbox", BBOX_HCM)
-        time_validity_filter = kwargs.get("time_validity_filter", "present")
-        fallback_to_all = kwargs.get("fallback_to_all", True)
 
         bbox_str = (
             f"{bbox['min_lat']},{bbox['min_lon']},"
@@ -65,40 +63,11 @@ class IncidentExtractor(BaseExtractor):
                 "startTime,endTime,from,to,delay,length}}}"
             ),
             "language": "en-US",
-            "timeValidityFilter": time_validity_filter,
+            "timeValidityFilter": "present",
         }
 
-        self.logger.info(
-            f"Extracting incidents for bbox: {bbox_str} (timeValidityFilter={time_validity_filter})"
-        )
-        data = self._get(url, params=params)
-
-        incidents = data.get("incidents", []) if isinstance(data, dict) else []
-        self.logger.info(
-            f"Incident API returned {len(incidents)} incidents with filter={time_validity_filter}"
-        )
-
-        if (
-            fallback_to_all
-            and time_validity_filter == "present"
-            and isinstance(data, dict)
-            and not incidents
-        ):
-            fallback_params = dict(params)
-            fallback_params["timeValidityFilter"] = "all"
-            self.logger.info(
-                "No present incidents found; retrying Incident API with timeValidityFilter=all"
-            )
-            fallback_data = self._get(url, params=fallback_params)
-            fallback_incidents = (
-                fallback_data.get("incidents", []) if isinstance(fallback_data, dict) else []
-            )
-            self.logger.info(
-                f"Incident API returned {len(fallback_incidents)} incidents with filter=all"
-            )
-            return fallback_data
-
-        return data
+        self.logger.info(f"Extracting incidents for bbox: {bbox_str}")
+        return self._get(url, params=params)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -268,8 +237,7 @@ def run(engine: Engine, api_key: str = "", **kwargs) -> int:
     # E
     extractor = IncidentExtractor(api_key=key)
     raw = extractor.extract(**kwargs)
-    raw_count = len(raw.get("incidents", [])) if isinstance(raw, dict) else 0
-    logger.info(f"Extracted incidents from TomTom: {raw_count} incidents")
+    logger.info("Extracted incidents from TomTom")
 
     segment_location_pairs: list[tuple[int, int | None]] = []
 
@@ -279,7 +247,6 @@ def run(engine: Engine, api_key: str = "", **kwargs) -> int:
         preview = None
 
     if preview and preview.incidents:
-        logger.info(f"Validated {len(preview.incidents)} incidents for transformation")
         nearest_sql = text("""
             SELECT ds.segment_key, ds.location_key
             FROM dim_segment ds
@@ -310,11 +277,6 @@ def run(engine: Engine, api_key: str = "", **kwargs) -> int:
                             int(row[1]) if row[1] is not None else None,
                         )
                     )
-
-    if raw_count > 0 and not segment_location_pairs:
-        logger.warning(
-            "Incidents were extracted but no segment-location pairs were resolved; transformed records may be 0"
-        )
 
     # T
     transformer = IncidentTransformer(segment_location_pairs=segment_location_pairs)

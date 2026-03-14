@@ -4,14 +4,11 @@
 
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  // Bật extensions cho PostGIS support
-  extensions = [postgis(schema: "public")]
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // TODO: Entities sẽ được generate tự động từ database schema

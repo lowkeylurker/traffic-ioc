@@ -25,65 +25,6 @@ BBOX_DISTRICT_1: dict[str, float] = {
     "max_lat": 10.803,
 }
 
-# Central districts (Quận trung tâm) - Expanded coverage
-# Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, Quận 10, 11
-BBOX_CENTRAL_DISTRICTS: dict[str, float] = {
-    "min_lon": 106.600,   # West boundary (Quận 11)
-    "min_lat": 10.720,    # South boundary (Quận 5)
-    "max_lon": 106.830,   # East boundary (Bình Thạnh)
-    "max_lat": 10.890,    # North boundary (Phú Nhuận)
-}
-
-# Individual district bounding boxes
-BBOX_DISTRICT_3: dict[str, float] = {
-    "min_lon": 106.660,
-    "min_lat": 10.760,
-    "max_lon": 106.720,
-    "max_lat": 10.820,
-}
-
-BBOX_DISTRICT_4: dict[str, float] = {
-    "min_lon": 106.690,
-    "min_lat": 10.750,
-    "max_lon": 106.790,
-    "max_lat": 10.850,
-}
-
-BBOX_DISTRICT_5: dict[str, float] = {
-    "min_lon": 106.650,
-    "min_lat": 10.720,
-    "max_lon": 106.750,
-    "max_lat": 10.810,
-}
-
-BBOX_DISTRICT_10: dict[str, float] = {
-    "min_lon": 106.650,
-    "min_lat": 10.790,
-    "max_lon": 106.733,
-    "max_lat": 10.870,
-}
-
-BBOX_DISTRICT_11: dict[str, float] = {
-    "min_lon": 106.600,
-    "min_lat": 10.780,
-    "max_lon": 106.720,
-    "max_lat": 10.880,
-}
-
-BBOX_BINH_THANH: dict[str, float] = {
-    "min_lon": 106.720,
-    "min_lat": 10.780,
-    "max_lon": 106.830,
-    "max_lat": 10.890,
-}
-
-BBOX_PHU_NHUAN: dict[str, float] = {
-    "min_lon": 106.680,
-    "min_lat": 10.810,
-    "max_lon": 106.780,
-    "max_lat": 10.880,
-}
-
 # HCM City full bounding box (covers all 24 districts + districts)
 BBOX_HCM: dict[str, float] = {
     "min_lon": 106.4,     # West boundary
