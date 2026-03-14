@@ -20,8 +20,12 @@ Usage:
 
 from __future__ import annotations
 
+import atexit
+import json
+import os
 import threading
 from datetime import date
+from pathlib import Path
 from typing import Optional
 
 from src.core.logger import get_logger
@@ -44,6 +48,11 @@ class TomTomKeyPool:
         self._blocked: set[str] = set()          # 403-blocked keys, cleared next day
         self._current_date: date = date.today()
         self._lock = threading.Lock()
+        self._state_file = Path(
+            os.getenv("TOMTOM_KEY_POOL_STATE_FILE", "/app/cache/tomtom_key_pool_state.json")
+        )
+        self._load_state()
+        atexit.register(self._save_state)
         logger.info(
             "TomTomKeyPool ready: %d keys × %d req/day = %d total/day (~%d req/cycle)",
             len(self._keys),
@@ -51,6 +60,49 @@ class TomTomKeyPool:
             self.total_daily_capacity,
             self.budget_per_cycle,
         )
+
+    def _save_state(self) -> None:
+        """Persist current pool state to disk for cross-process continuity."""
+        try:
+            self._state_file.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "date": self._current_date.isoformat(),
+                "usage": self._usage,
+                "blocked": sorted(self._blocked),
+            }
+            self._state_file.write_text(
+                json.dumps(payload, ensure_ascii=True), encoding="utf-8"
+            )
+        except Exception as e:
+            logger.warning("TomTomKeyPool: failed to persist state: %s", e)
+
+    def _load_state(self) -> None:
+        """Load persisted state when available and still for the same day."""
+        try:
+            if not self._state_file.exists():
+                return
+
+            payload = json.loads(self._state_file.read_text(encoding="utf-8"))
+            state_date = payload.get("date")
+            if state_date != self._current_date.isoformat():
+                return
+
+            usage = payload.get("usage") or {}
+            blocked = payload.get("blocked") or []
+
+            # Keep only keys that still exist in current config.
+            self._usage = {
+                k: int(usage.get(k, 0))
+                for k in self._keys
+            }
+            self._blocked = {k for k in blocked if k in self._usage}
+            logger.info(
+                "TomTomKeyPool: restored state from %s (blocked=%d)",
+                self._state_file,
+                len(self._blocked),
+            )
+        except Exception as e:
+            logger.warning("TomTomKeyPool: failed to load persisted state: %s", e)
 
     # ── Internal helpers ───────────────────────────────────────
 
@@ -61,6 +113,7 @@ class TomTomKeyPool:
             self._usage = {k: 0 for k in self._keys}
             self._blocked.clear()
             self._current_date = today
+            self._save_state()
             logger.info("TomTomKeyPool: daily usage counters reset for %s", today)
 
     # ── Public API ─────────────────────────────────────────────
@@ -89,6 +142,9 @@ class TomTomKeyPool:
         """Increment daily usage counter for a successful API call."""
         with self._lock:
             self._usage[key] = self._usage.get(key, 0) + 1
+            # Persist periodically to avoid excessive disk writes on every request.
+            if self._usage[key] % 25 == 0:
+                self._save_state()
 
     def mark_blocked(self, key: str) -> None:
         """Block this key for the rest of today.
@@ -98,6 +154,7 @@ class TomTomKeyPool:
         """
         with self._lock:
             self._blocked.add(key)
+            self._save_state()
         logger.warning(
             "TomTomKeyPool: key …%s blocked for today (403/Forbidden)", key[-8:]
         )
@@ -140,6 +197,24 @@ class TomTomKeyPool:
                 tag = "BLOCKED" if k in self._blocked else f"{used}/{self._daily_limit}"
                 parts.append(f"…{k[-8:]}: {tag}")
             return " | ".join(parts)
+
+    def snapshot(self) -> dict:
+        """Return machine-readable runtime state for diagnostics/health command."""
+        with self._lock:
+            self._maybe_reset()
+            usage = {k: int(self._usage.get(k, 0)) for k in self._keys}
+            blocked = set(self._blocked)
+            exhausted = {k for k in self._keys if usage.get(k, 0) >= self._daily_limit}
+            available = [k for k in self._keys if k not in blocked and k not in exhausted]
+            return {
+                "date": self._current_date.isoformat(),
+                "daily_limit_per_key": self._daily_limit,
+                "pool_size": len(self._keys),
+                "available": available,
+                "blocked": sorted(blocked),
+                "exhausted": sorted(exhausted),
+                "usage": usage,
+            }
 
 
 # ── Module-level singleton ──────────────────────────────────────────────────

@@ -107,6 +107,10 @@ def health_tomtom_keys(
         typer.echo("❌ No TomTom keys configured (TOMTOM_API_KEYS / TOMTOM_API_KEY)")
         raise typer.Exit(code=1)
 
+    from src.core.api_key_pool import get_key_pool
+
+    pool = get_key_pool()
+
     base_url = "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json"
     probe_params = {
         "point": "10.7764,106.7011",
@@ -114,8 +118,8 @@ def health_tomtom_keys(
     }
 
     rows: list[tuple[str, str, str]] = []
-    usable = 0
-    blocked = 0
+    probe_usable = 0
+    probe_blocked = 0
 
     for key in keys:
         masked = f"...{key[-8:]}"
@@ -124,24 +128,31 @@ def health_tomtom_keys(
         try:
             r = requests.get(base_url, params=params, timeout=timeout_sec)
             if r.status_code == 200:
-                usable += 1
+                probe_usable += 1
+                pool.record_success(key)
                 rows.append((masked, "usable", "HTTP 200"))
             elif r.status_code == 403:
-                blocked += 1
+                probe_blocked += 1
+                pool.mark_blocked(key)
                 detail = "HTTP 403 (Forbidden / entitlement / quota)"
                 rows.append((masked, "blocked", detail))
             else:
-                blocked += 1
+                probe_blocked += 1
                 rows.append((masked, "blocked", f"HTTP {r.status_code}"))
         except requests.RequestException as e:
-            blocked += 1
+            probe_blocked += 1
             rows.append((masked, "blocked", f"network error: {e.__class__.__name__}"))
+
+    snapshot = pool.snapshot()
+    runtime_available = len(snapshot.get("available", []))
+    runtime_blocked = len(snapshot.get("blocked", []))
+    runtime_exhausted = len(snapshot.get("exhausted", []))
 
     cycles_per_day = 34
     daily_limit = int(settings.tomtom_daily_limit_per_key or 2500)
     reserve = int(os.getenv("NON_TRAFFIC_REQ_RESERVE", "3"))
     headroom = float(os.getenv("TRAFFIC_REQ_HEADROOM_PCT", "0.10"))
-    effective_budget_per_cycle = (usable * daily_limit) // cycles_per_day
+    effective_budget_per_cycle = (runtime_available * daily_limit) // cycles_per_day
     safe_traffic_limit = max(
         1,
         int(max(1, effective_budget_per_cycle - reserve) * (1.0 - headroom)),
@@ -163,12 +174,17 @@ def health_tomtom_keys(
     console.print(table)
 
     console.print(
-        f"usable_keys={usable} | blocked_keys={blocked} | "
+        "probe: "
+        f"usable_keys={probe_usable} | blocked_keys={probe_blocked}"
+    )
+    console.print(
+        "runtime_pool: "
+        f"available={runtime_available} | blocked={runtime_blocked} | exhausted={runtime_exhausted} | "
         f"effective_budget/cycle={effective_budget_per_cycle} req | "
         f"safe_traffic_segment_limit/cycle={safe_traffic_limit}"
     )
 
-    if usable == 0:
+    if runtime_available == 0:
         raise typer.Exit(code=1)
 
 
