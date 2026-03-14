@@ -352,7 +352,7 @@ export class MapService {
 
       // Raw query để lấy geometry dưới dạng GeoJSON
       const segments = await prisma.$queryRaw`
-        SELECT
+        SELECT 
           segment_id as "segmentId",
           segment_name as "segmentName",
           ST_AsGeoJSON(geometry)::json as geometry,
@@ -385,7 +385,7 @@ export class MapService {
 
       // Raw query để join và lấy dữ liệu mới nhất
       const status = await prisma.$queryRaw`
-        SELECT
+        SELECT 
           s.segment_id as "segmentId",
           s.segment_name as "segmentName",
           f.current_speed as "currentSpeed",
@@ -398,8 +398,8 @@ export class MapService {
         FROM dim_segment s
         LEFT JOIN fact_traffic_flow f ON s.segment_id = f.segment_id
           AND f.flow_id = (
-            SELECT flow_id FROM fact_traffic_flow
-            WHERE segment_id = s.segment_id
+            SELECT flow_id FROM fact_traffic_flow 
+            WHERE segment_id = s.segment_id 
             ORDER BY flow_id DESC LIMIT 1
           )
         ORDER BY s.segment_id
@@ -426,7 +426,7 @@ export class MapService {
       logger.log(`Fetching status for segment ${segmentId}`);
 
       const status = await prisma.$queryRaw`
-        SELECT
+        SELECT 
           s.segment_id as "segmentId",
           s.segment_name as "segmentName",
           f.current_speed as "currentSpeed",
@@ -439,8 +439,8 @@ export class MapService {
         FROM dim_segment s
         LEFT JOIN fact_traffic_flow f ON s.segment_id = f.segment_id
           AND f.flow_id = (
-            SELECT flow_id FROM fact_traffic_flow
-            WHERE segment_id = s.segment_id
+            SELECT flow_id FROM fact_traffic_flow 
+            WHERE segment_id = s.segment_id 
             ORDER BY flow_id DESC LIMIT 1
           )
         WHERE s.segment_id = ${segmentId}

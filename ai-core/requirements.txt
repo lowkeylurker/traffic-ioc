@@ -1,4 +1,4 @@
-# --- Core Dependencies ---
+# --- Existing Libraries ---
 ultralytics==8.0.200
 scikit-learn==1.3.2
 numpy==1.24.3
@@ -14,4 +14,3 @@ python-dotenv==1.0.0
 pandas==2.1.3            # Xử lý cấu trúc roadnet và flow
 psycopg2-binary==2.9.9   # Kết nối Postgres Data Warehouse
 requests==2.31.0         # Giao tiếp giữa các service trong monorepo
-
