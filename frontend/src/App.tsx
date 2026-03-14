@@ -10,6 +10,7 @@ import { RealTimePage } from '@/pages/RealTimePage'
 import { AnalyticsPage } from '@/pages/AnalyticsPage'
 import { SimulationPage } from '@/pages/SimulationPage'
 import { UserProfilePage } from '@/pages/UserProfilePage'
+import { TrafficIncidentPage } from '@/pages/TrafficIncidentPage'
 import { RoleGuard } from '@/components'
 import { Result, Button } from 'antd'
 
@@ -50,6 +51,10 @@ function App() {
                 <SimulationPage />
               </RoleGuard>
             }
+          />
+          <Route
+            path="traffic-incident"
+            element={<TrafficIncidentPage />}
           />
           <Route
             path="profile"

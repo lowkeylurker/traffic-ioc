@@ -24,15 +24,7 @@ from src.domain.geo import (
     parse_maxspeed,
 )
 from src.domain.geo.constants import (
-    BBOX_BINH_THANH,
-    BBOX_CENTRAL_DISTRICTS,
     BBOX_DISTRICT_1,
-    BBOX_DISTRICT_3,
-    BBOX_DISTRICT_4,
-    BBOX_DISTRICT_5,
-    BBOX_DISTRICT_10,
-    BBOX_DISTRICT_11,
-    BBOX_PHU_NHUAN,
     CENTER_HCM,
     DEFAULT_LANE_COUNT,
     DEFAULT_SPEED_LIMIT,
@@ -124,15 +116,6 @@ __all__ = [
     "DEFAULT_LANE_COUNT",
     "DEFAULT_SPEED_LIMIT",
     "FRC_MAP",
-    # Geographic boundaries
     "BBOX_DISTRICT_1",
-    "BBOX_DISTRICT_3",
-    "BBOX_DISTRICT_4",
-    "BBOX_DISTRICT_5",
-    "BBOX_DISTRICT_10",
-    "BBOX_DISTRICT_11",
-    "BBOX_BINH_THANH",
-    "BBOX_PHU_NHUAN",
-    "BBOX_CENTRAL_DISTRICTS",
     "CENTER_HCM",
 ]
