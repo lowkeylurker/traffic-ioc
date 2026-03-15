@@ -14,4 +14,130 @@ Triển khai training cho DQN + PPO agents:
 Placeholder cho future sprint.
 """
 
-# TODO: Triển khải training pipeline RL
+"""
+training.py - The Training Loop for Congestion Prediction
+
+Hợp nhất Environment, DQNAgent và ReplayBuffer.
+Huấn luyện Agent thông qua phương trình Bellman và Backpropagation.
+"""
+
+import os
+import torch
+import torch.nn as nn
+import numpy as np
+from src.utils.data_loader import load_segment_data
+from src.rl.congestion_env import CongestionEnv
+from src.rl.dqn_agent import DQNAgent
+from src.rl.experience_replay import ReplayBuffer
+
+def train_agent():
+    # ==========================================
+    # 1. KHỞI TẠO CÁC THÀNH PHẦN
+    # ==========================================
+    print("Đang tải dữ liệu huấn luyện...")
+    # Lấy dữ liệu nhiều hơn một chút để Agent có đủ tình huống học
+    df = load_segment_data(segment_id=8206185629154005, start_date='2026-03-13', end_date='2026-03-16', peak_hours_only=True)
+    
+    # Khởi tạo Môi trường
+    env = CongestionEnv(df=df, history_window=12, prediction_horizon=1, congestion_threshold=0.15)
+    
+    # Khởi tạo Agent (State có 6 features)
+    agent = DQNAgent(state_dim=6, hidden_dim=64, lr=0.001)
+    
+    # Khởi tạo Bộ nhớ
+    buffer = ReplayBuffer(capacity=5000)
+    
+    # Hàm Loss (Mean Squared Error - Sai số toàn phương trung bình)
+    criterion = nn.MSELoss()
+    
+    # ==========================================
+    # 2. SIÊU THAM SỐ (HYPERPARAMETERS)
+    # ==========================================
+    num_episodes = 1000        # Số vòng lặp qua lại toàn bộ dữ liệu (Epochs)
+    batch_size = 32          # Số lượng mẫu lấy ra học mỗi lần
+    gamma = 0.99             # Hệ số chiết khấu tương lai (Discount factor)
+    epsilon = 1.0            # Tỷ lệ khám phá ngẫu nhiên ban đầu (100%)
+    epsilon_min = 0.05       # Tỷ lệ khám phá tối thiểu (5%)
+    epsilon_decay = 0.995    # Tốc độ giảm sự ngẫu nhiên
+    target_update_freq = 5   # Cập nhật mạng Target sau mỗi 5 episodes
+    
+    print("\n🚀 BẮT ĐẦU HUẤN LUYỆN DQN AGENT...")
+    
+    # ==========================================
+    # 3. VÒNG LẶP HUẤN LUYỆN (TRAINING LOOP)
+    # ==========================================
+    for episode in range(num_episodes):
+        state, _ = env.reset()
+        total_reward = 0
+        loss_history = []
+        done = False
+        
+        while not done:
+            # Agent chọn hành động (Kết hợp ngẫu nhiên và suy luận)
+            action = agent.select_action(state, epsilon)
+            
+            # Môi trường phản hồi
+            next_state, reward, done, _, _ = env.step(action)
+            total_reward += reward
+            
+            # Lưu trải nghiệm vào trí nhớ
+            buffer.push(state, action, reward, next_state, done)
+            
+            # Cập nhật state cho bước tiếp theo
+            state = next_state
+            
+            # BẮT ĐẦU HỌC NẾU BỘ NHỚ ĐỦ LỚN
+            if len(buffer) >= batch_size:
+                # 3.1 Lấy mẫu ngẫu nhiên từ Buffer
+                b_states, b_actions, b_rewards, b_next_states, b_dones = buffer.sample(batch_size)
+                
+                # Chuyển đổi sang PyTorch Tensor
+                b_states = torch.FloatTensor(b_states).to(agent.device)
+                b_actions = torch.LongTensor(b_actions).unsqueeze(1).to(agent.device)
+                b_rewards = torch.FloatTensor(b_rewards).unsqueeze(1).to(agent.device)
+                b_next_states = torch.FloatTensor(b_next_states).to(agent.device)
+                b_dones = torch.FloatTensor(b_dones).unsqueeze(1).to(agent.device)
+                
+                # 3.2 Tính Q-value hiện tại (Dự đoán của Policy Net)
+                # Dùng gather để lấy đúng Q-value của action đã thực hiện
+                current_q = agent.policy_net(b_states).gather(1, b_actions)
+                
+                # 3.3 Tính Q-value Mục tiêu (Dựa trên Phương trình Bellman)
+                with torch.no_grad():
+                    # Lấy Q-value lớn nhất của State tiếp theo từ Target Net
+                    max_next_q = agent.target_net(b_next_states).max(1)[0].unsqueeze(1)
+                    # Công thức Bellman: Reward + Gamma * Max(Next_Q) (Nếu chưa done)
+                    target_q = b_rewards + (gamma * max_next_q * (1 - b_dones))
+                
+                # 3.4 Tính Loss và Lan truyền ngược (Backpropagation)
+                loss = criterion(current_q, target_q)
+                
+                agent.optimizer.zero_grad() # Xóa gradient cũ
+                loss.backward()             # Tính đạo hàm riêng theo Chain Rule
+                agent.optimizer.step()      # Cập nhật trọng số (Weights)
+                
+                loss_history.append(loss.item())
+        
+        # Cập nhật Epsilon (Giảm dần sự ngẫu nhiên, tăng cường dùng não)
+        if epsilon > epsilon_min:
+            epsilon *= epsilon_decay
+            
+        # Cập nhật mạng Target
+        if episode % target_update_freq == 0:
+            agent.target_net.load_state_dict(agent.policy_net.state_dict())
+            
+        # In kết quả sau mỗi Episode
+        avg_loss = np.mean(loss_history) if loss_history else 0.0
+        print(f"Episode {episode + 1}/{num_episodes} | Reward: {total_reward:.1f} | Epsilon: {epsilon:.3f} | Loss: {avg_loss:.4f}")
+
+    # ==========================================
+    # 4. LƯU MÔ HÌNH (SAVE MODEL)
+    # ==========================================
+    # Tạo thư mục nếu chưa có
+    os.makedirs('models/congestion_rl', exist_ok=True)
+    model_path = 'models/congestion_rl/dqn_agent.pt'
+    torch.save(agent.policy_net.state_dict(), model_path)
+    print(f"\n✅ Đã huấn luyện xong và lưu mô hình tại: {model_path}")
+
+if __name__ == "__main__":
+    train_agent()
