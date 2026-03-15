@@ -981,30 +981,46 @@ def run_realtime(
         TimeElapsedColumn(),
         console=console,
     ) as progress:
-        # Weather → trả weather_key (FK)
-        weather_key = 800  # default
-        task1 = progress.add_task("[cyan]Current weather...", total=None)
-        try:
-            from src.pipelines.real_time.weather_pipeline import run as run_weather
-
-            weather_key = run_weather(engine)
-            logger.info(f"[run-realtime] weather_pipeline: weather_key={weather_key}")
-            results.append(("Weather Data", 1, "✓"))
-            progress.update(task1, completed=True)
-        except PipelineError as e:
-            logger.error(f"[run-realtime] weather_pipeline failed: {e}")
-            results.append(("Weather Data", 0, "✗"))
-            progress.update(task1, completed=True)
-
         # Load segment coordinates from DB (priority corridors + critical segments)
-        task2 = progress.add_task("[cyan]Loading critical segment points...", total=None)
+        task1 = progress.add_task("[cyan]Loading critical segment points...", total=None)
         points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(
             engine,
             limit=segment_limit,
             target_corridor_mode=True,
             full_target_coverage=not budget_mode,
         )
-        progress.update(task2, completed=True)
+        progress.update(task1, completed=True)
+
+        # Weather grid mode (Option C): assign weather_key per segment via active 500m cells.
+        weather_key = 800  # default fallback
+        segment_weather_key_map: dict[int, int] = {}
+        task2 = progress.add_task("[cyan]Current weather (grid 500m)...", total=None)
+        try:
+            from src.pipelines.real_time.weather_pipeline import run_grid_for_points
+
+            grid_size_m = max(100, int(os.getenv("OWM_GRID_SIZE_M", "500")))
+            point_weather_key_map = run_grid_for_points(
+                engine,
+                points,
+                grid_size_m=grid_size_m,
+            )
+            segment_weather_key_map = {
+                int(segment_keys[idx]): int(point_weather_key_map.get(points[idx], weather_key))
+                for idx in range(min(len(points), len(segment_keys)))
+            }
+            logger.info(
+                "[run-realtime] weather grid: grid_size=%dm, points=%d, mapped_segments=%d, distinct_weather_keys=%d",
+                grid_size_m,
+                len(points),
+                len(segment_weather_key_map),
+                len(set(segment_weather_key_map.values())),
+            )
+            results.append(("Weather Data", len(set(segment_weather_key_map.values())), "✓"))
+            progress.update(task2, completed=True)
+        except Exception as e:
+            logger.error(f"[run-realtime] weather_grid failed: {e}")
+            results.append(("Weather Data", 0, "✗"))
+            progress.update(task2, completed=True)
 
         # Traffic Flow
         task3 = progress.add_task("[cyan]Traffic flow data...", total=None)
@@ -1014,6 +1030,7 @@ def run_realtime(
             count = run_traffic(
                 engine,
                 weather_key=weather_key,
+                weather_key_map=segment_weather_key_map,
                 points=points,
                 segment_keys=segment_keys,
                 segment_key_map=segment_key_map,
@@ -1085,27 +1102,43 @@ def run_realtime_central_districts(
         TimeElapsedColumn(),
         console=console,
     ) as progress:
-        weather_key = 800
-        task1 = progress.add_task("[cyan]Current weather...", total=None)
-        try:
-            from src.pipelines.real_time.weather_pipeline import run as run_weather
-
-            weather_key = run_weather(engine)
-            logger.info(f"[run-realtime-central-districts] weather_pipeline: weather_key={weather_key}")
-            results.append(("Weather Data", 1, "✓"))
-            progress.update(task1, completed=True)
-        except PipelineError as e:
-            logger.error(f"[run-realtime-central-districts] weather_pipeline failed: {e}")
-            results.append(("Weather Data", 0, "✗"))
-            progress.update(task1, completed=True)
-
-        task2 = progress.add_task("[cyan]Loading segment points (Q1 corridors)...", total=None)
+        task1 = progress.add_task("[cyan]Loading segment points (Q1 corridors)...", total=None)
         points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(
             engine,
             limit=segment_limit,
             target_corridor_mode=True,
         )
-        progress.update(task2, completed=True)
+        progress.update(task1, completed=True)
+
+        weather_key = 800
+        segment_weather_key_map: dict[int, int] = {}
+        task2 = progress.add_task("[cyan]Current weather (grid 500m)...", total=None)
+        try:
+            from src.pipelines.real_time.weather_pipeline import run_grid_for_points
+
+            grid_size_m = max(100, int(os.getenv("OWM_GRID_SIZE_M", "500")))
+            point_weather_key_map = run_grid_for_points(
+                engine,
+                points,
+                grid_size_m=grid_size_m,
+            )
+            segment_weather_key_map = {
+                int(segment_keys[idx]): int(point_weather_key_map.get(points[idx], weather_key))
+                for idx in range(min(len(points), len(segment_keys)))
+            }
+            logger.info(
+                "[run-realtime-central-districts] weather grid: grid_size=%dm, points=%d, mapped_segments=%d, distinct_weather_keys=%d",
+                grid_size_m,
+                len(points),
+                len(segment_weather_key_map),
+                len(set(segment_weather_key_map.values())),
+            )
+            results.append(("Weather Data", len(set(segment_weather_key_map.values())), "✓"))
+            progress.update(task2, completed=True)
+        except Exception as e:
+            logger.error(f"[run-realtime-central-districts] weather_grid failed: {e}")
+            results.append(("Weather Data", 0, "✗"))
+            progress.update(task2, completed=True)
 
         task3 = progress.add_task("[cyan]Traffic flow data (Q1)...", total=None)
         try:
@@ -1114,6 +1147,7 @@ def run_realtime_central_districts(
             count = run_traffic(
                 engine,
                 weather_key=weather_key,
+                weather_key_map=segment_weather_key_map,
                 points=points,
                 segment_keys=segment_keys,
                 segment_key_map=segment_key_map,

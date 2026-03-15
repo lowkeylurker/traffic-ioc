@@ -66,6 +66,8 @@ services:
       - DB_CONNECTION_STRING=postgresql://${DB_USER:-traffic_user}:${DB_PASSWORD:-traffic_password}@postgres:5432/${DB_NAME:-traffic_ioc}
       - LOG_LEVEL=INFO
       - TZ=Asia/Ho_Chi_Minh
+      - OWM_GRID_SIZE_M=${OWM_GRID_SIZE_M:-500}
+      - OWM_GRID_MIN_CALL_INTERVAL_SEC=${OWM_GRID_MIN_CALL_INTERVAL_SEC:-0.9}
     env_file:
       - ./data-pipeline/.env
     depends_on:
@@ -110,6 +112,8 @@ services:
     build:
       context: ./ai-core
       dockerfile: Dockerfile
+      args:
+        INSTALL_ML: "true"
     container_name: ai-core
     volumes:
       - ./ai-core:/app

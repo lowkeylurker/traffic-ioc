@@ -22,6 +22,8 @@ This pipeline:
 
 Current design target is a quality-first gold corridor dataset: a small whitelist of priority corridors is selected first, then budget is concentrated to keep corridor-level coverage high.
 
+OpenWeather now runs in grid mode (Option C) for better local weather precision. See detailed runbook: `docs/OWM_OPERATIONS.md`.
+
 ---
 
 ## Runtime Model
@@ -183,6 +185,10 @@ TRAFFIC_REQ_HEADROOM_PCT=0.10
 # Other APIs
 OPENWEATHER_API_KEY=...
 SERPAPI_KEY=...
+
+# OpenWeather grid mode (Option C)
+OWM_GRID_SIZE_M=500
+OWM_GRID_MIN_CALL_INTERVAL_SEC=0.9
 ```
 
 Important:
@@ -222,6 +228,9 @@ Useful logs:
 docker compose logs --tail=100 etl-scheduler
 docker compose exec etl-scheduler tail -n 100 /app/logs/real-time-etl.log
 docker compose exec etl-scheduler tail -n 100 /app/logs/batch-analytics.log
+
+# OWM grid / 429 monitoring
+docker compose logs --since=24h etl-scheduler | grep -E "OWM429|Weather grid done"
 ```
 
 ---

@@ -162,6 +162,7 @@ class TrafficTransformer(BaseTransformer):
         raw_data: list[dict],
         *,
         weather_key: int = 800,
+        weather_key_map: dict[int, int] | None = None,
     ) -> list[dict]:
         """Transform raw TomTom responses → fact_traffic_flow records.
 
@@ -172,6 +173,7 @@ class TrafficTransformer(BaseTransformer):
         Returns:
             list[dict]: Mỗi dict = 1 row fact_traffic_flow.
         """
+        weather_key_map = weather_key_map or {}
         records = []
         now = datetime.now(tz=TZ_HCM)
 
@@ -233,7 +235,7 @@ class TrafficTransformer(BaseTransformer):
                     "segment_key": segment_key,
                     "time_key": time_key,
                     "date_key": date_key,
-                    "weather_key": weather_key,
+                    "weather_key": int(weather_key_map.get(segment_key, weather_key)),
                     "timestamp": now.replace(tzinfo=None),  # DB expects naive UTC
                     "pcu_volume": pcu_volume,
                     "traffic_index": round(traffic_index, 2),
@@ -284,13 +286,20 @@ class TrafficLoader(BaseLoader):
 # ═══════════════════════════════════════════════════════════
 
 
-def run(engine: Engine, api_key: str = "", weather_key: int = 800, **kwargs) -> int:
+def run(
+    engine: Engine,
+    api_key: str = "",
+    weather_key: int = 800,
+    weather_key_map: dict[int, int] | None = None,
+    **kwargs,
+) -> int:
     """Chạy full ETL cho Traffic Flow.
 
     Args:
         engine: SQLAlchemy Engine.
         api_key: TomTom API key.
         weather_key: FK → dim_weather (from weather_pipeline.run()).
+        weather_key_map: Optional segment_key -> weather_key mapping (grid mode).
         **kwargs: points: list[(lat, lon)] of segment centers.
 
     Returns:
@@ -319,7 +328,14 @@ def run(engine: Engine, api_key: str = "", weather_key: int = 800, **kwargs) -> 
         segment_key_map=kwargs.get("segment_key_map"),
         lane_count_map=kwargs.get("lane_count_map"),
     )
-    records = transformer.transform(raw, weather_key=weather_key)
+    if weather_key_map:
+        records = transformer.transform(
+            raw,
+            weather_key=weather_key,
+            weather_key_map=weather_key_map,
+        )
+    else:
+        records = transformer.transform(raw, weather_key=weather_key)
     logger.info(f"Transformed {len(records)} records")
 
     # L
