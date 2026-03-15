@@ -5,7 +5,7 @@
 ## Overview
 
 The ETL Scheduler manages periodic execution of:
-- **Real-time ETL**: Every 15 minutes (weather → traffic → incidents) [Quận 1 corridors]
+- **Real-time ETL**: Every 15 minutes during `06:00-21:00` VN (weather → traffic → incidents) [Quận 1 corridors]
 - **Batch Analytics**: Daily at 2:00 AM UTC (baseline speed + corridor performance) [Q1 corridors]
 
 ---
@@ -65,17 +65,22 @@ start_scheduler.bat
 Edit [app.py](app.py):
 
 ```python
-# Real-time interval (line ~120)
+# Realtime schedule (default): 06:00-21:00 every 15 minutes (inclusive at 21:00)
 scheduler.add_job(
-    REALTIME_JOB.run,
-    trigger=IntervalTrigger(minutes=15),  # Change here
+    run_realtime_then_batch,
+    trigger=CronTrigger(hour="6-20", minute="0,15,30,45", timezone=VN_TZ),
+    ...
+)
+scheduler.add_job(
+    run_realtime_then_batch,
+    trigger=CronTrigger(hour="21", minute="0", timezone=VN_TZ),
     ...
 )
 
-# Batch time (line ~131)
+# Daily key health check
 scheduler.add_job(
-    BATCH_JOB.run,
-    trigger=CronTrigger(hour=2, minute=0),  # Change here
+    run_daily_key_healthcheck,
+    trigger=CronTrigger(hour="5", minute="50", timezone=VN_TZ),
     ...
 )
 ```

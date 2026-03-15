@@ -54,14 +54,14 @@ If you see frequent `429`:
 ## 4. Capacity and Call Budget
 
 Given current ETL schedule:
-- 34 realtime cycles/day.
+- 61 realtime cycles/day (06:00-21:00 every 15 minutes, inclusive at 21:00).
 
 Given measured 500m grid in current target set:
 - About 220 active cells/cycle.
 
 Estimated OWM usage:
-- `220 x 34 = 7,480 calls/day`
-- `~224,400 calls/month`
+- `220 x 61 = 13,420 calls/day`
+- `~402,600 calls/month`
 
 This is typically well below the free Current Weather monthly allowance.
 

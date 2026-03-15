@@ -148,7 +148,7 @@ def health_tomtom_keys(
     runtime_blocked = len(snapshot.get("blocked", []))
     runtime_exhausted = len(snapshot.get("exhausted", []))
 
-    cycles_per_day = 34
+    cycles_per_day = max(1, int(os.getenv("ETL_ACTIVE_CYCLES_PER_DAY", "61")))
     daily_limit = int(settings.tomtom_daily_limit_per_key or 2500)
     reserve = int(os.getenv("NON_TRAFFIC_REQ_RESERVE", "3"))
     headroom = float(os.getenv("TRAFFIC_REQ_HEADROOM_PCT", "0.10"))
@@ -591,12 +591,13 @@ _OVERFETCH_FACTOR = 3
 _MAX_SEGMENTS_TARGET_CORRIDORS = 2000
 
 # Realtime budget mode default: auto-computed from key pool at startup.
-# Formula: (N_keys × daily_limit ÷ 34 cycles) - reserve - 10% headroom
-# Examples: 1 key ≈ 63, 3 keys ≈ 192, 5 keys ≈ 327, 10 keys ≈ 656, 20 keys ≈ 1 323
+# Formula: (N_keys × daily_limit ÷ cycles_per_day) - reserve - 10% headroom
+# Default cycles/day = 61 for 06:00-21:00 every 15 minutes (inclusive 21:00).
+# Examples (61 cycles): 1 key ≈ 36, 3 keys ≈ 107, 5 keys ≈ 180, 10 keys ≈ 365, 20 keys ≈ 734
 def _compute_budget_safe_segments() -> int:
     n_keys = max(1, len(settings.get_tomtom_keys()))
     daily_limit = int(settings.tomtom_daily_limit_per_key or 2500)
-    cycles = 34
+    cycles = max(1, int(os.getenv("ETL_ACTIVE_CYCLES_PER_DAY", "61")))
     reserve = int(os.getenv("NON_TRAFFIC_REQ_RESERVE", "3"))
     headroom = float(os.getenv("TRAFFIC_REQ_HEADROOM_PCT", "0.10"))
     raw = max(1, n_keys * daily_limit // cycles - reserve)

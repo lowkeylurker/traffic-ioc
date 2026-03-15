@@ -30,8 +30,8 @@ from typing import Optional
 
 from src.core.logger import get_logger
 
-# 17 morning slots (06:00–10:00 every 15 min) + 17 evening (16:00–20:00) = 34
-_CYCLES_PER_ACTIVE_DAY: int = 34
+# Default schedule: 06:00-21:00 every 15 minutes (inclusive 21:00) = 61 cycles/day.
+_CYCLES_PER_ACTIVE_DAY: int = max(1, int(os.getenv("ETL_ACTIVE_CYCLES_PER_DAY", "61")))
 
 logger = get_logger(__name__)
 

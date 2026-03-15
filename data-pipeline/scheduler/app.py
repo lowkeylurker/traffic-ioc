@@ -49,8 +49,8 @@ RUN_ON_START = os.getenv("RUN_ON_START", "true").strip().lower() in {
 }
 
 # ── Request budget: auto-compute from API key pool size ────────────────────
-# Active ETL cycles per day: 17 morning (06:00-10:00) + 17 evening (16:00-20:00)
-_CYCLES_PER_DAY = 34
+# Default ETL schedule: 06:00-21:00 every 15 minutes (inclusive 21:00) = 61 cycles/day.
+_CYCLES_PER_DAY = max(1, int(os.getenv("ETL_ACTIVE_CYCLES_PER_DAY", "61")))
 _tomtom_keys_env = os.getenv("TOMTOM_API_KEYS", os.getenv("TOMTOM_API_KEY", ""))
 _tomtom_key_count = max(1, len([k for k in _tomtom_keys_env.split(",") if k.strip()]))
 TOMTOM_DAILY_LIMIT_PER_KEY = int(os.getenv("TOMTOM_DAILY_LIMIT_PER_KEY", "2500"))
@@ -111,21 +111,17 @@ logger = setup_logging()
 def is_within_etl_window(now: datetime | None = None) -> bool:
     """Return True if current Vietnam local time is inside allowed ETL windows.
 
-    Windows:
-    - Morning: 06:00 to 10:00 (inclusive at 10:00 only)
-    - Evening: 16:00 to 20:00 (inclusive at 20:00 only)
+    Window:
+    - 06:00 to 21:00 (inclusive at 21:00 only)
     """
     current = now or datetime.now(VN_TZ)
     hhmm = current.hour * 60 + current.minute
 
-    morning_start = 6 * 60
-    morning_end = 10 * 60
-    evening_start = 16 * 60
-    evening_end = 20 * 60
-
-    in_morning = morning_start <= hhmm <= morning_end
-    in_evening = evening_start <= hhmm <= evening_end
-    return in_morning or in_evening
+    start_h = int(os.getenv("ETL_WINDOW_START_HOUR", "6"))
+    end_h = int(os.getenv("ETL_WINDOW_END_HOUR", "21"))
+    window_start = start_h * 60
+    window_end = end_h * 60
+    return window_start <= hhmm <= window_end
 
 # ═══════════════════════════════════════════════════════════
 # ETL COMMANDS
@@ -354,45 +350,26 @@ def setup_scheduler():
     """Configure and start the APScheduler."""
     scheduler = BackgroundScheduler(timezone=VN_TZ)
 
-    # Morning window: 06:00-09:45 every 15 minutes
+    start_h = int(os.getenv("ETL_WINDOW_START_HOUR", "6"))
+    end_h = int(os.getenv("ETL_WINDOW_END_HOUR", "21"))
+
+    # Main ETL window: start_h:00 to (end_h-1):45 every 15 minutes
     scheduler.add_job(
         run_realtime_then_batch,
-        trigger=CronTrigger(hour="6-9", minute="0,15,30,45", timezone=VN_TZ),
-        id='etl-chained-morning',
-        name='Chained ETL (Morning 06:00-10:00)',
+        trigger=CronTrigger(hour=f"{start_h}-{max(start_h, end_h - 1)}", minute="0,15,30,45", timezone=VN_TZ),
+        id='etl-chained-main-window',
+        name=f'Chained ETL ({start_h:02d}:00-{end_h:02d}:00)',
         coalesce=True,      # Skip if previous still running
         max_instances=1,    # Only 1 instance at a time
         misfire_grace_time=60  # Allow 1 min late start
     )
 
-    # Morning boundary: 10:00
+    # Boundary slot: end_h:00
     scheduler.add_job(
         run_realtime_then_batch,
-        trigger=CronTrigger(hour="10", minute="0", timezone=VN_TZ),
-        id='etl-chained-morning-boundary',
-        name='Chained ETL (Morning boundary 10:00)',
-        coalesce=True,
-        max_instances=1,
-        misfire_grace_time=60
-    )
-
-    # Evening window: 16:00-19:45 every 15 minutes
-    scheduler.add_job(
-        run_realtime_then_batch,
-        trigger=CronTrigger(hour="16-19", minute="0,15,30,45", timezone=VN_TZ),
-        id='etl-chained-evening',
-        name='Chained ETL (Evening 16:00-20:00)',
-        coalesce=True,
-        max_instances=1,
-        misfire_grace_time=60
-    )
-
-    # Evening boundary: 20:00
-    scheduler.add_job(
-        run_realtime_then_batch,
-        trigger=CronTrigger(hour="20", minute="0", timezone=VN_TZ),
-        id='etl-chained-evening-boundary',
-        name='Chained ETL (Evening boundary 20:00)',
+        trigger=CronTrigger(hour=str(end_h), minute="0", timezone=VN_TZ),
+        id='etl-chained-boundary',
+        name=f'Chained ETL (Boundary {end_h:02d}:00)',
         coalesce=True,      # Skip if previous still running
         max_instances=1,    # Only 1 instance at a time
         misfire_grace_time=60  # Allow 1 min late start
@@ -426,7 +403,11 @@ def setup_scheduler():
     logger.info("📅 Scheduled Jobs:")
     logger.info("  1. Chained ETL (Realtime → Batch)")
     logger.info("     ⏱️  Frequency: Every 15 minutes (within time windows)")
-    logger.info("     🕒 Windows (Asia/Ho_Chi_Minh): 06:00-10:00 and 16:00-20:00")
+    logger.info(
+        "     🕒 Window (Asia/Ho_Chi_Minh): %02d:00-%02d:00",
+        start_h,
+        end_h,
+    )
     logger.info("     ⏱️  Timeout: 5 min (realtime) + 30 min (batch)")
     logger.info("     📦 Pipeline:")
     logger.info(
@@ -472,7 +453,9 @@ if __name__ == "__main__":
                 ).start()
             else:
                 logger.info(
-                    "⏭️ Startup is outside ETL windows (06:00-10:00, 16:00-20:00) -> skip immediate run"
+                    "⏭️ Startup is outside ETL window (%02d:00-%02d:00) -> skip immediate run",
+                    int(os.getenv("ETL_WINDOW_START_HOUR", "6")),
+                    int(os.getenv("ETL_WINDOW_END_HOUR", "21")),
                 )
         
         logger.info("✅ Scheduler running. Press Ctrl+C to stop.")

@@ -27,7 +27,7 @@ def load_segment_data(
         segment_id: Mã segment cần truy xuất.
         start_date: Thời gian bắt đầu (YYYY-MM-DD hoặc datetime string).
         end_date: Thời gian kết thúc (YYYY-MM-DD hoặc datetime string).
-        peak_hours_only: Chỉ giữ dữ liệu khung giờ cao điểm 06:00-10:00 và 16:00-20:00.
+        peak_hours_only: Chỉ giữ dữ liệu trong khung ETL hoạt động 06:00-21:00.
     """
     engine = get_engine()
     
@@ -78,9 +78,8 @@ def load_segment_data(
 
     if peak_hours_only:
         minute_of_day = df.index.hour * 60 + df.index.minute
-        is_morning_peak = (minute_of_day >= 6 * 60) & (minute_of_day <= 10 * 60)
-        is_evening_peak = (minute_of_day >= 16 * 60) & (minute_of_day <= 20 * 60)
-        df = df[is_morning_peak | is_evening_peak]
+        is_active_window = (minute_of_day >= 6 * 60) & (minute_of_day <= 21 * 60)
+        df = df[is_active_window]
 
     total_rows = len(df)
     missing_speeds = df['current_speed_kmh'].isnull().sum()
@@ -115,6 +114,47 @@ def load_segment_data(
     df.reset_index(drop=True, inplace=True)
     
     return df
+
+def get_segments_in_corridor(corridor_id: int) -> list:
+    """
+    Truy vấn danh sách các segment_key thuộc về một corridor_key cụ thể.
+    Dựa trên schema: dim_corridor -> bridge_corridor_segment -> dim_segment
+    """
+    engine = get_engine()
+    query = """
+        SELECT segment_key 
+        FROM bridge_corridor_segment 
+        WHERE corridor_key = :corridor_id
+    """
+    df = pd.read_sql(text(query), engine, params={"corridor_id": corridor_id})
+    return df['segment_key'].tolist()
+
+def load_corridor_data(corridor_id: int, start_date: str, end_date: str, peak_hours_only: bool = True) -> dict:
+    """
+    Tải và xử lý dữ liệu cho TOÀN BỘ các segments trong một corridor.
+    Trả về một Dictionary: {segment_id: DataFrame}
+    """
+    # 1. Lấy danh sách segment
+    segment_ids = get_segments_in_corridor(corridor_id)
+    
+    if not segment_ids:
+        raise ValueError(f"Không tìm thấy segments nào cho Corridor ID {corridor_id}")
+        
+    print(f"🛣️ Tìm thấy {len(segment_ids)} segments trong Corridor {corridor_id}. Đang tiến hành kéo dữ liệu...")
+    
+    # 2. Lấy dữ liệu cho từng segment
+    # (Tối ưu: Nếu số lượng quá lớn, có thể chuyển sang câu lệnh SQL dùng WHERE segment_key IN (...))
+    corridor_data = {}
+    
+    for seg_id in segment_ids:
+        try:
+            # Tái sử dụng hàm load_segment_data đã viết cực kỳ chuẩn xác của chúng ta
+            df = load_segment_data(seg_id, start_date, end_date, peak_hours_only)
+            corridor_data[seg_id] = df
+        except Exception as e:
+            print(f"⚠️ Bỏ qua Segment {seg_id} do lỗi dữ liệu: {e}")
+            
+    return corridor_data
 
 # Test thử hàm nếu chạy file này trực tiếp
 if __name__ == "__main__":

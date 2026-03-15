@@ -44,17 +44,17 @@ Giải pháp: **pool N keys** → tăng budget tuyến tính:
 
 | Số key | Budget/ngày | Budget/cycle | Safe segs/cycle | Chế độ |
 |--------|-------------|--------------|-----------------|--------|
-| 1      | 2,500       | ~73          | ~63             | Budget-Gated |
-| 3      | 7,500       | ~220         | ~195            | Budget-Gated |
-| 5      | 12,500      | ~367         | **~327**        | Budget-Gated |
-| 6      | 15,000      | ~441         | ~394            | Budget-Gated |
-| 10     | 25,000      | ~735         | ~656            | Full-Coverage* |
-| 20     | 50,000      | ~1,470       | **~1,323**      | **Full-Coverage** |
+| 1      | 2,500       | ~40          | ~33             | Budget-Gated |
+| 3      | 7,500       | ~122         | ~107            | Budget-Gated |
+| 5      | 12,500      | ~204         | **~180**        | Budget-Gated |
+| 6      | 15,000      | ~245         | ~217            | Budget-Gated |
+| 10     | 25,000      | ~409         | ~365            | Budget-Gated |
+| 20     | 50,000      | ~819         | **~734**        | Budget-Gated |
 
 > Với runtime hiện tại, budget lớn không còn được dùng để phủ rộng toàn bộ network trước.
 > Budget được dồn trước cho **gold corridor whitelist** để đảm bảo chất lượng corridor-level.
 
-> **Công thức**: `budget/cycle = (N × 2500) ÷ 34`  
+> **Công thức**: `budget/cycle = (N × 2500) ÷ 61`  
 > **Safe limit** = `max(1, (budget/cycle − 3) × 0.90)` (trừ 3 req non-traffic, headroom 10%)
 
 ### 2.2 Cơ chế TomTomKeyPool (`src/core/api_key_pool.py`)
@@ -106,14 +106,13 @@ Priority corridor filter:
 
 ## 3. Cửa sổ ETL và Lịch Scheduler
 
-### 3.1 Hai cửa sổ hoạt động (giờ Việt Nam)
+### 3.1 Cửa sổ hoạt động (giờ Việt Nam)
 
 | Cửa sổ | Thời gian | Số cycle |
 |--------|-----------|----------|
-| Sáng   | 06:00 – 10:00 | 17 slots (mỗi 15 phút, kể cả 10:00) |
-| Chiều  | 16:00 – 20:00 | 17 slots (mỗi 15 phút, kể cả 20:00) |
+| Cả ngày | 06:00 – 21:00 | 61 slots (mỗi 15 phút, kể cả 21:00) |
 
-Tổng: **34 cycles/ngày** — đây là hằng số `_CYCLES_PER_ACTIVE_DAY = 34`.
+Tổng: **61 cycles/ngày** — đây là hằng số mặc định `_CYCLES_PER_ACTIVE_DAY = 61`.
 
 ### 3.2 Luồng mỗi cycle
 
@@ -258,7 +257,7 @@ Retry point (lat,lon) with next key after 403
 |--------|---------|
 | `usable_keys` | Số key probe thành công (HTTP 200) |
 | `blocked_keys` | Số key bị từ chối (HTTP 403 hoặc lỗi mạng) |
-| `effective_budget/cycle` | `usable_keys × 2500 ÷ 34` |
+| `effective_budget/cycle` | `usable_keys × 2500 ÷ 61` |
 | `safe_traffic_segment_limit/cycle` | `(effective_budget/cycle − 3) × 0.90` |
 
 > **Exit code**: 0 nếu có ≥ 1 key usable, 1 nếu tất cả blocked (có thể dùng trong CI / alerting).

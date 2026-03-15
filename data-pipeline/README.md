@@ -16,7 +16,7 @@ This pipeline:
 - Extracts weather, traffic flow, and incidents every 15 minutes during active windows.
 - Uses a TomTom API key pool with per-key rotation, blocking, and daily reset.
 - Retries the same traffic point with the next usable key when a key returns HTTP 403.
-- Auto-computes request budget from key count (`N_keys x 2500 / 34 cycles`).
+- Auto-computes request budget from key count (`N_keys x 2500 / 61 cycles`).
 - Writes realtime facts (`fact_traffic_flow`, `fact_incident`) and batch metrics (`fact_corridor_performance`).
 - Runs as chained scheduler jobs: realtime first, then batch immediately on success.
 
@@ -30,10 +30,9 @@ OpenWeather now runs in grid mode (Option C) for better local weather precision.
 
 ### ETL Windows
 
-- Morning: `06:00-10:00` (VN time, inclusive at `10:00`)
-- Evening: `16:00-20:00` (VN time, inclusive at `20:00`)
+- Window: `06:00-21:00` (VN time, inclusive at `21:00`)
 - Frequency: every 15 minutes inside windows
-- Total active cycles/day: `34`
+- Total active cycles/day: `61`
 
 ### Chained Execution
 
@@ -69,7 +68,7 @@ Current runtime knobs:
 
 Budget is auto-computed in scheduler and CLI startup:
 
-- `budget_per_cycle = (N_keys x TOMTOM_DAILY_LIMIT_PER_KEY) / 34`
+- `budget_per_cycle = (N_keys x TOMTOM_DAILY_LIMIT_PER_KEY) / 61`
 - `safe_traffic_segment_limit = (budget_per_cycle - NON_TRAFFIC_REQ_RESERVE) x (1 - TRAFFIC_REQ_HEADROOM_PCT)`
 
 Default reserve/headroom:
@@ -81,12 +80,12 @@ Default reserve/headroom:
 
 | Keys | Daily Budget | Budget/Cycle | Safe Segments/Cycle |
 |------|--------------|--------------|----------------------|
-| 1 | 2,500 | ~73 | ~63 |
-| 3 | 7,500 | ~220 | ~192 |
-| 5 | 12,500 | ~367 | ~327 |
-| 6 | 15,000 | ~441 | ~394 |
-| 10 | 25,000 | ~735 | ~656 |
-| 20 | 50,000 | ~1,470 | ~1,323 |
+| 1 | 2,500 | ~40 | ~33 |
+| 3 | 7,500 | ~122 | ~107 |
+| 5 | 12,500 | ~204 | ~180 |
+| 6 | 15,000 | ~245 | ~217 |
+| 10 | 25,000 | ~409 | ~365 |
+| 20 | 50,000 | ~819 | ~734 |
 
 Notes:
 
@@ -361,7 +360,7 @@ docker compose exec etl-scheduler tail -n 200 /app/logs/real-time-etl.log
 
 ### Scheduler not running a window cycle
 
-Check current VN time and window inclusion (`06:00-10:00`, `16:00-20:00`).
+Check current VN time and window inclusion (`06:00-21:00`).
 
 ```bash
 docker compose logs --tail=120 etl-scheduler
