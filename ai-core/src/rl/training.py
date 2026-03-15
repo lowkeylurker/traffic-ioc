@@ -29,6 +29,7 @@ from src.utils.data_loader import load_segment_data
 from src.rl.congestion_env import CongestionEnv
 from src.rl.dqn_agent import DQNAgent
 from src.rl.experience_replay import ReplayBuffer
+import matplotlib.pyplot as plt
 
 def train_agent():
     # ==========================================
@@ -53,7 +54,7 @@ def train_agent():
     # ==========================================
     # 2. SIÊU THAM SỐ (HYPERPARAMETERS)
     # ==========================================
-    num_episodes = 1000        # Số vòng lặp qua lại toàn bộ dữ liệu (Epochs)
+    num_episodes = 500        # Số vòng lặp qua lại toàn bộ dữ liệu (Epochs)
     batch_size = 32          # Số lượng mẫu lấy ra học mỗi lần
     gamma = 0.99             # Hệ số chiết khấu tương lai (Discount factor)
     epsilon = 1.0            # Tỷ lệ khám phá ngẫu nhiên ban đầu (100%)
@@ -61,6 +62,10 @@ def train_agent():
     epsilon_decay = 0.995    # Tốc độ giảm sự ngẫu nhiên
     target_update_freq = 5   # Cập nhật mạng Target sau mỗi 5 episodes
     
+    #  Tạo 2 mảng để lưu lại lịch sử Reward và Loss cho biểu đồ
+    all_rewards = []
+    all_losses = []
+
     print("\n🚀 BẮT ĐẦU HUẤN LUYỆN DQN AGENT...")
     
     # ==========================================
@@ -128,6 +133,8 @@ def train_agent():
             
         # In kết quả sau mỗi Episode
         avg_loss = np.mean(loss_history) if loss_history else 0.0
+        all_rewards.append(total_reward)
+        all_losses.append(avg_loss)
         print(f"Episode {episode + 1}/{num_episodes} | Reward: {total_reward:.1f} | Epsilon: {epsilon:.3f} | Loss: {avg_loss:.4f}")
 
     # ==========================================
@@ -138,6 +145,42 @@ def train_agent():
     model_path = 'models/congestion_rl/dqn_agent.pt'
     torch.save(agent.policy_net.state_dict(), model_path)
     print(f"\n✅ Đã huấn luyện xong và lưu mô hình tại: {model_path}")
+
+    # ==========================================
+    # 5. VẼ BIỂU ĐỒ HỘI TỤ (VISUALIZATION) [THÊM TOÀN BỘ PHẦN NÀY VÀO CUỐI HÀM]
+    # ==========================================
+    print("Đang vẽ biểu đồ hội tụ...")
+    plt.figure(figsize=(14, 5))
+    
+    # 5.1 Biểu đồ Reward
+    plt.subplot(1, 2, 1)
+    plt.plot(all_rewards, color='royalblue', alpha=0.6, label='Reward/Episode')
+    
+    # Thêm đường xu hướng (Moving Average) làm mượt biểu đồ
+    window_size = 20
+    if len(all_rewards) >= window_size:
+        moving_avg = np.convolve(all_rewards, np.ones(window_size)/window_size, mode='valid')
+        # Dịch chuyển mảng x để căn giữa đường MA
+        plt.plot(range(window_size-1, len(all_rewards)), moving_avg, color='darkorange', linewidth=2, label=f'MA ({window_size})')
+        
+    plt.title('Tổng Phần Thưởng (Total Reward) qua từng Episode', fontsize=12)
+    plt.xlabel('Episode')
+    plt.ylabel('Reward')
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.5)
+
+    # 5.2 Biểu đồ Loss
+    plt.subplot(1, 2, 2)
+    plt.plot(all_losses, color='crimson', alpha=0.7)
+    plt.title('Mức độ Sai số (Loss) qua từng Episode', fontsize=12)
+    plt.xlabel('Episode')
+    plt.ylabel('Loss (MSE)')
+    plt.grid(True, linestyle='--', alpha=0.5)
+
+    plt.tight_layout()
+    plot_path = 'models/congestion_rl/training_convergence.png'
+    plt.savefig(plot_path, dpi=300)
+    print(f"📈 Đã lưu biểu đồ thành công tại: {plot_path}")
 
 if __name__ == "__main__":
     train_agent()
