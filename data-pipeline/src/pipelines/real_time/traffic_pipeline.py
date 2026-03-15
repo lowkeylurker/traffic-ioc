@@ -226,7 +226,12 @@ class TrafficTransformer(BaseTransformer):
             # Estimate PCU volume
             lane_count = max(1, int(self._lane_count_map.get(segment_key, 2)))
             pcu_volume = estimate_pcu_from_speed(
-                current_speed, free_flow_speed, lane_count
+                current_speed,
+                free_flow_speed,
+                lane_count,
+                bpr_alpha=settings.pcu_bpr_alpha,
+                bpr_beta=settings.pcu_bpr_beta,
+                max_vc_ratio=settings.pcu_max_vc_ratio,
             )
 
             records.append(

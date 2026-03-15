@@ -14,9 +14,20 @@ import pandas as pd
 from sqlalchemy import text
 from src.core.database import get_engine
 
-def load_segment_data(segment_id: int, start_date: str, end_date: str) -> pd.DataFrame:
+def load_segment_data(
+    segment_id: int,
+    start_date: str,
+    end_date: str,
+    peak_hours_only: bool = True,
+) -> pd.DataFrame:
     """
     Truy xuất dữ liệu giao thông của một segment cụ thể và xử lý missing values.
+
+    Args:
+        segment_id: Mã segment cần truy xuất.
+        start_date: Thời gian bắt đầu (YYYY-MM-DD hoặc datetime string).
+        end_date: Thời gian kết thúc (YYYY-MM-DD hoặc datetime string).
+        peak_hours_only: Chỉ giữ dữ liệu khung giờ cao điểm 06:00-10:00 và 16:00-20:00.
     """
     engine = get_engine()
     
@@ -65,6 +76,12 @@ def load_segment_data(segment_id: int, start_date: str, end_date: str) -> pd.Dat
         'weather_severity': 'max'     # Lấy mức độ thời tiết xấu nhất ghi nhận trong 15p đó
     })
 
+    if peak_hours_only:
+        minute_of_day = df.index.hour * 60 + df.index.minute
+        is_morning_peak = (minute_of_day >= 6 * 60) & (minute_of_day <= 10 * 60)
+        is_evening_peak = (minute_of_day >= 16 * 60) & (minute_of_day <= 20 * 60)
+        df = df[is_morning_peak | is_evening_peak]
+
     total_rows = len(df)
     missing_speeds = df['current_speed_kmh'].isnull().sum()
     missing_ratio = (missing_speeds / total_rows) * 100
@@ -79,13 +96,10 @@ def load_segment_data(segment_id: int, start_date: str, end_date: str) -> pd.Dat
     print("-" * 50)
     # ---------------------------------------------------------
 
-    # Dùng nội suy tuyến tính (linear interpolation) cho các biến liên tục
-    continuous_cols = ['current_speed_kmh', 'pcu_volume', 'traffic_index']
-    
     print(df[0:100])  # In ra 5 dòng đầu tiên để kiểm tra
     
     # Dùng nội suy tuyến tính (linear interpolation) cho các biến liên tục
-    continuous_cols = ['current_speed_kmh', 'pcu_volume', 'traffic_index']
+    continuous_cols = ['current_speed_kmh', 'pcu_volume', 'traffic_index', 'delay_seconds']
     df[continuous_cols] = df[continuous_cols].interpolate(method='linear')
     
     # Dùng forward fill (lấy giá trị trước đó lấp vào) cho các biến phân loại (categorical)

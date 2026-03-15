@@ -149,6 +149,10 @@ def estimate_pcu_from_speed(
     current_speed: float,
     free_flow_speed: float,
     lane_count: int,
+    *,
+    bpr_alpha: float = BPR_ALPHA,
+    bpr_beta: float = BPR_BETA,
+    max_vc_ratio: float = 1.0,
 ) -> float:
     """Estimate PCU volume from speed using BPR inverse formula.
 
@@ -165,15 +169,21 @@ def estimate_pcu_from_speed(
         current_speed: Current speed (km/h)
         free_flow_speed: Free-flow speed (km/h)
         lane_count: Number of lanes
+        bpr_alpha: BPR alpha parameter (default from constants)
+        bpr_beta: BPR beta parameter (default from constants)
+        max_vc_ratio: Upper bound for estimated v/c ratio
 
     Returns:
         float: Estimated PCU volume (max 100% capacity)
     """
     if free_flow_speed <= 0 or lane_count <= 0:
         return 0.0
+    bpr_alpha = max(1e-6, float(bpr_alpha))
+    bpr_beta = max(1e-6, float(bpr_beta))
+    max_vc_ratio = max(0.12, float(max_vc_ratio))
     if current_speed <= 0:
         # Complete stop → assume at capacity (not over-capacity)
-        return float(lane_count * LANE_CAPACITY)
+        return round(float(lane_count * LANE_CAPACITY) * min(1.0, max_vc_ratio), 2)
     
     capacity = lane_count * LANE_CAPACITY
     
@@ -183,16 +193,16 @@ def estimate_pcu_from_speed(
 
     time_ratio = free_flow_speed / current_speed  # t / t0
 
-    excess = (time_ratio - 1.0) / BPR_ALPHA
+    excess = (time_ratio - 1.0) / bpr_alpha
     if excess <= 0:
         # Near free-flow conditions
         return round(capacity * 0.12, 2)
 
-    v_c_ratio = excess ** (1.0 / BPR_BETA)
+    v_c_ratio = excess ** (1.0 / bpr_beta)
     
     # ⚠️ FIX: Cap v/c at 1.0 (100% capacity) - BPR inverse invalid beyond this point
     # Speed reduction may be due to incidents/signals, not necessarily high volume
-    v_c_ratio = min(v_c_ratio, 1.0)
+    v_c_ratio = min(v_c_ratio, max_vc_ratio)
     
     pcu_volume = capacity * v_c_ratio
 

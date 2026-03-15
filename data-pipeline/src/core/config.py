@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     openweather_api_key: str = ""
     serpapi_key: str = ""
 
+    # ── PCU Estimation (BPR inverse tuning) ───────────────
+    # Safer runtime defaults to reduce early saturation at lane capacity.
+    pcu_bpr_alpha: float = 0.35
+    pcu_bpr_beta: float = 4.0
+    pcu_max_vc_ratio: float = 1.0
+
     # ── Logging ───────────────────────────────────────────
     log_level: str = "INFO"
     log_dir: Optional[str] = None

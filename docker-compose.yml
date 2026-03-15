@@ -68,6 +68,9 @@ services:
       - TZ=Asia/Ho_Chi_Minh
       - OWM_GRID_SIZE_M=${OWM_GRID_SIZE_M:-500}
       - OWM_GRID_MIN_CALL_INTERVAL_SEC=${OWM_GRID_MIN_CALL_INTERVAL_SEC:-0.9}
+      - PCU_BPR_ALPHA=${PCU_BPR_ALPHA:-0.35}
+      - PCU_BPR_BETA=${PCU_BPR_BETA:-4.0}
+      - PCU_MAX_VC_RATIO=${PCU_MAX_VC_RATIO:-1.0}
     env_file:
       - ./data-pipeline/.env
     depends_on:

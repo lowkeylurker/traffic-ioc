@@ -151,7 +151,7 @@ if __name__ == "__main__":
     
     # 1. Kéo dữ liệu (Thay segment_id thật của bạn)
     print("Đang tải dữ liệu từ Database...")
-    df = load_segment_data(segment_id=299925978432640808, start_date='2026-03-09', end_date='2026-03-12')
+    df = load_segment_data(segment_id=8206185629154005, start_date='2026-03-14', end_date='2026-03-15')
     
     # 2. Khởi tạo môi trường
     env = CongestionEnv(df=df, history_window=12, prediction_horizon=1, congestion_threshold=0.15)
