@@ -22,3 +22,7 @@ build/
 *.pt     # Model YOLO (thường to, nên cân nhắc)
 
 *.log # Log files, có thể hữu ích để debug nhưng không cần thiết trong repo
+
+
+*.pt
+*.pkl

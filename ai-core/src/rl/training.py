@@ -22,6 +22,8 @@ Huấn luyện Agent thông qua phương trình Bellman và Backpropagation.
 """
 
 import os
+
+import joblib
 import torch
 import torch.nn as nn
 import numpy as np
@@ -30,14 +32,15 @@ from src.rl.congestion_env import CongestionEnv
 from src.rl.dqn_agent import DQNAgent
 from src.rl.experience_replay import ReplayBuffer
 import matplotlib.pyplot as plt
+from src.utils.data_loader import load_segment_data, get_segments_in_corridor
 
-def train_agent():
+def train_agent(segment_id: int):
     # ==========================================
     # 1. KHỞI TẠO CÁC THÀNH PHẦN
     # ==========================================
     print("Đang tải dữ liệu huấn luyện...")
     # Lấy dữ liệu nhiều hơn một chút để Agent có đủ tình huống học
-    df = load_segment_data(segment_id=8206185629154005, start_date='2026-03-13', end_date='2026-03-16', peak_hours_only=True)
+    df = load_segment_data(segment_id=segment_id, start_date='2026-03-13', end_date='2026-03-15', peak_hours_only=True)
     
     # Khởi tạo Môi trường
     env = CongestionEnv(df=df, history_window=12, prediction_horizon=1, congestion_threshold=0.15)
@@ -54,7 +57,7 @@ def train_agent():
     # ==========================================
     # 2. SIÊU THAM SỐ (HYPERPARAMETERS)
     # ==========================================
-    num_episodes = 500        # Số vòng lặp qua lại toàn bộ dữ liệu (Epochs)
+    num_episodes = 50        # Số vòng lặp qua lại toàn bộ dữ liệu (Epochs)
     batch_size = 32          # Số lượng mẫu lấy ra học mỗi lần
     gamma = 0.99             # Hệ số chiết khấu tương lai (Discount factor)
     epsilon = 1.0            # Tỷ lệ khám phá ngẫu nhiên ban đầu (100%)
@@ -182,5 +185,54 @@ def train_agent():
     plt.savefig(plot_path, dpi=300)
     print(f"📈 Đã lưu biểu đồ thành công tại: {plot_path}")
 
+    # [CẬP NHẬT Ở CUỐI HÀM] Lưu Model và Scaler THEO ID
+    os.makedirs('models/congestion_rl', exist_ok=True)
+    
+    # 1. Lưu trọng số Model
+    model_path = f'models/congestion_rl/dqn_agent_{segment_id}.pt'
+    torch.save(agent.policy_net.state_dict(), model_path)
+    
+    # 2. Lưu Scaler từ Environment
+    scaler_path = f'models/congestion_rl/scaler_{segment_id}.pkl'
+    joblib.dump(env.scaler, scaler_path)
+    
+    print(f"\n✅ Đã lưu Model tại: {model_path}")
+    print(f"✅ Đã lưu Scaler tại: {scaler_path}")
+
+def train_corridor_agents(corridor_id: int):
+    print(f"\n🚀 BẮT ĐẦU CHIẾN DỊCH HUẤN LUYỆN CHO CORRIDOR {corridor_id}...")
+    
+    # 1. Lấy danh sách toàn bộ Segment ID thuộc Corridor này
+    segment_ids = get_segments_in_corridor(corridor_id)
+    
+    if not segment_ids:
+        print(f"❌ Không tìm thấy segment nào thuộc corridor {corridor_id} trong DB.")
+        return
+        
+    total_segments = len(segment_ids)
+    print(f"🛣️ Tìm thấy {total_segments} đoạn đường. Bắt đầu lặp...")
+    
+    # 2. Vòng lặp huấn luyện từng Model
+    success_count = 0
+    for idx, seg_id in enumerate(segment_ids):
+        print("\n" + "="*50)
+        print(f"🔄 ĐANG HUẤN LUYỆN MODEL [{idx + 1}/{total_segments}] - SEGMENT ID: {seg_id}")
+        print("="*50)
+        
+        try:
+            # Gọi lại hàm train_agent bạn đã viết lúc nãy
+            train_agent(segment_id=seg_id)
+            success_count += 1
+        except Exception as e:
+            # Dùng try-except để nếu 1 đoạn đường bị lỗi (ví dụ không có data), 
+            # vòng lặp không bị crash mà sẽ chạy tiếp đoạn đường khác.
+            print(f"⚠️ Lỗi khi huấn luyện Segment {seg_id}: {e}")
+            print("Chuyển sang Segment tiếp theo...")
+            
+    print("\n" + "="*50)
+    print(f"✅ CHIẾN DỊCH HOÀN TẤT: Đã huấn luyện thành công {success_count}/{total_segments} models.")
+    print("="*50)
+
+
 if __name__ == "__main__":
-    train_agent()
+    train_corridor_agents(corridor_id=646713380690000556)
