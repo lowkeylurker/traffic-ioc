@@ -45,6 +45,12 @@ class TrafficExtractor(BaseExtractor):
     MAX_RETRIES = 3
     RETRY_WAIT = 2
 
+    def __init__(self, api_key: str = "", key_pool=None, **kwargs: Any) -> None:
+        super().__init__(api_key=api_key, **kwargs)
+        # key_pool: TomTomKeyPool instance (optional).  When supplied,
+        # each request draws the key with the most remaining daily budget.
+        self._key_pool = key_pool
+
     def extract(self, **kwargs: Any) -> list[dict]:
         """Gọi API cho danh sách tọa độ (lat, lon).
 
@@ -56,26 +62,60 @@ class TrafficExtractor(BaseExtractor):
         """
         points: list[tuple[float, float]] = kwargs.get("points", [])
         results = []
+        pool = self._key_pool
 
-        self.logger.info(f"Extracting traffic flow for {len(points)} segments")
+        pool_desc = f"pool({pool.pool_size} keys)" if pool else "single-key"
+        self.logger.info(
+            "Extracting traffic flow for %d segments [%s]", len(points), pool_desc
+        )
 
         for lat, lon in points:
-            url = f"{self.BASE_URL}/absolute/10/json"
-            params = {
-                "key": self.api_key,
-                "point": f"{lat},{lon}",
-                "unit": "KMPH",
-            }
-            try:
-                data = self._get(url, params=params)
-                results.append(data)
-            except DataExtractionError as e:
-                self.logger.warning(f"Skip point ({lat},{lon}): {e.message}")
-                continue
+            # Retry the same point with another key when a key gets blocked (403).
+            while True:
+                # Pick key: pool mode selects the key with lowest usage today
+                key = pool.get_next_key() if pool else self.api_key
+                if key is None:
+                    if pool:
+                        self.logger.error(
+                            "All TomTom API keys exhausted/blocked for today — stopping extraction"
+                        )
+                        return results
+                    self.logger.warning("Skip point (%s,%s): no API key configured", lat, lon)
+                    break
 
-        self.logger.info(
-            f"Extracted {len(results)}/{len(points)} responses"
-        )
+                url = f"{self.BASE_URL}/absolute/10/json"
+                params = {
+                    "key": key,
+                    "point": f"{lat},{lon}",
+                    "unit": "KMPH",
+                }
+                try:
+                    data = self._get(url, params=params)
+                    if pool:
+                        pool.record_success(key)
+                    results.append(data)
+                    break
+                except DataExtractionError as e:
+                    message = e.message or ""
+                    # 403 = key is forbidden/blocked (entitlement / quota limit hit).
+                    # Mark blocked then retry this same point with the next usable key.
+                    if pool and "403" in message:
+                        pool.mark_blocked(key)
+                        self.logger.warning(
+                            "Retry point (%s,%s) with next key after 403", lat, lon
+                        )
+                        continue
+
+                    self.logger.warning("Skip point (%s,%s): %s", lat, lon, message)
+                    break
+
+        if pool:
+            self.logger.info(
+                "Extracted %d/%d responses | pool status: %s",
+                len(results), len(points), pool.status(),
+            )
+        else:
+            self.logger.info("Extracted %d/%d responses", len(results), len(points))
         return results
 
 
@@ -122,6 +162,7 @@ class TrafficTransformer(BaseTransformer):
         raw_data: list[dict],
         *,
         weather_key: int = 800,
+        weather_key_map: dict[int, int] | None = None,
     ) -> list[dict]:
         """Transform raw TomTom responses → fact_traffic_flow records.
 
@@ -132,6 +173,7 @@ class TrafficTransformer(BaseTransformer):
         Returns:
             list[dict]: Mỗi dict = 1 row fact_traffic_flow.
         """
+        weather_key_map = weather_key_map or {}
         records = []
         now = datetime.now(tz=TZ_HCM)
 
@@ -184,7 +226,12 @@ class TrafficTransformer(BaseTransformer):
             # Estimate PCU volume
             lane_count = max(1, int(self._lane_count_map.get(segment_key, 2)))
             pcu_volume = estimate_pcu_from_speed(
-                current_speed, free_flow_speed, lane_count
+                current_speed,
+                free_flow_speed,
+                lane_count,
+                bpr_alpha=settings.pcu_bpr_alpha,
+                bpr_beta=settings.pcu_bpr_beta,
+                max_vc_ratio=settings.pcu_max_vc_ratio,
             )
 
             records.append(
@@ -193,7 +240,7 @@ class TrafficTransformer(BaseTransformer):
                     "segment_key": segment_key,
                     "time_key": time_key,
                     "date_key": date_key,
-                    "weather_key": weather_key,
+                    "weather_key": int(weather_key_map.get(segment_key, weather_key)),
                     "timestamp": now.replace(tzinfo=None),  # DB expects naive UTC
                     "pcu_volume": pcu_volume,
                     "traffic_index": round(traffic_index, 2),
@@ -203,7 +250,7 @@ class TrafficTransformer(BaseTransformer):
                     "los_level": los,
                     "congestion_level": congestion,
                     "is_closed": is_closed,
-                    "inserted_at": datetime.utcnow(),
+                    # inserted_at: không set (dùng DB DEFAULT CURRENT_TIMESTAMP)
                     "quality_flag": quality,
                 }
             )
@@ -230,13 +277,12 @@ class TrafficLoader(BaseLoader):
         "congestion_level",
         "is_closed",
         "quality_flag",
-        "inserted_at",
+        # Không include inserted_at - lần insert đầu tiên dùng DB DEFAULT
     ]
     BATCH_SIZE = 500
 
     def load(self, records: list[dict]) -> int:
-        for r in records:
-            r["inserted_at"] = datetime.utcnow()
+        # Không set inserted_at - để database tự set DEFAULT CURRENT_TIMESTAMP
         return self._upsert_batch(records)
 
 
@@ -245,13 +291,20 @@ class TrafficLoader(BaseLoader):
 # ═══════════════════════════════════════════════════════════
 
 
-def run(engine: Engine, api_key: str = "", weather_key: int = 800, **kwargs) -> int:
+def run(
+    engine: Engine,
+    api_key: str = "",
+    weather_key: int = 800,
+    weather_key_map: dict[int, int] | None = None,
+    **kwargs,
+) -> int:
     """Chạy full ETL cho Traffic Flow.
 
     Args:
         engine: SQLAlchemy Engine.
         api_key: TomTom API key.
         weather_key: FK → dim_weather (from weather_pipeline.run()).
+        weather_key_map: Optional segment_key -> weather_key mapping (grid mode).
         **kwargs: points: list[(lat, lon)] of segment centers.
 
     Returns:
@@ -259,11 +312,18 @@ def run(engine: Engine, api_key: str = "", weather_key: int = 800, **kwargs) -> 
     """
     logger = get_logger("traffic_pipeline")
 
-    key = api_key or settings.tomtom_api_key
+    from src.core.api_key_pool import get_key_pool
+
     points = kwargs.get("points", [])
 
-    # E
-    extractor = TrafficExtractor(api_key=key)
+    # Use explicit key in legacy single-key mode; otherwise use pool
+    if api_key:
+        extractor = TrafficExtractor(api_key=api_key)
+    else:
+        extractor = TrafficExtractor(
+            api_key=settings.tomtom_api_key,
+            key_pool=get_key_pool(),
+        )
     raw = extractor.extract(points=points)
     logger.info(f"Extracted {len(raw)} raw responses")
 
@@ -273,7 +333,14 @@ def run(engine: Engine, api_key: str = "", weather_key: int = 800, **kwargs) -> 
         segment_key_map=kwargs.get("segment_key_map"),
         lane_count_map=kwargs.get("lane_count_map"),
     )
-    records = transformer.transform(raw, weather_key=weather_key)
+    if weather_key_map:
+        records = transformer.transform(
+            raw,
+            weather_key=weather_key,
+            weather_key_map=weather_key_map,
+        )
+    else:
+        records = transformer.transform(raw, weather_key=weather_key)
     logger.info(f"Transformed {len(records)} records")
 
     # L

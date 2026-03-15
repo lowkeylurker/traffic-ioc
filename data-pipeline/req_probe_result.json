@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-03-12T13:23:05.453800Z",
+  "status": "success",
+  "error": null,
+  "segment_limit": 220,
+  "budget_mode": true,
+  "selection_mode": "priority_corridors_critical",
+  "counts": {
+    "tomtom_total": 221,
+    "tomtom_flow": 220,
+    "tomtom_incident": 1,
+    "other": 1
+  },
+  "assert_tomtom_le_250": true
+}

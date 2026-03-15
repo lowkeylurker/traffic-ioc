@@ -1,0 +1,179 @@
+# ═══════════════════════════════════════════════════════════
+# Docker Compose with ETL Scheduler
+# 
+# Services:
+#   - postgres: PostgreSQL 14 (data warehouse)
+#   - data-pipeline: ETL application (CLI entrypoint)
+#   - etl-scheduler: APScheduler daemon (scheduled jobs)
+#   - ai-core: AI/ML forecasting service
+#   - backend: Express.js API server
+#   - frontend: Vite React application
+#
+# Usage:
+#   docker-compose up -d                    # Start all services
+#   docker logs -f etl-scheduler            # Watch scheduler logs
+#   docker exec data-pipeline python -m src.main run-realtime  # Manual trigger
+# ═══════════════════════════════════════════════════════════
+
+version: '3.8'
+
+services:
+  # ─────────────────────────────────────────────────────────
+  # PostgreSQL 15 with PostGIS + pgRouting - Data Warehouse
+  # ─────────────────────────────────────────────────────────
+  postgres:
+    image: pgrouting/pgrouting:15-3.5-4.0.1
+    container_name: traffic_ioc_postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-traffic_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-traffic_password}
+      POSTGRES_DB: ${DB_NAME:-traffic_ioc}
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-traffic_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - traffic-ioc-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────
+  # Data Pipeline CLI - Manual trigger or one-time setup
+  # ─────────────────────────────────────────────────────────
+  data-pipeline:
+    build:
+      context: ./data-pipeline
+      dockerfile: Dockerfile
+    container_name: data-pipeline
+    environment:
+      - DB_CONNECTION_STRING=postgresql://${DB_USER:-traffic_user}:${DB_PASSWORD:-traffic_password}@postgres:5432/${DB_NAME:-traffic_ioc}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data-pipeline:/app
+      - pipeline_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - traffic-ioc-net
+    # Don't auto-start (use for manual commands)
+    entrypoint: /bin/bash
+    stdin_open: true
+    tty: true
+    restart: "no"
+
+  # ─────────────────────────────────────────────────────────
+  # ETL Scheduler - Periodic job execution
+  # ─────────────────────────────────────────────────────────
+  etl-scheduler:
+    build:
+      context: ./data-pipeline/scheduler
+      dockerfile: Dockerfile
+    container_name: etl-scheduler
+    environment:
+      - DB_CONNECTION_STRING=postgresql://${DB_USER:-traffic_user}:${DB_PASSWORD:-traffic_password}@postgres:5432/${DB_NAME:-traffic_ioc}
+      - LOG_LEVEL=INFO
+      - TZ=UTC
+    volumes:
+      - pipeline_logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock  # Mount Docker socket
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - traffic-ioc-net
+    restart: always
+    # Resource limits (optional)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 1G
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 512M
+
+  # ─────────────────────────────────────────────────────────
+  # AI Core - ML/Forecasting Service
+  # ─────────────────────────────────────────────────────────
+  ai-core:
+    build:
+      context: ./ai-core
+      dockerfile: Dockerfile
+    container_name: ai-core
+    environment:
+      - DB_CONNECTION_STRING=postgresql://${DB_USER:-traffic_user}:${DB_PASSWORD:-traffic_password}@postgres:5432/${DB_NAME:-traffic_ioc}
+      - PORT=5001
+      - LOG_LEVEL=INFO
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./ai-core/models:/app/models
+      - ./ai-core/cache:/app/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - traffic-ioc-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────
+  # Backend API - Express.js Server
+  # ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend-api
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${DB_USER:-traffic_user}:${DB_PASSWORD:-traffic_password}@postgres:5432/${DB_NAME:-traffic_ioc}
+      - API_PORT=3000
+      - AI_CORE_URL=http://ai-core:5001
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - traffic-ioc-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────
+  # Frontend - React + Vite
+  # ─────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend-app
+    environment:
+      - VITE_API_URL=http://localhost:3000
+      - VITE_AI_CORE_URL=http://localhost:5001
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    networks:
+      - traffic-ioc-net
+    restart: unless-stopped
+
+# ═══════════════════════════════════════════════════════════
+# Network & Volumes
+# ═══════════════════════════════════════════════════════════
+
+networks:
+  traffic-ioc-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  pipeline_logs:
+    driver: local

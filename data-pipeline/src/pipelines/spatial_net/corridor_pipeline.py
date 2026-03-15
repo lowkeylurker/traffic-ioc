@@ -16,9 +16,13 @@ Load strategy: Full DELETE + INSERT for bridge table (route refresh consistency)
 
 from __future__ import annotations
 
+import re
 import time
+import unicodedata
 from collections import defaultdict
 from datetime import datetime, timedelta
+from hashlib import sha256
+from pathlib import Path
 from typing import Any
 
 from rich.console import Console
@@ -37,6 +41,7 @@ from sqlalchemy.orm import Session
 
 from src.core.exceptions import DatabaseLoadError
 from src.core.logger import get_logger
+from src.domain.geo.constants import BBOX_DISTRICT_1
 from src.domain.math import derive_date_key
 from src.domain.math.key_generator import generate_corridor_key
 from src.pipelines.base import BaseExtractor, BaseLoader, BaseTransformer, get_table
@@ -53,9 +58,238 @@ console = Console()
 class CorridorExtractor(BaseExtractor):
     """Generate prioritized corridor config from road + realtime facts."""
 
-    DEFAULT_CORRIDOR_LIMIT = 40
+    DEFAULT_CORRIDOR_LIMIT = 60
     MIN_SEGMENTS_PER_CORRIDOR = 4
     MIN_CORRIDOR_LENGTH_M = 1200.0
+    # Relaxed thresholds for roads with meaningful footprint inside Q1.
+    MIN_Q1_SEGMENTS_PER_CORRIDOR = 2
+    MIN_Q1_CORRIDOR_LENGTH_M = 800.0
+    SEED_FILE_PATH = (
+        Path(__file__).resolve().parents[3]
+        / "specs"
+        / "seeds"
+        / "seed_dim_corridor.md"
+    )
+    SEED_MAPPING_VERSION = "v2"
+
+    @staticmethod
+    def _normalize_name(value: str | None) -> str:
+        if not value:
+            return ""
+        lowered = value.strip().lower().replace("đ", "d")
+        no_accent = unicodedata.normalize("NFKD", lowered)
+        ascii_only = "".join(ch for ch in no_accent if not unicodedata.combining(ch))
+        return re.sub(r"\s+", " ", ascii_only)
+
+    @classmethod
+    def _parse_seed_corridors(cls) -> list[dict[str, Any]]:
+        if not cls.SEED_FILE_PATH.exists():
+            raise FileNotFoundError(f"Seed corridor file not found: {cls.SEED_FILE_PATH}")
+
+        level_pattern = re.compile(r"^\s*Level\s+(\d+)\s*--", re.IGNORECASE)
+
+        current_level = 5
+        seed_items: list[dict[str, Any]] = []
+
+        for raw_line in cls.SEED_FILE_PATH.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            level_match = level_pattern.match(line)
+            if level_match:
+                current_level = int(level_match.group(1))
+                continue
+
+            if "|" not in line:
+                continue
+
+            line_payload = line.rstrip("\\").strip()
+            columns = [part.strip() for part in line_payload.split("|")]
+            if len(columns) < 2:
+                continue
+
+            try:
+                int(columns[0])
+            except ValueError:
+                continue
+
+            raw_name = columns[1]
+            axis_label = columns[2] if len(columns) >= 3 else ""
+            road_tokens = [part.strip() for part in raw_name.split("--") if part.strip()]
+            if not road_tokens:
+                continue
+
+            corridor_name = raw_name.removesuffix(" Corridor").strip()
+            seed_items.append(
+                {
+                    "corridor_name": corridor_name,
+                    "axis_label": axis_label,
+                    "seed_level": current_level,
+                    "road_tokens": road_tokens,
+                }
+            )
+
+        if not seed_items:
+            raise ValueError("No seed corridors parsed from markdown file")
+
+        return seed_items
+
+    @classmethod
+    def _get_seed_signature(cls) -> str:
+        content = cls.SEED_FILE_PATH.read_bytes() + cls.SEED_MAPPING_VERSION.encode("utf-8")
+        return sha256(content).hexdigest()
+
+    def _extract_from_seed(
+        self,
+        engine: Engine,
+        corridor_limit: int,
+    ) -> list[dict[str, Any]]:
+        seed_items = self._parse_seed_corridors()[:corridor_limit]
+
+        roads_sql = text("""
+            SELECT DISTINCT r.road_key, r.name AS road_name
+            FROM dim_road r
+            JOIN dim_way w ON w.road_key = r.road_key
+            JOIN dim_segment ds ON ds.way_key = w.way_key
+            WHERE ds.geometry_center IS NOT NULL
+        """)
+
+        segments_sql = text("""
+            SELECT
+                w.road_key,
+                ds.segment_key,
+                ds.location_key,
+                ds.segment_id_source,
+                COALESCE(ds.length_m, 0) AS length_m,
+                COALESCE(w.default_speed_limit, 40) AS speed_limit,
+                COALESCE(w.direction, 'both') AS direction_hint
+            FROM dim_segment ds
+            JOIN dim_way w ON w.way_key = ds.way_key
+            WHERE ds.geometry_center IS NOT NULL
+            ORDER BY
+                w.road_key,
+                ds.location_key,
+                ds.segment_id_source NULLS LAST,
+                ds.segment_key
+        """)
+
+        with engine.connect() as conn:
+            road_rows = conn.execute(roads_sql).fetchall()
+            segment_rows = conn.execute(segments_sql).fetchall()
+
+        road_candidates: list[dict[str, Any]] = []
+        for row in road_rows:
+            road_name = (row.road_name or "").strip()
+            if not self._is_valid_road_name(road_name):
+                continue
+            road_candidates.append(
+                {
+                    "road_key": int(row.road_key),
+                    "road_name": road_name,
+                    "normalized": self._normalize_name(road_name),
+                }
+            )
+
+        segments_by_road: dict[int, list[dict[str, Any]]] = defaultdict(list)
+        for row in segment_rows:
+            segments_by_road[int(row.road_key)].append(
+                {
+                    "segment_key": int(row.segment_key),
+                    "length_m": float(row.length_m or 0.0),
+                    "speed_limit": float(row.speed_limit or 40.0),
+                    "direction_hint": str(row.direction_hint or "both"),
+                }
+            )
+
+        corridors_data: list[dict[str, Any]] = []
+        unmatched_corridors: list[str] = []
+
+        for seed in seed_items:
+            matched_road_keys: set[int] = set()
+            for token in seed["road_tokens"]:
+                normalized_token = self._normalize_name(token)
+                if not normalized_token:
+                    continue
+
+                direct_matches = [
+                    candidate["road_key"]
+                    for candidate in road_candidates
+                    if normalized_token in candidate["normalized"]
+                    or candidate["normalized"] in normalized_token
+                ]
+
+                if direct_matches:
+                    matched_road_keys.update(direct_matches)
+                    continue
+
+                token_words = [w for w in normalized_token.split(" ") if len(w) >= 3]
+                fuzzy_matches = []
+                for candidate in road_candidates:
+                    overlap = sum(1 for word in token_words if word in candidate["normalized"])
+                    if token_words and overlap >= max(1, len(token_words) // 2):
+                        fuzzy_matches.append(candidate["road_key"])
+                matched_road_keys.update(fuzzy_matches)
+
+            if not matched_road_keys:
+                unmatched_corridors.append(seed["corridor_name"])
+                continue
+
+            segment_dict_by_key: dict[int, dict[str, Any]] = {}
+            for road_key in matched_road_keys:
+                for seg in segments_by_road.get(road_key, []):
+                    segment_dict_by_key.setdefault(seg["segment_key"], seg)
+
+            if not segment_dict_by_key:
+                unmatched_corridors.append(seed["corridor_name"])
+                continue
+
+            ordered_segments = sorted(segment_dict_by_key.values(), key=lambda x: x["segment_key"])
+            segments = [
+                {"segment_key": seg["segment_key"], "sequence_order": idx + 1}
+                for idx, seg in enumerate(ordered_segments)
+            ]
+
+            total_length_m = sum(seg["length_m"] for seg in ordered_segments)
+            avg_speed_limit = (
+                sum(seg["speed_limit"] for seg in ordered_segments) / len(ordered_segments)
+            )
+            target_avg_speed = max(20.0, round(avg_speed_limit * 0.8, 2))
+
+            direction_votes = defaultdict(int)
+            for seg in ordered_segments:
+                direction_votes[self._normalize_direction(seg["direction_hint"])] += 1
+            direction = max(direction_votes.items(), key=lambda item: item[1])[0]
+
+            corridors_data.append(
+                {
+                    "corridor_name": seed["corridor_name"],
+                    "importance_level": int(seed["seed_level"]),
+                    "target_avg_speed": target_avg_speed,
+                    "total_length_m": float(total_length_m),
+                    "direction": direction,
+                    "priority_score": float(seed["seed_level"] * 20),
+                    "flow_samples": 0,
+                    "incident_count": 0,
+                    "segments": segments,
+                }
+            )
+
+        if unmatched_corridors:
+            self.logger.warning(
+                "Seed corridors without matched segments: %s",
+                ", ".join(unmatched_corridors[:20]),
+            )
+
+        return corridors_data
+
+    @staticmethod
+    def _is_valid_road_name(road_name: str | None) -> bool:
+        """Filter out noisy unnamed/invalid road labels from OSM."""
+        if not road_name:
+            return False
+        normalized = road_name.strip().lower()
+        return normalized not in {"", "nan", "none", "null", "unknown", "unnamed road"}
 
     @staticmethod
     def _derive_importance_level(frc: int | None) -> int:
@@ -116,8 +350,16 @@ class CorridorExtractor(BaseExtractor):
             raise ValueError("CorridorExtractor.extract requires engine=... in kwargs")
 
         corridor_limit = int(kwargs.get("corridor_limit", self.DEFAULT_CORRIDOR_LIMIT))
+        force_seed_corridors = bool(kwargs.get("force_seed_corridors", True))
         min_segments = int(kwargs.get("min_segments", self.MIN_SEGMENTS_PER_CORRIDOR))
         min_length_m = float(kwargs.get("min_length_m", self.MIN_CORRIDOR_LENGTH_M))
+        min_q1_segments = int(
+            kwargs.get("min_q1_segments", self.MIN_Q1_SEGMENTS_PER_CORRIDOR)
+        )
+        min_q1_length_m = float(
+            kwargs.get("min_q1_length_m", self.MIN_Q1_CORRIDOR_LENGTH_M)
+        )
+        q1_bbox = kwargs.get("q1_bbox", BBOX_DISTRICT_1)
         since_date_key = int(
             kwargs.get(
                 "since_date_key",
@@ -125,8 +367,65 @@ class CorridorExtractor(BaseExtractor):
             )
         )
 
+        if force_seed_corridors:
+            try:
+                corridors_data = self._extract_from_seed(engine=engine, corridor_limit=corridor_limit)
+                if corridors_data:
+                    seed_signature = self._get_seed_signature()
+                    self.logger.info(
+                        "Seed-driven corridor mode enabled: %s corridors loaded from %s",
+                        len(corridors_data),
+                        self.SEED_FILE_PATH,
+                    )
+
+                    table = Table(
+                        title="Seed Corridors (Forced)",
+                        show_header=True,
+                        header_style="bold magenta",
+                    )
+                    table.add_column("Corridor Name", style="cyan", width=34)
+                    table.add_column("Importance", justify="center", style="yellow", width=10)
+                    table.add_column("Segments", justify="center", style="blue", width=10)
+                    table.add_column("Length (m)", justify="right", style="magenta", width=12)
+                    for corridor in corridors_data[:20]:
+                        table.add_row(
+                            corridor["corridor_name"],
+                            str(corridor["importance_level"]),
+                            str(len(corridor["segments"])),
+                            f"{corridor['total_length_m']:.1f}",
+                        )
+                    console.print(table)
+                    if len(corridors_data) > 20:
+                        console.print(f"[dim]... showing 20/{len(corridors_data)} corridors[/dim]")
+                    console.print(
+                        f"\n[green]✓[/green] Forced [bold]{len(corridors_data)}[/bold] corridors from seed file\n"
+                    )
+                    return {
+                        "corridors": corridors_data,
+                        "seed_signature": seed_signature,
+                    }
+
+                self.logger.warning(
+                    "Seed-driven corridor mode returned no corridors; fallback to ranked mode"
+                )
+            except Exception as exc:
+                self.logger.warning(
+                    "Seed-driven corridor mode failed (%s); fallback to ranked mode",
+                    exc,
+                )
+
         roads_sql = text("""
-            WITH road_base AS (
+            WITH q1_boundary AS (
+                SELECT ST_UnaryUnion(ST_Collect(dl.geometry_polygon)) AS geom
+                FROM dim_location dl
+                WHERE dl.geometry_polygon IS NOT NULL
+                  AND (
+                        LOWER(TRIM(dl.district)) IN ('quận 1', 'quan 1', 'district 1', 'q1')
+                     OR LOWER(TRIM(dl.district)) LIKE '%quận 1%'
+                     OR LOWER(TRIM(dl.district)) LIKE '%district 1%'
+                  )
+            ),
+            road_base AS (
                 SELECT
                     r.road_key,
                     r.name AS road_name,
@@ -136,6 +435,33 @@ class CorridorExtractor(BaseExtractor):
                     AVG(COALESCE(w.default_lane_count, 2)) AS avg_lane_count,
                     COUNT(ds.segment_key) AS segment_count,
                     SUM(COALESCE(ds.length_m, 0)) AS total_length_m,
+                    COUNT(
+                        CASE
+                            WHEN ds.geometry_center IS NOT NULL AND (
+                                 (qb.geom IS NOT NULL AND ST_Intersects(ds.geometry_center, qb.geom))
+                                 OR (
+                                     qb.geom IS NULL
+                                     AND ST_X(ds.geometry_center) BETWEEN :q1_min_lon AND :q1_max_lon
+                                     AND ST_Y(ds.geometry_center) BETWEEN :q1_min_lat AND :q1_max_lat
+                                 )
+                            )
+                            THEN ds.segment_key
+                        END
+                    ) AS q1_segment_count,
+                    SUM(
+                        CASE
+                            WHEN ds.geometry_center IS NOT NULL AND (
+                                 (qb.geom IS NOT NULL AND ST_Intersects(ds.geometry_center, qb.geom))
+                                 OR (
+                                     qb.geom IS NULL
+                                     AND ST_X(ds.geometry_center) BETWEEN :q1_min_lon AND :q1_max_lon
+                                     AND ST_Y(ds.geometry_center) BETWEEN :q1_min_lat AND :q1_max_lat
+                                 )
+                            )
+                            THEN COALESCE(ds.length_m, 0)
+                            ELSE 0
+                        END
+                    ) AS q1_total_length_m,
                     BOOL_OR(
                         w.osm_highway_type IN (
                             'motorway', 'motorway_link',
@@ -147,6 +473,7 @@ class CorridorExtractor(BaseExtractor):
                 FROM dim_road r
                 JOIN dim_way w ON w.road_key = r.road_key
                 JOIN dim_segment ds ON ds.way_key = w.way_key
+                CROSS JOIN q1_boundary qb
                 GROUP BY r.road_key, r.name
             ),
             traffic_30d AS (
@@ -180,6 +507,8 @@ class CorridorExtractor(BaseExtractor):
                 rb.avg_lane_count,
                 rb.segment_count,
                 rb.total_length_m,
+                rb.q1_segment_count,
+                rb.q1_total_length_m,
                 COALESCE(t.avg_pcu_volume, 0) AS avg_pcu_volume,
                 COALESCE(t.avg_traffic_index, 0) AS avg_traffic_index,
                 COALESCE(t.flow_samples, 0) AS flow_samples,
@@ -203,8 +532,16 @@ class CorridorExtractor(BaseExtractor):
             FROM road_base rb
             LEFT JOIN traffic_30d t ON t.road_key = rb.road_key
             LEFT JOIN incident_30d i ON i.road_key = rb.road_key
-            WHERE rb.segment_count >= :min_segments
-              AND rb.total_length_m >= :min_length_m
+            WHERE (
+                    (
+                        rb.segment_count >= :min_segments
+                        AND rb.total_length_m >= :min_length_m
+                    )
+                    OR (
+                        rb.q1_segment_count >= :min_q1_segments
+                        AND rb.q1_total_length_m >= :min_q1_length_m
+                    )
+                  )
               AND (rb.has_arterial_type = TRUE OR COALESCE(rb.min_frc, 6) <= 3)
             ORDER BY priority_score DESC, COALESCE(t.flow_samples, 0) DESC, rb.segment_count DESC
             LIMIT :limit
@@ -230,6 +567,12 @@ class CorridorExtractor(BaseExtractor):
                     "since_date_key": since_date_key,
                     "min_segments": min_segments,
                     "min_length_m": min_length_m,
+                    "min_q1_segments": min_q1_segments,
+                    "min_q1_length_m": min_q1_length_m,
+                    "q1_min_lon": q1_bbox["min_lon"],
+                    "q1_max_lon": q1_bbox["max_lon"],
+                    "q1_min_lat": q1_bbox["min_lat"],
+                    "q1_max_lat": q1_bbox["max_lat"],
                     "limit": corridor_limit,
                 },
             ).fetchall()
@@ -244,6 +587,12 @@ class CorridorExtractor(BaseExtractor):
                         "since_date_key": since_date_key,
                         "min_segments": 1,
                         "min_length_m": 300.0,
+                        "min_q1_segments": 1,
+                        "min_q1_length_m": 300.0,
+                        "q1_min_lon": q1_bbox["min_lon"],
+                        "q1_max_lon": q1_bbox["max_lon"],
+                        "q1_min_lat": q1_bbox["min_lat"],
+                        "q1_max_lat": q1_bbox["max_lat"],
                         "limit": corridor_limit,
                     },
                 ).fetchall()
@@ -261,9 +610,9 @@ class CorridorExtractor(BaseExtractor):
             if not segment_keys:
                 continue
 
-            road_name = (row.road_name or "Unnamed Road").strip() or "Unnamed Road"
-            if road_name.lower() in {"nan", "none", "null"}:
-                road_name = "Unnamed Road"
+            road_name = (row.road_name or "").strip()
+            if not self._is_valid_road_name(road_name):
+                continue
             corridor_name = f"Priority Corridor – {road_name}"
             priority_score = float(row.priority_score or 0.0)
             importance_level = self._derive_importance_from_priority(priority_score)
@@ -318,7 +667,7 @@ class CorridorExtractor(BaseExtractor):
         console.print(f"\n[green]✓[/green] Extracted [bold]{len(corridors_data)}[/bold] corridor configs\n")
         
         self.logger.info(f"Extracted {len(corridors_data)} corridor configs")
-        return {"corridors": corridors_data}
+        return {"corridors": corridors_data, "seed_signature": None}
 
 
 # ═══════════════════════════════════════════════════════════
@@ -337,6 +686,7 @@ class CorridorTransformer(BaseTransformer):
         """
         console.print("\n[bold cyan]🔄 TRANSFORMATION PHASE[/bold cyan]")
         corridors_data = raw_data.get("corridors", [])
+        seed_signature = raw_data.get("seed_signature")
         now = datetime.utcnow()
 
         corridor_records = []
@@ -373,6 +723,7 @@ class CorridorTransformer(BaseTransformer):
                     "target_avg_speed": float(corridor_cfg.get("target_avg_speed", 40.0)),
                     "total_length_m": float(corridor_cfg.get("total_length_m", 0.0)),
                     "direction": corridor_cfg.get("direction", "Unknown"),
+                    "seed_signature": seed_signature,
                     "record_timestamp": now,
                 })
 
@@ -418,6 +769,7 @@ class CorridorTransformer(BaseTransformer):
         return {
             "dim_corridor": corridor_records,
             "bridge_corridor_segment": bridge_records,
+            "seed_signature": seed_signature,
         }
 
 
@@ -441,6 +793,8 @@ class CorridorLoader(BaseLoader):
         "target_avg_speed",
         "total_length_m",
         "direction",
+        "corridor_version",
+        "seed_signature",
         "record_timestamp",
     ]
     BATCH_SIZE = 100
@@ -475,6 +829,7 @@ def load_corridors(
     engine: Engine,
     corridor_records: list[dict],
     bridge_records: list[dict],
+    seed_signature: str | None = None,
 ) -> dict[str, int]:
     """Load corridors with full transaction control.
     
@@ -507,6 +862,7 @@ def load_corridors(
         "bridge_inserted": 0,
         "bridge_skipped": 0,
         "bridge_resolved": 0,
+        "corridor_version": 1,
     }
 
     if not corridor_records:
@@ -523,6 +879,36 @@ def load_corridors(
         ) as progress:
             with Session(engine) as session:
                 with session.begin():
+                    if seed_signature:
+                        existing_version = session.execute(
+                            text(
+                                """
+                                SELECT MAX(corridor_version)
+                                FROM dim_corridor
+                                WHERE seed_signature = :seed_signature
+                                """
+                            ),
+                            {"seed_signature": seed_signature},
+                        ).scalar()
+                        if existing_version is not None:
+                            corridor_version = int(existing_version)
+                        else:
+                            max_version = session.execute(
+                                text("SELECT COALESCE(MAX(corridor_version), 0) FROM dim_corridor")
+                            ).scalar()
+                            corridor_version = int(max_version) + 1
+                    else:
+                        max_version = session.execute(
+                            text("SELECT COALESCE(MAX(corridor_version), 1) FROM dim_corridor")
+                        ).scalar()
+                        corridor_version = int(max_version or 1)
+
+                    result["corridor_version"] = corridor_version
+                    for record in corridor_records:
+                        record["corridor_version"] = corridor_version
+                        if seed_signature:
+                            record["seed_signature"] = seed_signature
+
                     # ────────────────────────────────────────────────
                     # STEP 1: UPSERT dim_corridor
                     # ────────────────────────────────────────────────
@@ -614,6 +1000,7 @@ def load_corridors(
                     console.print("\n[green]✅ Transaction committed successfully![/green]")
                     logger.info(
                         f"✅ Corridor load transaction committed: "
+                        f"version={result['corridor_version']}, "
                         f"corridors={result['corridors_upserted']}, "
                         f"bridge_deleted={result['bridge_deleted']}, "
                         f"bridge_inserted={result['bridge_inserted']}, "
@@ -665,7 +1052,13 @@ def run(engine: Engine, **kwargs) -> int:
     bridge_records = transformed["bridge_corridor_segment"]
 
     # Load (with transaction)
-    result = load_corridors(engine, corridor_records, bridge_records)
+    seed_signature = transformed.get("seed_signature")
+    result = load_corridors(
+        engine,
+        corridor_records,
+        bridge_records,
+        seed_signature=seed_signature,
+    )
 
     # Calculate totals and execution time
     total = result["corridors_upserted"] + result["bridge_inserted"]

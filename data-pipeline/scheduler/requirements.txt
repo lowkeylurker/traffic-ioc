@@ -1,0 +1,4 @@
+# Minimal dependencies for ETL Scheduler
+# Only APScheduler is needed, the actual ETL runs in data-pipeline container
+
+APScheduler>=3.10.0

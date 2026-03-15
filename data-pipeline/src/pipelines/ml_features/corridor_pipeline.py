@@ -12,10 +12,10 @@ from typing import Any
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 
+from src.core.config import settings
 from src.core.logger import get_logger
-from src.domain.geo.constants import BBOX_DISTRICT_1
-from src.domain.math import derive_date_key
-from src.domain.math.key_generator import generate_traffic_flow_key
+from src.domain.math import TZ_HCM, derive_date_key
+from src.domain.math.key_generator import generate_corridor_perf_key
 from src.pipelines.base import BaseLoader, BaseTransformer
 
 
@@ -32,11 +32,12 @@ class CorridorTransformer(BaseTransformer):
 
         Each row:
             corridor_key, time_key, date_key, avg_speed,
-            total_delay, travel_time_index, bottleneck_seg_key,
+            total_delay, travel_time_index, bottleneck_seg_key, corridor_version,
             incident_count
         """
         records = []
-        now = datetime.utcnow()
+        # Keep DB TIMESTAMP values aligned with Asia/Ho_Chi_Minh local time.
+        now = datetime.now(tz=TZ_HCM).replace(tzinfo=None)
 
         for row in raw_data:
             avg_speed = float(row.get("avg_speed", 0))
@@ -50,12 +51,14 @@ class CorridorTransformer(BaseTransformer):
             ck = int(row["corridor_key"])
             dk = int(row["date_key"])
             tk = int(row["time_key"])
-            perf_key = generate_traffic_flow_key(ck, dk, tk)
+            cv = int(row.get("corridor_version", 1) or 1)
+            perf_key = generate_corridor_perf_key(ck, dk, tk, cv)
 
             records.append(
                 {
                     "corridor_perf_key": perf_key,
                     "corridor_key": ck,
+                    "corridor_version": cv,
                     "time_key": tk,
                     "date_key": dk,
                     "bottleneck_seg_key": row.get("bottleneck_seg_key"),
@@ -90,6 +93,7 @@ class CorridorPerformanceLoader(BaseLoader):
         "travel_time_index",
         "corridor_efficiency",
         "active_incident_count",
+        "corridor_version",
         "inserted_at",
     ]
     BATCH_SIZE = 200
@@ -103,16 +107,24 @@ class CorridorPerformanceLoader(BaseLoader):
 # ═══════════════════════════════════════════════════════════
 
 _CORRIDOR_QUERY = text("""
-    WITH q1_corridors AS (
-        SELECT DISTINCT bcs.corridor_key
-        FROM bridge_corridor_segment bcs
-        JOIN dim_segment ds ON bcs.segment_key = ds.segment_key
-        WHERE ds.geometry_center IS NOT NULL
-          AND ST_X(ds.geometry_center) BETWEEN :min_lon AND :max_lon
-          AND ST_Y(ds.geometry_center) BETWEEN :min_lat AND :max_lat
-    )
+        WITH active_corridors AS (
+            SELECT corridor_key,
+                   corridor_name,
+                   COALESCE(corridor_version, 1) AS corridor_version
+            FROM dim_corridor
+            WHERE corridor_version = (SELECT COALESCE(MAX(corridor_version), 1) FROM dim_corridor)
+        ),
+        latest_time AS (
+            SELECT MAX(f.time_key) AS time_key
+            FROM fact_traffic_flow f
+            JOIN bridge_corridor_segment bcs ON f.segment_key = bcs.segment_key
+            JOIN active_corridors ac ON ac.corridor_key = bcs.corridor_key
+            WHERE f.date_key = :target_date_key
+        )
     SELECT
         bcs.corridor_key,
+        ac.corridor_name,
+        ac.corridor_version,
         f.time_key,
         f.date_key,
         AVG(f.current_speed_kmh)        AS avg_speed,
@@ -134,9 +146,10 @@ _CORRIDOR_QUERY = text("""
            AND i.date_key = f.date_key AND i.is_active = TRUE), 0) AS incident_count
     FROM fact_traffic_flow f
     JOIN bridge_corridor_segment bcs ON f.segment_key = bcs.segment_key
-    JOIN q1_corridors qc ON qc.corridor_key = bcs.corridor_key
-    WHERE f.date_key = :target_date_key
-    GROUP BY bcs.corridor_key, f.time_key, f.date_key
+    JOIN active_corridors ac ON ac.corridor_key = bcs.corridor_key
+        WHERE f.date_key = :target_date_key
+            AND f.time_key = (SELECT lt.time_key FROM latest_time lt)
+    GROUP BY bcs.corridor_key, ac.corridor_name, ac.corridor_version, f.time_key, f.date_key
 """)
 
 
@@ -145,6 +158,7 @@ def run(engine: Engine, **kwargs) -> int:
 
     Kwargs:
         target_date_key: int – ngày cần tính (default: hôm nay).
+        bbox: dict – bounding box cho target district (default: Q1).
 
     Returns:
         int: Số record đã upsert.
@@ -152,22 +166,28 @@ def run(engine: Engine, **kwargs) -> int:
     logger = get_logger("corridor_pipeline")
 
     target_dk = kwargs.get("target_date_key", derive_date_key())
-    bbox = kwargs.get("bbox", BBOX_DISTRICT_1)
+    gold_corridors = {name.strip() for name in settings.get_gold_corridor_names() if name.strip()}
 
     with Session(engine) as session:
         result = session.execute(
             _CORRIDOR_QUERY,
             {
                 "target_date_key": target_dk,
-                "min_lon": bbox["min_lon"],
-                "min_lat": bbox["min_lat"],
-                "max_lon": bbox["max_lon"],
-                "max_lat": bbox["max_lat"],
             },
         )
         rows = [dict(r._mapping) for r in result]
 
-    logger.info(f"Queried {len(rows)} corridor aggregation rows for date_key={target_dk}")
+    if gold_corridors:
+        rows = [row for row in rows if str(row.get("corridor_name", "")).strip() in gold_corridors]
+
+    distinct_corridors = len({int(r["corridor_key"]) for r in rows}) if rows else 0
+    logger.info(
+        "Queried %s corridor aggregation rows for date_key=%s (distinct_corridors=%s, gold_whitelist=%s)",
+        len(rows),
+        target_dk,
+        distinct_corridors,
+        len(gold_corridors),
+    )
 
     if not rows:
         logger.warning("No corridor data found")

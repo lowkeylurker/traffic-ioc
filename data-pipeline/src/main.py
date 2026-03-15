@@ -3,17 +3,24 @@
 Commands:
     run-static     Sinh + UPSERT dimension thời gian + ngày lễ
     run-spatial    Download OSM network + UPSERT spatial dims
-    run-realtime   Weather → Traffic Flow → Incident (1 cycle)
-    run-batch      Nightly: baseline + corridor performance
+    run-realtime   Weather → Traffic Flow → Incident (priority corridors, critical segments)
+    run-batch      Nightly: baseline (all) + corridor performance (priority corridors)
     run-all        Chạy tất cả theo thứ tự FK
     health         Kiểm tra kết nối Database
+    
+Note: As of Mar 2026, realtime ETL selects critical segments from priority corridors
+under request budget constraints.
 """
 
 from __future__ import annotations
 
+from collections import defaultdict
+from math import ceil
 import time
+import os
 from typing import Tuple
 
+import requests
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -49,14 +56,16 @@ Commands:
     run-spatial                    Download OSM network + UPSERT spatial dims
     run-osm-district1              Download OSM for District 1 only (fast, MVP)
     run-osm-central-districts      Download OSM for central districts (expanded)
-    run-realtime                   Weather → Traffic Flow → Incident (all data)
-    run-realtime-central-districts Weather → Traffic Flow → Incident (central only)
-    run-batch                      Nightly: baseline + corridor performance (all)
-    run-corridor-central-districts Corridor performance for central districts only
+    run-realtime                   Weather → Traffic Flow → Incident (Quận 1 only) [OFFICIAL]
+    run-cycle                      One-shot cycle: run-realtime → run-batch
+    run-realtime-central-districts Weather → Traffic Flow → Incident (central districts)
+    run-batch                      Nightly: baseline (all) + corridor perf (Quận 1) [OFFICIAL]
+    run-corridor-central-districts Corridor performance for Quận 1 (alias for run-batch corridor step)
     run-all                        Chạy tất cả theo thứ tự FK
     health                         Kiểm tra kết nối Database
 
-Central Districts: Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, 10, 11
+As of Mar 2026: Official production ETL targets Quận 1 corridors only (~920 segments).
+Central Districts (legacy): Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, 10, 11
 """
 # ═══════════════════════════════════════════════════════════
 # COMMANDS
@@ -72,6 +81,110 @@ def health() -> None:
         raise typer.Exit(code=0)
     else:
         typer.echo("❌ Database connection FAILED")
+        raise typer.Exit(code=1)
+
+
+@app.command("health-tomtom-keys")
+def health_tomtom_keys(
+    timeout_sec: int = typer.Option(
+        8,
+        min=3,
+        max=30,
+        help="HTTP timeout per key probe (seconds)",
+    ),
+) -> None:
+    """Daily TomTom key health check.
+
+    Reports:
+      - usable_keys
+      - blocked_keys
+      - effective_budget/cycle (req)
+      - safe_traffic_segment_limit/cycle
+    """
+
+    keys = settings.get_tomtom_keys()
+    if not keys:
+        typer.echo("❌ No TomTom keys configured (TOMTOM_API_KEYS / TOMTOM_API_KEY)")
+        raise typer.Exit(code=1)
+
+    from src.core.api_key_pool import get_key_pool
+
+    pool = get_key_pool()
+
+    base_url = "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json"
+    probe_params = {
+        "point": "10.7764,106.7011",
+        "unit": "KMPH",
+    }
+
+    rows: list[tuple[str, str, str]] = []
+    probe_usable = 0
+    probe_blocked = 0
+
+    for key in keys:
+        masked = f"...{key[-8:]}"
+        params = dict(probe_params)
+        params["key"] = key
+        try:
+            r = requests.get(base_url, params=params, timeout=timeout_sec)
+            if r.status_code == 200:
+                probe_usable += 1
+                pool.record_success(key)
+                rows.append((masked, "usable", "HTTP 200"))
+            elif r.status_code == 403:
+                probe_blocked += 1
+                pool.mark_blocked(key)
+                detail = "HTTP 403 (Forbidden / entitlement / quota)"
+                rows.append((masked, "blocked", detail))
+            else:
+                probe_blocked += 1
+                rows.append((masked, "blocked", f"HTTP {r.status_code}"))
+        except requests.RequestException as e:
+            probe_blocked += 1
+            rows.append((masked, "blocked", f"network error: {e.__class__.__name__}"))
+
+    snapshot = pool.snapshot()
+    runtime_available = len(snapshot.get("available", []))
+    runtime_blocked = len(snapshot.get("blocked", []))
+    runtime_exhausted = len(snapshot.get("exhausted", []))
+
+    cycles_per_day = max(1, int(os.getenv("ETL_ACTIVE_CYCLES_PER_DAY", "61")))
+    daily_limit = int(settings.tomtom_daily_limit_per_key or 2500)
+    reserve = int(os.getenv("NON_TRAFFIC_REQ_RESERVE", "3"))
+    headroom = float(os.getenv("TRAFFIC_REQ_HEADROOM_PCT", "0.10"))
+    effective_budget_per_cycle = (runtime_available * daily_limit) // cycles_per_day
+    safe_traffic_limit = max(
+        1,
+        int(max(1, effective_budget_per_cycle - reserve) * (1.0 - headroom)),
+    )
+
+    console.print(Panel.fit(
+        "[bold cyan]🔎 TOMTOM KEY HEALTH CHECK[/bold cyan]\n"
+        "[dim]Probe endpoint: traffic flow absolute/10/json[/dim]",
+        border_style="cyan",
+    ))
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Key", style="magenta", width=14)
+    table.add_column("Status", style="green", width=10)
+    table.add_column("Detail", style="dim", width=48)
+    for masked, status, detail in rows:
+        color = "green" if status == "usable" else "red"
+        table.add_row(masked, f"[{color}]{status}[/{color}]", detail)
+    console.print(table)
+
+    console.print(
+        "probe: "
+        f"usable_keys={probe_usable} | blocked_keys={probe_blocked}"
+    )
+    console.print(
+        "runtime_pool: "
+        f"available={runtime_available} | blocked={runtime_blocked} | exhausted={runtime_exhausted} | "
+        f"effective_budget/cycle={effective_budget_per_cycle} req | "
+        f"safe_traffic_segment_limit/cycle={safe_traffic_limit}"
+    )
+
+    if runtime_available == 0:
         raise typer.Exit(code=1)
 
 
@@ -396,10 +509,117 @@ _SEGMENT_QUERY_WITH_BBOX = text("""
         LIMIT  :limit
 """)
 
-# Max segments per realtime cycle (TomTom free ≈ 2 500 calls/day,
-# 96 cycles@15 min → ~25 per cycle).  Increase if paid plan.
+_SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
+        WITH active_corridors AS (
+            SELECT c.corridor_key,
+                   c.corridor_name,
+                   COALESCE(c.importance_level, 0) AS importance_level
+            FROM dim_corridor c
+            WHERE c.corridor_version = (SELECT COALESCE(MAX(corridor_version), 1) FROM dim_corridor)
+        ),
+        recent_traffic AS (
+            SELECT f.segment_key,
+                   AVG(COALESCE(f.delay_seconds, 0)) AS avg_delay_seconds,
+                   AVG(
+                       CASE
+                           WHEN f.free_flow_speed_kmh > 0 THEN f.free_flow_speed_kmh / NULLIF(f.current_speed_kmh, 0)
+                           ELSE 1.0
+                       END
+                   ) AS avg_tti,
+                   COUNT(*) AS sample_count
+            FROM fact_traffic_flow f
+            WHERE f.timestamp >= (NOW() - INTERVAL '7 days')
+            GROUP BY f.segment_key
+        ),
+        recent_incident AS (
+            SELECT i.segment_key,
+                   COUNT(*) AS incident_count
+            FROM fact_incident i
+            WHERE i.timestamp >= (NOW() - INTERVAL '14 days')
+            GROUP BY i.segment_key
+        ),
+        corridor_segment_candidates AS (
+            SELECT
+                ac.corridor_key,
+                ac.corridor_name,
+                ac.importance_level,
+                s.segment_key,
+                ST_Y(s.geometry_center) AS lat,
+                ST_X(s.geometry_center) AS lon,
+                COALESCE(w.default_lane_count, 2) AS lane_count,
+                COALESCE(s.length_m, 0) AS length_m,
+                COUNT(*) OVER (PARTITION BY ac.corridor_key) AS corridor_total_segments,
+                (
+                    COALESCE(rt.avg_delay_seconds, 0) * 0.50
+                    + COALESCE(rt.avg_tti - 1.0, 0) * 120.0
+                    + COALESCE(ri.incident_count, 0) * 8.0
+                    + CASE
+                        WHEN ac.importance_level >= 5 THEN 40.0
+                        WHEN ac.importance_level = 4 THEN 24.0
+                        ELSE 12.0
+                      END
+                ) AS critical_score
+            FROM active_corridors ac
+            JOIN bridge_corridor_segment bcs ON bcs.corridor_key = ac.corridor_key
+            JOIN dim_segment s ON s.segment_key = bcs.segment_key
+            JOIN dim_way w ON w.way_key = s.way_key
+            LEFT JOIN recent_traffic rt ON rt.segment_key = s.segment_key
+            LEFT JOIN recent_incident ri ON ri.segment_key = s.segment_key
+            WHERE s.geometry_center IS NOT NULL
+              AND w.osm_highway_type IN ('primary', 'secondary', 'tertiary', 'trunk')
+        )
+    SELECT corridor_key,
+           corridor_name,
+           importance_level,
+           corridor_total_segments,
+           segment_key,
+           lat,
+           lon,
+           lane_count,
+           length_m,
+           critical_score
+    FROM corridor_segment_candidates
+    ORDER BY importance_level DESC, corridor_key, critical_score DESC, length_m DESC, segment_key
+""")
+
+# Legacy fallback limit (non-corridor mode, single key free tier).
 _MAX_SEGMENTS_PER_CYCLE = 25
 _OVERFETCH_FACTOR = 3
+
+# Hard safety cap for target-corridor mode – set above max full-coverage budget
+# so it never truncates legitimate high-key pools (e.g. 20 keys → ~1 323 segs/cycle).
+_MAX_SEGMENTS_TARGET_CORRIDORS = 2000
+
+# Realtime budget mode default: auto-computed from key pool at startup.
+# Formula: (N_keys × daily_limit ÷ cycles_per_day) - reserve - 10% headroom
+# Default cycles/day = 61 for 06:00-21:00 every 15 minutes (inclusive 21:00).
+# Examples (61 cycles): 1 key ≈ 36, 3 keys ≈ 107, 5 keys ≈ 180, 10 keys ≈ 365, 20 keys ≈ 734
+def _compute_budget_safe_segments() -> int:
+    n_keys = max(1, len(settings.get_tomtom_keys()))
+    daily_limit = int(settings.tomtom_daily_limit_per_key or 2500)
+    cycles = max(1, int(os.getenv("ETL_ACTIVE_CYCLES_PER_DAY", "61")))
+    reserve = int(os.getenv("NON_TRAFFIC_REQ_RESERVE", "3"))
+    headroom = float(os.getenv("TRAFFIC_REQ_HEADROOM_PCT", "0.10"))
+    raw = max(1, n_keys * daily_limit // cycles - reserve)
+    return max(1, int(raw * (1.0 - headroom)))
+
+
+_BUDGET_SAFE_SEGMENTS_PER_CYCLE = _compute_budget_safe_segments()
+
+
+def _get_min_corridor_coverage_pct() -> float:
+    """Minimum corridor coverage guaranteed in pass 1.
+
+    Environment override:
+      TARGET_CORRIDOR_MIN_COVERAGE_PCT, default=0.60
+    """
+    raw = float(os.getenv("TARGET_CORRIDOR_MIN_COVERAGE_PCT", "0.60"))
+    return max(0.05, min(0.80, raw))
+
+
+def _get_gold_corridor_name_set() -> set[str]:
+    """Return configured gold corridor whitelist as a normalized set."""
+    return {name.strip() for name in settings.get_gold_corridor_names() if name.strip()}
 
 
 def _resolve_option_default(value):
@@ -407,10 +627,228 @@ def _resolve_option_default(value):
     return getattr(value, "default", value)
 
 
+def _allocate_target_corridor_segments(rows, limit: int) -> list[dict]:
+    """Allocate segments using two-pass corridor coverage logic.
+
+    Pass 1:
+            Admit only the subset of corridors that the budget can support at the
+            configured minimum coverage ratio.
+    Pass 2:
+            Use remaining budget to top up admitted high-priority corridors.
+    """
+    corridor_meta: dict[int, dict] = {}
+    corridor_candidates: dict[int, list[tuple[int, float, float]]] = defaultdict(list)
+    segment_memberships: dict[int, set[int]] = defaultdict(set)
+    segment_records: dict[int, dict] = {}
+    gold_corridors = _get_gold_corridor_name_set()
+
+    for row in rows:
+        record = dict(row._mapping)
+        corridor_name = (record["corridor_name"] or f"corridor_{record['corridor_key']}").strip()
+        if gold_corridors and corridor_name not in gold_corridors:
+            continue
+        corridor_key = int(record["corridor_key"])
+        segment_key = int(record["segment_key"])
+        importance_level = int(record["importance_level"] or 0)
+        corridor_total_segments = int(record["corridor_total_segments"] or 0)
+        critical_score = float(record["critical_score"] or 0.0)
+        length_m = float(record["length_m"] or 0.0)
+
+        corridor_meta.setdefault(
+            corridor_key,
+            {
+                "name": corridor_name,
+                "importance_level": importance_level,
+                "total_segments": max(1, corridor_total_segments),
+            },
+        )
+        corridor_candidates[corridor_key].append((segment_key, critical_score, length_m))
+        segment_memberships[segment_key].add(corridor_key)
+        segment_records.setdefault(
+            segment_key,
+            {
+                "segment_key": segment_key,
+                "lat": float(record["lat"]),
+                "lon": float(record["lon"]),
+                "lane_count": max(1, int(record["lane_count"] or 2)),
+            },
+        )
+
+    for corridor_key in corridor_candidates:
+        corridor_candidates[corridor_key].sort(key=lambda item: (-item[1], -item[2], item[0]))
+
+    if not corridor_meta:
+        logger.warning("[run-realtime] no corridors available after applying gold whitelist")
+        return []
+
+    min_pct = _get_min_corridor_coverage_pct()
+    min_targets = {
+        corridor_key: min(
+            meta["total_segments"],
+            max(1, int(ceil(meta["total_segments"] * min_pct))),
+        )
+        for corridor_key, meta in corridor_meta.items()
+    }
+    corridor_priority = sorted(
+        corridor_meta,
+        key=lambda corridor_key: (
+            -corridor_meta[corridor_key]["importance_level"],
+            -corridor_meta[corridor_key]["total_segments"],
+            corridor_key,
+        ),
+    )
+    admitted_corridors: list[int] = []
+    admitted_floor_cost = 0
+    for corridor_key in corridor_priority:
+        floor_cost = min_targets[corridor_key]
+        if admitted_floor_cost + floor_cost <= limit:
+            admitted_corridors.append(corridor_key)
+            admitted_floor_cost += floor_cost
+    if not admitted_corridors and corridor_priority:
+        admitted_corridors.append(corridor_priority[0])
+        admitted_floor_cost = min_targets[corridor_priority[0]]
+
+    admitted_set = set(admitted_corridors)
+    selected_segments: set[int] = set()
+    selected_order: list[int] = []
+    corridor_selected_counts = {corridor_key: 0 for corridor_key in corridor_meta}
+    corridor_cursors = {corridor_key: 0 for corridor_key in corridor_meta}
+
+    def _select_segment(segment_key: int) -> bool:
+        if segment_key in selected_segments:
+            return False
+        selected_segments.add(segment_key)
+        selected_order.append(segment_key)
+        for member_corridor in segment_memberships.get(segment_key, set()):
+            corridor_selected_counts[member_corridor] += 1
+        return True
+
+    def _next_available_segment(corridor_key: int) -> int | None:
+        candidates = corridor_candidates[corridor_key]
+        cursor = corridor_cursors[corridor_key]
+        while cursor < len(candidates) and candidates[cursor][0] in selected_segments:
+            cursor += 1
+        corridor_cursors[corridor_key] = cursor
+        if cursor >= len(candidates):
+            return None
+        return int(candidates[cursor][0])
+
+    # Pass 1: minimum coverage floor for admitted corridors only.
+    while len(selected_segments) < limit:
+        pending = [
+            corridor_key
+            for corridor_key in admitted_corridors
+            if corridor_selected_counts[corridor_key] < min_targets[corridor_key]
+        ]
+        if not pending:
+            break
+
+        pending.sort(
+            key=lambda corridor_key: (
+                corridor_selected_counts[corridor_key] / max(1, min_targets[corridor_key]),
+                -corridor_meta[corridor_key]["importance_level"],
+                corridor_meta[corridor_key]["total_segments"],
+                corridor_key,
+            )
+        )
+
+        progress = False
+        for corridor_key in pending:
+            next_segment = _next_available_segment(corridor_key)
+            if next_segment is None:
+                continue
+            corridor_cursors[corridor_key] += 1
+            if _select_segment(next_segment):
+                progress = True
+                if len(selected_segments) >= limit:
+                    break
+        if not progress:
+            break
+
+    pass1_selected = len(selected_segments)
+
+    # Pass 2: top up admitted corridors only, prioritizing L5 then L4 then the rest.
+    for eligible in (
+        [corridor_key for corridor_key in admitted_corridors if corridor_meta[corridor_key]["importance_level"] >= 5],
+        [corridor_key for corridor_key in admitted_corridors if corridor_meta[corridor_key]["importance_level"] == 4],
+        [corridor_key for corridor_key in admitted_corridors if corridor_meta[corridor_key]["importance_level"] < 4],
+    ):
+        if not eligible:
+            continue
+
+        while len(selected_segments) < limit:
+            progress = False
+            ordered = sorted(
+                eligible,
+                key=lambda corridor_key: (
+                    corridor_selected_counts[corridor_key] / max(1, corridor_meta[corridor_key]["total_segments"]),
+                    -corridor_meta[corridor_key]["importance_level"],
+                    -corridor_meta[corridor_key]["total_segments"],
+                    corridor_key,
+                ),
+            )
+            for corridor_key in ordered:
+                next_segment = _next_available_segment(corridor_key)
+                if next_segment is None:
+                    continue
+                corridor_cursors[corridor_key] += 1
+                if _select_segment(next_segment):
+                    progress = True
+                    if len(selected_segments) >= limit:
+                        break
+            if not progress:
+                break
+        if len(selected_segments) >= limit:
+            break
+
+    logger.info(
+        "[run-realtime] two-pass allocation: pass1_target_pct=%.2f, gold_whitelist=%d, admitted_corridors=%d/%d, admitted_floor_cost=%d, pass1_selected=%d, total_selected=%d",
+        min_pct,
+        len(gold_corridors),
+        len(admitted_corridors),
+        len(corridor_meta),
+        admitted_floor_cost,
+        pass1_selected,
+        len(selected_segments),
+    )
+
+    coverage_preview = sorted(
+        [
+            (
+                corridor_meta[corridor_key]["name"],
+                corridor_selected_counts[corridor_key],
+                corridor_meta[corridor_key]["total_segments"],
+                corridor_selected_counts[corridor_key] / max(1, corridor_meta[corridor_key]["total_segments"]),
+            )
+            for corridor_key in admitted_corridors
+        ],
+        key=lambda item: (item[3], item[2], item[0]),
+    )
+    for corridor_name, selected_count, total_segments, coverage in coverage_preview[:8]:
+        logger.info(
+            "[run-realtime] coverage preview: %s -> %d/%d (%.1f%%)",
+            corridor_name,
+            selected_count,
+            total_segments,
+            coverage * 100.0,
+        )
+
+    skipped_preview = [corridor_meta[corridor_key]["name"] for corridor_key in corridor_priority if corridor_key not in admitted_set]
+    if skipped_preview:
+        logger.info(
+            "[run-realtime] skipped corridors due to quality floor budget: %s",
+            ", ".join(skipped_preview[:12]),
+        )
+
+    return [segment_records[segment_key] for segment_key in selected_order[:limit]]
+
+
 def _load_segment_points(
     engine: Engine,
     limit: int = _MAX_SEGMENTS_PER_CYCLE,
     bbox: dict | None = None,
+    target_corridor_mode: bool = False,
+    full_target_coverage: bool = True,
     overfetch_factor: int = _OVERFETCH_FACTOR,
 ) -> Tuple[list, list, dict, dict]:
     """Return (points, segment_keys, segment_key_map, lane_count_map) from dim_segment.
@@ -424,6 +862,8 @@ def _load_segment_points(
         engine: SQLAlchemy Engine
         limit: Max segments to load (default 25 for TomTom free tier)
         bbox: Optional bounding box dict {min_lon, max_lon, min_lat, max_lat} to filter segments
+        target_corridor_mode: If True, use priority corridor critical-segment selection
+        full_target_coverage: If True, force full target-corridor coverage.
         overfetch_factor: Fetch extra candidates to compensate invalid/duplicate points
     """
     points = []
@@ -433,10 +873,18 @@ def _load_segment_points(
     
     # Ensure limit is int (Typer OptionInfo → int when called from run_all)
     limit = int(_resolve_option_default(limit)) if not isinstance(limit, int) else limit
-    query_limit = max(limit, int(limit * max(1, overfetch_factor)))
+    
+    # For target corridor mode we always honor caller-provided limit.
+    if target_corridor_mode:
+        effective_limit = limit
+        query_limit = limit
+    else:
+        query_limit = max(limit, int(limit * max(1, overfetch_factor)))
 
     with engine.connect() as conn:
-        if bbox:
+        if target_corridor_mode:
+            rows = conn.execute(_SEGMENT_QUERY_BY_TARGET_CORRIDORS).fetchall()
+        elif bbox:
             # Use query with bbox filter for central districts
             params = {
                 "limit": query_limit,
@@ -450,26 +898,39 @@ def _load_segment_points(
             # Use original query without bbox filter
             rows = conn.execute(_SEGMENT_QUERY, {"limit": query_limit}).fetchall()
     
-    seen_points: set[tuple[float, float]] = set()
+    if target_corridor_mode:
+        rows = _allocate_target_corridor_segments(rows, effective_limit)
+
+    seen_segment_keys: set[int] = set()
     duplicate_count = 0
-    for seg_key, lat, lon, lane_count in rows:
-        pt = (round(lat, 6), round(lon, 6))
-        if pt in seen_points:
+    for row in rows:
+        if target_corridor_mode:
+            seg_key = int(row["segment_key"])
+            lat = float(row["lat"])
+            lon = float(row["lon"])
+            lane_count = int(row["lane_count"])
+        else:
+            seg_key, lat, lon, lane_count = row
+        if int(seg_key) in seen_segment_keys:
             duplicate_count += 1
             continue
-        seen_points.add(pt)
+
+        pt = (round(lat, 6), round(lon, 6))
+        seen_segment_keys.add(int(seg_key))
 
         points.append(pt)
         seg_keys.append(seg_key)
         seg_map[pt] = seg_key
         lane_count_map[int(seg_key)] = max(1, int(lane_count or 2))
 
-        if len(points) >= limit:
+        # For target corridors, use effective_limit; otherwise use original limit
+        actual_limit = effective_limit if target_corridor_mode else limit
+        if len(points) >= actual_limit:
             break
     
-    bbox_label = f" (bbox: {bbox})" if bbox else ""
+    mode_label = "priority_corridors_critical" if target_corridor_mode else (f"bbox: {bbox}" if bbox else "all")
     logger.info(
-        f"[run-realtime] Loaded {len(points)} segment points from DB{bbox_label} "
+        f"[run-realtime] Loaded {len(points)} segment points from DB ({mode_label}) "
         f"(query_limit={query_limit}, duplicates_skipped={duplicate_count})"
     )
     return points, seg_keys, seg_map, lane_count_map
@@ -478,26 +939,39 @@ def _load_segment_points(
 @app.command("run-realtime")
 def run_realtime(
     segment_limit: int = typer.Option(
-        _MAX_SEGMENTS_PER_CYCLE,
+        _BUDGET_SAFE_SEGMENTS_PER_CYCLE,
         min=1,
-        max=500,
-        help="Max number of segment points queried per realtime cycle",
+        max=5000,
+        help="Max number of critical segment points queried per realtime cycle",
+    ),
+    budget_mode: bool = typer.Option(
+        False,
+        help="Enable budget mode to honor --segment-limit instead of forcing full target coverage",
     ),
 ) -> None:
     """Phase 3: Weather → Traffic Flow → Incident (1 cycle, cron 15p).
 
+    **OFFICIAL MODE**: Uses priority corridors + critical segments from dim_corridor.
+    
     Thứ tự:
         dim_weather (trả weather_key) → fact_traffic_flow → fact_incident
     """
     start_time = time.time()
     engine = get_engine()
     segment_limit = int(_resolve_option_default(segment_limit))
+    budget_mode = bool(_resolve_option_default(budget_mode))
+    if budget_mode and segment_limit >= _MAX_SEGMENTS_TARGET_CORRIDORS:
+        segment_limit = _BUDGET_SAFE_SEGMENTS_PER_CYCLE
+        logger.info(
+            "[run-realtime] budget_mode enabled without strict --segment-limit; "
+            f"fallback to {_BUDGET_SAFE_SEGMENTS_PER_CYCLE} segments"
+        )
     total = 0
     results = []
 
     console.print(Panel.fit(
-        "[bold cyan]🌤️  PHASE 3: REAL-TIME DATA[/bold cyan]\n"
-        "[dim]Weather + Traffic Flow + Incidents[/dim]",
+        "[bold cyan]🌤️  PHASE 3: REAL-TIME DATA (PRIORITY CORRIDORS)[/bold cyan]\n"
+        "[dim]Weather + Traffic Flow + Incidents (critical segments)[/dim]",
         border_style="cyan"
     ))
 
@@ -508,28 +982,46 @@ def run_realtime(
         TimeElapsedColumn(),
         console=console,
     ) as progress:
-        # Weather → trả weather_key (FK)
-        weather_key = 800  # default
-        task1 = progress.add_task("[cyan]Current weather...", total=None)
-        try:
-            from src.pipelines.real_time.weather_pipeline import run as run_weather
-
-            weather_key = run_weather(engine)
-            logger.info(f"[run-realtime] weather_pipeline: weather_key={weather_key}")
-            results.append(("Weather Data", 1, "✓"))
-            progress.update(task1, completed=True)
-        except PipelineError as e:
-            logger.error(f"[run-realtime] weather_pipeline failed: {e}")
-            results.append(("Weather Data", 0, "✗"))
-            progress.update(task1, completed=True)
-
-        # Load segment coordinates from DB
-        task2 = progress.add_task("[cyan]Loading segment points...", total=None)
+        # Load segment coordinates from DB (priority corridors + critical segments)
+        task1 = progress.add_task("[cyan]Loading critical segment points...", total=None)
         points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(
             engine,
             limit=segment_limit,
+            target_corridor_mode=True,
+            full_target_coverage=not budget_mode,
         )
-        progress.update(task2, completed=True)
+        progress.update(task1, completed=True)
+
+        # Weather grid mode (Option C): assign weather_key per segment via active 500m cells.
+        weather_key = 800  # default fallback
+        segment_weather_key_map: dict[int, int] = {}
+        task2 = progress.add_task("[cyan]Current weather (grid 500m)...", total=None)
+        try:
+            from src.pipelines.real_time.weather_pipeline import run_grid_for_points
+
+            grid_size_m = max(100, int(os.getenv("OWM_GRID_SIZE_M", "500")))
+            point_weather_key_map = run_grid_for_points(
+                engine,
+                points,
+                grid_size_m=grid_size_m,
+            )
+            segment_weather_key_map = {
+                int(segment_keys[idx]): int(point_weather_key_map.get(points[idx], weather_key))
+                for idx in range(min(len(points), len(segment_keys)))
+            }
+            logger.info(
+                "[run-realtime] weather grid: grid_size=%dm, points=%d, mapped_segments=%d, distinct_weather_keys=%d",
+                grid_size_m,
+                len(points),
+                len(segment_weather_key_map),
+                len(set(segment_weather_key_map.values())),
+            )
+            results.append(("Weather Data", len(set(segment_weather_key_map.values())), "✓"))
+            progress.update(task2, completed=True)
+        except Exception as e:
+            logger.error(f"[run-realtime] weather_grid failed: {e}")
+            results.append(("Weather Data", 0, "✗"))
+            progress.update(task2, completed=True)
 
         # Traffic Flow
         task3 = progress.add_task("[cyan]Traffic flow data...", total=None)
@@ -539,6 +1031,7 @@ def run_realtime(
             count = run_traffic(
                 engine,
                 weather_key=weather_key,
+                weather_key_map=segment_weather_key_map,
                 points=points,
                 segment_keys=segment_keys,
                 segment_key_map=segment_key_map,
@@ -576,20 +1069,20 @@ def run_realtime(
 @app.command("run-realtime-central-districts")
 def run_realtime_central_districts(
     segment_limit: int = typer.Option(
-        _MAX_SEGMENTS_PER_CYCLE,
+        _MAX_SEGMENTS_TARGET_CORRIDORS,
         min=1,
-        max=500,
-        help="Max number of segment points queried per realtime cycle for central districts",
+        max=2000,
+        help="Max number of segment points queried per realtime cycle for central districts (default: 1000 for full corridor coverage)",
     ),
 ) -> None:
-    """Phase 3 - Extended: Weather → Traffic Flow → Incident for CENTRAL DISTRICTS.
+    """Phase 3 - Extended: Weather → Traffic Flow → Incident for DISTRICT 1.
 
-    Coverage: Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, Quận 10, 11
+    Coverage: Quận 1 only (ALL segments belonging to corridors in Q1, ~920 segments as of Mar 2026)
 
     Thứ tự:
         dim_weather (trả weather_key) → fact_traffic_flow → fact_incident
     """
-    from src.domain.geo.constants import BBOX_CENTRAL_DISTRICTS
+    from src.domain.geo.constants import BBOX_TARGET_DISTRICT
 
     start_time = time.time()
     engine = get_engine()
@@ -598,8 +1091,8 @@ def run_realtime_central_districts(
     results = []
 
     console.print(Panel.fit(
-        "[bold cyan]🌤️  PHASE 3 - CENTRAL DISTRICTS[/bold cyan]\n"
-        "[dim]Weather + Traffic Flow + Incidents (multiple districts)[/dim]",
+        "[bold cyan]🌤️  PHASE 3 - DISTRICT 1[/bold cyan]\n"
+        "[dim]Weather + Traffic Flow + Incidents (Quận 1 only)[/dim]",
         border_style="cyan"
     ))
 
@@ -610,35 +1103,52 @@ def run_realtime_central_districts(
         TimeElapsedColumn(),
         console=console,
     ) as progress:
-        weather_key = 800
-        task1 = progress.add_task("[cyan]Current weather...", total=None)
-        try:
-            from src.pipelines.real_time.weather_pipeline import run as run_weather
-
-            weather_key = run_weather(engine)
-            logger.info(f"[run-realtime-central-districts] weather_pipeline: weather_key={weather_key}")
-            results.append(("Weather Data", 1, "✓"))
-            progress.update(task1, completed=True)
-        except PipelineError as e:
-            logger.error(f"[run-realtime-central-districts] weather_pipeline failed: {e}")
-            results.append(("Weather Data", 0, "✗"))
-            progress.update(task1, completed=True)
-
-        task2 = progress.add_task("[cyan]Loading segment points (central)...", total=None)
+        task1 = progress.add_task("[cyan]Loading segment points (Q1 corridors)...", total=None)
         points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(
             engine,
             limit=segment_limit,
-            bbox=BBOX_CENTRAL_DISTRICTS,
+            target_corridor_mode=True,
         )
-        progress.update(task2, completed=True)
+        progress.update(task1, completed=True)
 
-        task3 = progress.add_task("[cyan]Traffic flow data (central)...", total=None)
+        weather_key = 800
+        segment_weather_key_map: dict[int, int] = {}
+        task2 = progress.add_task("[cyan]Current weather (grid 500m)...", total=None)
+        try:
+            from src.pipelines.real_time.weather_pipeline import run_grid_for_points
+
+            grid_size_m = max(100, int(os.getenv("OWM_GRID_SIZE_M", "500")))
+            point_weather_key_map = run_grid_for_points(
+                engine,
+                points,
+                grid_size_m=grid_size_m,
+            )
+            segment_weather_key_map = {
+                int(segment_keys[idx]): int(point_weather_key_map.get(points[idx], weather_key))
+                for idx in range(min(len(points), len(segment_keys)))
+            }
+            logger.info(
+                "[run-realtime-central-districts] weather grid: grid_size=%dm, points=%d, mapped_segments=%d, distinct_weather_keys=%d",
+                grid_size_m,
+                len(points),
+                len(segment_weather_key_map),
+                len(set(segment_weather_key_map.values())),
+            )
+            results.append(("Weather Data", len(set(segment_weather_key_map.values())), "✓"))
+            progress.update(task2, completed=True)
+        except Exception as e:
+            logger.error(f"[run-realtime-central-districts] weather_grid failed: {e}")
+            results.append(("Weather Data", 0, "✗"))
+            progress.update(task2, completed=True)
+
+        task3 = progress.add_task("[cyan]Traffic flow data (Q1)...", total=None)
         try:
             from src.pipelines.real_time.traffic_pipeline import run as run_traffic
 
             count = run_traffic(
                 engine,
                 weather_key=weather_key,
+                weather_key_map=segment_weather_key_map,
                 points=points,
                 segment_keys=segment_keys,
                 segment_key_map=segment_key_map,
@@ -653,11 +1163,11 @@ def run_realtime_central_districts(
             results.append(("Traffic Flow", 0, "✗"))
             progress.update(task3, completed=True)
 
-        task4 = progress.add_task("[cyan]Traffic incidents (central)...", total=None)
+        task4 = progress.add_task("[cyan]Traffic incidents (Q1)...", total=None)
         try:
             from src.pipelines.real_time.incident_pipeline import run as run_incident
 
-            count = run_incident(engine, bbox=BBOX_CENTRAL_DISTRICTS)
+            count = run_incident(engine, bbox=BBOX_TARGET_DISTRICT)
             logger.info(f"[run-realtime-central-districts] incident_pipeline: {count} records")
             total += count
             results.append(("Traffic Incidents", count, "✓"))
@@ -674,15 +1184,20 @@ def run_realtime_central_districts(
 
 @app.command("run-batch")
 def run_batch() -> None:
-    """Phase 4: Nightly batch – baseline speed + corridor performance."""
+    """Phase 4: Nightly batch – baseline speed + corridor performance.
+    
+    **OFFICIAL Q1 MODE**: Corridor performance uses Quận 1 filtering.
+    """
+    from src.domain.geo.constants import BBOX_TARGET_DISTRICT
+    
     start_time = time.time()
     engine = get_engine()
     total = 0
     results = []
 
     console.print(Panel.fit(
-        "[bold magenta]📊 PHASE 4: BATCH ANALYTICS[/bold magenta]\n"
-        "[dim]Baseline Speed + Corridor Performance[/dim]",
+        "[bold magenta]📊 PHASE 4: BATCH ANALYTICS (DISTRICT 1)[/bold magenta]\n"
+        "[dim]Baseline Speed (All) + Corridor Performance (Q1)[/dim]",
         border_style="magenta"
     ))
 
@@ -693,7 +1208,7 @@ def run_batch() -> None:
         TimeElapsedColumn(),
         console=console,
     ) as progress:
-        # Baseline speed
+        # Baseline speed (all segments)
         task1 = progress.add_task("[cyan]Baseline speed calculation...", total=None)
         try:
             from src.pipelines.ml_features.baseline_pipeline import run as run_base
@@ -708,19 +1223,19 @@ def run_batch() -> None:
             results.append(("Baseline Speed", 0, "✗"))
             progress.update(task1, completed=True)
 
-        # Corridor performance
-        task2 = progress.add_task("[cyan]Corridor performance...", total=None)
+        # Corridor performance (Q1 only)
+        task2 = progress.add_task("[cyan]Corridor performance (Q1)...", total=None)
         try:
             from src.pipelines.ml_features.corridor_pipeline import run as run_corr
 
-            count = run_corr(engine)
-            logger.info(f"[run-batch] corridor_pipeline: {count} records")
+            count = run_corr(engine, bbox=BBOX_TARGET_DISTRICT)
+            logger.info(f"[run-batch] corridor_pipeline (Q1): {count} records")
             total += count
-            results.append(("Corridor Performance", count, "✓"))
+            results.append(("Corridor Performance (Q1)", count, "✓"))
             progress.update(task2, completed=True)
         except PipelineError as e:
             logger.error(f"[run-batch] corridor_pipeline failed: {e}")
-            results.append(("Corridor Performance", 0, "✗"))
+            results.append(("Corridor Performance (Q1)", 0, "✗"))
             progress.update(task2, completed=True)
 
     elapsed = time.time() - start_time
@@ -728,13 +1243,63 @@ def run_batch() -> None:
     typer.echo("")
 
 
+@app.command("run-cycle")
+def run_cycle(
+    segment_limit: int = typer.Option(
+        _BUDGET_SAFE_SEGMENTS_PER_CYCLE,
+        min=1,
+        max=5000,
+        help="Segment cap for realtime step in this cycle",
+    ),
+    budget_mode: bool = typer.Option(
+        True,
+        help="Run realtime step in budget mode (recommended for scheduler parity)",
+    ),
+) -> None:
+    """Run one full ETL cycle: realtime then batch.
+
+    This command is designed for dry-run/manual triggering of a single cycle
+    without waiting for scheduler cron windows.
+    """
+    overall_start = time.time()
+    segment_limit = int(_resolve_option_default(segment_limit))
+    budget_mode = bool(_resolve_option_default(budget_mode))
+
+    console.print("\n" + "═" * 80)
+    console.print(Panel.fit(
+        "[bold white]🔁 ONE-SHOT ETL CYCLE[/bold white]\n"
+        "[dim]Step 1: run-realtime  →  Step 2: run-batch[/dim]",
+        border_style="bold white"
+    ))
+    console.print("═" * 80 + "\n")
+
+    logger.info(
+        "[run-cycle] starting one-shot cycle (budget_mode=%s, segment_limit=%s)",
+        budget_mode,
+        segment_limit,
+    )
+
+    run_realtime(segment_limit=segment_limit, budget_mode=budget_mode)
+    run_batch()
+
+    overall_elapsed = time.time() - overall_start
+    logger.info("[run-cycle] cycle completed in %.1fs", overall_elapsed)
+
+    console.print(Panel.fit(
+        f"[bold green]✅ ONE-SHOT CYCLE COMPLETE[/bold green]\n"
+        f"[dim]Total execution time: {overall_elapsed:.2f}s ({overall_elapsed/60:.1f} minutes)[/dim]",
+        border_style="green"
+    ))
+    typer.echo("")
+
+
 @app.command("run-corridor-central-districts")
 def run_corridor_central_districts() -> None:
-    """Calculate corridor performance for CENTRAL DISTRICTS only (Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, 10, 11).
+    """Calculate corridor performance for Quận 1 only.
 
-    This processes fact_corridor_performance for central districts instead of all districts.
+    This aggregates target corridors from fact_traffic_flow.
     """
-    from src.domain.geo.constants import BBOX_CENTRAL_DISTRICTS
+    from src.domain.geo.constants import BBOX_TARGET_DISTRICT
 
     start_time = time.time()
     engine = get_engine()
@@ -742,8 +1307,8 @@ def run_corridor_central_districts() -> None:
     results = []
 
     console.print(Panel.fit(
-        "[bold magenta]📊 CORRIDOR PERFORMANCE - CENTRAL DISTRICTS[/bold magenta]\n"
-        "[dim]Quận 1, 3, 4, 5, Bình Thạnh, Phú Nhuận, 10, 11[/dim]",
+        "[bold magenta]📊 CORRIDOR PERFORMANCE - DISTRICT 1[/bold magenta]\n"
+        "[dim]Quận 1 only[/dim]",
         border_style="magenta"
     ))
 
@@ -754,11 +1319,11 @@ def run_corridor_central_districts() -> None:
         TimeElapsedColumn(),
         console=console,
     ) as progress:
-        task1 = progress.add_task("[cyan]Corridor performance (central)...", total=None)
+        task1 = progress.add_task("[cyan]Corridor performance (Q1)...", total=None)
         try:
             from src.pipelines.ml_features.corridor_pipeline import run as run_corr
 
-            count = run_corr(engine, bbox=BBOX_CENTRAL_DISTRICTS)
+            count = run_corr(engine, bbox=BBOX_TARGET_DISTRICT)
             logger.info(f"[run-corridor-central-districts] corridor_pipeline: {count} records")
             total += count
             results.append(("Corridor Performance", count, "✓"))

@@ -1,17 +1,30 @@
-# --- Core Dependencies ---
-ultralytics==8.0.200
-scikit-learn==1.3.2
-numpy==1.24.3
-flask==2.3.3
-fastapi==0.104.1
-uvicorn==0.24.0
-opencv-python==4.8.1.78
-torch==2.1.1
-torchvision==0.16.1
-python-dotenv==1.0.0
+# ════════════════════════════════════════════════════════════════════════════════
+# AI-CORE RUNTIME REQUIREMENTS
+# Dependencies cần thiết để chạy API và kết nối database
+# 
+# Cài thêm dependencies tùy theo nhu cầu:
+#   - Development: pip install -r requirements-dev.txt
+#   - ML/Training: pip install -r requirements-ml.txt
+# ════════════════════════════════════════════════════════════════════════════════
 
-# --- Added for CityFlow & Data Engineering ---
-pandas==2.1.3            # Xử lý cấu trúc roadnet và flow
-psycopg2-binary==2.9.9   # Kết nối Postgres Data Warehouse
-requests==2.31.0         # Giao tiếp giữa các service trong monorepo
+# ════════════════════════════════════════════════════════════════════════════════
+# WEB FRAMEWORK & API
+# ════════════════════════════════════════════════════════════════════════════════
+fastapi==0.104.1              # RESTful API framework
+uvicorn[standard]==0.24.0     # ASGI server (web server cho FastAPI)
+pydantic==2.5.0               # Data validation & Settings management
+pydantic-settings==2.1.0      # Load environment variables
+
+# ════════════════════════════════════════════════════════════════════════════════
+# DATABASE & ORM
+# ════════════════════════════════════════════════════════════════════════════════
+sqlalchemy==2.0.23            # ORM for database operations
+psycopg2-binary==2.9.9        # PostgreSQL database adapter
+python-dotenv==1.0.0          # Load .env configuration files
+
+# ════════════════════════════════════════════════════════════════════════════════
+# DATA PROCESSING (Essential)
+# ════════════════════════════════════════════════════════════════════════════════
+numpy==1.24.3                 # Numerical computing (dùng trong database.py và tests)
+pandas==2.0.3                 # Data manipulation (dùng trong database.py)
 

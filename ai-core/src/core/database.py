@@ -12,4 +12,23 @@ Cung cấp:
 Chỉ được import kết nối database, KHÔNG truy vấn từ file này.
 """
 
-# TODO: Triển khai engine SQLAlchemy, session factory, health check
+import os
+from sqlalchemy import create_engine
+import pandas as pd
+from dotenv import load_dotenv
+
+# Load biến môi trường từ file .env
+load_dotenv()
+
+def get_engine():
+    """Tạo SQLAlchemy engine kết nối đến PostgreSQL."""
+    db_user = os.getenv("DB_USER")
+    db_pass = os.getenv("DB_PASSWORD")
+    db_host = os.getenv("DB_HOST")
+    db_port = os.getenv("DB_PORT")
+    db_name = os.getenv("DB_NAME")
+    
+    # Chuỗi kết nối SQLAlchemy cho PostgreSQL
+    db_url = f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
+    engine = create_engine(db_url)
+    return engine

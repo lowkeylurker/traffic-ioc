@@ -17,6 +17,16 @@ echo ""
 echo "🗺️  Phase 2: Spatial Network"
 python -m src.main run-spatial
 
+# Phase 3: Real-time facts (1 cycle: weather → traffic flow → incidents)
+echo ""
+echo "🔄 Phase 3: Real-time Facts"
+python -m src.main run-realtime
+
+# Phase 4: Batch analytics (baseline speed + corridor performance)
+echo ""
+echo "📊 Phase 4: Batch Analytics"
+python -m src.main run-batch
+
 echo ""
 echo "✅ Full ETL Complete!"
 echo "=============================="

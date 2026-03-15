@@ -1,16 +1,12 @@
 """
 app.py - FastAPI Application Factory
 
-Tạo FastAPI app với:
-- CORS enabled
-- Exception handlers
-- Route registration
-- Swagger docs
-- Health check endpoint
+Đây là entry point chính cho uvicorn.
+Import app từ src.main để tránh circular dependency.
 
 Chạy: uvicorn src.api.app:app --host 0.0.0.0 --port 5000 --reload
 """
 
-from fastapi import FastAPI
+from src.main import app
 
-# TODO: Triển khải FastAPI app factory
+__all__ = ["app"]

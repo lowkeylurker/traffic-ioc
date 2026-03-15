@@ -22,10 +22,23 @@ Module này là phần **AI/ML** cho dự án Traffic IOC - Kho dữ liệu và 
 ## ✅ Những gì đã thực hiện
 
 - ✅ Tạo cấu trúc module AI độc lập trong `ai-core/`.
-- ✅ Chuẩn bị `requirements.txt` để quản lý phụ thuộc Python (để bổ sung).
+- ✅ Tách `requirements.txt` thành 3 file (runtime, dev, ml) để tối ưu tốc độ cài đặt.
 - ✅ Chuẩn bị thư mục `models/` để lưu pre-trained models (gitignored).
 - ✅ Thiết kế hướng khởi chạy qua Docker Compose cùng hệ thống tổng.
-- ⏳ **Cần thực hiện:** Đề xuất cấu trúc chi tiết `src/` và triển khai logic.
+- ✅ Hybrid workflow (Local + Docker) cho development nhanh.
+- ⏳ **Cần thực hiện:** Triển khai logic API, training pipelines, model inference.
+
+---
+
+## 📦 Dependencies & Installation
+
+Module sử dụng 3 file requirements tách biệt:
+- **`requirements.txt`** - Runtime dependencies (~200MB, 2-3 phút)
+- **`requirements-dev.txt`** - Testing & linting tools (~50MB, 1-2 phút)
+- **`requirements-ml.txt`** - ML/DL packages (~3-4GB, 15-20 phút)
+
+Chi tiết xem: **[REQUIREMENTS.md](REQUIREMENTS.md)**  
+Workflow development: **[HYBRID_WORKFLOW.md](HYBRID_WORKFLOW.md)**
 
 ---
 

@@ -1,0 +1,49 @@
+# ════════════════════════════════════════════════════════════════════════════════
+# AI-CORE MACHINE LEARNING DEPENDENCIES
+# PyTorch, RL, Classical ML, Visualization
+# Cài sau khi đã code logic cơ bản và cần training/inference
+# ════════════════════════════════════════════════════════════════════════════════
+
+# ════════════════════════════════════════════════════════════════════════════════
+# DEEP LEARNING
+# ════════════════════════════════════════════════════════════════════════════════
+torch==2.1.0                  # PyTorch for LSTM, DQN, PPO
+torchvision==0.16.0           # Vision utilities (nếu cần image-based features)
+
+# ════════════════════════════════════════════════════════════════════════════════
+# CLASSICAL MACHINE LEARNING
+# ════════════════════════════════════════════════════════════════════════════════
+scikit-learn==1.3.2           # Random Forest, clustering, preprocessing
+scipy==1.11.4                 # Scientific computing
+joblib==1.3.2                 # Model serialization
+
+# ════════════════════════════════════════════════════════════════════════════════
+# REINFORCEMENT LEARNING
+# ════════════════════════════════════════════════════════════════════════════════
+gymnasium==0.28.1             # RL environment framework
+stable-baselines3==2.0.0      # DQN, PPO, và các thuật toán RL khác
+tensorboard==2.14.1           # Monitoring training progress
+
+# ════════════════════════════════════════════════════════════════════════════════
+# DATA VISUALIZATION
+# ════════════════════════════════════════════════════════════════════════════════
+matplotlib==3.8.2             # Plotting & visualization
+seaborn==0.13.0               # Statistical data visualization
+plotly==5.18.0                # Interactive plots
+
+# ════════════════════════════════════════════════════════════════════════════════
+# CLI & UTILITIES
+# ════════════════════════════════════════════════════════════════════════════════
+typer==0.9.0                  # CLI framework
+click==8.1.7                  # CLI utilities
+python-dateutil==2.8.2        # Date utilities
+pytz==2023.3                  # Timezone handling
+tqdm==4.66.1                  # Progress bars
+structlog==23.2.0             # Structured logging
+python-json-logger==2.0.7     # JSON logging formatter
+
+# ════════════════════════════════════════════════════════════════════════════════
+# OPTIONAL: TRAFFIC SIMULATION & DETECTION
+# ════════════════════════════════════════════════════════════════════════════════
+# cityflow==1.1  # NOTE: CityFlow không có trên PyPI, cần build từ source
+# ultralytics==8.0.200  # YOLOv8 (nếu cần vehicle detection)

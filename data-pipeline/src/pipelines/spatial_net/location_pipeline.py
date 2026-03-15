@@ -14,6 +14,8 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime
 
+from shapely import wkt as shapely_wkt
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from sqlalchemy import Engine, text
 
 from src.core.logger import get_logger
@@ -73,6 +75,52 @@ def _generate_location_key(ward: str, district: str) -> int:
     return int(hashlib.sha256(raw.encode("utf-8")).hexdigest()[:15], 16)
 
 
+def _validate_and_convert_geometry(wkt_string: str | None, ward: str, district: str) -> str | None:
+    """Validate geometry and convert to Polygon/MultiPolygon if needed.
+    
+    Args:
+        wkt_string: WKT geometry string from OSM
+        ward: Ward name for logging
+        district: District name for logging
+        
+    Returns:
+        Valid Polygon/MultiPolygon WKT string, or None if invalid
+    """
+    if not wkt_string:
+        return None
+    
+    try:
+        geom = shapely_wkt.loads(wkt_string)
+        
+        # Accept Polygon and MultiPolygon as-is
+        if isinstance(geom, (Polygon, MultiPolygon)):
+            return wkt_string
+        
+        # Convert LineString to Polygon using buffer
+        if isinstance(geom, LineString):
+            # Buffer by ~50 meters (approximate, in degrees at HCM lat/lon)
+            # 1 degree ≈ 111 km, so 50m ≈ 0.00045 degrees
+            buffered = geom.buffer(0.00045)
+            if isinstance(buffered, (Polygon, MultiPolygon)):
+                logger = get_logger(__name__)
+                logger.warning(
+                    f"Converted LineString to Polygon for {ward}, {district} using buffer"
+                )
+                return buffered.wkt
+        
+        # Skip Point and other geometry types
+        logger = get_logger(__name__)
+        logger.warning(
+            f"Skipping unsupported geometry type {geom.geom_type} for {ward}, {district}"
+        )
+        return None
+        
+    except Exception as e:
+        logger = get_logger(__name__)
+        logger.error(f"Failed to parse geometry for {ward}, {district}: {e}")
+        return None
+
+
 # ═══════════════════════════════════════════════════════════
 # TRANSFORMER
 # ═══════════════════════════════════════════════════════════
@@ -100,6 +148,7 @@ class LocationTransformer(BaseTransformer):
         boundaries = download_hcm_boundaries()
         self.logger.info(f"Downloaded {len(boundaries)} boundary polygons")
         
+        skipped_count = 0
         for ward, district in all_locations:
             location_key = _generate_location_key(ward, district)
             
@@ -109,15 +158,27 @@ class LocationTransformer(BaseTransformer):
                 # Fallback to district boundary if ward not available
                 boundary_wkt = boundaries.get((district, district))
             
+            # Validate and convert geometry to Polygon/MultiPolygon
+            validated_wkt = _validate_and_convert_geometry(boundary_wkt, ward, district)
+            if not validated_wkt:
+                skipped_count += 1
+                # Still insert record but without geometry
+                validated_wkt = None
+            
             records.append(
                 {
                     "location_key": location_key,
                     "ward": ward,
                     "district": district,
                     "city": "Hồ Chí Minh",
-                    "geometry_wkt": boundary_wkt,
+                    "geometry_wkt": validated_wkt,
                     "record_timestamp": now,
                 }
+            )
+        
+        if skipped_count > 0:
+            self.logger.warning(
+                f"Skipped {skipped_count} locations with invalid/unsupported geometry"
             )
         
         self.logger.info(f"Generated {len(records)} dim_location records with geometry")
@@ -146,7 +207,11 @@ class LocationLoader(BaseLoader):
         return f"""
             INSERT INTO dim_location (location_key, ward, district, city, {self.geometry_column}, record_timestamp)
             VALUES (:location_key, :ward, :district, :city,
-                    ST_GeomFromText(:geometry_wkt, 4326), :record_timestamp)
+                    CASE 
+                        WHEN :geometry_wkt IS NOT NULL THEN ST_GeomFromText(:geometry_wkt, 4326)
+                        ELSE NULL 
+                    END,
+                    :record_timestamp)
             ON CONFLICT (location_key) DO UPDATE SET
                 {self.geometry_column} = CASE
                     WHEN EXCLUDED.{self.geometry_column} IS NOT NULL AND dim_location.{self.geometry_column} IS NULL

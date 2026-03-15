@@ -1,4 +1,4 @@
-# --- Core Data Processing ---
+﻿# --- Core Data Processing ---
 pandas==2.0.3
 requests==2.31.0
 python-dotenv==1.0.0
@@ -11,7 +11,7 @@ uvicorn==0.23.2
 psycopg2-binary==2.9.7
 
 # --- Geospatial Data Processing ---
-# Lưu ý: osmnx và geopandas rất nhạy cảm với phiên bản của các thư viện C hệ thống
+# Note: osmnx and geopandas are sensitive to underlying C library versions
 geopandas==0.13.2
 osmnx
 shapely==2.0.1
@@ -29,3 +29,6 @@ pyproj>=3.6
 python-dateutil>=2.8
 rich>=13.0  # Console formatting and progress tracking
 
+APScheduler>=3.10.0
+
+APScheduler>=3.10.0

@@ -157,6 +157,7 @@ CREATE TABLE fact_simulation_scenario (
 CREATE TABLE fact_corridor_performance (
     corridor_perf_key       BIGINT          PRIMARY KEY,
     corridor_key            BIGINT          NOT NULL REFERENCES dim_corridor(corridor_key),
+    corridor_version        INT             NOT NULL DEFAULT 1,
     time_key                INT             NOT NULL REFERENCES dim_time_of_day(time_key),
     date_key                INT             NOT NULL REFERENCES dim_date(date_key),
     bottleneck_seg_key      BIGINT          REFERENCES dim_segment(segment_key),

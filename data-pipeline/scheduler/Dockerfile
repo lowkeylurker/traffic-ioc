@@ -1,0 +1,58 @@
+# Multi-stage build for ETL Scheduler
+# Runs APScheduler to manage periodic ETL jobs (real-time + batch)
+
+FROM python:3.11-slim as builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements (scheduler-specific, minimal)
+COPY requirements.txt .
+
+# Create wheels
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements.txt
+
+# ─────────────────────────────────────────────────────────
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install runtime dependencies + Docker CLI
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    curl \
+    procps \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce-cli \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy wheels from builder
+COPY --from=builder /build/wheels /wheels
+
+# Install wheels
+COPY requirements.txt .
+RUN pip install --no-cache /wheels/* && rm -rf /wheels
+
+# Copy application code
+COPY . .
+
+# Create logs directory
+RUN mkdir -p logs
+
+# Health check - verify scheduler process is running
+HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=3 \
+    CMD pgrep -f "python app.py" > /dev/null || exit 1
+
+# Run scheduler
+CMD ["python", "app.py"]
