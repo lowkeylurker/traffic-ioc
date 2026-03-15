@@ -46,15 +46,18 @@ class CongestionEnv(gym.Env):
         self.feature_cols = ['current_speed_kmh', 'pcu_volume', 'traffic_index', 
                              'delay_seconds', 'is_peak_hour', 'weather_severity']
         
+        self.timestamps = pd.to_datetime(df['timestamp']).values
+        
         # 1. Chuẩn hóa dữ liệu (Normalization)
         self.scaler = MinMaxScaler()
         self.scaled_data = self.scaler.fit_transform(df[self.feature_cols])
         
-        # Dữ liệu gốc để lấy nhãn (Target Label)
+        # Dữ liệu gốc để lấy nhãn
         self.raw_traffic_index = df['traffic_index'].values
         
-        # 2. Cắt dữ liệu thành các Cửa sổ trượt (Sliding Windows)
+        # 2. Cắt dữ liệu (Sẽ dùng hàm thông minh mới)
         self.states, self.labels = self._build_sequences()
+
         self.n_samples = len(self.states)
 
         min_required_rows = self.history_window + self.prediction_horizon
@@ -78,22 +81,28 @@ class CongestionEnv(gym.Env):
         )
 
     def _build_sequences(self):
-        """Hàm nội bộ: Tạo ma trận State và Target Labels."""
+        """Hàm nội bộ: Tạo ma trận State và Label, bỏ qua các đoạn nhảy cóc thời gian."""
         X, y = [], []
-        # Duyệt qua dữ liệu, chừa lại khoảng trống cho prediction_horizon
+        
+        # Khoảng thời gian kỳ vọng cho một chuỗi hợp lệ (tính bằng phút)
+        # Ví dụ: window=12, horizon=1 -> khoảng cách từ dòng đầu đến dòng label là (12 + 1 - 1) * 15 = 180 phút
+        expected_duration = np.timedelta64((self.history_window + self.prediction_horizon - 1) * 15, 'm')
+
         for i in range(len(self.scaled_data) - self.history_window - self.prediction_horizon + 1):
-            # Ma trận State: Từ i đến i + history_window
-            window = self.scaled_data[i : i + self.history_window]
+            start_time = self.timestamps[i]
+            end_time = self.timestamps[i + self.history_window + self.prediction_horizon - 1]
             
-            # Nhãn (Label): Lấy traffic_index ở timestep tương lai
-            target_idx = i + self.history_window + self.prediction_horizon - 1
-            target_ti = self.raw_traffic_index[target_idx]
-            
-            # Phân loại nhị phân: 1 nếu TI >= threshold, ngược lại 0
-            label = 1 if target_ti >= self.congestion_threshold else 0
-            
-            X.append(window)
-            y.append(label)
+            # CHỈ LẤY những chuỗi có thời gian liên tục (không bị nhảy từ 10h sáng sang 16h chiều)
+            if end_time - start_time == expected_duration:
+                window = self.scaled_data[i : i + self.history_window]
+                
+                target_idx = i + self.history_window + self.prediction_horizon - 1
+                target_ti = self.raw_traffic_index[target_idx]
+                
+                label = 1 if target_ti >= self.congestion_threshold else 0
+                
+                X.append(window)
+                y.append(label)
             
         return np.array(X, dtype=np.float32), np.array(y, dtype=np.int8)
 
@@ -151,7 +160,7 @@ if __name__ == "__main__":
     
     # 1. Kéo dữ liệu (Thay segment_id thật của bạn)
     print("Đang tải dữ liệu từ Database...")
-    df = load_segment_data(segment_id=8206185629154005, start_date='2026-03-14', end_date='2026-03-15')
+    df = load_segment_data(segment_id=8206185629154005, start_date='2026-03-13', end_date='2026-03-15')
     
     # 2. Khởi tạo môi trường
     env = CongestionEnv(df=df, history_window=12, prediction_horizon=1, congestion_threshold=0.15)
