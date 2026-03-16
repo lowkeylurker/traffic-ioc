@@ -296,6 +296,8 @@ def run_spatial(
         TimeElapsedColumn(),
         console=console,
     ) as progress:
+        from src.domain.geo.constants import BBOX_TARGET_DISTRICT
+
         # Location (wards catalog)
         task1 = progress.add_task("[cyan]Location catalog...", total=None)
         if skip_location:
@@ -324,8 +326,9 @@ def run_spatial(
             try:
                 from src.pipelines.spatial_net.osm_pipeline import run as run_osm
 
-                count = run_osm(engine)
-                logger.info(f"[run-spatial] osm_pipeline: {count} records")
+                # Use TARGET_DISTRICT (District 1) as default to prevent BBOX_HCM timeouts
+                count = run_osm(engine, bbox=BBOX_TARGET_DISTRICT)
+                logger.info(f"[run-spatial] osm_pipeline: {count} records (BBOX: DISTRICT 1)")
                 total += count
                 results.append(("OSM Road Network", count, "✓"))
                 progress.update(task2, completed=True)
