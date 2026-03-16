@@ -26,3 +26,8 @@ build/
 
 *.pt
 *.pkl
+
+*/cache/
+
+# Sensitive runtime state (contains API key identifiers/usage)
+data-pipeline/cache/tomtom_key_pool_state.json
