@@ -40,7 +40,42 @@ Server will start at: **http://localhost:3000**
 
 **Health Check:** http://localhost:3000/health
 
-## 📁 Project Structure
+## � Docker
+
+Build image from backend folder:
+
+```bash
+docker build -t traffic-ioc-backend:latest .
+```
+
+Run container (pass env file with DATABASE_URL, CLERK keys, etc.):
+
+```bash
+docker run -d --name traffic-ioc-backend \
+  --env-file .env \
+  -p 3000:3000 \
+  traffic-ioc-backend:latest
+```
+
+Push to Docker Hub:
+
+```bash
+# Login once
+docker login
+
+# Replace <dockerhub-username> with your account
+docker tag traffic-ioc-backend:latest <dockerhub-username>/traffic-ioc-backend:latest
+docker push <dockerhub-username>/traffic-ioc-backend:latest
+```
+
+Optional version tag:
+
+```bash
+docker tag traffic-ioc-backend:latest <dockerhub-username>/traffic-ioc-backend:v1.0.0
+docker push <dockerhub-username>/traffic-ioc-backend:v1.0.0
+```
+
+## �📁 Project Structure
 
 ```
 src/

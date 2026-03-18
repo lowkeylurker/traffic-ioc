@@ -18,8 +18,18 @@ build/
 # Data & Models
 *.csv
 *.mp4
-*.pkl    # Có thể commit nếu file nhỏ, nếu to >100MB thì dùng Git LFS
-*.pt     # Model YOLO (thường to, nên cân nhắc)
 
 *.log 
 # Log files, có thể hữu ích để debug nhưng không cần thiết trong repo
+# Có thể commit nếu file nhỏ, nếu to >100MB thì dùng Git LFS
+*.pkl
+
+# Model YOLO (thường to, nên cân nhắc)
+*.pt
+
+# Log files, có thể hữu ích để debug nhưng không cần thiết trong repo
+*.log
+
+
+*.pt
+*.pkl
