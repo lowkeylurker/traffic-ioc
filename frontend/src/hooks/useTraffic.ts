@@ -5,7 +5,7 @@ import { Segment, TrafficStatus } from '@/types'
 import { mapApi, analyticsApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
 
-// Fetch segments hook
+// Fetch segments hook (danh sách đoạn đường tĩnh ban đầu - deprecated for map rendering, use useTrafficMap instead)
 export const useSegments = () => {
   const { segments, setSegments, setError } = useAppStore()
 
@@ -28,6 +28,36 @@ export const useSegments = () => {
   }, [setSegments, setError])
 
   return segments
+}
+
+// Get data of road segments with speed color (GeoJSON FeatureCollection) with polling
+export const useTrafficMap = () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [trafficMap, setTrafficMap] = useState<any>({
+    type: 'FeatureCollection',
+    features: [],
+  })
+
+  useEffect(() => {
+    const fetchTrafficMap = async () => {
+      try {
+        const response = await mapApi.getSegments()
+        if (response.success && response.data) {
+          setTrafficMap(response.data)
+        }
+      } catch (error) {
+        console.error('Error fetching traffic map:', error)
+      }
+    }
+
+    fetchTrafficMap()
+    // Polling 15 giây/lần
+    const interval = setInterval(fetchTrafficMap, 15000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  return trafficMap
 }
 
 // Fetch traffic status hook
