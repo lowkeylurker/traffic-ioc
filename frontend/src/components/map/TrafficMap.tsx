@@ -1,12 +1,12 @@
 // Traffic Map Component
 
-import React, { useMemo, useEffect, useState, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import Map, { Source, Layer, LayerProps } from 'react-map-gl'
-import apiService from '@/services/api'
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/config/constants'
-import { Card, Spin } from 'antd'
+import apiService from '@/services/api'
+import { useQuery } from '@tanstack/react-query'
+import { Spin } from 'antd'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import Map, { Layer, LayerProps, Source } from 'react-map-gl'
 
 interface TrafficMapProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -320,17 +320,17 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   }, [trafficData, mapRef])
 
   // Determine LOS status display
-  const getLOSStatus = (losIndex: string) => {
-    const losMap: Record<string, { label: string; color: string }> = {
-      A: { label: 'Tốt', color: '#52C41A' },
-      B: { label: 'Khá', color: '#95DE64' },
-      C: { label: 'Bình thường', color: '#FAAD14' },
-      D: { label: 'Yếu', color: '#FA8C16' },
-      E: { label: 'Rất yếu', color: '#FF7A45' },
-      F: { label: 'Kẹt xe', color: '#FF4D4F' },
-    }
-    return losMap[losIndex] || { label: 'N/A', color: '#999999' }
-  }
+  // const getLOSStatus = (losIndex: string) => {
+  //   const losMap: Record<string, { label: string; color: string }> = {
+  //     A: { label: 'Tốt', color: '#52C41A' },
+  //     B: { label: 'Khá', color: '#95DE64' },
+  //     C: { label: 'Bình thường', color: '#FAAD14' },
+  //     D: { label: 'Yếu', color: '#FA8C16' },
+  //     E: { label: 'Rất yếu', color: '#FF7A45' },
+  //     F: { label: 'Kẹt xe', color: '#FF4D4F' },
+  //   }
+  //   return losMap[losIndex] || { label: 'N/A', color: '#999999' }
+  // }
 
   return (
     <div
@@ -394,128 +394,219 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
       </Map>
 
       {/* Hover Popup */}
-      {hoveredFeature && (() => {
-        const getPopUpData = (feature: GeoJSONFeature['properties']) => {
-          let los = feature.losIndex;
-          let status = 'Thông thoáng';
-          let statusColor = '#22C55E'; // text-green-500
-          let dotColor = '#22C55E'; // bg-green-500
+      {hoveredFeature &&
+        (() => {
+          const getPopUpData = (feature: GeoJSONFeature['properties']) => {
+            let los = feature.losIndex
+            let status = 'Thông thoáng'
+            let statusColor = '#22C55E' // text-green-500
+            let dotColor = '#22C55E' // bg-green-500
 
-          if (los === 'N/A' || !los) {
-            const color = feature.color?.toUpperCase();
-            if (color === '#FF4D4F' || color === 'RED') {
-              los = 'F';
-              status = 'Ùn tắc';
-              statusColor = '#EF4444'; // text-red-500
-              dotColor = '#EF4444';
-            } else if (color === '#FAAD14' || color === 'ORANGE' || color === 'YELLOW') {
-              los = 'D';
-              status = 'Đông xe';
-              statusColor = '#F97316'; // text-orange-500
-              dotColor = '#F97316';
+            if (los === 'N/A' || !los) {
+              const color = feature.color?.toUpperCase()
+              if (color === '#FF4D4F' || color === 'RED') {
+                los = 'F'
+                status = 'Ùn tắc'
+                statusColor = '#EF4444' // text-red-500
+                dotColor = '#EF4444'
+              } else if (
+                color === '#FAAD14' ||
+                color === 'ORANGE' ||
+                color === 'YELLOW'
+              ) {
+                los = 'D'
+                status = 'Đông xe'
+                statusColor = '#F97316' // text-orange-500
+                dotColor = '#F97316'
+              } else {
+                los = 'A'
+              }
             } else {
-              los = 'A';
+              const losMap: Record<
+                string,
+                { label: string; statusColor: string; dotColor: string }
+              > = {
+                A: {
+                  label: 'Thông thoáng',
+                  statusColor: '#22C55E',
+                  dotColor: '#22C55E',
+                },
+                B: {
+                  label: 'Thông thoáng',
+                  statusColor: '#22C55E',
+                  dotColor: '#22C55E',
+                },
+                C: {
+                  label: 'Bình thường',
+                  statusColor: '#EAB308',
+                  dotColor: '#EAB308',
+                },
+                D: {
+                  label: 'Đông xe',
+                  statusColor: '#F97316',
+                  dotColor: '#F97316',
+                },
+                E: {
+                  label: 'Rất đông',
+                  statusColor: '#EA580C',
+                  dotColor: '#EA580C',
+                },
+                F: {
+                  label: 'Ùn tắc',
+                  statusColor: '#EF4444',
+                  dotColor: '#EF4444',
+                },
+              }
+              const data = losMap[los] || {
+                label: 'Thông thoáng',
+                statusColor: '#22C55E',
+                dotColor: '#22C55E',
+              }
+              status = data.label
+              statusColor = data.statusColor
+              dotColor = data.dotColor
             }
-          } else {
-            const losMap: Record<string, { label: string; statusColor: string; dotColor: string }> = {
-              A: { label: 'Thông thoáng', statusColor: '#22C55E', dotColor: '#22C55E' },
-              B: { label: 'Thông thoáng', statusColor: '#22C55E', dotColor: '#22C55E' },
-              C: { label: 'Bình thường', statusColor: '#EAB308', dotColor: '#EAB308' },
-              D: { label: 'Đông xe', statusColor: '#F97316', dotColor: '#F97316' },
-              E: { label: 'Rất đông', statusColor: '#EA580C', dotColor: '#EA580C' },
-              F: { label: 'Ùn tắc', statusColor: '#EF4444', dotColor: '#EF4444' },
-            };
-            const data = losMap[los] || { label: 'Thông thoáng', statusColor: '#22C55E', dotColor: '#22C55E' };
-            status = data.label;
-            statusColor = data.statusColor;
-            dotColor = data.dotColor;
+            return { los, status, statusColor, dotColor }
           }
-          return { los, status, statusColor, dotColor };
-        };
 
-        const popUpData = getPopUpData(hoveredFeature);
+          const popUpData = getPopUpData(hoveredFeature)
 
-        return (
-          <div
-            style={{
-              position: 'absolute',
-              left: `${mousePosition.x + 15}px`,
-              top: `${mousePosition.y - 10}px`,
-              zIndex: 20,
-              pointerEvents: 'none',
-            }}
-          >
-            <div style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.85)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255, 255, 255, 0.5)',
-              borderRadius: '12px',
-              padding: '16px',
-              minWidth: '220px',
-              boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
-              fontFamily: 'sans-serif'
-            }}>
-              <div style={{ marginBottom: '8px' }}>
-                <div style={{ color: '#1F2937', fontWeight: 'bold', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {hoveredFeature.segmentName}
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${mousePosition.x + 15}px`,
+                top: `${mousePosition.y - 10}px`,
+                zIndex: 20,
+                pointerEvents: 'none',
+              }}
+            >
+              <div
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.85)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255, 255, 255, 0.5)',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  minWidth: '220px',
+                  boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+                  fontFamily: 'sans-serif',
+                }}
+              >
+                <div style={{ marginBottom: '8px' }}>
+                  <div
+                    style={{
+                      color: '#1F2937',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {hoveredFeature.segmentName}
+                  </div>
+                  <div
+                    style={{
+                      color: '#9CA3AF',
+                      fontSize: '10px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    ID: {hoveredFeature.segmentId}
+                  </div>
                 </div>
-                <div style={{ color: '#9CA3AF', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  ID: {hoveredFeature.segmentId}
-                </div>
-              </div>
 
-              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline' }}>
-                  <span style={{ fontSize: '30px', fontWeight: 'bold', color: '#111827', lineHeight: '1' }}>
-                    {Math.round(hoveredFeature.avgSpeed)}
-                  </span>
-                  <span style={{ color: '#6B7280', fontSize: '12px', marginLeft: '4px' }}>km/h</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    justifyContent: 'space-between',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                    <span
+                      style={{
+                        fontSize: '30px',
+                        fontWeight: 'bold',
+                        color: '#111827',
+                        lineHeight: '1',
+                      }}
+                    >
+                      {Math.round(hoveredFeature.avgSpeed)}
+                    </span>
+                    <span
+                      style={{
+                        color: '#6B7280',
+                        fontSize: '12px',
+                        marginLeft: '4px',
+                      }}
+                    >
+                      km/h
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '4px 10px',
+                      borderRadius: '9999px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                      border: '1px solid #FFFFFF',
+                    }}
+                  >
+                    <span
+                      className="animate-pulse"
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        backgroundColor: popUpData.dotColor,
+                      }}
+                    ></span>
+                    <span
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        textTransform: 'uppercase',
+                        letterSpacing: '-0.025em',
+                        color: popUpData.statusColor,
+                      }}
+                    >
+                      {popUpData.status}
+                    </span>
+                  </div>
                 </div>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 10px',
-                  borderRadius: '9999px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                  border: '1px solid #FFFFFF'
-                }}>
-                  <span className="animate-pulse" style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    backgroundColor: popUpData.dotColor
-                  }}></span>
-                  <span style={{
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase',
-                    letterSpacing: '-0.025em',
-                    color: popUpData.statusColor
-                  }}>
-                    {popUpData.status}
-                  </span>
-                </div>
-              </div>
 
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingTop: '8px',
-                borderTop: '1px solid rgba(243, 244, 246, 0.5)'
-              }}>
-                <div style={{ color: '#6B7280', fontSize: '11px' }}>
-                  Mức LOS: <span style={{ fontWeight: 'bold', color: '#374151' }}>{popUpData.los}</span>
-                </div>
-                <div style={{ color: '#9CA3AF', fontSize: '11px' }}>
-                  Cập nhật: {new Date(hoveredFeature.lastUpdated).toLocaleTimeString('vi-VN')}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingTop: '8px',
+                    borderTop: '1px solid rgba(243, 244, 246, 0.5)',
+                  }}
+                >
+                  <div style={{ color: '#6B7280', fontSize: '11px' }}>
+                    Mức LOS:{' '}
+                    <span style={{ fontWeight: 'bold', color: '#374151' }}>
+                      {popUpData.los}
+                    </span>
+                  </div>
+                  <div style={{ color: '#9CA3AF', fontSize: '11px' }}>
+                    Cập nhật:{' '}
+                    {new Date(hoveredFeature.lastUpdated).toLocaleTimeString(
+                      'vi-VN'
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
+          )
+        })()}
     </div>
   )
 }
