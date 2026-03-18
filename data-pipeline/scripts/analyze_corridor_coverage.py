@@ -3,7 +3,20 @@ Phân tích Q1 coverage của các corridors để tìm false positives.
 """
 
 import os
-os.environ.setdefault("DB_CONNECTION_STRING", "postgresql://traffic_admin:traffic_pass@postgres:5432/traffic_ioc")
+# DB connection from environment
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    db_user = os.getenv("DB_USER")
+    db_pass = os.getenv("DB_PASSWORD")
+    db_host = os.getenv("DB_HOST")
+    db_port = os.getenv("DB_PORT")
+    db_name = os.getenv("DB_NAME")
+    db_ssl = os.getenv("DB_SSLMODE", "require")
+
+    DATABASE_URL = f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}?sslmode={db_ssl}"
+
+os.environ["DB_CONNECTION_STRING"] = DATABASE_URL
+
 
 from sqlalchemy import create_engine, text
 

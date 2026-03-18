@@ -11,9 +11,20 @@ import os
 import sys
 from sqlalchemy import create_engine, text
 
-# Database connection (use postgres hostname inside Docker network)
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://traffic_user:traffic_password@postgres:5432/traffic_ioc")
+# Database connection
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    db_user = os.getenv("DB_USER")
+    db_pass = os.getenv("DB_PASSWORD")
+    db_host = os.getenv("DB_HOST")
+    db_port = os.getenv("DB_PORT")
+    db_name = os.getenv("DB_NAME")
+    db_ssl = os.getenv("DB_SSLMODE", "require")
+
+    DATABASE_URL = f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}?sslmode={db_ssl}"
+
 engine = create_engine(DATABASE_URL)
+
 
 # Q1 bbox parameters
 BBOX_Q1 = {

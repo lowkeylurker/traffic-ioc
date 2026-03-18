@@ -1,6 +1,21 @@
-﻿from sqlalchemy import create_engine, text
+import os
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
 
-engine = create_engine("postgresql://traffic_user:traffic_password@postgres:5432/traffic_ioc?sslmode=disable")
+# Load .env from project root or current dir
+load_dotenv()
+
+db_user = os.getenv("DB_USER")
+db_pass = os.getenv("DB_PASSWORD")
+db_host = os.getenv("DB_HOST")
+db_port = os.getenv("DB_PORT")
+db_name = os.getenv("DB_NAME")
+db_ssl = os.getenv("DB_SSLMODE", "require")
+
+
+DATABASE_URL = f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}?sslmode={db_ssl}"
+engine = create_engine(DATABASE_URL)
+
 
 sql = text("""
 WITH q1_segments AS (

@@ -214,11 +214,33 @@ class BaseLoader(ABC):
     def _ensure_partitions(self, records: list[dict]) -> None:
         """Auto-create monthly partitions for all date_keys found in records.
 
-        Only applies if the table is partitioned (has 'date_key' column).
+        Only applies if the table is partitioned (has 'date_key' column AND relkind='p').
         Idempotent: silently skips if partition already exists.
         """
         if not records or "date_key" not in records[0]:
             return
+
+        # Fast check: Is the table actually partitioned in Postgres?
+        # relkind 'p' = partitioned table.
+        with Session(self.engine) as session:
+            try:
+                res = session.execute(
+                    text(
+                        "SELECT relkind FROM pg_class c "
+                        "JOIN pg_namespace n ON n.oid = c.relnamespace "
+                        "WHERE n.nspname = 'public' AND c.relname = :table"
+                    ),
+                    {"table": self.TABLE_NAME},
+                )
+                row = res.fetchone()
+                if not row or row[0] != "p":
+                    self.logger.debug(
+                        f"Skipping partition check for {self.TABLE_NAME} (not a partitioned table)"
+                    )
+                    return
+            except Exception as e:
+                self.logger.warning(f"Could not verify partitioning for {self.TABLE_NAME}: {e}")
+                return
 
         # Collect unique YYYYMM from date_keys
         months_seen: set[str] = set()
