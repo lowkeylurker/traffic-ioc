@@ -7,8 +7,8 @@ import { GeoJSONFeature, TrafficMapResponse, COLOR_RULES } from '../interfaces/m
 
 const logger = new Logger('MapService');
 
-// Use mock data for week 1
-const USE_MOCK_DATA = true;
+// Use real data from database
+const USE_MOCK_DATA = false;
 
 // Helper function to generate realistic HCMC road segments aligned with actual streets
 function generateRealisticRoadsData(count: number = 5000): any {
@@ -309,12 +309,17 @@ export class MapService {
       }
 
       logger.log('Fetching traffic map data from database');
-      const segments = await this.getSegments();
-      const status = await this.getTrafficStatus();
+      const [segments, status] = await Promise.all([
+        this.getSegments(),
+        this.getTrafficStatus()
+      ]);
+
+      // Create a map for O(1) status lookup
+      const statusMap = new Map(status.map(s => [s.segmentId, s]));
 
       // Map database data to GeoJSON format with color coding
       const features: GeoJSONFeature[] = segments.map((segment: any) => {
-        const trafficInfo = status.find((s: TrafficStatus) => s.segmentId === segment.segmentId);
+        const trafficInfo = statusMap.get(segment.segmentId);
         const speed = trafficInfo?.avgSpeed || null;
         const color = this.getColorBySpeed(speed);
 
@@ -353,13 +358,15 @@ export class MapService {
       // Raw query để lấy geometry dưới dạng GeoJSON
       const segments = await prisma.$queryRaw`
         SELECT
-          segment_id as "segmentId",
-          segment_name as "segmentName",
-          ST_AsGeoJSON(geometry)::json as geometry,
-          num_lanes as "numLanes",
-          speed_limit_kmh as "speedLimit"
+          segment_key::text as "segmentId",
+          segment_id_source::text as "segmentName",
+          ST_AsGeoJSON(geometry_linestring)::json as geometry,
+          length_m as "numLanes",
+          is_one_way as "speedLimit"
         FROM dim_segment
-        ORDER BY segment_id
+        WHERE geometry_linestring IS NOT NULL
+        ORDER BY segment_key
+        LIMIT 5000
       `;
 
       logger.log(`Retrieved ${Array.isArray(segments) ? segments.length : 0} segments`);
@@ -383,26 +390,27 @@ export class MapService {
 
       logger.log('Fetching traffic status');
 
-      // Raw query để join và lấy dữ liệu mới nhất
+      // Raw query to join and lấy dữ liệu mới nhất using DISTINCT ON for better performance
       const status = await prisma.$queryRaw`
         SELECT
-          s.segment_id as "segmentId",
-          s.segment_name as "segmentName",
-          f.current_speed as "currentSpeed",
-          f.avg_speed as "avgSpeed",
-          f.los_grade as "losGrade",
-          f.los_score as "losScore",
-          f.pcu_value as "pcuValue",
-          f.occupancy_rate as "occupancyRate",
-          f.created_at as timestamp
+          s.segment_key::text as "segmentId",
+          s.segment_id_source::text as "segmentName",
+          f.current_speed_kmh as "currentSpeed",
+          f.current_speed_kmh as "avgSpeed",
+          f.los_level as "losGrade",
+          f.traffic_index as "losScore",
+          f.pcu_volume as "pcuValue",
+          NULL::float as "occupancyRate",
+          f.timestamp as timestamp
         FROM dim_segment s
-        LEFT JOIN fact_traffic_flow f ON s.segment_id = f.segment_id
-          AND f.flow_id = (
-            SELECT flow_id FROM fact_traffic_flow
-            WHERE segment_id = s.segment_id
-            ORDER BY flow_id DESC LIMIT 1
-          )
-        ORDER BY s.segment_id
+        LEFT JOIN (
+          SELECT DISTINCT ON (segment_key) *
+          FROM fact_traffic_flow
+          ORDER BY segment_key, timestamp DESC
+        ) f ON s.segment_key = f.segment_key
+        WHERE s.geometry_linestring IS NOT NULL
+        ORDER BY s.segment_key
+        LIMIT 5000
       `;
 
       logger.log(`Retrieved traffic status for ${Array.isArray(status) ? status.length : 0} segments`);
@@ -427,23 +435,23 @@ export class MapService {
 
       const status = await prisma.$queryRaw`
         SELECT
-          s.segment_id as "segmentId",
-          s.segment_name as "segmentName",
-          f.current_speed as "currentSpeed",
-          f.avg_speed as "avgSpeed",
-          f.los_grade as "losGrade",
-          f.los_score as "losScore",
-          f.pcu_value as "pcuValue",
-          f.occupancy_rate as "occupancyRate",
-          f.created_at as timestamp
+          s.segment_key::text as "segmentId",
+          s.segment_id_source::text as "segmentName",
+          f.current_speed_kmh as "currentSpeed",
+          f.current_speed_kmh as "avgSpeed",
+          f.los_level as "losGrade",
+          f.traffic_index as "losScore",
+          f.pcu_volume as "pcuValue",
+          NULL::float as "occupancyRate",
+          f.timestamp as timestamp
         FROM dim_segment s
-        LEFT JOIN fact_traffic_flow f ON s.segment_id = f.segment_id
-          AND f.flow_id = (
-            SELECT flow_id FROM fact_traffic_flow
-            WHERE segment_id = s.segment_id
-            ORDER BY flow_id DESC LIMIT 1
+        LEFT JOIN fact_traffic_flow f ON s.segment_key = f.segment_key
+          AND f.traffic_flow_key = (
+            SELECT traffic_flow_key FROM fact_traffic_flow
+            WHERE segment_key = s.segment_key
+            ORDER BY timestamp DESC LIMIT 1
           )
-        WHERE s.segment_id = ${segmentId}
+        WHERE s.segment_key = ${segmentId}
       `;
 
       const result = Array.isArray(status) && status.length > 0 ? status[0] : null;

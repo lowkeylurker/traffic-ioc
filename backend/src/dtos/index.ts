@@ -1,39 +1,25 @@
-// DTOs (Data Transfer Objects) cho validation
+// DTOs (Data Transfer Objects) for validation
 
-import { IsInt, IsArray, IsNumber, Min, Max, IsOptional } from 'class-validator';
+import { z } from 'zod';
 
-export class ForecastDto {
-  @IsInt()
-  segmentId: number;
+export const ForecastSchema = z.object({
+  segmentId: z.number().int(),
+  horizonMinutes: z.number().int().min(1).max(1440).default(60),
+});
 
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(1440)
-  horizonMinutes: number = 60;
-}
+export type ForecastDto = z.infer<typeof ForecastSchema>;
 
-export class RoutingDto {
-  @IsArray()
-  @IsNumber({}, { each: true })
-  startPoint: [number, number];
+export const RoutingSchema = z.object({
+  startPoint: z.tuple([z.number(), z.number()]),
+  endPoint: z.tuple([z.number(), z.number()]),
+  blockedSegments: z.array(z.number().int()).optional(),
+});
 
-  @IsArray()
-  @IsNumber({}, { each: true })
-  endPoint: [number, number];
+export type RoutingDto = z.infer<typeof RoutingSchema>;
 
-  @IsOptional()
-  @IsArray()
-  @IsInt({ each: true })
-  blockedSegments?: number[];
-}
+export const SegmentQuerySchema = z.object({
+  limit: z.number().int().default(100),
+  offset: z.number().int().default(0),
+});
 
-export class SegmentQueryDto {
-  @IsOptional()
-  @IsInt()
-  limit: number = 100;
-
-  @IsOptional()
-  @IsInt()
-  offset: number = 0;
-}
+export type SegmentQueryDto = z.infer<typeof SegmentQuerySchema>;

@@ -1,1 +1,2 @@
-export { mapApi, analyticsApi, simulationApi, axiosInstance } from './api'
+export { analyticsApi, default as axiosInstance, mapApi, simulationApi } from './api';
+
