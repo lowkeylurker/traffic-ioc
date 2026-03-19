@@ -1,16 +1,16 @@
 // API Service Configuration
 
-import axios, { AxiosInstance, AxiosError } from 'axios'
 import {
   ApiResponse,
-  Segment,
+  ForecastData,
+  ReliabilityRankData,
+  RoutingData,
+  SegmentResponse,
+  SpeedComparisonData,
   TrafficStatus,
   VehicleMixData,
-  SpeedComparisonData,
-  ReliabilityRankData,
-  ForecastData,
-  RoutingData,
 } from '@/types'
+import axios, { AxiosError, AxiosInstance } from 'axios'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL
 
@@ -36,7 +36,7 @@ axiosInstance.interceptors.response.use(
 
 // Map API
 export const mapApi = {
-  getSegments: (): Promise<ApiResponse<Segment[]>> =>
+  getSegments: (): Promise<ApiResponse<SegmentResponse>> =>
     axiosInstance.get('/map/segments'),
   getStatus: (): Promise<ApiResponse<TrafficStatus[]>> =>
     axiosInstance.get('/map/status'),
@@ -56,12 +56,19 @@ export const analyticsApi = {
 
 // Simulation API
 export const simulationApi = {
-  runForecast: (segmentId: number, horizonMinutes?: number): Promise<ApiResponse<ForecastData[]>> =>
+  runForecast: (
+    segmentId: number,
+    horizonMinutes?: number
+  ): Promise<ApiResponse<ForecastData[]>> =>
     axiosInstance.post('/simulation/forecast', {
       segmentId,
       horizonMinutes,
     }),
-  runRouting: (startPoint: [number, number], endPoint: [number, number], blockedSegments?: number[]): Promise<ApiResponse<RoutingData>> =>
+  runRouting: (
+    startPoint: [number, number],
+    endPoint: [number, number],
+    blockedSegments?: number[]
+  ): Promise<ApiResponse<RoutingData>> =>
     axiosInstance.post('/simulation/routing', {
       startPoint,
       endPoint,

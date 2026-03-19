@@ -1,20 +1,20 @@
 // Custom Hooks
 
-import { useEffect, useState } from 'react'
-import { Segment, TrafficStatus } from '@/types'
-import { mapApi, analyticsApi } from '@/services/api'
+import { analyticsApi, mapApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
+import { TrafficStatus } from '@/types'
+import { useEffect, useState } from 'react'
 
 // Fetch segments hook (danh sách đoạn đường tĩnh ban đầu - deprecated for map rendering, use useTrafficMap instead)
 export const useSegments = () => {
-  const { segments, setSegments, setError } = useAppStore()
+  const { segmentData, setSegmentData, setError } = useAppStore()
 
   useEffect(() => {
     const fetchSegments = async () => {
       try {
         const response = await mapApi.getSegments()
         if (response.success && response.data) {
-          setSegments(response.data as Segment[])
+          setSegmentData(response.data)
         }
       } catch (error) {
         console.error('Error fetching segments:', error)
@@ -25,9 +25,9 @@ export const useSegments = () => {
     }
 
     fetchSegments()
-  }, [setSegments, setError])
+  }, [setSegmentData, setError])
 
-  return segments
+  return segmentData
 }
 
 // Get data of road segments with speed color (GeoJSON FeatureCollection) with polling

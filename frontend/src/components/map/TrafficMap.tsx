@@ -1,16 +1,13 @@
 // Traffic Map Component
 
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/config/constants'
-import apiService from '@/services/api'
-import { useQuery } from '@tanstack/react-query'
-import { Spin } from 'antd'
+import { GeoJSONFeature, SegmentResponse } from '@/types'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Map, { Layer, LayerProps, Source } from 'react-map-gl'
 
 interface TrafficMapProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  segments?: any[] // Optional segments data
+  segmentData: SegmentResponse | null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   trafficStatus?: any[] // Optional traffic status data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,31 +19,10 @@ interface TrafficMapProps {
   heatmapEnabled?: boolean // Toggle heatmap layer
 }
 
-interface GeoJSONFeature {
-  type: 'Feature'
-  geometry: {
-    type: 'LineString'
-    coordinates: number[][]
-  }
-  properties: {
-    segmentId: number
-    segmentName: string
-    avgSpeed: number
-    losIndex: string
-    color: string
-    lastUpdated: string
-  }
-}
-
-interface TrafficMapResponse {
-  type: 'FeatureCollection'
-  features: GeoJSONFeature[]
-}
-
 export const TrafficMap: React.FC<TrafficMapProps> = ({
+  segmentData,
   onMapClick,
   style,
-  autoRefreshInterval = 10000, // 10 seconds default
   mapRef: externalMapRef,
   heatmapEnabled = false,
 }) => {
@@ -63,109 +39,12 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     x: 0,
     y: 0,
   })
-  // Fallback mock data if API fails
-  const FALLBACK_DATA: TrafficMapResponse = {
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [106.699, 10.78],
-            [106.7, 10.785],
-          ],
-        },
-        properties: {
-          segmentId: 1,
-          segmentName: 'Đường Lê Duẩn',
-          avgSpeed: 45,
-          losIndex: 'A',
-          color: '#52C41A',
-          lastUpdated: new Date().toISOString(),
-        },
-      },
-      {
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [106.695, 10.782],
-            [106.702, 10.778],
-          ],
-        },
-        properties: {
-          segmentId: 2,
-          segmentName: 'Đường Pasteur',
-          avgSpeed: 10,
-          losIndex: 'F',
-          color: '#FF4D4F',
-          lastUpdated: new Date().toISOString(),
-        },
-      },
-      {
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [106.697, 10.788],
-            [106.705, 10.785],
-          ],
-        },
-        properties: {
-          segmentId: 3,
-          segmentName: 'Đường Hai Bà Trưng',
-          avgSpeed: 25,
-          losIndex: 'D',
-          color: '#FAAD14',
-          lastUpdated: new Date().toISOString(),
-        },
-      },
-    ],
-  }
-
-  // Helper function to fetch traffic map data
-  const fetchTrafficMapData = async (): Promise<TrafficMapResponse> => {
-    try {
-      const response = await apiService.get('/map/segments')
-      const geoJsonData = response?.data
-
-      if (geoJsonData?.features?.length > 0) {
-        return geoJsonData
-      }
-
-      console.warn('Invalid or empty traffic data response, using fallback')
-      return FALLBACK_DATA
-    } catch (err) {
-      console.error('Error fetching traffic map:', err)
-      return FALLBACK_DATA
-    }
-  }
-
-  // Fetch traffic map data using React Query
-  const {
-    data: trafficData = FALLBACK_DATA,
-    isLoading: loading,
-    error: apiError,
-  } = useQuery({
-    queryKey: ['trafficMap'],
-    queryFn: fetchTrafficMapData,
-    refetchInterval: autoRefreshInterval, // Enable polling
-    refetchIntervalInBackground: true, // Continue polling in background
-    staleTime: 0, // Always refetch when component mounts
-  })
-
-  const error = apiError
-    ? apiError instanceof Error
-      ? apiError.message
-      : 'Failed to fetch traffic map'
-    : null
 
   // Auto-fit map bounds when traffic data loads
   useEffect(() => {
-    if (trafficData && trafficData.features.length > 0 && mapRef.current) {
+    if (segmentData && segmentData.features.length > 0 && mapRef.current) {
       const map = mapRef.current
-      const bounds = trafficData.features.reduce(
+      const bounds = segmentData.features.reduce(
         (acc, feature) => {
           const coords = feature.geometry.coordinates
           coords.forEach(([lon, lat]) => {
@@ -196,7 +75,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     }
     // mapRef is a ref object, its .current is checked but not included in dependency
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trafficData])
+  }, [segmentData])
 
   // Create traffic layer style
   const trafficLayerStyle = useMemo(
@@ -205,9 +84,14 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         id: 'traffic-flow-layer',
         type: 'line',
         paint: {
-          'line-width': 4,
-          'line-color': ['get', 'color'],
-          'line-opacity': 0.75,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.2, 14, 3.8],
+          'line-color': [
+            'case',
+            ['==', ['upcase', ['coalesce', ['get', 'color'], '']], '#D9D9D9'],
+            '#4B5563',
+            ['coalesce', ['get', 'color'], '#4B5563'],
+          ],
+          'line-opacity': 0.92,
         },
         layout: {
           'line-join': 'round',
@@ -272,7 +156,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
 
   // Set up map layer hover events
   useEffect(() => {
-    if (!mapRef.current || !trafficData) return
+    if (!mapRef.current || !segmentData) return
 
     const map = mapRef.current.getMap()
     const layerId = 'traffic-flow-layer'
@@ -317,7 +201,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     }, 100)
 
     return () => clearInterval(waitForLayer)
-  }, [trafficData, mapRef])
+  }, [segmentData, mapRef])
 
   // Determine LOS status display
   // const getLOSStatus = (losIndex: string) => {
@@ -337,7 +221,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
       ref={containerRef}
       style={{ width: '100%', height: '100%', position: 'relative', ...style }}
     >
-      {loading && (
+      {/* {loading && (
         <div
           style={{
             position: 'absolute',
@@ -353,9 +237,9 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         >
           <Spin tip="Loading traffic map..." />
         </div>
-      )}
+      )} */}
 
-      {error && (
+      {/* {error && (
         <div
           style={{
             position: 'absolute',
@@ -371,7 +255,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         >
           Error: {error}
         </div>
-      )}
+      )} */}
 
       <Map
         ref={mapRef}
@@ -385,8 +269,8 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         mapboxAccessToken={mapboxToken}
         onClick={onMapClick}
       >
-        {trafficData && trafficData.features.length > 0 && (
-          <Source id="traffic-source" type="geojson" data={trafficData}>
+        {segmentData && segmentData.features.length > 0 && (
+          <Source id="traffic-source" type="geojson" data={segmentData}>
             {heatmapEnabled && <Layer {...heatmapLayerStyle} />}
             <Layer {...trafficLayerStyle} />
           </Source>
