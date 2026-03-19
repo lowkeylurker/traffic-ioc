@@ -1,6 +1,20 @@
 # General
 .DS_Store
+
+# Environment files (keep examples only)
 .env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+!.env.example
+!**/.env.example
+
+# Test & temporary files
+test_conn.py
+tmp_*.py
+*_test.py
 
 # Python (DE & AI)
 __pycache__/
@@ -21,7 +35,7 @@ build/
 *.pkl    # Có thể commit nếu file nhỏ, nếu to >100MB thì dùng Git LFS
 *.pt     # Model YOLO (thường to, nên cân nhắc)
 
-*.log 
+*.log
 # Log files, có thể hữu ích để debug nhưng không cần thiết trong repo
 
 

@@ -7,7 +7,7 @@ Commands:
     run-batch      Nightly: baseline (all) + corridor performance (priority corridors)
     run-all        Chạy tất cả theo thứ tự FK
     health         Kiểm tra kết nối Database
-    
+
 Note: As of Mar 2026, realtime ETL selects critical segments from priority corridors
 under request budget constraints.
 """
@@ -33,6 +33,7 @@ from rich.progress import (
 )
 from rich.table import Table
 from sqlalchemy import Engine, text
+from sqlalchemy.exc import ProgrammingError
 
 from src.core.config import settings
 from src.core.database import get_engine, health_check
@@ -382,11 +383,11 @@ def run_spatial(
 @app.command("run-corridors")
 def run_corridors() -> None:
     """Load corridor infrastructure (dim_corridor + bridge_corridor_segment).
-    
+
     Can be run standalone to (re)configure corridor definitions.
     """
     engine = get_engine()
-    
+
     try:
         from src.pipelines.spatial_net.corridor_pipeline import run as run_corridor
 
@@ -425,20 +426,20 @@ def run_location(
 @app.command("run-osm-district1")
 def run_osm_district1() -> None:
     """Download OSM network for District 1 ONLY (fast, for testing/MVP).
-    
+
     Uses BBOX_DISTRICT_1 (6km × 6km) instead of full HCM (70km × 61km).
     Much faster: ~20-30 seconds vs 2-3 minutes.
     """
     from src.domain.geo.constants import BBOX_DISTRICT_1
-    
+
     engine = get_engine()
-    
+
     console.print(Panel.fit(
         "[bold yellow]🗺️  OSM DISTRICT 1 ONLY[/bold yellow]\n"
         "[dim]Fast mode: 6km × 6km coverage[/dim]",
         border_style="yellow"
     ))
-    
+
     try:
         from src.pipelines.spatial_net.osm_pipeline import run as run_osm
 
@@ -519,6 +520,78 @@ _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
                    COALESCE(c.importance_level, 0) AS importance_level
             FROM dim_corridor c
             WHERE c.corridor_version = (SELECT COALESCE(MAX(corridor_version), 1) FROM dim_corridor)
+        ),
+        recent_traffic AS (
+            SELECT f.segment_key,
+                   AVG(COALESCE(f.delay_seconds, 0)) AS avg_delay_seconds,
+                   AVG(
+                       CASE
+                           WHEN f.free_flow_speed_kmh > 0 THEN f.free_flow_speed_kmh / NULLIF(f.current_speed_kmh, 0)
+                           ELSE 1.0
+                       END
+                   ) AS avg_tti,
+                   COUNT(*) AS sample_count
+            FROM fact_traffic_flow f
+            WHERE f.timestamp >= (NOW() - INTERVAL '7 days')
+            GROUP BY f.segment_key
+        ),
+        recent_incident AS (
+            SELECT i.segment_key,
+                   COUNT(*) AS incident_count
+            FROM fact_incident i
+            WHERE i.timestamp >= (NOW() - INTERVAL '14 days')
+            GROUP BY i.segment_key
+        ),
+        corridor_segment_candidates AS (
+            SELECT
+                ac.corridor_key,
+                ac.corridor_name,
+                ac.importance_level,
+                s.segment_key,
+                ST_Y(s.geometry_center) AS lat,
+                ST_X(s.geometry_center) AS lon,
+                COALESCE(w.default_lane_count, 2) AS lane_count,
+                COALESCE(s.length_m, 0) AS length_m,
+                COUNT(*) OVER (PARTITION BY ac.corridor_key) AS corridor_total_segments,
+                (
+                    COALESCE(rt.avg_delay_seconds, 0) * 0.50
+                    + COALESCE(rt.avg_tti - 1.0, 0) * 120.0
+                    + COALESCE(ri.incident_count, 0) * 8.0
+                    + CASE
+                        WHEN ac.importance_level >= 5 THEN 40.0
+                        WHEN ac.importance_level = 4 THEN 24.0
+                        ELSE 12.0
+                      END
+                ) AS critical_score
+            FROM active_corridors ac
+            JOIN bridge_corridor_segment bcs ON bcs.corridor_key = ac.corridor_key
+            JOIN dim_segment s ON s.segment_key = bcs.segment_key
+            JOIN dim_way w ON w.way_key = s.way_key
+            LEFT JOIN recent_traffic rt ON rt.segment_key = s.segment_key
+            LEFT JOIN recent_incident ri ON ri.segment_key = s.segment_key
+            WHERE s.geometry_center IS NOT NULL
+              AND w.osm_highway_type IN ('primary', 'secondary', 'tertiary', 'trunk')
+        )
+    SELECT corridor_key,
+           corridor_name,
+           importance_level,
+           corridor_total_segments,
+           segment_key,
+           lat,
+           lon,
+           lane_count,
+           length_m,
+           critical_score
+    FROM corridor_segment_candidates
+    ORDER BY importance_level DESC, corridor_key, critical_score DESC, length_m DESC, segment_key
+""")
+
+_SEGMENT_QUERY_BY_TARGET_CORRIDORS_LEGACY = text("""
+        WITH active_corridors AS (
+            SELECT c.corridor_key,
+                   c.corridor_name,
+                   COALESCE(c.importance_level, 0) AS importance_level
+            FROM dim_corridor c
         ),
         recent_traffic AS (
             SELECT f.segment_key,
@@ -860,7 +933,7 @@ def _load_segment_points(
     segment_keys : list[int]   → index-based lookup in TrafficTransformer
     segment_key_map : {(lat,lon): segment_key}  → fallback coordinate lookup
     lane_count_map : {segment_key: lane_count} → PCU estimation enrichment
-    
+
     Args:
         engine: SQLAlchemy Engine
         limit: Max segments to load (default 25 for TomTom free tier)
@@ -873,10 +946,10 @@ def _load_segment_points(
     seg_keys: list[int] = []
     seg_map: dict[tuple, int] = {}
     lane_count_map: dict[int, int] = {}
-    
+
     # Ensure limit is int (Typer OptionInfo → int when called from run_all)
     limit = int(_resolve_option_default(limit)) if not isinstance(limit, int) else limit
-    
+
     # For target corridor mode we always honor caller-provided limit.
     if target_corridor_mode:
         effective_limit = limit
@@ -886,7 +959,17 @@ def _load_segment_points(
 
     with engine.connect() as conn:
         if target_corridor_mode:
-            rows = conn.execute(_SEGMENT_QUERY_BY_TARGET_CORRIDORS).fetchall()
+            try:
+                rows = conn.execute(_SEGMENT_QUERY_BY_TARGET_CORRIDORS).fetchall()
+            except ProgrammingError as exc:
+                # Backward compatibility for older dim_corridor schemas without corridor_version.
+                if "corridor_version" not in str(exc).lower():
+                    raise
+                conn.rollback()
+                logger.warning(
+                    "[run-realtime] dim_corridor.corridor_version missing -> fallback to legacy corridor query"
+                )
+                rows = conn.execute(_SEGMENT_QUERY_BY_TARGET_CORRIDORS_LEGACY).fetchall()
         elif bbox:
             # Use query with bbox filter for central districts
             params = {
@@ -900,7 +983,7 @@ def _load_segment_points(
         else:
             # Use original query without bbox filter
             rows = conn.execute(_SEGMENT_QUERY, {"limit": query_limit}).fetchall()
-    
+
     if target_corridor_mode:
         rows = _allocate_target_corridor_segments(rows, effective_limit)
 
@@ -930,7 +1013,7 @@ def _load_segment_points(
         actual_limit = effective_limit if target_corridor_mode else limit
         if len(points) >= actual_limit:
             break
-    
+
     mode_label = "priority_corridors_critical" if target_corridor_mode else (f"bbox: {bbox}" if bbox else "all")
     logger.info(
         f"[run-realtime] Loaded {len(points)} segment points from DB ({mode_label}) "
@@ -955,7 +1038,7 @@ def run_realtime(
     """Phase 3: Weather → Traffic Flow → Incident (1 cycle, cron 15p).
 
     **OFFICIAL MODE**: Uses priority corridors + critical segments from dim_corridor.
-    
+
     Thứ tự:
         dim_weather (trả weather_key) → fact_traffic_flow → fact_incident
     """
@@ -1188,11 +1271,11 @@ def run_realtime_central_districts(
 @app.command("run-batch")
 def run_batch() -> None:
     """Phase 4: Nightly batch – baseline speed + corridor performance.
-    
+
     **OFFICIAL Q1 MODE**: Corridor performance uses Quận 1 filtering.
     """
     from src.domain.geo.constants import BBOX_TARGET_DISTRICT
-    
+
     start_time = time.time()
     engine = get_engine()
     total = 0
@@ -1348,7 +1431,7 @@ def run_all() -> None:
     Phase 1 → Phase 2 → Phase 3 → Phase 4.
     """
     overall_start = time.time()
-    
+
     console.print("\n" + "═" * 80)
     console.print(Panel.fit(
         "[bold white]🚀 FULL PIPELINE EXECUTION[/bold white]\n"
@@ -1363,7 +1446,7 @@ def run_all() -> None:
     run_corridor_central_districts()
 
     overall_elapsed = time.time() - overall_start
-    
+
     console.print("\n" + "═" * 80)
     console.print(Panel.fit(
         f"[bold green]✅ ALL PIPELINES COMPLETE![/bold green]\n"
@@ -1385,7 +1468,7 @@ def _print_phase_summary(
     elapsed: float,
 ) -> None:
     """Print phase summary table.
-    
+
     Args:
         title: Phase title
         results: List of (pipeline_name, count, status) tuples
@@ -1396,18 +1479,18 @@ def _print_phase_summary(
     table.add_column("Pipeline", style="cyan", width=30)
     table.add_column("Records", justify="right", style="green", width=15)
     table.add_column("Status", justify="center", style="yellow", width=10)
-    
+
     for pipeline_name, count, status in results:
         status_icon = "[green]✓[/green]" if status == "✓" else "[red]✗[/red]"
         table.add_row(pipeline_name, f"{count:,}", status_icon)
-    
+
     table.add_row("─" * 30, "─" * 15, "─" * 10)
     table.add_row(
         "[bold]TOTAL[/bold]",
         f"[bold]{total:,}[/bold]",
         f"[bold]{elapsed:.2f}s[/bold]"
     )
-    
+
     console.print(table)
     console.print("")
 

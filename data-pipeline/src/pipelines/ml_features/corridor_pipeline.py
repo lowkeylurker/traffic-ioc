@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import Engine, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
@@ -152,6 +153,51 @@ _CORRIDOR_QUERY = text("""
     GROUP BY bcs.corridor_key, ac.corridor_name, ac.corridor_version, f.time_key, f.date_key
 """)
 
+_CORRIDOR_QUERY_LEGACY = text("""
+        WITH active_corridors AS (
+            SELECT corridor_key,
+                   corridor_name,
+                   1 AS corridor_version
+            FROM dim_corridor
+        ),
+        latest_time AS (
+            SELECT MAX(f.time_key) AS time_key
+            FROM fact_traffic_flow f
+            JOIN bridge_corridor_segment bcs ON f.segment_key = bcs.segment_key
+            JOIN active_corridors ac ON ac.corridor_key = bcs.corridor_key
+            WHERE f.date_key = :target_date_key
+        )
+    SELECT
+        bcs.corridor_key,
+        ac.corridor_name,
+        ac.corridor_version,
+        f.time_key,
+        f.date_key,
+        AVG(f.current_speed_kmh)        AS avg_speed,
+        SUM(f.delay_seconds)            AS total_delay,
+        AVG(CASE WHEN f.free_flow_speed_kmh > 0
+            THEN f.free_flow_speed_kmh / NULLIF(f.current_speed_kmh, 0)
+            ELSE 1.0 END)               AS travel_time_index,
+        (SELECT s.segment_key
+         FROM fact_traffic_flow s
+         JOIN bridge_corridor_segment bcs2 ON s.segment_key = bcs2.segment_key
+         WHERE bcs2.corridor_key = bcs.corridor_key
+           AND s.date_key = f.date_key AND s.time_key = f.time_key
+         ORDER BY s.delay_seconds DESC NULLS LAST
+         LIMIT 1)                       AS bottleneck_seg_key,
+        COALESCE((SELECT COUNT(*)
+         FROM fact_incident i
+         JOIN bridge_corridor_segment bcs3 ON i.segment_key = bcs3.segment_key
+         WHERE bcs3.corridor_key = bcs.corridor_key
+           AND i.date_key = f.date_key AND i.is_active = TRUE), 0) AS incident_count
+    FROM fact_traffic_flow f
+    JOIN bridge_corridor_segment bcs ON f.segment_key = bcs.segment_key
+    JOIN active_corridors ac ON ac.corridor_key = bcs.corridor_key
+        WHERE f.date_key = :target_date_key
+            AND f.time_key = (SELECT lt.time_key FROM latest_time lt)
+    GROUP BY bcs.corridor_key, ac.corridor_name, ac.corridor_version, f.time_key, f.date_key
+""")
+
 
 def run(engine: Engine, **kwargs) -> int:
     """Aggregate corridor performance cho 1 ngày.
@@ -169,12 +215,19 @@ def run(engine: Engine, **kwargs) -> int:
     gold_corridors = {name.strip() for name in settings.get_gold_corridor_names() if name.strip()}
 
     with Session(engine) as session:
-        result = session.execute(
-            _CORRIDOR_QUERY,
-            {
-                "target_date_key": target_dk,
-            },
-        )
+        params = {
+            "target_date_key": target_dk,
+        }
+        try:
+            result = session.execute(_CORRIDOR_QUERY, params)
+        except ProgrammingError as exc:
+            if "corridor_version" not in str(exc).lower():
+                raise
+            session.rollback()
+            logger.warning(
+                "dim_corridor.corridor_version missing -> fallback to legacy corridor aggregation query"
+            )
+            result = session.execute(_CORRIDOR_QUERY_LEGACY, params)
         rows = [dict(r._mapping) for r in result]
 
     if gold_corridors:
@@ -197,6 +250,13 @@ def run(engine: Engine, **kwargs) -> int:
     records = transformer.transform(rows)
 
     loader = CorridorPerformanceLoader(engine=engine)
+    if "corridor_version" not in loader.table.c:
+        loader.UPDATE_COLUMNS = [
+            col for col in loader.UPDATE_COLUMNS if col != "corridor_version"
+        ]
+        for record in records:
+            record.pop("corridor_version", None)
+
     count = loader.load(records)
     logger.info(f"Loaded {count} records → fact_corridor_performance")
 

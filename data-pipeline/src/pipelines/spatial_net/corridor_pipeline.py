@@ -665,7 +665,7 @@ class CorridorExtractor(BaseExtractor):
                 f"[dim]... showing 20/{len(corridors_data)} corridors[/dim]"
             )
         console.print(f"\n[green]✓[/green] Extracted [bold]{len(corridors_data)}[/bold] corridor configs\n")
-        
+
         self.logger.info(f"Extracted {len(corridors_data)} corridor configs")
         return {"corridors": corridors_data, "seed_signature": None}
 
@@ -680,7 +680,7 @@ class CorridorTransformer(BaseTransformer):
 
     def transform(self, raw_data: dict) -> dict[str, list[dict]]:
         """Transform raw corridor configs.
-        
+
         Returns:
             dict with 'dim_corridor' and 'bridge_corridor_segment' keys.
         """
@@ -743,7 +743,7 @@ class CorridorTransformer(BaseTransformer):
                             f"Skipping segment in corridor {corridor_name}: missing segment_key or segment_id_source"
                         )
                         continue
-                    
+
                     bridge_records.append({
                         "corridor_key": corridor_key,
                         "segment_key": int(segment_ref),
@@ -780,7 +780,7 @@ class CorridorTransformer(BaseTransformer):
 
 class CorridorLoader(BaseLoader):
     """Loader for dim_corridor table (standard UPSERT).
-    
+
     Conflict target: corridor_key
     Update on conflict: corridor_name, direction, target_avg_speed
     """
@@ -806,7 +806,7 @@ class CorridorLoader(BaseLoader):
 
 class BridgeCorridorSegmentLoader(BaseLoader):
     """Loader for bridge_corridor_segment table (DELETE + INSERT strategy).
-    
+
     This loader is part of load_corridors() transaction to handle route restructuring.
     """
 
@@ -832,30 +832,30 @@ def load_corridors(
     seed_signature: str | None = None,
 ) -> dict[str, int]:
     """Load corridors with full transaction control.
-    
+
     Strategy (city-wide refresh):
     1. UPSERT dim_corridor from generated corridor records
     2. DELETE FROM bridge_corridor_segment (full refresh)
     3. INSERT INTO bridge_corridor_segment (bulk insert)
-    
+
     All in ONE transaction with rollback on error.
-    
+
     Args:
         engine: SQLAlchemy Engine
         corridor_records: List of dim_corridor records
         bridge_records: List of bridge_corridor_segment records
-    
+
     Returns:
         dict with counts: {"corridors_upserted": int, "bridge_deleted": int, "bridge_inserted": int}
-    
+
     Raises:
         DatabaseLoadError: On transaction failure with auto-rollback
     """
     console.print("\n[bold cyan]💾 LOADING PHASE[/bold cyan]")
     console.print("[dim]Strategy: Transactional UPSERT with DELETE+INSERT for bridges[/dim]\n")
-    
+
     logger = get_logger("load_corridors")
-    
+
     result = {
         "corridors_upserted": 0,
         "bridge_deleted": 0,
@@ -870,6 +870,25 @@ def load_corridors(
         console.print("[yellow]⚠[/yellow] No corridor records to load\n")
         return result
 
+    corridor_table = get_table("dim_corridor", engine)
+    corridor_columns = set(corridor_table.c.keys())
+    has_corridor_version = "corridor_version" in corridor_columns
+    has_seed_signature = "seed_signature" in corridor_columns
+
+    if not has_corridor_version:
+        logger.warning(
+            "dim_corridor.corridor_version missing; using legacy corridor load mode (version=1)"
+        )
+    if seed_signature and not has_seed_signature:
+        logger.warning(
+            "dim_corridor.seed_signature missing; seed signature tracking disabled for this database"
+        )
+
+    sanitized_corridor_records = [
+        {key: value for key, value in record.items() if key in corridor_columns}
+        for record in corridor_records
+    ]
+
     try:
         with Progress(
             SpinnerColumn(),
@@ -879,7 +898,7 @@ def load_corridors(
         ) as progress:
             with Session(engine) as session:
                 with session.begin():
-                    if seed_signature:
+                    if has_corridor_version and seed_signature and has_seed_signature:
                         existing_version = session.execute(
                             text(
                                 """
@@ -897,17 +916,24 @@ def load_corridors(
                                 text("SELECT COALESCE(MAX(corridor_version), 0) FROM dim_corridor")
                             ).scalar()
                             corridor_version = int(max_version) + 1
-                    else:
+                    elif has_corridor_version:
                         max_version = session.execute(
                             text("SELECT COALESCE(MAX(corridor_version), 1) FROM dim_corridor")
                         ).scalar()
                         corridor_version = int(max_version or 1)
+                    else:
+                        corridor_version = 1
 
                     result["corridor_version"] = corridor_version
-                    for record in corridor_records:
-                        record["corridor_version"] = corridor_version
-                        if seed_signature:
+                    for record in sanitized_corridor_records:
+                        if has_corridor_version:
+                            record["corridor_version"] = corridor_version
+                        else:
+                            record.pop("corridor_version", None)
+                        if seed_signature and has_seed_signature:
                             record["seed_signature"] = seed_signature
+                        else:
+                            record.pop("seed_signature", None)
 
                     # ────────────────────────────────────────────────
                     # STEP 1: UPSERT dim_corridor
@@ -916,11 +942,16 @@ def load_corridors(
                         "[cyan]Step 1/3: UPSERT dim_corridor...",
                         total=None
                     )
-                    
+
                     corridor_loader = CorridorLoader(engine)
-                    corridors_upserted = corridor_loader.load(corridor_records)
+                    corridor_loader.UPDATE_COLUMNS = [
+                        column
+                        for column in corridor_loader.UPDATE_COLUMNS
+                        if column in corridor_columns
+                    ]
+                    corridors_upserted = corridor_loader.load(sanitized_corridor_records)
                     result["corridors_upserted"] = corridors_upserted
-                    
+
                     progress.update(task1, completed=True)
                     console.print(f"  [green]✓[/green] UPSERT [bold]{corridors_upserted}[/bold] dim_corridor records")
                     logger.info(f"✓ Upserted {corridors_upserted} dim_corridor records")
@@ -951,7 +982,7 @@ def load_corridors(
                         "[cyan]Step 3/3: INSERT new bridge records...",
                         total=None
                     )
-                    
+
                     if bridge_records:
                         resolved_bridge_records = [
                             {
@@ -1028,7 +1059,7 @@ def load_corridors(
 
 def run(engine: Engine, **kwargs) -> int:
     """Execute full corridor ETL pipeline.
-    
+
     Returns:
         int: Total records loaded (corridors + bridge)
     """
@@ -1067,11 +1098,11 @@ def run(engine: Engine, **kwargs) -> int:
     # Display final summary
     console.print("\n" + "─" * 70)
     console.print("[bold green]📊 PIPELINE SUMMARY[/bold green]\n")
-    
+
     summary_table = Table(show_header=True, header_style="bold cyan", box=None)
     summary_table.add_column("Metric", style="cyan", width=35)
     summary_table.add_column("Count", justify="right", style="green", width=15)
-    
+
     summary_table.add_row("Corridors Upserted", f"{result['corridors_upserted']:,}")
     summary_table.add_row("Bridge Records Deleted", f"{result['bridge_deleted']:,}")
     summary_table.add_row("Bridge Records Inserted", f"{result['bridge_inserted']:,}")
@@ -1080,7 +1111,7 @@ def run(engine: Engine, **kwargs) -> int:
     summary_table.add_row("─" * 35, "─" * 15)
     summary_table.add_row("[bold]Total Records Loaded[/bold]", f"[bold]{total:,}[/bold]")
     summary_table.add_row("[bold]Execution Time[/bold]", f"[bold]{elapsed:.2f}s[/bold]")
-    
+
     console.print(summary_table)
     console.print("\n[bold green]✅ Corridor pipeline completed successfully![/bold green]")
     console.print("═" * 70 + "\n")

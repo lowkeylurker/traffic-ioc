@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     db_user: str = "traffic_user"
     db_password: str = "traffic_password"
     db_sslmode: str = "disable"
+    db_connection_string: Optional[str] = None
 
     # ── API Keys ──────────────────────────────────────────
     tomtom_api_key: str = ""             # single-key fallback
@@ -68,7 +69,13 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        """Tự ghép connection string PostgreSQL."""
+        """Tự ghép connection string PostgreSQL.
+        
+        Ưu tiên db_connection_string nếu có.
+        """
+        if self.db_connection_string:
+            return self.db_connection_string
+            
         return (
             f"postgresql://{self.db_user}:{self.db_password}"
             f"@{self.db_host}:{self.db_port}/{self.db_name}"
