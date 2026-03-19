@@ -1,6 +1,7 @@
 # General
 .DS_Store
 .env
+.env.staging
 
 # Python (DE & AI)
 __pycache__/
