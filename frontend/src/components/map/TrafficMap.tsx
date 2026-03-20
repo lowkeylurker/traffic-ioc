@@ -12,6 +12,7 @@ import Map, { Layer, LayerProps, Source } from 'react-map-gl'
 
 const MAX_RENDER_SEGMENTS = 12000
 const MAX_FEATURES_FOR_AUTO_FIT = 50000
+const MIN_RENDER_SEGMENTS = 2500
 
 type MapBounds = {
   minLon: number
@@ -50,10 +51,20 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     GeoJSONFeature['properties'] | null
   >(null)
   const [viewportBounds, setViewportBounds] = useState<MapBounds | null>(null)
+  const [currentZoom, setCurrentZoom] = useState<number>(DEFAULT_MAP_ZOOM)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
   })
+
+  const renderCap = useMemo(() => {
+    if (currentZoom < 11) return MIN_RENDER_SEGMENTS
+    if (currentZoom < 12.5) return 5000
+    if (currentZoom < 14) return 8000
+    if (currentZoom < 15.5) return MAX_RENDER_SEGMENTS
+    if (currentZoom < 17) return 18000
+    return 26000
+  }, [currentZoom])
 
   const featureBounds = useMemo(() => {
     if (!segmentData?.features?.length) return []
@@ -82,7 +93,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     if (!viewportBounds) {
       return {
         ...segmentData,
-        features: segmentData.features.slice(0, MAX_RENDER_SEGMENTS),
+        features: segmentData.features.slice(0, renderCap),
       }
     }
 
@@ -102,7 +113,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         visibleFeatures.push(segmentData.features[i])
       }
 
-      if (visibleFeatures.length >= MAX_RENDER_SEGMENTS) {
+      if (visibleFeatures.length >= renderCap) {
         break
       }
     }
@@ -111,7 +122,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
       ...segmentData,
       features: visibleFeatures,
     }
-  }, [featureBounds, segmentData, viewportBounds])
+  }, [featureBounds, renderCap, segmentData, viewportBounds])
 
   const updateViewportBounds = () => {
     if (!mapRef.current?.getMap) return
@@ -127,6 +138,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
       minLat: bounds.getSouth(),
       maxLat: bounds.getNorth(),
     })
+    setCurrentZoom(map.getZoom())
   }
 
   // Auto-fit map bounds when traffic data loads
