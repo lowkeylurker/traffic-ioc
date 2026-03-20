@@ -21,6 +21,25 @@ export type SegmentResponse = {
   features: GeoJSONFeature[]
 }
 
+export interface IncidentFeature {
+  type: 'Feature'
+  id: number
+  geometry: {
+    type: 'Point'
+    coordinates: [number, number]
+  }
+  properties: IncidentProperties
+}
+
+export interface IncidentProperties {
+  id: number
+  type: string
+  severity: string
+  description: string
+  status: string
+  createdAt: string
+}
+
 export interface Segment {
   segmentId: number
   segmentName: string

@@ -1,22 +1,22 @@
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { query } from '../config/db';
-import { ResponseUtil } from '../utils/response';
 import { Logger } from '../utils/logger';
+import { ResponseUtil } from '../utils/response';
 
 const logger = new Logger('IncidentController');
 
 export class IncidentController {
-    /**
-     * GET /api/v1/incidents
-     * get list incident OPEN from view_active_incidents
-     * return GeoJSON FeatureCollection
-     */
-    async getActiveIncidents(req: Request, res: Response, next: NextFunction): Promise<void> {
-        try {
-            logger.log('Fetching active incidents');
+  /**
+   * GET /api/v1/incidents
+   * get list incident OPEN from view_active_incidents
+   * return GeoJSON FeatureCollection
+   */
+  async getActiveIncidents(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      logger.log('Fetching active incidents');
 
-            const result = await query(`
-        SELECT 
+      const result = await query(`
+        SELECT
           id,
           type,
           severity,
@@ -29,32 +29,32 @@ export class IncidentController {
         ORDER BY created_at DESC
       `);
 
-            // convert to GeoJSON FeatureCollection
-            const features = result.rows.map((row) => ({
-                type: 'Feature',
-                id: row.id,
-                geometry: row.geometry,
-                properties: {
-                    id: row.id,
-                    type: row.type,
-                    severity: row.severity,
-                    description: row.description,
-                    status: row.status,
-                    createdAt: row.created_at
-                }
-            }));
+      // convert to GeoJSON FeatureCollection
+      const features = result.rows.map((row) => ({
+        type: 'Feature',
+        id: row.id,
+        geometry: row.geometry,
+        properties: {
+          id: row.id,
+          type: row.type,
+          severity: row.severity,
+          description: row.description,
+          status: row.status,
+          createdAt: row.created_at,
+        },
+      }));
 
-            const featureCollection = {
-                type: 'FeatureCollection',
-                features
-            };
+      const featureCollection = {
+        type: 'FeatureCollection',
+        features,
+      };
 
-            res.json(ResponseUtil.success(featureCollection, 'Active incidents retrieved successfully'));
-        } catch (error) {
-            logger.error('Error fetching incidents', error);
-            next(error);
-        }
+      res.json(ResponseUtil.success(featureCollection, 'Active incidents retrieved successfully'));
+    } catch (error) {
+      logger.error('Error fetching incidents', error);
+      next(error);
     }
+  }
 }
 
 export const incidentController = new IncidentController();
