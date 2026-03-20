@@ -70,6 +70,38 @@ export interface Alert {
   timestamp: Date
 }
 
+// Incident Monitoring Types (A2)
+export type IncidentType =
+  | 'ACCIDENT'
+  | 'FLOOD'
+  | 'CONSTRUCTION'
+  | 'FIRE'
+  | 'OTHER'
+export type IncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+export type IncidentStatus = 'OPEN' | 'RESOLVED' | 'PENDING'
+
+export interface IncidentFeature {
+  type: 'Feature'
+  geometry: {
+    type: 'Point'
+    coordinates: [number, number] // [Lng, Lat]
+  }
+  properties: {
+    id: string
+    type: IncidentType
+    severity: IncidentSeverity
+    title: string
+    description: string
+    status: IncidentStatus
+    timestamp: string
+  }
+}
+
+export interface IncidentCollection {
+  type: 'FeatureCollection'
+  features: IncidentFeature[]
+}
+
 export interface WeatherData {
   temperature: number
   condition: string

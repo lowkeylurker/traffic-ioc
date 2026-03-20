@@ -341,6 +341,8 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
             <Layer {...trafficLayerStyle} />
           </Source>
         )}
+
+        {/* Render children components (e.g., IncidentLayer) */}
         {children}
       </Map>
 

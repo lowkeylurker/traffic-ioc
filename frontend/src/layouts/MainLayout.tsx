@@ -14,7 +14,7 @@ import { useAuth, useUser } from '@clerk/clerk-react'
 import { SignInSignUpDialog } from '@/components'
 import { LAYOUT_SIDER_WIDTH } from '@/config/constants'
 
-const { Sider, Header, Content } = Layout
+const { Sider, Content } = Layout
 
 export const MainLayout: React.FC = () => {
   const navigate = useNavigate()
@@ -26,7 +26,6 @@ export const MainLayout: React.FC = () => {
   // Guest mode is when user is not signed in
   const isGuest = !isSignedIn
   const isAdmin = isSignedIn && user?.publicMetadata?.role === 'admin'
-  const isRegularUser = isSignedIn && !isAdmin
 
   const visibleMenuItems = [
     {
@@ -35,7 +34,7 @@ export const MainLayout: React.FC = () => {
       label: 'Giám sát Vận hành',
     },
     // Profile for regular users
-    ...(isRegularUser
+    ...(isSignedIn
       ? [
           {
             key: '/profile',
@@ -71,70 +70,76 @@ export const MainLayout: React.FC = () => {
       <Sider
         width={LAYOUT_SIDER_WIDTH}
         theme="light"
-        style={{ background: '#ffffff', borderRight: '1px solid #f0f0f0' }}
+        style={{
+          background: '#ffffff',
+          borderRight: '1px solid #f0f0f0',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
       >
-        <div
-          style={{
-            padding: '16px',
-            color: '#001529',
-            fontSize: 18,
-            fontWeight: 'bold',
-          }}
-        >
-          Traffic IOC
-        </div>
-        <Menu
-          theme="light"
-          mode="inline"
-          selectedKeys={[location.pathname]}
-          items={visibleMenuItems}
-          onClick={(item) => navigate(item.key)}
-        />
-      </Sider>
-
-      <Layout>
-        <Header
-          style={{
-            background: '#ffffff',
-            padding: '0 24px',
-            boxShadow: '0 2px 8px #f0f1f2',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <h2
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <div
             style={{
-              margin: 0,
+              padding: '16px',
               color: '#001529',
-              fontSize: 24,
+              fontSize: 18,
               fontWeight: 'bold',
             }}
           >
-            Hệ thống Điều hành Giao thông Thông minh
-          </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            {isGuest ? (
-              <Button type="primary" onClick={() => setAuthDialogOpen(true)}>
-                Đăng nhập / Đăng ký
-              </Button>
-            ) : (
-              <>
-                <span style={{ fontSize: 14, color: 'rgba(0, 0, 0, 0.65)' }}>
-                  {user?.firstName} {user?.lastName}
-                </span>
-                <Button
-                  type="text"
-                  icon={<LogoutOutlined />}
-                  onClick={handleLogout}
-                >
-                  Đăng xuất
-                </Button>
-              </>
-            )}
+            Traffic IOC
           </div>
-        </Header>
+          <Menu
+            theme="light"
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            items={visibleMenuItems}
+            onClick={(item) => navigate(item.key)}
+            style={{ flex: 1 }}
+          />
+        </div>
+        <div
+          style={{
+            marginTop: 'auto',
+            padding: '16px',
+            borderTop: '1px solid #f0f0f0',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          }}
+        >
+          {isGuest ? (
+            <Button
+              type="primary"
+              block
+              onClick={() => setAuthDialogOpen(true)}
+            >
+              Đăng nhập / Đăng ký
+            </Button>
+          ) : (
+            <>
+              <span
+                style={{
+                  fontSize: 12,
+                  color: 'rgba(0, 0, 0, 0.65)',
+                  textAlign: 'center',
+                }}
+              >
+                {user?.firstName} {user?.lastName}
+              </span>
+              <Button
+                type="text"
+                icon={<LogoutOutlined />}
+                onClick={handleLogout}
+                size="small"
+              >
+                Đăng xuất
+              </Button>
+            </>
+          )}
+        </div>
+      </Sider>
 
+      <Layout>
         <Content style={{ padding: 0, background: '#f0f2f5' }}>
           <Outlet />
         </Content>

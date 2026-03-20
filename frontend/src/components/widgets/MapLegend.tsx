@@ -20,12 +20,12 @@ export const MapLegend: React.FC = () => {
       style={{
         position: 'absolute',
         bottom: 24,
-        right: 64,
+        right: 44,
         zIndex: 10,
         background: 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
         borderRadius: 8,
-        padding: '8px 12px',
+        padding: '4px',
         boxShadow:
           '0 8px 32px 0 rgba(0, 0, 0, 0.08), 0 2px 8px 0 rgba(0, 0, 0, 0.04)',
         border: '1px solid rgba(255, 255, 255, 0.8)',
