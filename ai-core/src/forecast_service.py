@@ -1,2 +1,2 @@
-# Placeholder for forecast service
-# TODO: Implement FastAPI/Flask microservice for traffic forecasting
+# Placeholder cho dịch vụ dự đoán
+# TODO: Triển khai FastAPI/Flask microservice cho dự báo giao thông
