@@ -294,28 +294,48 @@ export class MapService {
    */
   async getTrafficMap(): Promise<TrafficMapResponse> {
     try {
-      logger.log('Fetching traffic map data from database');
-      const [segments, status] = await Promise.all([this.getSegments(), this.getTrafficStatus()]);
+      logger.log('Fetching traffic map data with joined latest traffic snapshot');
 
-      // Create a map for O(1) status lookup
-      const statusMap = new Map(status.map((s) => [s.segmentId, s]));
+      const rows = await prisma.$queryRaw<any[]>`
+        WITH latest_flow AS (
+          SELECT DISTINCT ON (segment_key)
+            segment_key,
+            current_speed_kmh,
+            los_level,
+            timestamp
+          FROM fact_traffic_flow
+          ORDER BY segment_key, timestamp DESC
+        )
+        SELECT
+          s.segment_key::text as "segmentId",
+          s.segment_id_source::text as "segmentName",
+          ST_AsGeoJSON(s.geometry_linestring)::json as geometry,
+          lf.current_speed_kmh as "avgSpeed",
+          lf.los_level as "losGrade",
+          lf.timestamp as "timestamp"
+        FROM dim_segment s
+        LEFT JOIN latest_flow lf ON lf.segment_key = s.segment_key
+        WHERE s.geometry_linestring IS NOT NULL
+        ORDER BY s.segment_key
+      `;
 
-      // Map database data to GeoJSON format with color coding
-      const features: GeoJSONFeature[] = segments.map((segment: any) => {
-        const trafficInfo = statusMap.get(segment.segmentId);
-        const speed = trafficInfo?.avgSpeed || null;
-        const color = this.getColorBySpeed(speed);
+      const nowIso = new Date().toISOString();
+
+      // One-pass transform from DB rows to GeoJSON features.
+      const features: GeoJSONFeature[] = rows.map((row: any) => {
+        const speed = row.avgSpeed ?? null;
+        const timestamp = row.timestamp;
 
         return {
           type: 'Feature',
-          geometry: segment.geometry,
+          geometry: row.geometry,
           properties: {
-            segmentId: segment.segmentId,
-            segmentName: segment.segmentName,
-            avgSpeed: speed || 0,
-            losIndex: trafficInfo?.losGrade || 'N/A',
-            color,
-            lastUpdated: trafficInfo?.timestamp?.toISOString() || new Date().toISOString(),
+            segmentId: row.segmentId,
+            segmentName: row.segmentName,
+            avgSpeed: speed ?? 0,
+            losIndex: row.losGrade || 'N/A',
+            color: this.getColorBySpeed(speed),
+            lastUpdated: timestamp instanceof Date ? timestamp.toISOString() : nowIso,
           },
         };
       });
