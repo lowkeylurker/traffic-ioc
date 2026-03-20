@@ -39,9 +39,9 @@ class BaselineTransformer(BaseTransformer):
                     "segment_key": row["segment_key"],
                     "time_key": row["time_key"],
                     "day_of_week": row["day_of_week"],
-                    "avg_speed_kmh": round(float(row["avg_speed"]), 2),
-                    "avg_travel_time": int(row.get("avg_travel_time", 0)),
-                    "sample_count": int(row.get("sample_count", 0)),
+                    "avg_speed_kmh": round(float(row.get("avg_speed") or 0.0), 2),
+                    "avg_travel_time": int(row.get("avg_travel_time") or 0),
+                    "sample_count": int(row.get("sample_count") or 0),
                     "computed_at": now,
                 }
             )

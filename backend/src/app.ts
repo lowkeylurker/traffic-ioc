@@ -12,6 +12,7 @@ import { Logger } from './utils/logger';
 import mapRoutes from './routes/map.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import simulationRoutes from './routes/simulation.routes';
+import incidentRoutes from './routes/incident.routes';
 import { clerkMiddleware } from '@clerk/express';
 
 const logger = new Logger('App');
@@ -57,11 +58,13 @@ export const createApp = (): Express => {
   app.use(`${apiV1}${ROUTE_PATHS.MAP}`, mapRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.ANALYTICS}`, analyticsRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.SIMULATION}`, simulationRoutes);
+  app.use(`${apiV1}${ROUTE_PATHS.INCIDENT}`, incidentRoutes); 
 
   logger.log('Routes registered:', {
     map: `${apiV1}${ROUTE_PATHS.MAP}`,
     analytics: `${apiV1}${ROUTE_PATHS.ANALYTICS}`,
     simulation: `${apiV1}${ROUTE_PATHS.SIMULATION}`,
+    incident: `${apiV1}${ROUTE_PATHS.INCIDENT}`,
   });
 
   // ============================================================================

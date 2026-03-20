@@ -11,12 +11,14 @@ interface AlertFeedProps {
   alerts?: Alert[]
   maxHeight?: number
   style?: React.CSSProperties
+  onAlertClick?: (alert: Alert) => void
 }
 
 export const AlertFeed: React.FC<AlertFeedProps> = ({
   alerts = MOCK_ALERTS,
   maxHeight = 500,
   style,
+  onAlertClick,
 }) => {
   const [collapsed, setCollapsed] = React.useState(false)
 
@@ -128,9 +130,10 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
                   transition: 'all 0.2s ease',
                   cursor: 'pointer',
                 }}
+                onClick={() => onAlertClick && onAlertClick(alert)}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#fafafa'
-                  e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.12)'
+                  e.currentTarget.style.background = '#f0f7ff'
+                  e.currentTarget.style.borderColor = 'rgba(24, 144, 255, 0.3)'
                   e.currentTarget.style.transform = 'translateX(-2px)'
                 }}
                 onMouseLeave={(e) => {

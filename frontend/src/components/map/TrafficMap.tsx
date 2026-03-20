@@ -28,10 +28,10 @@ interface TrafficMapProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMapClick?: (event: any) => void
   style?: React.CSSProperties
-  autoRefreshInterval?: number // in milliseconds, default 30s
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mapRef?: React.RefObject<any> // Allow parent to control map
-  heatmapEnabled?: boolean // Toggle heatmap layer
+  autoRefreshInterval?: number
+  mapRef?: React.RefObject<any>
+  heatmapEnabled?: boolean
+  children?: React.ReactNode
 }
 
 export const TrafficMap: React.FC<TrafficMapProps> = ({
@@ -40,10 +40,10 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   style,
   mapRef: externalMapRef,
   heatmapEnabled = false,
+  children,
 }) => {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
   const mapboxStyle = import.meta.env.VITE_MAPBOX_STYLE
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const internalMapRef = useRef<any>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = externalMapRef || internalMapRef
@@ -277,12 +277,9 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     const map = mapRef.current.getMap()
     const layerId = 'traffic-flow-layer'
 
-    // Wait for layer to be loaded
     const waitForLayer = setInterval(() => {
       if (map.getLayer(layerId)) {
         clearInterval(waitForLayer)
-
-        // Change cursor on hover
         map.on('mouseenter', layerId, () => {
           map.getCanvas().style.cursor = 'pointer'
         })
@@ -393,6 +390,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
             <Layer {...trafficLayerStyle} />
           </Source>
         )}
+        {children}
       </Map>
 
       {/* Hover Popup */}

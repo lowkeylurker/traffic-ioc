@@ -1,6 +1,8 @@
 // Map Service - Xử lý logic lấy dữ liệu đoạn đường và trạng thái giao thông
+// Sử dụng pg Pool trực tiếp (thay prisma.$queryRaw) để hỗ trợ PostGIS
 
 import { prisma } from '../config/prisma';
+import { query } from '../config/db';
 import { TrafficSegment, TrafficStatus } from '../interfaces/index';
 import { COLOR_RULES, GeoJSONFeature, TrafficMapResponse } from '../interfaces/map.interface';
 import { Logger } from '../utils/logger';
@@ -277,20 +279,14 @@ export class MapService {
    * Get color based on speed
    */
   private getColorBySpeed(speed: number | null): string {
-    if (speed === null || speed === undefined) {
-      return COLOR_RULES.GREY;
-    }
-    if (speed < 15) {
-      return COLOR_RULES.RED;
-    }
-    if (speed < 30) {
-      return COLOR_RULES.ORANGE;
-    }
+    if (speed === null || speed === undefined) return COLOR_RULES.GREY;
+    if (speed < 15) return COLOR_RULES.RED;
+    if (speed < 30) return COLOR_RULES.ORANGE;
     return COLOR_RULES.GREEN;
   }
 
   /**
-   * Get traffic map response with color-coded segments
+   * GET /api/v1/map/segments – Return GeoJSON FeatureCollection with color by LOS
    */
   async getTrafficMap(): Promise<TrafficMapResponse> {
     try {
@@ -340,10 +336,7 @@ export class MapService {
         };
       });
 
-      return {
-        type: 'FeatureCollection',
-        features,
-      };
+      return { type: 'FeatureCollection', features };
     } catch (error) {
       logger.error('Error fetching traffic map', error);
       throw error;
@@ -352,28 +345,26 @@ export class MapService {
 
   /**
    * Lấy danh sách tất cả đoạn đường dưới dạng GeoJSON
-   * Sử dụng raw query để xử lý geometry
    */
   async getSegments(): Promise<any[]> {
     try {
       logger.log('Fetching all segments with GeoJSON');
 
-      // Raw query để lấy geometry dưới dạng GeoJSON
-      const segments = await prisma.$queryRaw`
+      const result = await query(`
         SELECT
-          segment_key::text as "segmentId",
-          segment_id_source::text as "segmentName",
-          ST_AsGeoJSON(geometry_linestring)::json as geometry,
-          length_m as "numLanes",
-          is_one_way as "speedLimit"
+          segment_key        AS "segmentId",
+          segment_id_source::text AS "segmentName",
+          ST_AsGeoJSON(geometry_linestring)::json AS geometry,
+          length_m           AS "numLanes",
+          is_one_way         AS "speedLimit"
         FROM dim_segment
         WHERE geometry_linestring IS NOT NULL
         ORDER BY segment_key
-        -- LIMIT 5000
-      `;
+        LIMIT 5000
+      `);
 
-      logger.log(`Retrieved ${Array.isArray(segments) ? segments.length : 0} segments`);
-      return (segments as TrafficSegment[]) || [];
+      logger.log(`Retrieved ${result.rows.length} segments`);
+      return result.rows;
     } catch (error) {
       logger.error('Error fetching segments', error);
       throw error;
@@ -382,36 +373,37 @@ export class MapService {
 
   /**
    * Lấy trạng thái giao thông hiện tại của tất cả đoạn đường
-   * Join dim_segment và fact_traffic_flow
    */
   async getTrafficStatus(): Promise<TrafficStatus[]> {
     try {
       logger.log('Fetching traffic status');
 
-      // Raw query to join and lấy dữ liệu mới nhất using DISTINCT ON for better performance
-      const status = await prisma.$queryRaw`
+      const result = await query(`
         SELECT
-          s.segment_key::text as "segmentId",
-          s.segment_id_source::text as "segmentName",
-          f.current_speed_kmh as "currentSpeed",
-          f.current_speed_kmh as "avgSpeed",
-          f.los_level as "losGrade",
-          f.traffic_index as "losScore",
-          f.pcu_volume as "pcuValue",
-          NULL::float as "occupancyRate",
-          f.timestamp as timestamp
+          s.segment_key          AS "segmentId",
+          s.segment_id_source::text AS "segmentName",
+          f.current_speed_kmh    AS "currentSpeed",
+          f.current_speed_kmh    AS "avgSpeed",
+          f.los_level            AS "losGrade",
+          f.traffic_index        AS "losScore",
+          f.pcu_volume           AS "pcuValue",
+          NULL::float            AS "occupancyRate",
+          f.timestamp            AS timestamp
         FROM dim_segment s
-        LEFT JOIN (
-          SELECT DISTINCT ON (segment_key) *
-          FROM fact_traffic_flow
-          ORDER BY segment_key, timestamp DESC
-        ) f ON s.segment_key = f.segment_key
+        LEFT JOIN LATERAL (
+          SELECT *
+          FROM fact_traffic_flow ftf
+          WHERE ftf.segment_key = s.segment_key
+          ORDER BY ftf.timestamp DESC
+          LIMIT 1
+        ) f ON TRUE
         WHERE s.geometry_linestring IS NOT NULL
         ORDER BY s.segment_key
-      `;
+        LIMIT 5000
+      `);
 
-      logger.log(`Retrieved traffic status for ${Array.isArray(status) ? status.length : 0} segments`);
-      return (status as TrafficStatus[]) || [];
+      logger.log(`Retrieved traffic status for ${result.rows.length} segments`);
+      return result.rows as TrafficStatus[];
     } catch (error) {
       logger.error('Error fetching traffic status', error);
       throw error;
@@ -423,37 +415,33 @@ export class MapService {
    */
   async getSegmentStatus(segmentId: number): Promise<TrafficStatus | null> {
     try {
-      if (USE_MOCK_DATA) {
-        logger.log(`Using mock data for segment ${segmentId}`);
-        return MOCK_TRAFFIC_STATUS.find((s: TrafficStatus) => s.segmentId === segmentId) || null;
-      }
-
       logger.log(`Fetching status for segment ${segmentId}`);
 
-      const status = await prisma.$queryRaw`
+      const result = await query(`
         SELECT
-          s.segment_key::text as "segmentId",
-          s.segment_id_source::text as "segmentName",
-          f.current_speed_kmh as "currentSpeed",
-          f.current_speed_kmh as "avgSpeed",
-          f.los_level as "losGrade",
-          f.traffic_index as "losScore",
-          f.pcu_volume as "pcuValue",
-          NULL::float as "occupancyRate",
-          f.timestamp as timestamp
+          s.segment_key          AS "segmentId",
+          s.segment_id_source::text AS "segmentName",
+          f.current_speed_kmh    AS "currentSpeed",
+          f.current_speed_kmh    AS "avgSpeed",
+          f.los_level            AS "losGrade",
+          f.traffic_index        AS "losScore",
+          f.pcu_volume           AS "pcuValue",
+          NULL::float            AS "occupancyRate",
+          f.timestamp            AS timestamp
         FROM dim_segment s
-        LEFT JOIN fact_traffic_flow f ON s.segment_key = f.segment_key
-          AND f.traffic_flow_key = (
-            SELECT traffic_flow_key FROM fact_traffic_flow
-            WHERE segment_key = s.segment_key
-            ORDER BY timestamp DESC LIMIT 1
-          )
-        WHERE s.segment_key = ${segmentId}
-      `;
+        LEFT JOIN LATERAL (
+          SELECT *
+          FROM fact_traffic_flow ftf
+          WHERE ftf.segment_key = s.segment_key
+          ORDER BY ftf.timestamp DESC
+          LIMIT 1
+        ) f ON TRUE
+        WHERE s.segment_key = $1
+      `, [segmentId]);
 
-      const result = Array.isArray(status) && status.length > 0 ? status[0] : null;
-      logger.log(`Retrieved status for segment ${segmentId}`, result ? 'Found' : 'Not found');
-      return result as TrafficStatus | null;
+      const result_row = result.rows.length > 0 ? result.rows[0] : null;
+      logger.log(`Segment ${segmentId}: ${result_row ? 'Found' : 'Not found'}`);
+      return result_row as TrafficStatus | null;
     } catch (error) {
       logger.error(`Error fetching status for segment ${segmentId}`, error);
       throw error;
