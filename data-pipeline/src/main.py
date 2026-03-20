@@ -3,6 +3,8 @@
 Commands:
     run-static     Sinh + UPSERT dimension thời gian + ngày lễ
     run-spatial    Download OSM network + UPSERT spatial dims
+    run-loader     Nạp đường phố Quận 1 & Quận 3 vào dim_segment
+    run-mocker     Sinh sự cố ngẫu nhiên mỗi 15 giây vào fact_incident
     run-realtime   Weather → Traffic Flow → Incident (priority corridors, critical segments)
     run-batch      Nightly: baseline (all) + corridor performance (priority corridors)
     run-all        Chạy tất cả theo thứ tự FK
@@ -374,6 +376,60 @@ def run_spatial(
     elapsed = time.time() - start_time
     _print_phase_summary("PHASE 2 COMPLETE", results, total, elapsed)
     typer.echo("")
+
+
+@app.command("run-loader")
+def run_loader() -> None:
+    """
+    Load the OSM road network (District 1 & District 3) into dim_segment.
+    Use src.loaders.osm_loader
+    """
+    start_time = time.time()
+
+    console.print(Panel.fit(
+        "[bold blue]🗺️  PHASE 1.5: OSM LOADER[/bold blue]\n"
+        "[dim]Nạp đường phố Quận 1 & Quận 3 vào dim_segment[/dim]",
+        border_style="blue"
+    ))
+
+    try:
+        from src.loaders.osm_loader import run as run_osm_loader
+
+        count = run_osm_loader()
+        elapsed = time.time() - start_time
+        logger.info(f"[run-loader] osm_loader: {count} records in {elapsed:.2f}s")
+        console.print(f"[green]✅ run-loader complete: {count} records → dim_segment ({elapsed:.2f}s)[/green]")
+    except Exception as e:
+        logger.error(f"[run-loader] osm_loader failed: {e}")
+        console.print(f"[red]❌ run-loader failed: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("run-mocker")
+def run_mocker() -> None:
+    """
+    Simulate real-time incidents in fact_incident (an infinite loop, 15 seconds/cycle).
+    This command BLOCKS the terminal (blocking loop) – it runs in a separate terminal.
+    Press Ctrl+C to stop.
+    Requirement: dim_segment must have data beforehand (run-loader must be running first).
+    """
+    console.print(Panel.fit(
+        "[bold red]🚨 MOCKER: REAL-TIME INCIDENT SIMULATOR[/bold red]\n"
+        "[dim]Sinh sự cố ngẫu nhiên mỗi 15 giây vào fact_incident[/dim]\n"
+        "[dim]Nhấn Ctrl+C để dừng[/dim]",
+        border_style="red"
+    ))
+
+    try:
+        from src.mockers.mock_incidents import run as run_mock_incidents
+
+        run_mock_incidents()
+    except KeyboardInterrupt:
+        console.print("\n[yellow]⚠️  Mocker dừng bởi người dùng (Ctrl+C)[/yellow]")
+    except Exception as e:
+        logger.error(f"[run-mocker] mock_incidents failed: {e}")
+        console.print(f"[red]❌ run-mocker failed: {e}[/red]")
+        raise typer.Exit(code=1)
 
 
 @app.command("run-corridors")
