@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -20,13 +21,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment / .env file."""
 
     # ── Database ──────────────────────────────────────────
-    db_host: str = "localhost"
-    db_port: int = 5432
-    db_name: str = "traffic_ioc"
-    db_user: str = "traffic_user"
-    db_password: str = "traffic_password"
-    db_sslmode: str = "disable"
-    db_connection_string: Optional[str] = None
+    database_url: str = ""
 
     # ── API Keys ──────────────────────────────────────────
     tomtom_api_key: str = ""             # single-key fallback
@@ -67,20 +62,15 @@ class Settings(BaseSettings):
             return []
         return [name.strip() for name in self.gold_corridor_names.split(",") if name.strip()]
 
-    @property
-    def database_url(self) -> str:
-        """Tự ghép connection string PostgreSQL.
-        
-        Ưu tiên db_connection_string nếu có.
+    @model_validator(mode="after")
+    def validate_required_database_url(self) -> "Settings":
+        """DATABASE_URL is mandatory for runtime.
+
+        This keeps deployment config explicit and portable across VM/container environments.
         """
-        if self.db_connection_string:
-            return self.db_connection_string
-            
-        return (
-            f"postgresql://{self.db_user}:{self.db_password}"
-            f"@{self.db_host}:{self.db_port}/{self.db_name}"
-            f"?sslmode={self.db_sslmode}"
-        )
+        if not str(self.database_url).strip():
+            raise ValueError("Missing required environment variable: DATABASE_URL")
+        return self
 
     class Config:
         env_file = str(_ENV_PATH)

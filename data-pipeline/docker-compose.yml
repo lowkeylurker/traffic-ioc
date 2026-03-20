@@ -1,0 +1,34 @@
+services:
+  etl-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: traffic-ioc-etl-runner
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ETL_WINDOW_START_HOUR: ${ETL_WINDOW_START_HOUR:-6}
+      ETL_WINDOW_END_HOUR: ${ETL_WINDOW_END_HOUR:-21}
+      ETL_ACTIVE_CYCLES_PER_DAY: ${ETL_ACTIVE_CYCLES_PER_DAY:-61}
+      TOMTOM_DAILY_LIMIT_PER_KEY: ${TOMTOM_DAILY_LIMIT_PER_KEY:-2500}
+      OWM_GRID_SIZE_M: ${OWM_GRID_SIZE_M:-500}
+      OWM_GRID_MIN_CALL_INTERVAL_SEC: ${OWM_GRID_MIN_CALL_INTERVAL_SEC:-0.9}
+      TZ: Asia/Ho_Chi_Minh
+    command:
+      - python
+      - -m
+      - src.main
+      - run-cycle-daemon
+      - --cycle-interval-minutes
+      - ${CYCLE_INTERVAL_MINUTES:-15}
+      - --retry-sleep-minutes
+      - ${RETRY_SLEEP_MINUTES:-5}
+      - --budget-mode
+      - --segment-limit
+      - ${SEGMENT_LIMIT:-1600}
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+

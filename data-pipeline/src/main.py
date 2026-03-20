@@ -18,6 +18,7 @@ from collections import defaultdict
 from math import ceil
 import time
 import os
+from datetime import datetime, timedelta
 from typing import Tuple
 
 import requests
@@ -1034,7 +1035,7 @@ def run_realtime(
         False,
         help="Enable budget mode to honor --segment-limit instead of forcing full target coverage",
     ),
-) -> None:
+) -> bool:
     """Phase 3: Weather → Traffic Flow → Incident (1 cycle, cron 15p).
 
     **OFFICIAL MODE**: Uses priority corridors + critical segments from dim_corridor.
@@ -1043,113 +1044,135 @@ def run_realtime(
         dim_weather (trả weather_key) → fact_traffic_flow → fact_incident
     """
     start_time = time.time()
-    engine = get_engine()
-    segment_limit = int(_resolve_option_default(segment_limit))
-    budget_mode = bool(_resolve_option_default(budget_mode))
-    if budget_mode and segment_limit >= _MAX_SEGMENTS_TARGET_CORRIDORS:
-        segment_limit = _BUDGET_SAFE_SEGMENTS_PER_CYCLE
-        logger.info(
-            "[run-realtime] budget_mode enabled without strict --segment-limit; "
-            f"fallback to {_BUDGET_SAFE_SEGMENTS_PER_CYCLE} segments"
-        )
     total = 0
     results = []
+    success = True
 
-    console.print(Panel.fit(
-        "[bold cyan]🌤️  PHASE 3: REAL-TIME DATA (PRIORITY CORRIDORS)[/bold cyan]\n"
-        "[dim]Weather + Traffic Flow + Incidents (critical segments)[/dim]",
-        border_style="cyan"
-    ))
-
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TimeElapsedColumn(),
-        console=console,
-    ) as progress:
-        # Load segment coordinates from DB (priority corridors + critical segments)
-        task1 = progress.add_task("[cyan]Loading critical segment points...", total=None)
-        points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(
-            engine,
-            limit=segment_limit,
-            target_corridor_mode=True,
-            full_target_coverage=not budget_mode,
-        )
-        progress.update(task1, completed=True)
-
-        # Weather grid mode (Option C): assign weather_key per segment via active 500m cells.
-        weather_key = 800  # default fallback
-        segment_weather_key_map: dict[int, int] = {}
-        task2 = progress.add_task("[cyan]Current weather (grid 500m)...", total=None)
-        try:
-            from src.pipelines.real_time.weather_pipeline import run_grid_for_points
-
-            grid_size_m = max(100, int(os.getenv("OWM_GRID_SIZE_M", "500")))
-            point_weather_key_map = run_grid_for_points(
-                engine,
-                points,
-                grid_size_m=grid_size_m,
-            )
-            segment_weather_key_map = {
-                int(segment_keys[idx]): int(point_weather_key_map.get(points[idx], weather_key))
-                for idx in range(min(len(points), len(segment_keys)))
-            }
+    try:
+        engine = get_engine()
+        segment_limit = int(_resolve_option_default(segment_limit))
+        budget_mode = bool(_resolve_option_default(budget_mode))
+        if budget_mode and segment_limit >= _MAX_SEGMENTS_TARGET_CORRIDORS:
+            segment_limit = _BUDGET_SAFE_SEGMENTS_PER_CYCLE
             logger.info(
-                "[run-realtime] weather grid: grid_size=%dm, points=%d, mapped_segments=%d, distinct_weather_keys=%d",
-                grid_size_m,
-                len(points),
-                len(segment_weather_key_map),
-                len(set(segment_weather_key_map.values())),
+                "[run-realtime] budget_mode enabled without strict --segment-limit; "
+                f"fallback to {_BUDGET_SAFE_SEGMENTS_PER_CYCLE} segments"
             )
-            results.append(("Weather Data", len(set(segment_weather_key_map.values())), "✓"))
-            progress.update(task2, completed=True)
-        except Exception as e:
-            logger.error(f"[run-realtime] weather_grid failed: {e}")
-            results.append(("Weather Data", 0, "✗"))
-            progress.update(task2, completed=True)
 
-        # Traffic Flow
-        task3 = progress.add_task("[cyan]Traffic flow data...", total=None)
-        try:
-            from src.pipelines.real_time.traffic_pipeline import run as run_traffic
+        console.print(Panel.fit(
+            "[bold cyan]🌤️  PHASE 3: REAL-TIME DATA (PRIORITY CORRIDORS)[/bold cyan]\n"
+            "[dim]Weather + Traffic Flow + Incidents (critical segments)[/dim]",
+            border_style="cyan"
+        ))
 
-            count = run_traffic(
-                engine,
-                weather_key=weather_key,
-                weather_key_map=segment_weather_key_map,
-                points=points,
-                segment_keys=segment_keys,
-                segment_key_map=segment_key_map,
-                lane_count_map=lane_count_map,
-            )
-            logger.info(f"[run-realtime] traffic_pipeline: {count} records")
-            total += count
-            results.append(("Traffic Flow", count, "✓"))
-            progress.update(task3, completed=True)
-        except PipelineError as e:
-            logger.error(f"[run-realtime] traffic_pipeline failed: {e}")
-            results.append(("Traffic Flow", 0, "✗"))
-            progress.update(task3, completed=True)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TimeElapsedColumn(),
+            console=console,
+        ) as progress:
+            # Load segment coordinates from DB (priority corridors + critical segments)
+            task1 = progress.add_task("[cyan]Loading critical segment points...", total=None)
+            try:
+                points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(
+                    engine,
+                    limit=segment_limit,
+                    target_corridor_mode=True,
+                    full_target_coverage=not budget_mode,
+                )
+                progress.update(task1, completed=True)
+            except Exception as e:
+                logger.exception("[run-realtime] failed to load segment points: %s", e)
+                results.append(("Load Segment Points", 0, "✗"))
+                success = False
+                progress.update(task1, completed=True)
+                elapsed = time.time() - start_time
+                _print_phase_summary("PHASE 3 COMPLETE", results, total, elapsed)
+                typer.echo("")
+                return False
 
-        # Incidents
-        task4 = progress.add_task("[cyan]Traffic incidents...", total=None)
-        try:
-            from src.pipelines.real_time.incident_pipeline import run as run_incident
+            # Weather grid mode (Option C): assign weather_key per segment via active 500m cells.
+            weather_key = 800  # default fallback
+            segment_weather_key_map: dict[int, int] = {}
+            task2 = progress.add_task("[cyan]Current weather (grid 500m)...", total=None)
+            try:
+                from src.pipelines.real_time.weather_pipeline import run_grid_for_points
 
-            count = run_incident(engine)
-            logger.info(f"[run-realtime] incident_pipeline: {count} records")
-            total += count
-            results.append(("Traffic Incidents", count, "✓"))
-            progress.update(task4, completed=True)
-        except PipelineError as e:
-            logger.error(f"[run-realtime] incident_pipeline failed: {e}")
-            results.append(("Traffic Incidents", 0, "✗"))
-            progress.update(task4, completed=True)
+                grid_size_m = max(100, int(os.getenv("OWM_GRID_SIZE_M", "500")))
+                point_weather_key_map = run_grid_for_points(
+                    engine,
+                    points,
+                    grid_size_m=grid_size_m,
+                )
+                segment_weather_key_map = {
+                    int(segment_keys[idx]): int(point_weather_key_map.get(points[idx], weather_key))
+                    for idx in range(min(len(points), len(segment_keys)))
+                }
+                logger.info(
+                    "[run-realtime] weather grid: grid_size=%dm, points=%d, mapped_segments=%d, distinct_weather_keys=%d",
+                    grid_size_m,
+                    len(points),
+                    len(segment_weather_key_map),
+                    len(set(segment_weather_key_map.values())),
+                )
+                results.append(("Weather Data", len(set(segment_weather_key_map.values())), "✓"))
+                progress.update(task2, completed=True)
+            except Exception as e:
+                logger.exception("[run-realtime] weather_grid failed: %s", e)
+                results.append(("Weather Data", 0, "✗"))
+                success = False
+                progress.update(task2, completed=True)
+
+            # Traffic Flow
+            task3 = progress.add_task("[cyan]Traffic flow data...", total=None)
+            try:
+                from src.pipelines.real_time.traffic_pipeline import run as run_traffic
+
+                count = run_traffic(
+                    engine,
+                    weather_key=weather_key,
+                    weather_key_map=segment_weather_key_map,
+                    points=points,
+                    segment_keys=segment_keys,
+                    segment_key_map=segment_key_map,
+                    lane_count_map=lane_count_map,
+                )
+                logger.info(f"[run-realtime] traffic_pipeline: {count} records")
+                total += count
+                results.append(("Traffic Flow", count, "✓"))
+                progress.update(task3, completed=True)
+            except (PipelineError, Exception) as e:
+                logger.exception("[run-realtime] traffic_pipeline failed: %s", e)
+                results.append(("Traffic Flow", 0, "✗"))
+                success = False
+                progress.update(task3, completed=True)
+
+            # Incidents
+            task4 = progress.add_task("[cyan]Traffic incidents...", total=None)
+            try:
+                from src.pipelines.real_time.incident_pipeline import run as run_incident
+
+                count = run_incident(engine)
+                logger.info(f"[run-realtime] incident_pipeline: {count} records")
+                total += count
+                results.append(("Traffic Incidents", count, "✓"))
+                progress.update(task4, completed=True)
+            except (PipelineError, Exception) as e:
+                logger.exception("[run-realtime] incident_pipeline failed: %s", e)
+                results.append(("Traffic Incidents", 0, "✗"))
+                success = False
+                progress.update(task4, completed=True)
+    except Exception as e:
+        logger.exception("[run-realtime] unhandled cycle error: %s", e)
+        success = False
+        results.append(("Realtime Runtime", 0, "✗"))
 
     elapsed = time.time() - start_time
     _print_phase_summary("PHASE 3 COMPLETE", results, total, elapsed)
     typer.echo("")
+    logger.info("[run-realtime] status=%s total_rows=%s", "success" if success else "failed", total)
+    return success
 
 
 @app.command("run-realtime-central-districts")
@@ -1269,64 +1292,76 @@ def run_realtime_central_districts(
 
 
 @app.command("run-batch")
-def run_batch() -> None:
+def run_batch() -> bool:
     """Phase 4: Nightly batch – baseline speed + corridor performance.
 
     **OFFICIAL Q1 MODE**: Corridor performance uses Quận 1 filtering.
     """
     from src.domain.geo.constants import BBOX_TARGET_DISTRICT
 
+    started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info("[run-batch] started_at=%s", started_at)
     start_time = time.time()
-    engine = get_engine()
     total = 0
     results = []
+    success = True
 
-    console.print(Panel.fit(
-        "[bold magenta]📊 PHASE 4: BATCH ANALYTICS (DISTRICT 1)[/bold magenta]\n"
-        "[dim]Baseline Speed (All) + Corridor Performance (Q1)[/dim]",
-        border_style="magenta"
-    ))
+    try:
+        engine = get_engine()
+        console.print(Panel.fit(
+            "[bold magenta]📊 PHASE 4: BATCH ANALYTICS (DISTRICT 1)[/bold magenta]\n"
+            "[dim]Baseline Speed (All) + Corridor Performance (Q1)[/dim]",
+            border_style="magenta"
+        ))
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TimeElapsedColumn(),
-        console=console,
-    ) as progress:
-        # Baseline speed (all segments)
-        task1 = progress.add_task("[cyan]Baseline speed calculation...", total=None)
-        try:
-            from src.pipelines.ml_features.baseline_pipeline import run as run_base
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TimeElapsedColumn(),
+            console=console,
+        ) as progress:
+            # Baseline speed (all segments)
+            task1 = progress.add_task("[cyan]Baseline speed calculation...", total=None)
+            try:
+                from src.pipelines.ml_features.baseline_pipeline import run as run_base
 
-            count = run_base(engine)
-            logger.info(f"[run-batch] baseline_pipeline: {count} records")
-            total += count
-            results.append(("Baseline Speed", count, "✓"))
-            progress.update(task1, completed=True)
-        except PipelineError as e:
-            logger.error(f"[run-batch] baseline_pipeline failed: {e}")
-            results.append(("Baseline Speed", 0, "✗"))
-            progress.update(task1, completed=True)
+                count = run_base(engine)
+                logger.info(f"[run-batch] baseline_pipeline: {count} records")
+                total += count
+                results.append(("Baseline Speed", count, "✓"))
+                progress.update(task1, completed=True)
+            except (PipelineError, Exception) as e:
+                logger.exception("[run-batch] baseline_pipeline failed: %s", e)
+                results.append(("Baseline Speed", 0, "✗"))
+                success = False
+                progress.update(task1, completed=True)
 
-        # Corridor performance (Q1 only)
-        task2 = progress.add_task("[cyan]Corridor performance (Q1)...", total=None)
-        try:
-            from src.pipelines.ml_features.corridor_pipeline import run as run_corr
+            # Corridor performance (Q1 only)
+            task2 = progress.add_task("[cyan]Corridor performance (Q1)...", total=None)
+            try:
+                from src.pipelines.ml_features.corridor_pipeline import run as run_corr
 
-            count = run_corr(engine, bbox=BBOX_TARGET_DISTRICT)
-            logger.info(f"[run-batch] corridor_pipeline (Q1): {count} records")
-            total += count
-            results.append(("Corridor Performance (Q1)", count, "✓"))
-            progress.update(task2, completed=True)
-        except PipelineError as e:
-            logger.error(f"[run-batch] corridor_pipeline failed: {e}")
-            results.append(("Corridor Performance (Q1)", 0, "✗"))
-            progress.update(task2, completed=True)
+                count = run_corr(engine, bbox=BBOX_TARGET_DISTRICT)
+                logger.info(f"[run-batch] corridor_pipeline (Q1): {count} records")
+                total += count
+                results.append(("Corridor Performance (Q1)", count, "✓"))
+                progress.update(task2, completed=True)
+            except (PipelineError, Exception) as e:
+                logger.exception("[run-batch] corridor_pipeline failed: %s", e)
+                results.append(("Corridor Performance (Q1)", 0, "✗"))
+                success = False
+                progress.update(task2, completed=True)
+    except Exception as e:
+        logger.exception("[run-batch] unhandled batch error: %s", e)
+        success = False
+        results.append(("Batch Runtime", 0, "✗"))
 
     elapsed = time.time() - start_time
     _print_phase_summary("PHASE 4 COMPLETE", results, total, elapsed)
+    logger.info("[run-batch] rows_total=%s status=%s", total, "success" if success else "failed")
     typer.echo("")
+    return success
 
 
 @app.command("run-cycle")
@@ -1365,18 +1400,179 @@ def run_cycle(
         segment_limit,
     )
 
-    run_realtime(segment_limit=segment_limit, budget_mode=budget_mode)
-    run_batch()
+    realtime_ok = False
+    batch_ok = False
+
+    try:
+        realtime_ok = run_realtime(segment_limit=segment_limit, budget_mode=budget_mode)
+    except Exception as exc:
+        logger.exception("[run-cycle] realtime crashed unexpectedly: %s", exc)
+        realtime_ok = False
+
+    try:
+        batch_ok = run_batch()
+    except Exception as exc:
+        logger.exception("[run-cycle] batch crashed unexpectedly: %s", exc)
+        batch_ok = False
 
     overall_elapsed = time.time() - overall_start
-    logger.info("[run-cycle] cycle completed in %.1fs", overall_elapsed)
+    cycle_ok = bool(realtime_ok and batch_ok)
+    logger.info(
+        "[run-cycle] cycle completed in %.1fs status=%s (realtime=%s, batch=%s)",
+        overall_elapsed,
+        "success" if cycle_ok else "failed",
+        realtime_ok,
+        batch_ok,
+    )
 
     console.print(Panel.fit(
-        f"[bold green]✅ ONE-SHOT CYCLE COMPLETE[/bold green]\n"
-        f"[dim]Total execution time: {overall_elapsed:.2f}s ({overall_elapsed/60:.1f} minutes)[/dim]",
-        border_style="green"
+        f"[bold {'green' if cycle_ok else 'yellow'}]{'✅' if cycle_ok else '⚠️'} ONE-SHOT CYCLE COMPLETE[/bold {'green' if cycle_ok else 'yellow'}]\n"
+        f"[dim]Total execution time: {overall_elapsed:.2f}s ({overall_elapsed/60:.1f} minutes) | status={'success' if cycle_ok else 'failed'}[/dim]",
+        border_style="green" if cycle_ok else "yellow"
     ))
     typer.echo("")
+
+
+@app.command("run-cycle-daemon")
+def run_cycle_daemon(
+    cycle_interval_minutes: int = typer.Option(
+        15,
+        min=1,
+        max=180,
+        help="Interval between cycle starts (minutes)",
+    ),
+    retry_sleep_minutes: int = typer.Option(
+        5,
+        min=1,
+        max=60,
+        help="Backoff sleep after a failed cycle (minutes)",
+    ),
+    segment_limit: int = typer.Option(
+        _BUDGET_SAFE_SEGMENTS_PER_CYCLE,
+        min=1,
+        max=5000,
+        help="Segment cap for realtime step",
+    ),
+    budget_mode: bool = typer.Option(
+        True,
+        help="Enable budget mode for realtime step",
+    ),
+) -> None:
+    """Run ETL continuously with resilient retry behavior for 24/7 deployment.
+
+    Guarantees:
+      - Never crashes hard on API/network/database errors.
+      - Logs cycle start time, row counts, success/failure state.
+      - Sleeps with backoff and retries automatically on next cycle.
+    """
+    cycle_no = 0
+    interval_sec = int(cycle_interval_minutes) * 60
+    retry_sec = int(retry_sleep_minutes) * 60
+
+    logger.info(
+        "[run-cycle-daemon] started (interval=%sm, retry_backoff=%sm)",
+        cycle_interval_minutes,
+        retry_sleep_minutes,
+    )
+
+    def _load_window_hours() -> Tuple[int, int]:
+        """Read ETL active window hours from env with safe defaults."""
+        start_raw = os.getenv("ETL_WINDOW_START_HOUR", "6")
+        end_raw = os.getenv("ETL_WINDOW_END_HOUR", "21")
+        try:
+            start_h = int(start_raw)
+            end_h = int(end_raw)
+        except ValueError:
+            logger.warning(
+                "[run-cycle-daemon] invalid ETL window env (start=%s, end=%s), fallback to 6-21",
+                start_raw,
+                end_raw,
+            )
+            return 6, 21
+
+        if not (0 <= start_h <= 23 and 0 <= end_h <= 23):
+            logger.warning(
+                "[run-cycle-daemon] ETL window out of range (start=%s, end=%s), fallback to 6-21",
+                start_h,
+                end_h,
+            )
+            return 6, 21
+        return start_h, end_h
+
+    def _within_window(now_local: datetime, start_h: int, end_h: int) -> bool:
+        """Match scheduler semantics: [start:00, end:00] in local HH:MM."""
+        hhmm = now_local.hour * 60 + now_local.minute
+        start_m = start_h * 60
+        end_m = end_h * 60
+        if start_m <= end_m:
+            return start_m <= hhmm <= end_m
+        # Overnight window, e.g. 22 -> 5
+        return hhmm >= start_m or hhmm <= end_m
+
+    def _seconds_until_window_open(now_local: datetime, start_h: int, end_h: int) -> int:
+        """Compute sleep seconds until next active window start."""
+        if _within_window(now_local, start_h, end_h):
+            return 0
+
+        start_m = start_h * 60
+        end_m = end_h * 60
+        hhmm = now_local.hour * 60 + now_local.minute
+
+        if start_m <= end_m:
+            target = now_local.replace(hour=start_h, minute=0, second=0, microsecond=0)
+            if hhmm > end_m:
+                target = target + timedelta(days=1)
+        else:
+            target = now_local.replace(hour=start_h, minute=0, second=0, microsecond=0)
+
+        delta = (target - now_local).total_seconds()
+        return max(1, int(delta))
+
+    while True:
+        start_h, end_h = _load_window_hours()
+        now_local = datetime.now()
+        if not _within_window(now_local, start_h, end_h):
+            sleep_sec = _seconds_until_window_open(now_local, start_h, end_h)
+            logger.info(
+                "[run-cycle-daemon] outside ETL window %02d:00-%02d:00 now=%s sleep=%ss",
+                start_h,
+                end_h,
+                now_local.strftime("%Y-%m-%d %H:%M:%S"),
+                sleep_sec,
+            )
+            time.sleep(sleep_sec)
+            continue
+
+        cycle_no += 1
+        cycle_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        logger.info("[run-cycle-daemon] cycle=%s started_at=%s", cycle_no, cycle_start)
+
+        cycle_ok = False
+        try:
+            realtime_ok = run_realtime(
+                segment_limit=segment_limit,
+                budget_mode=budget_mode,
+            )
+            batch_ok = run_batch()
+            cycle_ok = bool(realtime_ok and batch_ok)
+        except Exception as exc:
+            logger.exception("[run-cycle-daemon] cycle=%s fatal error: %s", cycle_no, exc)
+            cycle_ok = False
+
+        if cycle_ok:
+            logger.info(
+                "[run-cycle-daemon] cycle=%s status=success, sleep=%ss before next cycle",
+                cycle_no,
+                interval_sec,
+            )
+            time.sleep(interval_sec)
+        else:
+            logger.error(
+                "[run-cycle-daemon] cycle=%s status=failed, backoff_sleep=%ss then retry",
+                cycle_no,
+                retry_sec,
+            )
+            time.sleep(retry_sec)
 
 
 @app.command("run-corridor-central-districts")
