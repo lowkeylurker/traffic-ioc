@@ -20,6 +20,7 @@ build/
 *.csv
 *.mp4
 
+
 # Có thể commit nếu file nhỏ, nếu to >100MB thì dùng Git LFS
 *.pkl
 
