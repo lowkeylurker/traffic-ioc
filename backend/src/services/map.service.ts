@@ -1,9 +1,9 @@
 // Map Service - Xử lý logic lấy dữ liệu đoạn đường và trạng thái giao thông
 
 import { prisma } from '../config/prisma';
-import { Logger } from '../utils/logger';
 import { TrafficSegment, TrafficStatus } from '../interfaces/index';
-import { GeoJSONFeature, TrafficMapResponse, COLOR_RULES } from '../interfaces/map.interface';
+import { COLOR_RULES, GeoJSONFeature, TrafficMapResponse } from '../interfaces/map.interface';
+import { Logger } from '../utils/logger';
 
 const logger = new Logger('MapService');
 
@@ -294,28 +294,11 @@ export class MapService {
    */
   async getTrafficMap(): Promise<TrafficMapResponse> {
     try {
-      if (USE_MOCK_DATA) {
-        logger.log('Using mock data for traffic map');
-        return {
-          type: 'FeatureCollection',
-          features: MOCK_TRAFFIC_DATA.map((feature: GeoJSONFeature) => ({
-            ...feature,
-            properties: {
-              ...feature.properties,
-              lastUpdated: new Date().toISOString(),
-            },
-          })),
-        };
-      }
-
       logger.log('Fetching traffic map data from database');
-      const [segments, status] = await Promise.all([
-        this.getSegments(),
-        this.getTrafficStatus()
-      ]);
+      const [segments, status] = await Promise.all([this.getSegments(), this.getTrafficStatus()]);
 
       // Create a map for O(1) status lookup
-      const statusMap = new Map(status.map(s => [s.segmentId, s]));
+      const statusMap = new Map(status.map((s) => [s.segmentId, s]));
 
       // Map database data to GeoJSON format with color coding
       const features: GeoJSONFeature[] = segments.map((segment: any) => {
@@ -366,7 +349,7 @@ export class MapService {
         FROM dim_segment
         WHERE geometry_linestring IS NOT NULL
         ORDER BY segment_key
-        LIMIT 5000
+        -- LIMIT 5000
       `;
 
       logger.log(`Retrieved ${Array.isArray(segments) ? segments.length : 0} segments`);
@@ -383,11 +366,6 @@ export class MapService {
    */
   async getTrafficStatus(): Promise<TrafficStatus[]> {
     try {
-      if (USE_MOCK_DATA) {
-        logger.log('Using mock data for traffic status');
-        return MOCK_TRAFFIC_STATUS;
-      }
-
       logger.log('Fetching traffic status');
 
       // Raw query to join and lấy dữ liệu mới nhất using DISTINCT ON for better performance
@@ -410,7 +388,6 @@ export class MapService {
         ) f ON s.segment_key = f.segment_key
         WHERE s.geometry_linestring IS NOT NULL
         ORDER BY s.segment_key
-        LIMIT 5000
       `;
 
       logger.log(`Retrieved traffic status for ${Array.isArray(status) ? status.length : 0} segments`);
