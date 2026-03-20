@@ -1,28 +1,430 @@
-// Prisma Schema File
-// Chú ý: File này sẽ được tự động sinh ra bởi `npx prisma db pull`
-// Sau khi chạy lệnh đó, hãy bật các preview features cần thiết
-
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  // Bật extensions cho PostGIS support
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
   extensions = [postgis(schema: "public")]
 }
 
-// TODO: Entities sẽ được generate tự động từ database schema
-// Chạy: npx prisma db pull
-// Sau đó cân nhân các Entity model tương ứng với:
-// - dim_segment (segment_key, segment_name, geometry, num_lanes, speed_limit_kmh)
-// - dim_date (date_key, calendar_date, year, month, ...)
-// - dim_time (time_key, time_hour, time_minute, ...)
-// - fact_traffic_flow (traffic_flow_key, segment_key, time_key, avg_speed_kmh, los_index, total_pcu, ...)
-// - fact_incident (incident_id, segment_key, ...)
-// - fact_forecast (forecast_id, segment_key, ...)
+model bridge_corridor_segment {
+  corridor_key   BigInt
+  segment_key    BigInt
+  sequence_order Int
+  dim_corridor   dim_corridor @relation(fields: [corridor_key], references: [corridor_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_segment    dim_segment  @relation(fields: [segment_key], references: [segment_key], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([corridor_key, segment_key])
+  @@index([segment_key], map: "idx_bridge_corridor_seg_segment")
+}
+
+model bridge_date_holiday {
+  date_key    Int
+  holiday_key Int
+  dim_date    dim_date    @relation(fields: [date_key], references: [date_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_holiday dim_holiday @relation(fields: [holiday_key], references: [holiday_key], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([date_key, holiday_key])
+}
+
+model dim_corridor {
+  corridor_key              BigInt                      @id
+  corridor_name             String                      @db.VarChar(255)
+  importance_level          Int?                        @db.SmallInt
+  target_avg_speed          Decimal?                    @db.Decimal(5, 2)
+  total_length_m            Decimal?                    @db.Decimal(12, 2)
+  direction                 String?                     @db.VarChar(10)
+  record_timestamp          DateTime?                   @default(now()) @db.Timestamp(6)
+  bridge_corridor_segment   bridge_corridor_segment[]
+  fact_corridor_performance fact_corridor_performance[]
+}
+
+model dim_date {
+  date_key                     Int                            @id
+  month_year_key               Int?
+  full_date                    DateTime                       @db.Date
+  day_of_week                  Int                            @db.SmallInt
+  day_name_vi                  String?                        @db.VarChar(20)
+  iso_week                     Int?                           @db.SmallInt
+  is_weekend                   Boolean?                       @default(false)
+  is_holiday                   Boolean?                       @default(false)
+  is_end_of_month              Boolean?                       @default(false)
+  bridge_date_holiday          bridge_date_holiday[]
+  dim_month_year               dim_month_year?                @relation(fields: [month_year_key], references: [month_year_key], onDelete: NoAction, onUpdate: NoAction)
+  fact_corridor_performance    fact_corridor_performance[]
+  fact_event                   fact_event[]
+  fact_incident                fact_incident[]
+  fact_simulation_scenario     fact_simulation_scenario[]
+  fact_traffic_flow            fact_traffic_flow[]
+  fact_traffic_risk_prediction fact_traffic_risk_prediction[]
+
+  @@index([month_year_key], map: "idx_dim_date_month_year")
+}
+
+model dim_holiday {
+  holiday_key         Int                   @id
+  holiday_name_vi     String?               @db.VarChar(255)
+  duration_days       Int?                  @db.SmallInt
+  is_public_holiday   Boolean?              @default(false)
+  record_timestamp    DateTime?             @default(now()) @db.Timestamp(6)
+  bridge_date_holiday bridge_date_holiday[]
+}
+
+model dim_location {
+  location_key     BigInt                   @id
+  ward             String?                  @db.VarChar(100)
+  district         String?                  @db.VarChar(100)
+  city             String?                  @default("Hồ Chí Minh") @db.VarChar(100)
+  geometry_polygon Unsupported("geometry")?
+  record_timestamp DateTime?                @default(now()) @db.Timestamp(6)
+  dim_segment      dim_segment[]
+  fact_event       fact_event[]
+  fact_incident    fact_incident[]
+}
+
+model dim_month_year {
+  month_year_key   Int        @id
+  month_number     Int        @db.SmallInt
+  month_name_vi    String?    @db.VarChar(50)
+  month_start_date DateTime?  @db.Date
+  month_end_date   DateTime?  @db.Date
+  days_in_month    Int?       @db.SmallInt
+  quarter_number   Int        @db.SmallInt
+  quarter_name     String?    @db.VarChar(50)
+  year             Int        @db.SmallInt
+  days_in_year     Int?       @db.SmallInt
+  is_leap_year     Boolean?
+  dim_date         dim_date[]
+}
+
+model dim_node {
+  node_key                                        BigInt                   @id
+  node_source_id                                  BigInt?
+  is_snapped                                      Boolean?                 @default(false)
+  node_type                                       String?                  @db.VarChar(30)
+  geometry                                        Unsupported("geometry")?
+  record_timestamp                                DateTime?                @default(now()) @db.Timestamp(6)
+  dim_segment_dim_segment_from_node_keyTodim_node dim_segment[]            @relation("dim_segment_from_node_keyTodim_node")
+  dim_segment_dim_segment_to_node_keyTodim_node   dim_segment[]            @relation("dim_segment_to_node_keyTodim_node")
+
+  @@index([geometry], map: "idx_dim_node_geom_gist", type: Gist)
+}
+
+model dim_road {
+  road_key         BigInt    @id
+  name             String    @db.VarChar(100)
+  total_length_m   Decimal?  @db.Decimal(10, 2)
+  record_timestamp DateTime? @default(now()) @db.Timestamp(6)
+  dim_way          dim_way[]
+}
+
+model dim_segment {
+  segment_key                                  BigInt                         @id
+  from_node_key                                BigInt?
+  to_node_key                                  BigInt?
+  way_key                                      BigInt?
+  location_key                                 BigInt?
+  segment_id_source                            BigInt?
+  length_m                                     Decimal?                       @db.Decimal(10, 2)
+  geometry_center                              Unsupported("geometry")?
+  geometry_linestring                          Unsupported("geometry")?
+  is_one_way                                   Boolean?                       @default(false)
+  record_timestamp                             DateTime?                      @default(now()) @db.Timestamp(6)
+  bridge_corridor_segment                      bridge_corridor_segment[]
+  dim_node_dim_segment_from_node_keyTodim_node dim_node?                      @relation("dim_segment_from_node_keyTodim_node", fields: [from_node_key], references: [node_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_location                                 dim_location?                  @relation(fields: [location_key], references: [location_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_node_dim_segment_to_node_keyTodim_node   dim_node?                      @relation("dim_segment_to_node_keyTodim_node", fields: [to_node_key], references: [node_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_way                                      dim_way?                       @relation(fields: [way_key], references: [way_key], onDelete: NoAction, onUpdate: NoAction)
+  fact_corridor_performance                    fact_corridor_performance[]
+  fact_incident                                fact_incident[]
+  fact_simulation_scenario                     fact_simulation_scenario[]
+  fact_traffic_flow                            fact_traffic_flow[]
+  fact_traffic_risk_prediction                 fact_traffic_risk_prediction[]
+
+  @@index([geometry_center], map: "idx_dim_segment_center_gist", type: Gist)
+  @@index([from_node_key], map: "idx_dim_segment_from_node")
+  @@index([geometry_linestring], map: "idx_dim_segment_linestring_gist", type: Gist)
+  @@index([location_key], map: "idx_dim_segment_location")
+  @@index([to_node_key], map: "idx_dim_segment_to_node")
+  @@index([way_key], map: "idx_dim_segment_way")
+}
+
+model dim_shift {
+  shift_key        Int               @id
+  shift_code       String?           @db.VarChar(20)
+  shift_name_vi    String?           @db.VarChar(50)
+  start_hour       Int?              @db.SmallInt
+  end_hour         Int?              @db.SmallInt
+  is_peak_hour     Boolean?          @default(false)
+  record_timestamp DateTime?         @default(now()) @db.Timestamp(6)
+  dim_time_of_day  dim_time_of_day[]
+}
+
+model dim_time_of_day {
+  time_key                                              Int                            @id
+  default_shift_key                                     Int?
+  hhmm                                                  Int?                           @db.SmallInt
+  bucket_5min_key                                       Int?                           @db.SmallInt
+  bucket_15min_key                                      Int?                           @db.SmallInt
+  bucket_60min_key                                      Int?                           @db.SmallInt
+  is_business_hours                                     Boolean?                       @default(false)
+  dim_shift                                             dim_shift?                     @relation(fields: [default_shift_key], references: [shift_key], onDelete: NoAction, onUpdate: NoAction)
+  fact_corridor_performance                             fact_corridor_performance[]
+  fact_event_fact_event_end_time_keyTodim_time_of_day   fact_event[]                   @relation("fact_event_end_time_keyTodim_time_of_day")
+  fact_event_fact_event_start_time_keyTodim_time_of_day fact_event[]                   @relation("fact_event_start_time_keyTodim_time_of_day")
+  fact_incident                                         fact_incident[]
+  fact_simulation_scenario                              fact_simulation_scenario[]
+  fact_traffic_flow                                     fact_traffic_flow[]
+  fact_traffic_risk_prediction                          fact_traffic_risk_prediction[]
+
+  @@index([default_shift_key], map: "idx_dim_time_shift")
+}
+
+model dim_way {
+  way_key             BigInt        @id
+  road_key            BigInt?
+  total_length_m      Decimal?      @db.Decimal(10, 2)
+  direction           String?       @db.VarChar(20)
+  segment_count       Int?
+  default_lane_count  Int?          @db.SmallInt
+  design_capacity     Int?
+  default_speed_limit Int?          @db.SmallInt
+  tomtom_frc          Int?          @db.SmallInt
+  osm_highway_type    String?       @db.VarChar(30)
+  record_timestamp    DateTime?     @default(now()) @db.Timestamp(6)
+  dim_segment         dim_segment[]
+  dim_road            dim_road?     @relation(fields: [road_key], references: [road_key], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([road_key], map: "idx_dim_way_road")
+}
+
+model dim_weather {
+  weather_key       Int                 @id
+  weather_id        Int?
+  name              String?             @db.VarChar(100)
+  main_category     String?             @db.VarChar(50)
+  severity_level    Int?                @db.SmallInt
+  record_timestamp  DateTime?           @default(now()) @db.Timestamp(6)
+  fact_traffic_flow fact_traffic_flow[]
+}
+
+model fact_corridor_performance {
+  corridor_perf_key     BigInt          @id
+  corridor_key          BigInt
+  time_key              Int
+  date_key              Int
+  bottleneck_seg_key    BigInt?
+  timestamp             DateTime        @db.Timestamp(6)
+  avg_corridor_speed    Decimal?        @db.Decimal(5, 2)
+  total_delay_seconds   Int?
+  travel_time_index     Decimal?        @db.Decimal(4, 2)
+  corridor_efficiency   Decimal?        @db.Decimal(3, 2)
+  active_incident_count Int?
+  inserted_at           DateTime        @default(now()) @db.Timestamp(6)
+  quality_flag          Int?            @default(1) @db.SmallInt
+  dim_segment           dim_segment?    @relation(fields: [bottleneck_seg_key], references: [segment_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_corridor          dim_corridor    @relation(fields: [corridor_key], references: [corridor_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_date              dim_date        @relation(fields: [date_key], references: [date_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_time_of_day       dim_time_of_day @relation(fields: [time_key], references: [time_key], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([inserted_at], map: "idx_fact_corridor_inserted_brin", type: Brin)
+  @@index([bottleneck_seg_key], map: "idx_fact_corridor_perf_bottleneck")
+  @@index([corridor_key], map: "idx_fact_corridor_perf_corridor")
+  @@index([date_key], map: "idx_fact_corridor_perf_date")
+  @@index([timestamp], map: "idx_fact_corridor_ts_brin", type: Brin)
+}
+
+model fact_event {
+  event_id                                                   BigInt           @id
+  start_time_key                                             Int?
+  end_time_key                                               Int?
+  date_key                                                   Int
+  location_key                                               BigInt?
+  event_type                                                 String?          @db.VarChar(50)
+  attendance_scale                                           Int?
+  impact_radius_m                                            Int?
+  event_title                                                String?          @db.VarChar(255)
+  inserted_at                                                DateTime         @default(now()) @db.Timestamp(6)
+  quality_flag                                               Int?             @default(1) @db.SmallInt
+  dim_date                                                   dim_date         @relation(fields: [date_key], references: [date_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_time_of_day_fact_event_end_time_keyTodim_time_of_day   dim_time_of_day? @relation("fact_event_end_time_keyTodim_time_of_day", fields: [end_time_key], references: [time_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_location                                               dim_location?    @relation(fields: [location_key], references: [location_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_time_of_day_fact_event_start_time_keyTodim_time_of_day dim_time_of_day? @relation("fact_event_start_time_keyTodim_time_of_day", fields: [start_time_key], references: [time_key], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([date_key], map: "idx_fact_event_date")
+  @@index([inserted_at], map: "idx_fact_event_inserted_brin", type: Brin)
+  @@index([location_key], map: "idx_fact_event_location")
+}
+
+enum IncidentSource {
+  SENSOR
+  ADMIN
+  USER_REPORT
+}
+
+enum IncidentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  RESOLVED
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+model fact_incident {
+  incident_key    BigInt
+  time_key        Int
+  date_key        Int
+  segment_key     BigInt
+  location_key    BigInt?
+  incident_type   String?                  @db.VarChar(50)
+  timestamp       DateTime                 @db.Timestamp(6)
+  severity_level  Int?                     @db.SmallInt
+  delay_seconds   Int?
+  geometry        Unsupported("geometry")?
+  is_simulated    Boolean?                 @default(false)
+  is_active       Boolean?                 @default(true)
+  inserted_at     DateTime                 @default(now()) @db.Timestamp(6)
+  quality_flag    Int?                     @default(1) @db.SmallInt
+  
+  source          IncidentSource           @default(SENSOR)
+  status          IncidentStatus           @default(VERIFIED)
+  reporter_id     String?
+  image_url       String?                  @db.VarChar(500)
+  upvotes         Int                      @default(0)
+
+  dim_date        dim_date                 @relation(fields: [date_key], references: [date_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_location    dim_location?            @relation(fields: [location_key], references: [location_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_segment     dim_segment              @relation(fields: [segment_key], references: [segment_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_time_of_day dim_time_of_day          @relation(fields: [time_key], references: [time_key], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([incident_key, date_key])
+  @@index([date_key], map: "idx_fact_incident_date")
+  @@index([geometry], map: "idx_fact_incident_geom_gist", type: Gist)
+  @@index([inserted_at], map: "idx_fact_incident_inserted_brin", type: Brin)
+  @@index([location_key], map: "idx_fact_incident_location")
+  @@index([segment_key], map: "idx_fact_incident_segment")
+  @@index([segment_key, date_key], map: "idx_fact_incident_segment_date")
+  @@index([timestamp], map: "idx_fact_incident_ts_brin", type: Brin)
+}
+
+model fact_simulation_scenario {
+  simulation_key  BigInt          @id
+  time_key        Int
+  date_key        Int
+  segment_key     BigInt
+  incident_key    BigInt?
+  scenario_id     String?         @db.VarChar(50)
+  timestamp       DateTime        @db.Timestamp(6)
+  sim_avg_speed   Decimal?        @db.Decimal(5, 2)
+  sim_travel_time Int?
+  improvement_pct Decimal?        @db.Decimal(5, 2)
+  is_optimal_plan Boolean?        @default(false)
+  inserted_at     DateTime        @default(now()) @db.Timestamp(6)
+  quality_flag    Int?            @default(1) @db.SmallInt
+  dim_date        dim_date        @relation(fields: [date_key], references: [date_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_segment     dim_segment     @relation(fields: [segment_key], references: [segment_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_time_of_day dim_time_of_day @relation(fields: [time_key], references: [time_key], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([date_key], map: "idx_fact_sim_date")
+  @@index([inserted_at], map: "idx_fact_sim_inserted_brin", type: Brin)
+  @@index([scenario_id], map: "idx_fact_sim_scenario_id")
+  @@index([segment_key], map: "idx_fact_sim_segment")
+  @@index([timestamp], map: "idx_fact_sim_ts_brin", type: Brin)
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+model fact_traffic_flow {
+  traffic_flow_key    BigInt
+  segment_key         BigInt
+  time_key            Int
+  date_key            Int
+  weather_key         Int?
+  timestamp           DateTime        @db.Timestamp(6)
+  pcu_volume          Decimal?        @db.Decimal(10, 2)
+  traffic_index       Decimal?        @db.Decimal(3, 2)
+  current_speed_kmh   Decimal?        @db.Decimal(5, 2)
+  free_flow_speed_kmh Decimal?        @db.Decimal(5, 2)
+  delay_seconds       Int?
+  los_level           String?         @db.Char(1)
+  congestion_level    Int?            @db.SmallInt
+  is_closed           Boolean?        @default(false)
+  inserted_at         DateTime        @default(now()) @db.Timestamp(6)
+  quality_flag        Int?            @default(1) @db.SmallInt
+  dim_date            dim_date        @relation(fields: [date_key], references: [date_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_segment         dim_segment     @relation(fields: [segment_key], references: [segment_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_time_of_day     dim_time_of_day @relation(fields: [time_key], references: [time_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_weather         dim_weather?    @relation(fields: [weather_key], references: [weather_key], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([traffic_flow_key, date_key])
+  @@index([date_key], map: "idx_fact_flow_date")
+  @@index([segment_key], map: "idx_fact_flow_segment")
+  @@index([segment_key, date_key], map: "idx_fact_flow_segment_date")
+  @@index([time_key], map: "idx_fact_flow_time")
+  @@index([weather_key], map: "idx_fact_flow_weather")
+  @@index([inserted_at], map: "idx_fact_traffic_flow_inserted_brin", type: Brin)
+  @@index([timestamp], map: "idx_fact_traffic_flow_ts_brin", type: Brin)
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+model fact_traffic_risk_prediction {
+  prediction_key       BigInt
+  segment_key          BigInt
+  time_key             Int
+  date_key             Int
+  timestamp            DateTime        @db.Timestamp(6)
+  horizon_minutes      Int?
+  predicted_risk_score Decimal?        @db.Decimal(3, 2)
+  confidence_level     Decimal?        @db.Decimal(3, 2)
+  model_version        String?         @db.VarChar(20)
+  inserted_at          DateTime        @default(now()) @db.Timestamp(6)
+  quality_flag         Int?            @default(1) @db.SmallInt
+  dim_date             dim_date        @relation(fields: [date_key], references: [date_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_segment          dim_segment     @relation(fields: [segment_key], references: [segment_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_time_of_day      dim_time_of_day @relation(fields: [time_key], references: [time_key], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([prediction_key, date_key])
+  @@index([date_key], map: "idx_fact_risk_pred_date")
+  @@index([inserted_at], map: "idx_fact_risk_pred_inserted_brin", type: Brin)
+  @@index([segment_key], map: "idx_fact_risk_pred_segment")
+  @@index([segment_key, date_key], map: "idx_fact_risk_pred_segment_date")
+  @@index([timestamp], map: "idx_fact_risk_pred_ts_brin", type: Brin)
+}
+
+model fact_weather {
+  id             Int      @id @default(autoincrement())
+  timestamp      DateTime @default(now()) @db.Timestamp(6)
+  temp_c         Float
+  condition_code String   @db.VarChar(50)
+  humidity       Float
+  wind_kph       Float
+
+  @@index([timestamp], map: "idx_fact_weather_ts_brin", type: Brin)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
+}
+
+model UserReport {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  type        String
+  description String?
+  lat         Float
+  lng         Float
+  imageUrl    String?
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+}
+
+
 model User {
   id    Int     @id @default(autoincrement())
   email String  @unique
