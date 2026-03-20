@@ -8,13 +8,12 @@ import { KPIBar } from '@/components/widgets/KPIBar'
 import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
 import { MOCK_ALERTS } from '@/config/constants'
-import { useSegments, useTrafficStatus } from '@/hooks/useTraffic'
+import { useSegments } from '@/hooks/useTraffic'
 import { useAppStore } from '@/stores/useAppStore'
 import { useRef, useState } from 'react'
 
 export const RealTimePage: React.FC = () => {
   const segmentData = useSegments()
-  const trafficStatus = useTrafficStatus()
   const { isLoading, error } = useAppStore()
   const [cctvModalVisible, setCCTVModalVisible] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -83,7 +82,6 @@ export const RealTimePage: React.FC = () => {
       {/* Main Map - Full Coverage */}
       <TrafficMap
         segmentData={segmentData}
-        trafficStatus={trafficStatus}
         style={{ height: '100%', width: '100%' }}
         mapRef={mapRef}
         heatmapEnabled={heatmapEnabled}
