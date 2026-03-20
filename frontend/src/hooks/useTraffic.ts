@@ -83,7 +83,7 @@ export const useTrafficStatus = () => {
 
     fetchStatus()
     // Polling every 10 seconds
-    const interval = setInterval(fetchStatus, 10000)
+    const interval = setInterval(fetchStatus, 120000)
 
     return () => clearInterval(interval)
   }, [setTrafficStatus, setError])
