@@ -1,10 +1,11 @@
 // Alert Feed Widget
 
-import { List, Tag, Empty } from 'antd'
-import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { MOCK_ALERTS } from '@/config/constants'
 import { Alert } from '@/types'
 import { formatRelativeTime, getSeverityColor } from '@/utils/format'
-import { MOCK_ALERTS } from '@/config/constants'
+import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { Empty, List, Tag } from 'antd'
+import React from 'react'
 
 interface AlertFeedProps {
   alerts?: Alert[]
@@ -17,6 +18,8 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
   maxHeight = 500,
   style,
 }) => {
+  const [collapsed, setCollapsed] = React.useState(false)
+
   return (
     <div
       style={{
@@ -24,7 +27,7 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
         right: 10,
         top: 10,
         width: 290,
-        maxHeight: maxHeight,
+        maxHeight: collapsed ? 72 : maxHeight,
         zIndex: 10,
         background: 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
@@ -35,7 +38,8 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        transition: 'all 0.3s ease',
+        transition:
+          'max-height 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease',
         ...style,
       }}
       onMouseEnter={(e) => {
@@ -52,7 +56,10 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
       <div
         style={{
           padding: '20px 20px 16px',
-          borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+          borderBottom: collapsed ? 'none' : '1px solid rgba(0, 0, 0, 0.06)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
         }}
       >
         <h4
@@ -67,8 +74,41 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
         >
           Cảnh báo
         </h4>
+        <button
+          type="button"
+          onClick={() => setCollapsed((prev) => !prev)}
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 6,
+            border: '1px solid rgba(0, 0, 0, 0.1)',
+            background: '#fff',
+            color: '#595959',
+            cursor: 'pointer',
+            fontSize: 13,
+            fontWeight: 700,
+            lineHeight: '22px',
+            padding: 0,
+            transition: 'all 0.2s ease',
+          }}
+          aria-label={collapsed ? 'Expand alerts' : 'Collapse alerts'}
+          title={collapsed ? 'Mở rộng' : 'Thu gọn'}
+        >
+          {collapsed ? 'v' : '^'}
+        </button>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: collapsed ? '0 8px' : '8px',
+          maxHeight: collapsed ? 0 : maxHeight,
+          opacity: collapsed ? 0 : 1,
+          transition:
+            'max-height 0.3s ease, opacity 0.2s ease, padding 0.2s ease',
+          pointerEvents: collapsed ? 'none' : 'auto',
+        }}
+      >
         {alerts.length === 0 ? (
           <Empty
             description="Không có cảnh báo"

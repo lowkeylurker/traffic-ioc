@@ -1,16 +1,28 @@
 // Traffic Map Component
 
-import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/config/constants'
-import apiService from '@/services/api'
-import { useQuery } from '@tanstack/react-query'
-import { Spin } from 'antd'
+import {
+  DEFAULT_MAP_CENTER,
+  DEFAULT_MAP_ZOOM,
+  TRAFFIC_COLORS,
+} from '@/config/constants'
+import { GeoJSONFeature, SegmentResponse } from '@/types'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Map, { Layer, LayerProps, Source } from 'react-map-gl'
 
+const MAX_RENDER_SEGMENTS = 12000
+const MAX_FEATURES_FOR_AUTO_FIT = 50000
+const MIN_RENDER_SEGMENTS = 2500
+
+type MapBounds = {
+  minLon: number
+  maxLon: number
+  minLat: number
+  maxLat: number
+}
+
 interface TrafficMapProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  segments?: any[] // Optional segments data
+  segmentData: SegmentResponse | null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   trafficStatus?: any[] // Optional traffic status data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,31 +34,10 @@ interface TrafficMapProps {
   heatmapEnabled?: boolean // Toggle heatmap layer
 }
 
-interface GeoJSONFeature {
-  type: 'Feature'
-  geometry: {
-    type: 'LineString'
-    coordinates: number[][]
-  }
-  properties: {
-    segmentId: number
-    segmentName: string
-    avgSpeed: number
-    losIndex: string
-    color: string
-    lastUpdated: string
-  }
-}
-
-interface TrafficMapResponse {
-  type: 'FeatureCollection'
-  features: GeoJSONFeature[]
-}
-
 export const TrafficMap: React.FC<TrafficMapProps> = ({
+  segmentData,
   onMapClick,
   style,
-  autoRefreshInterval = 10000, // 10 seconds default
   mapRef: externalMapRef,
   heatmapEnabled = false,
 }) => {
@@ -59,113 +50,106 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   const [hoveredFeature, setHoveredFeature] = useState<
     GeoJSONFeature['properties'] | null
   >(null)
+  const [viewportBounds, setViewportBounds] = useState<MapBounds | null>(null)
+  const [currentZoom, setCurrentZoom] = useState<number>(DEFAULT_MAP_ZOOM)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
   })
-  // Fallback mock data if API fails
-  const FALLBACK_DATA: TrafficMapResponse = {
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [106.699, 10.78],
-            [106.7, 10.785],
-          ],
-        },
-        properties: {
-          segmentId: 1,
-          segmentName: 'Đường Lê Duẩn',
-          avgSpeed: 45,
-          losIndex: 'A',
-          color: '#52C41A',
-          lastUpdated: new Date().toISOString(),
-        },
-      },
-      {
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [106.695, 10.782],
-            [106.702, 10.778],
-          ],
-        },
-        properties: {
-          segmentId: 2,
-          segmentName: 'Đường Pasteur',
-          avgSpeed: 10,
-          losIndex: 'F',
-          color: '#FF4D4F',
-          lastUpdated: new Date().toISOString(),
-        },
-      },
-      {
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [106.697, 10.788],
-            [106.705, 10.785],
-          ],
-        },
-        properties: {
-          segmentId: 3,
-          segmentName: 'Đường Hai Bà Trưng',
-          avgSpeed: 25,
-          losIndex: 'D',
-          color: '#FAAD14',
-          lastUpdated: new Date().toISOString(),
-        },
-      },
-    ],
-  }
 
-  // Helper function to fetch traffic map data
-  const fetchTrafficMapData = async (): Promise<TrafficMapResponse> => {
-    try {
-      const response = await apiService.get('/map/segments')
-      const geoJsonData = response?.data
+  const renderCap = useMemo(() => {
+    if (currentZoom < 11) return MIN_RENDER_SEGMENTS
+    if (currentZoom < 12.5) return 5000
+    if (currentZoom < 14) return 8000
+    if (currentZoom < 15.5) return MAX_RENDER_SEGMENTS
+    if (currentZoom < 17) return 18000
+    return 26000
+  }, [currentZoom])
 
-      if (geoJsonData?.features?.length > 0) {
-        return geoJsonData
+  const featureBounds = useMemo(() => {
+    if (!segmentData?.features?.length) return []
+
+    return segmentData.features.map((feature) => {
+      const coords = feature.geometry.coordinates
+      let minLon = Infinity
+      let maxLon = -Infinity
+      let minLat = Infinity
+      let maxLat = -Infinity
+
+      coords.forEach(([lon, lat]) => {
+        minLon = Math.min(minLon, lon)
+        maxLon = Math.max(maxLon, lon)
+        minLat = Math.min(minLat, lat)
+        maxLat = Math.max(maxLat, lat)
+      })
+
+      return { minLon, maxLon, minLat, maxLat }
+    })
+  }, [segmentData])
+
+  const renderedSegmentData = useMemo(() => {
+    if (!segmentData?.features?.length) return null
+
+    if (!viewportBounds) {
+      return {
+        ...segmentData,
+        features: segmentData.features.slice(0, renderCap),
+      }
+    }
+
+    const visibleFeatures: GeoJSONFeature[] = []
+
+    for (let i = 0; i < segmentData.features.length; i += 1) {
+      const bounds = featureBounds[i]
+      if (!bounds) continue
+
+      const intersectsViewport =
+        bounds.maxLon >= viewportBounds.minLon &&
+        bounds.minLon <= viewportBounds.maxLon &&
+        bounds.maxLat >= viewportBounds.minLat &&
+        bounds.minLat <= viewportBounds.maxLat
+
+      if (intersectsViewport) {
+        visibleFeatures.push(segmentData.features[i])
       }
 
-      console.warn('Invalid or empty traffic data response, using fallback')
-      return FALLBACK_DATA
-    } catch (err) {
-      console.error('Error fetching traffic map:', err)
-      return FALLBACK_DATA
+      if (visibleFeatures.length >= renderCap) {
+        break
+      }
     }
+
+    return {
+      ...segmentData,
+      features: visibleFeatures,
+    }
+  }, [featureBounds, renderCap, segmentData, viewportBounds])
+
+  const updateViewportBounds = () => {
+    if (!mapRef.current?.getMap) return
+
+    const map = mapRef.current.getMap()
+    const bounds = map.getBounds()
+
+    if (!bounds) return
+
+    setViewportBounds({
+      minLon: bounds.getWest(),
+      maxLon: bounds.getEast(),
+      minLat: bounds.getSouth(),
+      maxLat: bounds.getNorth(),
+    })
+    setCurrentZoom(map.getZoom())
   }
-
-  // Fetch traffic map data using React Query
-  const {
-    data: trafficData = FALLBACK_DATA,
-    isLoading: loading,
-    error: apiError,
-  } = useQuery({
-    queryKey: ['trafficMap'],
-    queryFn: fetchTrafficMapData,
-    refetchInterval: autoRefreshInterval, // Enable polling
-    refetchIntervalInBackground: true, // Continue polling in background
-    staleTime: 0, // Always refetch when component mounts
-  })
-
-  const error = apiError
-    ? apiError instanceof Error
-      ? apiError.message
-      : 'Failed to fetch traffic map'
-    : null
 
   // Auto-fit map bounds when traffic data loads
   useEffect(() => {
-    if (trafficData && trafficData.features.length > 0 && mapRef.current) {
+    if (segmentData && segmentData.features.length > 0 && mapRef.current) {
+      if (segmentData.features.length > MAX_FEATURES_FOR_AUTO_FIT) {
+        return
+      }
+
       const map = mapRef.current
-      const bounds = trafficData.features.reduce(
+      const bounds = segmentData.features.reduce(
         (acc, feature) => {
           const coords = feature.geometry.coordinates
           coords.forEach(([lon, lat]) => {
@@ -196,7 +180,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     }
     // mapRef is a ref object, its .current is checked but not included in dependency
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trafficData])
+  }, [segmentData])
 
   // Create traffic layer style
   const trafficLayerStyle = useMemo(
@@ -205,9 +189,25 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         id: 'traffic-flow-layer',
         type: 'line',
         paint: {
-          'line-width': 4,
-          'line-color': ['get', 'color'],
-          'line-opacity': 0.75,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.2, 14, 3.8],
+          'line-color': [
+            'match',
+            ['upcase', ['to-string', ['coalesce', ['get', 'losIndex'], 'N/A']]],
+            'A',
+            TRAFFIC_COLORS.FAST,
+            'B',
+            TRAFFIC_COLORS.FAST,
+            'C',
+            TRAFFIC_COLORS.FAST,
+            'D',
+            TRAFFIC_COLORS.MODERATE,
+            'E',
+            TRAFFIC_COLORS.MODERATE,
+            'F',
+            TRAFFIC_COLORS.SLOW,
+            TRAFFIC_COLORS.NO_DATA,
+          ],
+          'line-opacity': 0.92,
         },
         layout: {
           'line-join': 'round',
@@ -272,7 +272,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
 
   // Set up map layer hover events
   useEffect(() => {
-    if (!mapRef.current || !trafficData) return
+    if (!mapRef.current || !segmentData) return
 
     const map = mapRef.current.getMap()
     const layerId = 'traffic-flow-layer'
@@ -317,7 +317,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     }, 100)
 
     return () => clearInterval(waitForLayer)
-  }, [trafficData, mapRef])
+  }, [segmentData, mapRef])
 
   // Determine LOS status display
   // const getLOSStatus = (losIndex: string) => {
@@ -337,7 +337,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
       ref={containerRef}
       style={{ width: '100%', height: '100%', position: 'relative', ...style }}
     >
-      {loading && (
+      {/* {loading && (
         <div
           style={{
             position: 'absolute',
@@ -353,9 +353,9 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         >
           <Spin tip="Loading traffic map..." />
         </div>
-      )}
+      )} */}
 
-      {error && (
+      {/* {error && (
         <div
           style={{
             position: 'absolute',
@@ -371,7 +371,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         >
           Error: {error}
         </div>
-      )}
+      )} */}
 
       <Map
         ref={mapRef}
@@ -384,9 +384,11 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         mapStyle={mapboxStyle}
         mapboxAccessToken={mapboxToken}
         onClick={onMapClick}
+        onLoad={updateViewportBounds}
+        onMoveEnd={updateViewportBounds}
       >
-        {trafficData && trafficData.features.length > 0 && (
-          <Source id="traffic-source" type="geojson" data={trafficData}>
+        {renderedSegmentData && renderedSegmentData.features.length > 0 && (
+          <Source id="traffic-source" type="geojson" data={renderedSegmentData}>
             {heatmapEnabled && <Layer {...heatmapLayerStyle} />}
             <Layer {...trafficLayerStyle} />
           </Source>
@@ -397,76 +399,41 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
       {hoveredFeature &&
         (() => {
           const getPopUpData = (feature: GeoJSONFeature['properties']) => {
-            let los = feature.losIndex
-            let status = 'Thông thoáng'
-            let statusColor = '#22C55E' // text-green-500
-            let dotColor = '#22C55E' // bg-green-500
+            const los = (feature.losIndex || 'N/A').toUpperCase()
 
-            if (los === 'N/A' || !los) {
-              const color = feature.color?.toUpperCase()
-              if (color === '#FF4D4F' || color === 'RED') {
-                los = 'F'
-                status = 'Ùn tắc'
-                statusColor = '#EF4444' // text-red-500
-                dotColor = '#EF4444'
-              } else if (
-                color === '#FAAD14' ||
-                color === 'ORANGE' ||
-                color === 'YELLOW'
-              ) {
-                los = 'D'
-                status = 'Đông xe'
-                statusColor = '#F97316' // text-orange-500
-                dotColor = '#F97316'
-              } else {
-                los = 'A'
+            if (los === 'A' || los === 'B' || los === 'C') {
+              return {
+                los,
+                status: 'Thông thoáng',
+                statusColor: TRAFFIC_COLORS.FAST,
+                dotColor: TRAFFIC_COLORS.FAST,
               }
-            } else {
-              const losMap: Record<
-                string,
-                { label: string; statusColor: string; dotColor: string }
-              > = {
-                A: {
-                  label: 'Thông thoáng',
-                  statusColor: '#22C55E',
-                  dotColor: '#22C55E',
-                },
-                B: {
-                  label: 'Thông thoáng',
-                  statusColor: '#22C55E',
-                  dotColor: '#22C55E',
-                },
-                C: {
-                  label: 'Bình thường',
-                  statusColor: '#EAB308',
-                  dotColor: '#EAB308',
-                },
-                D: {
-                  label: 'Đông xe',
-                  statusColor: '#F97316',
-                  dotColor: '#F97316',
-                },
-                E: {
-                  label: 'Rất đông',
-                  statusColor: '#EA580C',
-                  dotColor: '#EA580C',
-                },
-                F: {
-                  label: 'Ùn tắc',
-                  statusColor: '#EF4444',
-                  dotColor: '#EF4444',
-                },
-              }
-              const data = losMap[los] || {
-                label: 'Thông thoáng',
-                statusColor: '#22C55E',
-                dotColor: '#22C55E',
-              }
-              status = data.label
-              statusColor = data.statusColor
-              dotColor = data.dotColor
             }
-            return { los, status, statusColor, dotColor }
+
+            if (los === 'D' || los === 'E') {
+              return {
+                los,
+                status: 'Đông xe',
+                statusColor: TRAFFIC_COLORS.MODERATE,
+                dotColor: TRAFFIC_COLORS.MODERATE,
+              }
+            }
+
+            if (los === 'F') {
+              return {
+                los,
+                status: 'Ùn tắc',
+                statusColor: TRAFFIC_COLORS.SLOW,
+                dotColor: TRAFFIC_COLORS.SLOW,
+              }
+            }
+
+            return {
+              los: 'N/A',
+              status: 'Không có dữ liệu',
+              statusColor: TRAFFIC_COLORS.NO_DATA,
+              dotColor: TRAFFIC_COLORS.NO_DATA,
+            }
           }
 
           const popUpData = getPopUpData(hoveredFeature)

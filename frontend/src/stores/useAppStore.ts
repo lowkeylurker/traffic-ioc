@@ -1,11 +1,11 @@
 // Global App Store (Zustand)
 
+import { Alert, SegmentResponse, TrafficStatus } from '@/types'
 import { create } from 'zustand'
-import { Segment, TrafficStatus, Alert } from '@/types'
 
 interface AppStore {
   // State
-  segments: Segment[]
+  segmentData: SegmentResponse | null
   trafficStatus: TrafficStatus[]
   alerts: Alert[]
   selectedSegmentId: number | null
@@ -13,7 +13,7 @@ interface AppStore {
   error: string | null
 
   // Actions
-  setSegments: (segments: Segment[]) => void
+  setSegmentData: (segmentData: SegmentResponse | null) => void
   setTrafficStatus: (status: TrafficStatus[]) => void
   setAlerts: (alerts: Alert[]) => void
   selectSegment: (segmentId: number | null) => void
@@ -24,7 +24,7 @@ interface AppStore {
 
 export const useAppStore = create<AppStore>((set) => ({
   // Initial State
-  segments: [],
+  segmentData: null,
   trafficStatus: [],
   alerts: [],
   selectedSegmentId: null,
@@ -32,7 +32,7 @@ export const useAppStore = create<AppStore>((set) => ({
   error: null,
 
   // Actions
-  setSegments: (segments) => set({ segments }),
+  setSegmentData: (segmentData) => set({ segmentData }),
   setTrafficStatus: (trafficStatus) => set({ trafficStatus }),
   setAlerts: (alerts) => set({ alerts }),
   selectSegment: (selectedSegmentId) => set({ selectedSegmentId }),
@@ -40,7 +40,7 @@ export const useAppStore = create<AppStore>((set) => ({
   setError: (error) => set({ error }),
   reset: () =>
     set({
-      segments: [],
+      segmentData: null,
       trafficStatus: [],
       alerts: [],
       selectedSegmentId: null,

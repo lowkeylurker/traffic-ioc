@@ -1,5 +1,26 @@
 // Core Traffic Data Types
 
+export interface GeoJSONFeature {
+  type: 'Feature'
+  geometry: {
+    type: 'LineString'
+    coordinates: number[][]
+  }
+  properties: {
+    segmentId: number
+    segmentName: string
+    avgSpeed: number
+    losIndex: string
+    color: string
+    lastUpdated: string
+  }
+}
+
+export type SegmentResponse = {
+  type: 'FeatureCollection'
+  features: GeoJSONFeature[]
+}
+
 export interface Segment {
   segmentId: number
   segmentName: string

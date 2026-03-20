@@ -1,19 +1,19 @@
 // Real-Time Operations Page
 
-import { useState, useRef } from 'react'
+import { ErrorState, Loading } from '@/components/common'
 import { TrafficMap } from '@/components/map/TrafficMap'
 import { AlertFeed } from '@/components/widgets/AlertFeed'
+import { CCTVModal } from '@/components/widgets/CCTVModal'
 import { KPIBar } from '@/components/widgets/KPIBar'
 import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
-import { CCTVModal } from '@/components/widgets/CCTVModal'
-import { Loading, ErrorState } from '@/components/common'
+import { MOCK_ALERTS } from '@/config/constants'
 import { useSegments, useTrafficStatus } from '@/hooks/useTraffic'
 import { useAppStore } from '@/stores/useAppStore'
-import { MOCK_ALERTS } from '@/config/constants'
+import { useRef, useState } from 'react'
 
 export const RealTimePage: React.FC = () => {
-  const segments = useSegments()
+  const segmentData = useSegments()
   const trafficStatus = useTrafficStatus()
   const { isLoading, error } = useAppStore()
   const [cctvModalVisible, setCCTVModalVisible] = useState(false)
@@ -49,7 +49,7 @@ export const RealTimePage: React.FC = () => {
     setHeatmapEnabled(_enabled)
   }
 
-  if (isLoading && segments.length === 0) {
+  if (isLoading && !segmentData) {
     return (
       <div
         style={{
@@ -64,7 +64,7 @@ export const RealTimePage: React.FC = () => {
     )
   }
 
-  if (error && segments.length === 0) {
+  if (error && !segmentData) {
     return <ErrorState message={error} />
   }
 
@@ -82,7 +82,7 @@ export const RealTimePage: React.FC = () => {
     >
       {/* Main Map - Full Coverage */}
       <TrafficMap
-        segments={segments}
+        segmentData={segmentData}
         trafficStatus={trafficStatus}
         style={{ height: '100%', width: '100%' }}
         mapRef={mapRef}
