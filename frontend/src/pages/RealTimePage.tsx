@@ -159,7 +159,19 @@ export const RealTimePage: React.FC = () => {
         {/* Floating Widgets - Z-Index Layering */}
 
         {/* Top KPI Bar (z-index: 20) */}
-        <KPIBar />
+        <div
+          style={{
+            position: 'absolute',
+            top: 12,
+            left: 12,
+            right: 'clamp(280px, 26vw, 350px)',
+            maxWidth: 980,
+            zIndex: 25,
+            animation: 'dashboard-fade-slide 380ms ease-out both',
+          }}
+        >
+          <KPIBar />
+        </div>
 
         {/* Bottom Right - Map Controls (z-index: 10) */}
         <MapControls
@@ -178,17 +190,71 @@ export const RealTimePage: React.FC = () => {
           visible={cctvModalVisible}
           onClose={() => setCCTVModalVisible(false)}
         />
-      </div>
 
-      {/* Right Sidebar - Incident Alert Widget */}
-      <IncidentAlertWidget
-        incidents={incidents}
-        isLoading={incidentsLoading}
-        onIncidentClick={setSelectedIncident}
-        mapRef={mapRef}
-      />
-      {/* Weather Widget */}
-      <WeatherWidget compact />
+        {/* Floating Right Stack Widgets */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            width: 'clamp(260px, 24vw, 330px)',
+            animation: 'dashboard-fade-slide 420ms ease-out both',
+            animationDelay: '80ms',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            zIndex: 20,
+            maxHeight: 'calc(100% - 168px)',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              pointerEvents: 'auto',
+              maxHeight: '48vh',
+              overflowY: 'auto',
+              borderRadius: 12,
+              animation: 'dashboard-fade-slide 420ms ease-out both',
+              animationDelay: '120ms',
+            }}
+          >
+            <IncidentAlertWidget
+              incidents={incidents}
+              isLoading={incidentsLoading}
+              onIncidentClick={setSelectedIncident}
+              mapRef={mapRef}
+              floating={false}
+            />
+          </div>
+          <div
+            style={{
+              pointerEvents: 'auto',
+              maxHeight: '34vh',
+              overflowY: 'auto',
+              borderRadius: 12,
+              animation: 'dashboard-fade-slide 420ms ease-out both',
+              animationDelay: '180ms',
+            }}
+          >
+            <WeatherWidget compact />
+          </div>
+        </div>
+
+        <style>{`
+          @keyframes dashboard-fade-slide {
+            0% {
+              opacity: 0;
+              transform: translateY(10px) scale(0.99);
+              filter: blur(2px);
+            }
+            100% {
+              opacity: 1;
+              transform: translateY(0) scale(1);
+              filter: blur(0);
+            }
+          }
+        `}</style>
+      </div>
     </div>
   )
 }

@@ -1,19 +1,18 @@
 // Incident Alert Widget Component (A2)
-import React from 'react'
-import { Card, List, Tag, Badge, Empty, Button, Tooltip } from 'antd'
-import {
-  FireOutlined,
-  WarningOutlined,
-  ThunderboltOutlined,
-  ExclamationCircleOutlined,
-  UpOutlined,
-  DownOutlined,
-} from '@ant-design/icons'
 import { IncidentFeature, IncidentSeverity, IncidentType } from '@/types'
+import {
+  DownOutlined,
+  ExclamationCircleOutlined,
+  FireOutlined,
+  ThunderboltOutlined,
+  UpOutlined,
+  WarningOutlined,
+} from '@ant-design/icons'
+import { Badge, Button, Card, Empty, List, Tag, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/vi'
-import { useState } from 'react'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import React, { useState } from 'react'
 
 dayjs.extend(relativeTime)
 dayjs.locale('vi')
@@ -23,6 +22,7 @@ interface IncidentAlertWidgetProps {
   isLoading?: boolean
   onIncidentClick?: (incident: IncidentFeature) => void
   mapRef?: React.RefObject<unknown>
+  floating?: boolean
 }
 
 // Icon mapping
@@ -47,9 +47,10 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
   isLoading = false,
   onIncidentClick,
   mapRef,
+  floating = true,
 }) => {
   const [collapsed, setCollapsed] = useState(false)
-  const handleWidth = 36
+  const handleWidth = floating ? 36 : 30
 
   const handleIncidentClick = (incident: IncidentFeature) => {
     const [lng, lat] = incident.geometry.coordinates
@@ -80,10 +81,11 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
     return (
       <div
         style={{
-          position: 'absolute',
-          top: '10px',
-          right: '10px',
+          position: floating ? 'absolute' : 'relative',
+          top: floating ? '10px' : undefined,
+          right: floating ? '10px' : undefined,
           zIndex: 10,
+          alignSelf: floating ? undefined : 'flex-end',
         }}
       >
         <Tooltip title="Mở cảnh báo sự cố" placement="left">
@@ -93,7 +95,7 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
             onClick={() => setCollapsed(false)}
             aria-label="Mở cảnh báo sự cố"
             style={{
-              height: '200px',
+              height: floating ? '200px' : '120px',
               width: `${handleWidth}px`,
               borderRadius: '8px 0 0 8px',
               writingMode: 'vertical-lr',
@@ -101,8 +103,8 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '8px',
-              boxShadow: '0 6px 16px rgba(0,0,0,0.18)',
+              gap: '6px',
+              boxShadow: '0 8px 18px rgba(15,23,42,0.2)',
               transition: 'all 0.2s ease',
               fontWeight: 600,
             }}
@@ -117,12 +119,13 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
   return (
     <div
       style={{
-        position: 'absolute',
-        top: '10px',
-        right: '10px',
+        position: floating ? 'absolute' : 'relative',
+        top: floating ? '10px' : undefined,
+        right: floating ? '10px' : undefined,
         zIndex: 10,
         display: 'flex',
         alignItems: 'stretch',
+        width: floating ? undefined : '100%',
       }}
     >
       <Tooltip title="Thu gọn cảnh báo sự cố" placement="left">
@@ -133,12 +136,14 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
           style={{
             width: `${handleWidth}px`,
             height: '100%',
-            minHeight: '180px',
-            borderRadius: '8px 0 0 8px',
+            minHeight: floating ? '180px' : '150px',
+            borderRadius: '12px 0 0 12px',
             borderRight: 0,
-            boxShadow: '0 6px 14px rgba(0,0,0,0.12)',
-            background: '#fafafa',
+            boxShadow: '0 10px 24px rgba(15,23,42,0.12)',
+            background:
+              'linear-gradient(180deg, rgba(248,250,252,0.95) 0%, rgba(241,245,249,0.95) 100%)',
             transition: 'all 0.2s ease',
+            borderColor: 'rgba(148, 163, 184, 0.25)',
           }}
         />
       </Tooltip>
@@ -164,11 +169,22 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
           </div>
         }
         style={{
-          width: '300px',
-          maxHeight: '600px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          width: floating ? '300px' : `calc(100% - ${handleWidth}px)`,
+          maxHeight: '560px',
+          boxShadow: '0 12px 28px rgba(15,23,42,0.14)',
+          borderRadius: '0 12px 12px 0',
+          border: '1px solid rgba(148, 163, 184, 0.22)',
+          overflow: 'hidden',
+          background:
+            'linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(248,250,252,0.94) 100%)',
         }}
-        bodyStyle={{ padding: '0', maxHeight: '520px', overflow: 'auto' }}
+        headStyle={{
+          padding: '10px 14px',
+          minHeight: 46,
+          background: 'rgba(255,255,255,0.75)',
+          borderBottom: '1px solid rgba(148,163,184,0.2)',
+        }}
+        bodyStyle={{ padding: '0', maxHeight: '480px', overflow: 'auto' }}
       >
         {incidents.length === 0 ? (
           <Empty
@@ -189,7 +205,7 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
                 <List.Item
                   key={id}
                   style={{
-                    padding: '8px',
+                    padding: '10px 10px 10px 8px',
                     cursor: 'pointer',
                     borderLeft: `4px solid ${
                       severity === 'CRITICAL'
@@ -201,10 +217,11 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
                             : '#1890ff'
                     }`,
                     transition: 'background 0.2s',
+                    borderBottom: '1px solid rgba(148,163,184,0.12)',
                   }}
                   onClick={() => handleIncidentClick(incident)}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#f5f5f5'
+                    e.currentTarget.style.background = 'rgba(241,245,249,0.75)'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent'
@@ -214,7 +231,7 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
                     avatar={
                       <div
                         style={{
-                          fontSize: '24px',
+                          fontSize: '20px',
                           display: 'flex',
                           alignItems: 'center',
                         }}
@@ -227,10 +244,10 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '8px',
+                          gap: '6px',
                         }}
                       >
-                        <span style={{ fontWeight: 500, fontSize: '14px' }}>
+                        <span style={{ fontWeight: 600, fontSize: '13px' }}>
                           {title}
                         </span>
                         {severity === 'CRITICAL' && (
@@ -247,7 +264,7 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
                       </div>
                     }
                     description={
-                      <div style={{ fontSize: '12px' }}>
+                      <div style={{ fontSize: '11px' }}>
                         <div style={{ marginBottom: '4px' }}>
                           <Tag
                             color={SEVERITY_COLORS[severity]}

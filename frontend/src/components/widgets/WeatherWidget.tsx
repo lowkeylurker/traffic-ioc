@@ -1,6 +1,5 @@
 // Weather Widget
 
-import { useMemo } from 'react'
 import { MOCK_WEATHER } from '@/config/constants'
 import { useWeather } from '@/hooks'
 import { formatTime } from '@/utils'
@@ -10,6 +9,7 @@ import {
   mapImpactLevel,
   WeatherIconType,
 } from '@/utils/weather'
+import { useMemo } from 'react'
 
 interface WeatherWidgetProps {
   style?: React.CSSProperties
@@ -151,6 +151,12 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     [data.impact_level]
   )
 
+  const widgetPadding = compact ? '14px 14px 12px' : '18px 18px 14px'
+  const titleFontSize = compact ? 11 : 12
+  const tempFontSize = compact ? 32 : 34
+  const conditionFontSize = compact ? 15 : 16
+  const metaFontSize = compact ? 12 : 12
+
   return (
     <div
       style={{
@@ -161,9 +167,9 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           'linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(235, 245, 255, 0.82))',
         backdropFilter: 'blur(12px)',
         borderRadius: 16,
-        padding: '18px 18px 14px',
+        padding: widgetPadding,
         boxShadow:
-          '0 12px 36px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.7)',
+          '0 12px 28px rgba(15, 23, 42, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.7)',
         border: '1px solid rgba(255, 255, 255, 0.6)',
         transition: 'all 0.3s ease',
         fontFamily: 'Space Grotesk, Segoe UI, sans-serif',
@@ -205,11 +211,11 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           >
             <span
               style={{
-                fontSize: 12,
                 fontWeight: 700,
                 color: 'rgba(15, 23, 42, 0.6)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.18em',
+                fontSize: titleFontSize,
               }}
             >
               Thời tiết
@@ -229,12 +235,12 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           </div>
           <div
             style={{
-              fontSize: 34,
               fontWeight: 600,
               color: '#0f172a',
               marginBottom: 6,
               fontFamily:
                 'JetBrains Mono, ui-monospace, SFMono-Regular, monospace',
+              fontSize: tempFontSize,
             }}
           >
             {data.temp_c.toFixed(1)}°C
@@ -242,7 +248,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           <p
             style={{
               margin: '0 0 8px 0',
-              fontSize: 16,
+              fontSize: conditionFontSize,
               color: 'rgba(15, 23, 42, 0.75)',
               fontWeight: 600,
             }}
@@ -254,7 +260,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               display: 'flex',
               flexDirection: 'column',
               gap: 6,
-              fontSize: 12,
+              fontSize: metaFontSize,
               color: 'rgba(15, 23, 42, 0.6)',
             }}
           >

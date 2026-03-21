@@ -22,18 +22,18 @@ export const KPIBar: React.FC<KPIBarProps> = ({
   return (
     <div
       style={{
-        position: 'absolute',
-        top: 10,
-        left: 10,
-        width: collapsed ? 44 : 'calc(100% - 320px)',
+        position: 'relative',
+        width: collapsed ? 44 : 'auto',
+        maxWidth: collapsed ? 44 : '100%',
+        minWidth: collapsed ? 44 : 300,
         zIndex: 20,
-        background: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(10px)',
-        borderRadius: 12,
-        padding: '8px',
+        background: 'rgba(255, 255, 255, 0.88)',
+        backdropFilter: 'blur(12px)',
+        borderRadius: 14,
+        padding: '10px',
         boxShadow:
-          '0 8px 32px 0 rgba(0, 0, 0, 0.08), 0 2px 8px 0 rgba(0, 0, 0, 0.04)',
-        border: '1px solid rgba(255, 255, 255, 0.8)',
+          '0 12px 32px rgba(15, 23, 42, 0.12), 0 2px 10px rgba(15, 23, 42, 0.06)',
+        border: '1px solid rgba(148, 163, 184, 0.24)',
         overflow: 'visible',
         transition: 'width 0.3s ease, padding 0.3s ease, box-shadow 0.3s ease',
       }}
@@ -45,11 +45,11 @@ export const KPIBar: React.FC<KPIBarProps> = ({
           position: 'absolute',
           top: 0,
           right: 0,
-          width: 14,
+          width: 16,
           padding: 0,
           height: '100%',
-          borderTopRightRadius: 12,
-          borderBottomRightRadius: 12,
+          borderTopRightRadius: 14,
+          borderBottomRightRadius: 14,
           borderTopLeftRadius: 0,
           borderBottomLeftRadius: 0,
           border: '1px solid rgba(232, 234, 239, 0.95)',
@@ -63,7 +63,7 @@ export const KPIBar: React.FC<KPIBarProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '3px 0 10px rgba(15, 23, 42, 0.12)',
+          boxShadow: '4px 0 12px rgba(15, 23, 42, 0.12)',
           transition:
             'background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease',
           letterSpacing: '-0.5px',
@@ -83,7 +83,7 @@ export const KPIBar: React.FC<KPIBarProps> = ({
           pointerEvents: collapsed ? 'none' : 'auto',
         }}
       >
-        <Row gutter={[16, 0]} align="middle">
+        <Row gutter={[10, 0]} align="middle">
           <Col xs={12} sm={6} style={{ height: '100%' }}>
             <div
               style={{
@@ -272,7 +272,7 @@ export const KPIBar: React.FC<KPIBarProps> = ({
                 🌦️ Thời Tiết
               </div>
               <div style={{ fontSize: 20, fontWeight: 700, color: '#1677ff' }}>
-                {weather.temperature}°C
+                {weather.temp_c}°C
               </div>
               <div
                 style={{
@@ -281,7 +281,7 @@ export const KPIBar: React.FC<KPIBarProps> = ({
                   marginTop: 4,
                 }}
               >
-                {weather.condition}
+                {weather.condition_text}
               </div>
             </div>
           </Col>
