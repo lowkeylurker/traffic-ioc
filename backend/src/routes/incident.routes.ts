@@ -3,13 +3,6 @@ import { incidentController } from '../controllers/incident.controller';
 
 const router = Router();
 
-/**
- * GET /api/v1/incidents
- * get list incident OPEN from view_active_incidents
- * return GeoJSON FeatureCollection
- */
-router.get('/', incidentController.getActiveIncidents);
-
 // GET /api/v1/incidents - Get all incidents
 router.get('/', incidentController.getIncidents.bind(incidentController));
 

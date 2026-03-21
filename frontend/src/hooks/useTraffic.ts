@@ -180,13 +180,13 @@ export const useIncidents = () => {
           else if (sevStr === 'LOW' || sevStr === 'MINOR') mappedSeverity = 2
 
           return {
-            id: feature.id,
+            id: Number(feature.properties.id),
             segmentId: 0,
             segmentName: feature.properties.type,
             incidentType: mappedType,
             severity: mappedSeverity,
             description: feature.properties.description,
-            timestamp: new Date(feature.properties.createdAt),
+            timestamp: new Date(feature.properties.timestamp),
           }
         })
 

@@ -1,6 +1,5 @@
 // Incident Alert Widget Component (A2)
-import React, { useRef, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import React from 'react'
 import { Card, List, Tag, Badge, Empty } from 'antd'
 import {
   FireOutlined,
@@ -8,13 +7,7 @@ import {
   ThunderboltOutlined,
   ExclamationCircleOutlined,
 } from '@ant-design/icons'
-import apiService from '@/services/api'
-import {
-  IncidentCollection,
-  IncidentFeature,
-  IncidentSeverity,
-  IncidentType,
-} from '@/types'
+import { IncidentFeature, IncidentSeverity, IncidentType } from '@/types'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/vi'
@@ -23,8 +16,10 @@ dayjs.extend(relativeTime)
 dayjs.locale('vi')
 
 interface IncidentAlertWidgetProps {
+  incidents: IncidentFeature[]
+  isLoading?: boolean
   onIncidentClick?: (incident: IncidentFeature) => void
-  mapRef?: React.RefObject<any>
+  mapRef?: React.RefObject<unknown>
 }
 
 // Icon mapping
@@ -45,33 +40,26 @@ const SEVERITY_COLORS: Record<IncidentSeverity, string> = {
 }
 
 export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
+  incidents,
+  isLoading = false,
   onIncidentClick,
   mapRef,
 }) => {
-  const listRef = useRef<HTMLDivElement>(null)
-
-  // Fetch incidents with polling
-  const { data: incidentData, isLoading } = useQuery({
-    queryKey: ['incidents'],
-    queryFn: async (): Promise<IncidentCollection> => {
-      const response = await apiService.get('/incidents', {
-        params: { status: 'OPEN' },
-      })
-      return response.data
-    },
-    refetchInterval: 30000,
-    refetchIntervalInBackground: true,
-    staleTime: 0,
-  })
-
-  const incidents = incidentData?.features || []
-
   const handleIncidentClick = (incident: IncidentFeature) => {
     const [lng, lat] = incident.geometry.coordinates
 
     // Fly to incident location on map
-    if (mapRef?.current) {
-      const map = mapRef.current.getMap()
+    const mapObj = mapRef?.current as {
+      getMap?: () => {
+        flyTo: (opts: {
+          center: [number, number]
+          zoom: number
+          duration: number
+        }) => void
+      }
+    } | null
+    if (mapObj?.getMap) {
+      const map = mapObj.getMap()
       map.flyTo({
         center: [lng, lat],
         zoom: 16,
@@ -122,7 +110,6 @@ export const IncidentAlertWidget: React.FC<IncidentAlertWidgetProps> = ({
         />
       ) : (
         <List
-          ref={listRef}
           dataSource={incidents}
           loading={isLoading}
           renderItem={(incident) => {

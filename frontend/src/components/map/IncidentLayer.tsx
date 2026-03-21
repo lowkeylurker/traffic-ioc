@@ -1,17 +1,12 @@
 // Incident Layer Component (A2)
-import React, { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import React, { useState } from 'react'
 import { Marker, Popup } from 'react-map-gl'
 import { Button, Tag } from 'antd'
-import apiService from '@/services/api'
-import {
-  IncidentCollection,
-  IncidentFeature,
-  IncidentSeverity,
-  IncidentType,
-} from '@/types'
+import { IncidentFeature, IncidentSeverity, IncidentType } from '@/types'
 
 interface IncidentLayerProps {
+  incidents: IncidentFeature[]
+  isLoading?: boolean
   onIncidentClick?: (incident: IncidentFeature) => void
 }
 
@@ -33,26 +28,16 @@ const SEVERITY_COLORS: Record<IncidentSeverity, string> = {
 }
 
 export const IncidentLayer: React.FC<IncidentLayerProps> = ({
+  incidents,
+  isLoading,
   onIncidentClick,
 }) => {
   const [selectedIncident, setSelectedIncident] =
     useState<IncidentFeature | null>(null)
 
-  // Fetch incidents using React Query with polling
-  const { data: incidentData } = useQuery({
-    queryKey: ['incidents'],
-    queryFn: async (): Promise<IncidentCollection> => {
-      const response = await apiService.get('/incidents', {
-        params: { status: 'OPEN' },
-      })
-      return response.data
-    },
-    refetchInterval: 30000, // Poll every 30 seconds
-    refetchIntervalInBackground: true,
-    staleTime: 0,
-  })
-
-  const incidents = incidentData?.features || []
+  if (isLoading && incidents.length === 0) {
+    return null
+  }
 
   const handleMarkerClick = (incident: IncidentFeature) => {
     setSelectedIncident(incident)

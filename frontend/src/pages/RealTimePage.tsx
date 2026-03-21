@@ -5,21 +5,66 @@ import { CCTVModal } from '@/components/widgets/CCTVModal'
 import { KPIBar } from '@/components/widgets/KPIBar'
 import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
-import { useIncidents, useSegments } from '@/hooks/useTraffic'
+import { useSegments } from '@/hooks/useTraffic'
+import apiService from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
-import { Alert, IncidentFeature } from '@/types'
+import { IncidentCollection, IncidentFeature } from '@/types'
+import { useQuery } from '@tanstack/react-query'
 import React, { useRef, useState } from 'react'
 
 export const RealTimePage: React.FC = () => {
   const segmentData = useSegments()
-  const { incidents, liveAlerts } = useIncidents()
   const { isLoading, error } = useAppStore()
   const [cctvModalVisible, setCCTVModalVisible] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null)
   const [heatmapEnabled, setHeatmapEnabled] = useState(false)
-  const [selectedIncident, setSelectedIncident] =
+  const [_selectedIncident, setSelectedIncident] =
     useState<IncidentFeature | null>(null)
+
+  const getCurrentBbox = (): string | undefined => {
+    const mapObj = mapRef.current as {
+      getMap?: () => {
+        getBounds?: () => {
+          getWest: () => number
+          getSouth: () => number
+          getEast: () => number
+          getNorth: () => number
+        }
+      }
+    } | null
+
+    const bounds = mapObj?.getMap?.()?.getBounds?.()
+    if (!bounds) return undefined
+
+    return `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`
+  }
+
+  const { data: incidentData, isLoading: incidentsLoading } = useQuery({
+    queryKey: ['incidents'],
+    queryFn: async (): Promise<IncidentCollection> => {
+      const bbox = getCurrentBbox()
+      const response = await apiService.get('/incidents', {
+        params: {
+          status: 'OPEN',
+          ...(bbox ? { bbox } : {}),
+        },
+      })
+
+      const payload = response?.data
+
+      if (payload?.success && payload?.data?.type === 'FeatureCollection') {
+        return payload.data as IncidentCollection
+      }
+
+      return { type: 'FeatureCollection', features: [] }
+    },
+    refetchInterval: 30000,
+    refetchIntervalInBackground: true,
+    staleTime: 0,
+  })
+
+  const incidents = incidentData?.features || []
 
   // const handleAlertClick = (clickedAlert: Alert) => {
   //   const originalIncident = incidents.find((inc) => inc.id === clickedAlert.id)
@@ -110,7 +155,11 @@ export const RealTimePage: React.FC = () => {
           heatmapEnabled={heatmapEnabled}
         >
           {/* Incident Layer - Overlaid on traffic map */}
-          <IncidentLayer onIncidentClick={setSelectedIncident} />
+          <IncidentLayer
+            incidents={incidents}
+            isLoading={incidentsLoading}
+            onIncidentClick={setSelectedIncident}
+          />
         </TrafficMap>
 
         {/* Floating Widgets - Z-Index Layering */}
@@ -139,6 +188,8 @@ export const RealTimePage: React.FC = () => {
 
       {/* Right Sidebar - Incident Alert Widget */}
       <IncidentAlertWidget
+        incidents={incidents}
+        isLoading={incidentsLoading}
         onIncidentClick={setSelectedIncident}
         mapRef={mapRef}
       />
