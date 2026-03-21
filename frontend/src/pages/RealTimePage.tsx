@@ -152,6 +152,7 @@ export const RealTimePage: React.FC = () => {
             incidents={incidents}
             isLoading={incidentsLoading}
             onIncidentClick={setSelectedIncident}
+            mapRef={mapRef}
           />
         </TrafficMap>
 

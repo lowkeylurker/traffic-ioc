@@ -1,14 +1,25 @@
 // Incident Layer Component (A2)
 import { IncidentFeature, IncidentSeverity, IncidentType } from '@/types'
 import { Button, Tag } from 'antd'
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Marker, Popup } from 'react-map-gl'
 
 interface IncidentLayerProps {
   incidents: IncidentFeature[]
   isLoading?: boolean
   onIncidentClick?: (incident: IncidentFeature) => void
+  mapRef?: React.RefObject<unknown>
 }
+
+type ZoomAwareMap = {
+  on: (event: string, listener: () => void) => void
+  off: (event: string, listener: () => void) => void
+  getZoom: () => number
+}
+
+type MapRefLike = {
+  getMap?: () => ZoomAwareMap
+} & Partial<ZoomAwareMap>
 
 // Icon mapping for incident types
 const INCIDENT_ICONS: Record<IncidentType, string> = {
@@ -31,9 +42,62 @@ export const IncidentLayer: React.FC<IncidentLayerProps> = ({
   incidents,
   isLoading,
   onIncidentClick,
+  mapRef,
 }) => {
   const [selectedIncident, setSelectedIncident] =
     useState<IncidentFeature | null>(null)
+  const [currentZoom, setCurrentZoom] = useState<number>(12)
+
+  useEffect(() => {
+    if (!mapRef) return
+
+    let rafId = 0
+    let detach: (() => void) | null = null
+
+    const attachZoomListener = () => {
+      const mapObj = mapRef.current as MapRefLike | null
+      const mapInstance = mapObj?.getMap?.() ?? mapObj
+
+      if (
+        typeof mapInstance?.on !== 'function' ||
+        typeof mapInstance?.off !== 'function' ||
+        typeof mapInstance?.getZoom !== 'function'
+      ) {
+        rafId = window.requestAnimationFrame(attachZoomListener)
+        return
+      }
+
+      const zoomMap = mapInstance as ZoomAwareMap
+
+      const updateZoom = () => {
+        setCurrentZoom(zoomMap.getZoom())
+      }
+
+      updateZoom()
+      zoomMap.on('zoom', updateZoom)
+      detach = () => zoomMap.off('zoom', updateZoom)
+    }
+
+    attachZoomListener()
+
+    return () => {
+      if (rafId) window.cancelAnimationFrame(rafId)
+      detach?.()
+    }
+  }, [mapRef])
+
+  const markerSize = useMemo(
+    () => Math.max(22, Math.min(44, 22 + (currentZoom - 10) * 2.2)),
+    [currentZoom]
+  )
+  const markerBorderWidth = useMemo(
+    () => Math.max(2, Math.min(4, markerSize * 0.08)),
+    [markerSize]
+  )
+  const markerIconSize = useMemo(
+    () => Math.max(14, Math.min(24, markerSize * 0.52)),
+    [markerSize]
+  )
 
   if (isLoading && incidents.length === 0) {
     return null
@@ -63,7 +127,6 @@ export const IncidentLayer: React.FC<IncidentLayerProps> = ({
             <div
               style={{
                 cursor: 'pointer',
-                fontSize: '24px',
                 transform: 'translate(-50%, -50%)',
                 position: 'relative',
                 animation:
@@ -74,12 +137,13 @@ export const IncidentLayer: React.FC<IncidentLayerProps> = ({
                 style={{
                   background: 'white',
                   borderRadius: '50%',
-                  width: '40px',
-                  height: '40px',
+                  width: `${markerSize}px`,
+                  height: `${markerSize}px`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  border: `3px solid ${SEVERITY_COLORS[severity]}`,
+                  fontSize: `${markerIconSize}px`,
+                  border: `${markerBorderWidth}px solid ${SEVERITY_COLORS[severity]}`,
                   boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                 }}
               >
