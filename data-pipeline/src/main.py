@@ -1433,6 +1433,61 @@ def run_cycle(
     typer.echo("")
 
 
+@app.command("run-mock-incidents")
+def run_mock_incidents(
+    num_incidents: int = typer.Option(
+        5,
+        min=1,
+        max=500,
+        help="Number of simulated incidents to generate",
+    ),
+    seed: int | None = typer.Option(
+        None,
+        help="Optional random seed for deterministic generation",
+    ),
+    deactivate_old_simulated: bool = typer.Option(
+        True,
+        help="Mark simulated incidents from previous dates as inactive",
+    ),
+) -> None:
+    """Generate random simulated incidents for demo/testing dashboards."""
+    start_time = time.time()
+    engine = get_engine()
+    num_incidents = int(_resolve_option_default(num_incidents))
+    deactivate_old_simulated = bool(_resolve_option_default(deactivate_old_simulated))
+
+    console.print(Panel.fit(
+        "[bold cyan]🎲 MOCK INCIDENT GENERATOR[/bold cyan]\n"
+        "[dim]Insert simulated incidents into fact_incident[/dim]",
+        border_style="cyan"
+    ))
+
+    try:
+        from src.pipelines.real_time.mock_incident_pipeline import run as run_mock
+
+        count = run_mock(
+            engine,
+            num_incidents=num_incidents,
+            seed=seed,
+            deactivate_old_simulated=deactivate_old_simulated,
+        )
+        elapsed = time.time() - start_time
+        logger.info(
+            "[run-mock-incidents] inserted=%s requested=%s seed=%s elapsed=%.2fs",
+            count,
+            num_incidents,
+            "auto" if seed is None else seed,
+            elapsed,
+        )
+        console.print(
+            f"[green]✅ run-mock-incidents complete: {count}/{num_incidents} records ({elapsed:.2f}s)[/green]"
+        )
+    except Exception as e:
+        logger.exception("[run-mock-incidents] failed: %s", e)
+        console.print(f"[red]❌ run-mock-incidents failed: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
 @app.command("run-cycle-daemon")
 def run_cycle_daemon(
     cycle_interval_minutes: int = typer.Option(

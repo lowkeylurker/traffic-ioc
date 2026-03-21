@@ -107,6 +107,10 @@ BATCH_JOB = ETLJob(
 
 - `DB_CONNECTION_STRING`: PostgreSQL connection string
 - `LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR)
+- `MOCK_INCIDENTS_ENABLED`: Enable daily mock incident generation (`true`/`false`)
+- `MOCK_INCIDENTS_COUNT`: Number of incidents generated per daily run (default: `5`)
+- `MOCK_INCIDENTS_CRON_HOUR`: VN hour for daily mock run (default: `5`)
+- `MOCK_INCIDENTS_CRON_MINUTE`: VN minute for daily mock run (default: `55`)
 
 ---
 

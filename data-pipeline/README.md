@@ -131,6 +131,7 @@ Main CLI entrypoint: `python -m src.main`
 | `run-static` | Load static dimensions |
 | `run-spatial` | Build spatial dimensions / corridors |
 | `run-realtime` | One realtime cycle (weather -> traffic -> incidents) |
+| `run-mock-incidents` | Generate simulated incidents for demo/testing |
 | `run-batch` | Batch analytics (baseline + corridor performance) |
 | `run-cycle` | One-shot ETL cycle: realtime then batch |
 | `run-all` | Full initialization sequence |
@@ -188,6 +189,12 @@ SERPAPI_KEY=...
 # OpenWeather grid mode (Option C)
 OWM_GRID_SIZE_M=500
 OWM_GRID_MIN_CALL_INTERVAL_SEC=0.9
+
+# Optional: Daily simulated incidents for demo dashboards
+MOCK_INCIDENTS_ENABLED=false
+MOCK_INCIDENTS_COUNT=5
+MOCK_INCIDENTS_CRON_HOUR=5
+MOCK_INCIDENTS_CRON_MINUTE=55
 ```
 
 Important:

@@ -6,14 +6,14 @@ Manages periodic execution of:
 - Real-time ETL: Every 15 minutes (weather → traffic → incidents)  [Quận 1 corridors only]
 - Batch Analytics: Runs immediately after each successful real-time ETL [Q1 corridors]
 
-**OFFICIAL Q1 MODE (Mar 2026)**: 
+**OFFICIAL Q1 MODE (Mar 2026)**:
 - run-realtime uses target_corridor_mode for ~920 segments in Quận 1
 - run-batch runs baseline (all segments) + corridor perf (Quận 1 only)
 - Batch always runs after realtime completes successfully
 
 Usage:
     python app.py
-    
+
 Environment:
     DB_CONNECTION_STRING: PostgreSQL connection string
     LOG_LEVEL: DEBUG, INFO, WARNING, ERROR (default: INFO)
@@ -80,7 +80,7 @@ def setup_logging():
     # Root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
-    
+
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
@@ -89,7 +89,7 @@ def setup_logging():
     )
     console_handler.setFormatter(console_formatter)
     root_logger.addHandler(console_handler)
-    
+
     # File handler
     file_handler = logging.handlers.RotatingFileHandler(
         LOG_DIR / "scheduler.log",
@@ -102,7 +102,7 @@ def setup_logging():
     )
     file_handler.setFormatter(file_formatter)
     root_logger.addHandler(file_handler)
-    
+
     return logging.getLogger(__name__)
 
 logger = setup_logging()
@@ -129,7 +129,7 @@ def is_within_etl_window(now: datetime | None = None) -> bool:
 
 class ETLJob:
     """Wrapper for ETL command execution."""
-    
+
     def __init__(self, name: str, command: list, timeout: int):
         """
         Args:
@@ -142,14 +142,14 @@ class ETLJob:
         self.timeout = timeout
         self.log_file = LOG_DIR / f"{name.lower().replace(' ', '-')}.log"
         self.last_success = False  # Track if last run was successful
-    
+
     def run(self, cycle_id: str | None = None) -> dict:
         """Execute the ETL command and return structured result."""
         cycle_prefix = f"[{cycle_id}] " if cycle_id else ""
         logger.info(f"{cycle_prefix}[{self.name}] START")
         start_time = time.time()
         started_at = datetime.utcnow().isoformat() + "Z"
-        
+
         try:
             result = subprocess.run(
                 self.command,
@@ -159,11 +159,11 @@ class ETLJob:
                 errors='ignore',  # Ignore Unicode errors on Windows
                 timeout=self.timeout
             )
-            
+
             elapsed = time.time() - start_time
             stdout_tail = (result.stdout or "")[-1200:]
             stderr_tail = (result.stderr or "")[-1200:]
-            
+
             # Log output
             with open(self.log_file, "a") as f:
                 f.write(f"\n{'='*80}\n")
@@ -175,7 +175,7 @@ class ETLJob:
                     f.write(result.stdout)
                 if result.stderr:
                     f.write(result.stderr)
-            
+
             success = result.returncode == 0
             self.last_success = success
 
@@ -203,7 +203,7 @@ class ETLJob:
                 "finished_at": datetime.utcnow().isoformat() + "Z",
                 "log_file": str(self.log_file),
             }
-        
+
         except subprocess.TimeoutExpired:
             elapsed = time.time() - start_time
             logger.error(
@@ -220,7 +220,7 @@ class ETLJob:
                 "log_file": str(self.log_file),
                 "error": "timeout",
             }
-        
+
         except Exception as e:
             elapsed = time.time() - start_time
             logger.error(
@@ -277,6 +277,32 @@ KEY_HEALTHCHECK_JOB = ETLJob(
     timeout=180,  # 3 minutes
 )
 
+MOCK_INCIDENTS_ENABLED = os.getenv("MOCK_INCIDENTS_ENABLED", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+MOCK_INCIDENTS_COUNT = max(1, int(os.getenv("MOCK_INCIDENTS_COUNT", "5")))
+MOCK_INCIDENTS_CRON_HOUR = str(int(os.getenv("MOCK_INCIDENTS_CRON_HOUR", "5")))
+MOCK_INCIDENTS_CRON_MINUTE = str(int(os.getenv("MOCK_INCIDENTS_CRON_MINUTE", "55")))
+
+MOCK_INCIDENTS_JOB = ETLJob(
+    name="Daily Mock Incidents",
+    command=[
+        "docker",
+        "exec",
+        "data-pipeline",
+        "python",
+        "-m",
+        "src.main",
+        "run-mock-incidents",
+        "--num-incidents",
+        str(MOCK_INCIDENTS_COUNT),
+    ],
+    timeout=180,
+)
+
 # ═══════════════════════════════════════════════════════════
 # CHAINED JOB EXECUTION
 # ═══════════════════════════════════════════════════════════
@@ -287,13 +313,13 @@ def run_realtime_then_batch():
     logger.info("=" * 80)
     logger.info(f"[{cycle_id}] CYCLE START: Realtime -> Batch")
     logger.info("=" * 80)
-    
+
     try:
         # Run realtime
         logger.info(f"[{cycle_id}] Step 1/2: run-realtime")
         realtime_result = REALTIME_JOB.run(cycle_id=cycle_id)
         realtime_success = bool(realtime_result.get("success"))
-        
+
         # If realtime succeeded, run batch immediately
         if realtime_success:
             logger.info(f"[{cycle_id}] Realtime success -> trigger batch immediately")
@@ -342,6 +368,26 @@ def run_daily_key_healthcheck():
         )
     logger.info(f"[{cycle_id}] DAILY TOMTOM KEY HEALTHCHECK END")
 
+
+def run_daily_mock_incidents():
+    """Generate daily simulated incidents for demo/training environments."""
+    cycle_id = "daily-mock-incidents-" + datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    logger.info("=" * 80)
+    logger.info(f"[{cycle_id}] DAILY MOCK INCIDENTS START")
+    logger.info("=" * 80)
+    result = MOCK_INCIDENTS_JOB.run(cycle_id=cycle_id)
+    if result.get("success"):
+        logger.info(
+            f"[{cycle_id}] DAILY MOCK INCIDENTS SUCCESS "
+            f"(duration={result.get('duration_sec')}s)"
+        )
+    else:
+        logger.error(
+            f"[{cycle_id}] DAILY MOCK INCIDENTS FAIL "
+            f"(log={result.get('log_file')})"
+        )
+    logger.info(f"[{cycle_id}] DAILY MOCK INCIDENTS END")
+
 # ═══════════════════════════════════════════════════════════
 # SCHEDULER SETUP
 # ═══════════════════════════════════════════════════════════
@@ -386,6 +432,21 @@ def setup_scheduler():
         misfire_grace_time=300,
     )
 
+    if MOCK_INCIDENTS_ENABLED:
+        scheduler.add_job(
+            run_daily_mock_incidents,
+            trigger=CronTrigger(
+                hour=MOCK_INCIDENTS_CRON_HOUR,
+                minute=MOCK_INCIDENTS_CRON_MINUTE,
+                timezone=VN_TZ,
+            ),
+            id='mock-incidents-daily',
+            name='Mock Incidents (Daily)',
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=300,
+        )
+
     next_runs = []
     for job in scheduler.get_jobs():
         next_run = getattr(job, "next_run_time", None)
@@ -395,7 +456,7 @@ def setup_scheduler():
 
     next_runs.sort(key=lambda item: item[1] or datetime.max.replace(tzinfo=VN_TZ))
     nearest_run = next_runs[0][1] if next_runs else None
-    
+
     # Print schedule info
     logger.info("=" * 80)
     logger.info("🚀 ETL SCHEDULER INITIALIZED (Auto-Start Mode)")
@@ -422,6 +483,20 @@ def setup_scheduler():
     logger.info("  2. TomTom Key Healthcheck")
     logger.info("     ⏱️  Frequency: Daily at 05:50 (Asia/Ho_Chi_Minh)")
     logger.info("     📦 Output: usable_keys, blocked_keys, effective_budget/cycle")
+    if MOCK_INCIDENTS_ENABLED:
+        logger.info("  3. Daily Mock Incidents")
+        logger.info(
+            "     ⏱️  Frequency: Daily at %s:%s (Asia/Ho_Chi_Minh)",
+            MOCK_INCIDENTS_CRON_HOUR.zfill(2),
+            MOCK_INCIDENTS_CRON_MINUTE.zfill(2),
+        )
+        logger.info(
+            "     📦 Command: run-mock-incidents --num-incidents %s",
+            MOCK_INCIDENTS_COUNT,
+        )
+    else:
+        logger.info("  3. Daily Mock Incidents")
+        logger.info("     ⏸️  Disabled (set MOCK_INCIDENTS_ENABLED=true to enable)")
     logger.info(f"     🕒 Next scheduled run: {nearest_run or 'available after scheduler starts'}")
     logger.info(f"     ⚡ Run on startup: {'enabled' if RUN_ON_START else 'disabled'}")
     logger.info("")
@@ -431,7 +506,7 @@ def setup_scheduler():
     logger.info("    2) /app/logs/real-time-etl.log")
     logger.info("    3) /app/logs/batch-analytics.log")
     logger.info("=" * 80)
-    
+
     return scheduler
 
 # ═══════════════════════════════════════════════════════════
@@ -457,19 +532,19 @@ if __name__ == "__main__":
                     int(os.getenv("ETL_WINDOW_START_HOUR", "6")),
                     int(os.getenv("ETL_WINDOW_END_HOUR", "21")),
                 )
-        
+
         logger.info("✅ Scheduler running. Press Ctrl+C to stop.")
-        
+
         # Keep running
         while True:
             time.sleep(1)
-    
+
     except KeyboardInterrupt:
         logger.info("⚠️  Shutdown signal received...")
         scheduler.shutdown()
         logger.info("✅ Scheduler stopped gracefully")
         sys.exit(0)
-    
+
     except Exception as e:
         logger.critical(f"❌ Fatal error: {e}", exc_info=True)
         sys.exit(1)
