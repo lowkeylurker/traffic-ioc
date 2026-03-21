@@ -3,6 +3,7 @@
 import {
   ApiResponse,
   ForecastData,
+  IncidentCollection,
   ReliabilityRankData,
   RoutingData,
   SegmentResponse,
@@ -42,6 +43,16 @@ export const mapApi = {
     axiosInstance.get('/map/status'),
   getSegmentStatus: (segmentId: number): Promise<ApiResponse<TrafficStatus>> =>
     axiosInstance.get(`/map/status/${segmentId}`),
+  getIncidents: (
+    status: string,
+    bbox?: string
+  ): Promise<ApiResponse<IncidentCollection>> =>
+    axiosInstance.get('/incidents', {
+      params: {
+        status,
+        ...(bbox ? { bbox } : {}),
+      },
+    }),
 }
 
 // Analytics API

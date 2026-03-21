@@ -2,7 +2,7 @@
 
 import { analyticsApi, mapApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
-import { Alert, IncidentFeature, TrafficStatus } from '@/types'
+import { TrafficStatus } from '@/types'
 import { useEffect, useState } from 'react'
 
 // Fetch segments hook (danh sách đoạn đường tĩnh ban đầu - deprecated for map rendering, use useTrafficMap instead)
@@ -138,73 +138,4 @@ export const useAnalytics = () => {
   }, [])
 
   return { vehicleMix, speedComparison, reliabilityRanking, loading, error }
-}
-
-export const useIncidents = () => {
-  const [incidents, setIncidents] = useState<IncidentFeature[]>([])
-  const [loading, setLoading] = useState<boolean>(true)
-  const [liveAlerts, setLiveAlerts] = useState<Alert[]>([])
-
-  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
-
-  const fetchIncidents = async () => {
-    try {
-      const res = await fetch(`${API_URL}/incidents`)
-      const json = await res.json()
-
-      if (json.success && json.data && Array.isArray(json.data.features)) {
-        const features: IncidentFeature[] = json.data.features
-        setIncidents(features)
-
-        const mappedAlerts: Alert[] = features.map((feature) => {
-          const typeStr = feature.properties.type.toString().toLowerCase()
-          let mappedType: 'accident' | 'congestion' | 'roadwork' | 'weather' =
-            'accident'
-          if (typeStr.includes('congestion') || typeStr.includes('traffic'))
-            mappedType = 'congestion'
-          if (typeStr.includes('work') || typeStr.includes('construction'))
-            mappedType = 'roadwork'
-          if (
-            typeStr.includes('weather') ||
-            typeStr.includes('rain') ||
-            typeStr.includes('flood')
-          )
-            mappedType = 'weather'
-
-          const sevStr = feature.properties.severity.toString().toUpperCase()
-          let mappedSeverity: 1 | 2 | 3 | 4 | 5 = 1
-          if (sevStr === 'CRITICAL') mappedSeverity = 5
-          else if (sevStr === 'HIGH' || sevStr === 'MAJOR') mappedSeverity = 4
-          else if (sevStr === 'MEDIUM' || sevStr === 'MODERATE')
-            mappedSeverity = 3
-          else if (sevStr === 'LOW' || sevStr === 'MINOR') mappedSeverity = 2
-
-          return {
-            id: Number(feature.properties.id),
-            segmentId: 0,
-            segmentName: feature.properties.type,
-            incidentType: mappedType,
-            severity: mappedSeverity,
-            description: feature.properties.description,
-            timestamp: new Date(feature.properties.timestamp),
-          }
-        })
-
-        setLiveAlerts(mappedAlerts)
-      }
-    } catch (error) {
-      console.error('Lỗi khi tải sự kiện giao thông:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchIncidents()
-    const interval = setInterval(fetchIncidents, 180000)
-
-    return () => clearInterval(interval)
-  }, [])
-
-  return { incidents, loading, liveAlerts }
 }

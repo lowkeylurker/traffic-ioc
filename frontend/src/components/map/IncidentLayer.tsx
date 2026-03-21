@@ -1,8 +1,8 @@
 // Incident Layer Component (A2)
+import { IncidentFeature, IncidentSeverity, IncidentType } from '@/types'
+import { Button, Tag } from 'antd'
 import React, { useState } from 'react'
 import { Marker, Popup } from 'react-map-gl'
-import { Button, Tag } from 'antd'
-import { IncidentFeature, IncidentSeverity, IncidentType } from '@/types'
 
 interface IncidentLayerProps {
   incidents: IncidentFeature[]
@@ -99,56 +99,131 @@ export const IncidentLayer: React.FC<IncidentLayerProps> = ({
           closeOnClick={false}
           anchor="bottom"
           offset={20}
+          maxWidth="260px"
+          className="incident-popup"
         >
-          <div style={{ minWidth: '250px', padding: '8px' }}>
+          <div
+            style={{
+              width: 'min(240px, calc(100vw - 64px))',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+              padding: '10px',
+              background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+              borderRadius: '8px',
+            }}
+          >
+            {/* Header with icon and title */}
             <div
               style={{
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 gap: '8px',
                 marginBottom: '8px',
               }}
             >
-              <span style={{ fontSize: '20px' }}>
+              <div
+                style={{
+                  fontSize: '24px',
+                  lineHeight: '1',
+                  flexShrink: 0,
+                }}
+              >
                 {INCIDENT_ICONS[selectedIncident.properties.type]}
-              </span>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
-                {selectedIncident.properties.title}
-              </h3>
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3
+                  style={{
+                    margin: '0 0 2px 0',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    color: '#1f2937',
+                    overflowWrap: 'anywhere',
+                  }}
+                >
+                  {selectedIncident.properties.title}
+                </h3>
+                <div
+                  style={{
+                    fontSize: '9px',
+                    color: 'rgba(0,0,0,0.5)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.3px',
+                  }}
+                >
+                  {selectedIncident.properties.type}
+                </div>
+              </div>
             </div>
 
+            {/* Severity badge */}
             <div style={{ marginBottom: '8px' }}>
               <Tag
                 color={SEVERITY_COLORS[selectedIncident.properties.severity]}
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  padding: '1px 8px',
+                  border: 'none',
+                  lineHeight: '16px',
+                }}
               >
                 {selectedIncident.properties.severity}
               </Tag>
-              <Tag>{selectedIncident.properties.type}</Tag>
             </div>
 
+            {/* Divider */}
+            <div
+              style={{
+                height: '1px',
+                background: 'rgba(0,0,0,0.1)',
+                marginBottom: '8px',
+              }}
+            />
+
+            {/* Description */}
             <p
               style={{
-                margin: '8px 0',
-                fontSize: '13px',
-                color: 'rgba(0,0,0,0.65)',
+                margin: '0 0 8px 0',
+                fontSize: '12px',
+                color: '#374151',
+                lineHeight: '1.35',
+                overflowWrap: 'anywhere',
               }}
             >
               {selectedIncident.properties.description}
             </p>
 
+            {/* Timestamp */}
             <div
               style={{
-                fontSize: '12px',
-                color: 'rgba(0,0,0,0.45)',
+                fontSize: '10px',
+                color: '#6b7280',
                 marginBottom: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                flexWrap: 'wrap',
               }}
             >
+              <span>🕓</span>
               {new Date(selectedIncident.properties.timestamp).toLocaleString(
                 'vi-VN'
               )}
             </div>
 
-            <Button type="primary" size="small" block>
+            {/* Action button */}
+            <Button
+              type="primary"
+              size="small"
+              block
+              style={{
+                background: `linear-gradient(135deg, ${SEVERITY_COLORS[selectedIncident.properties.severity]}, ${SEVERITY_COLORS[selectedIncident.properties.severity]}dd)`,
+                border: 'none',
+                fontWeight: 600,
+                height: '28px',
+                fontSize: '12px',
+              }}
+            >
               Xử lý sự cố
             </Button>
           </div>
@@ -156,6 +231,21 @@ export const IncidentLayer: React.FC<IncidentLayerProps> = ({
       )}
 
       <style>{`
+        .incident-popup .mapboxgl-popup-content {
+          padding: 0;
+          border-radius: 8px;
+          overflow: hidden;
+          max-width: min(240px, calc(100vw - 64px));
+        }
+
+        .incident-popup .mapboxgl-popup-close-button {
+          right: 6px;
+          top: 4px;
+          font-size: 16px;
+          color: #4b5563;
+          line-height: 1;
+        }
+
         @keyframes pulse {
           0%, 100% {
             opacity: 1;

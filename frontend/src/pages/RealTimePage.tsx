@@ -6,7 +6,7 @@ import { KPIBar } from '@/components/widgets/KPIBar'
 import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
 import { useSegments } from '@/hooks/useTraffic'
-import apiService from '@/services/api'
+import { mapApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
 import { IncidentCollection, IncidentFeature } from '@/types'
 import { useQuery } from '@tanstack/react-query'
@@ -22,44 +22,37 @@ export const RealTimePage: React.FC = () => {
   const [_selectedIncident, setSelectedIncident] =
     useState<IncidentFeature | null>(null)
 
-  const getCurrentBbox = (): string | undefined => {
-    const mapObj = mapRef.current as {
-      getMap?: () => {
-        getBounds?: () => {
-          getWest: () => number
-          getSouth: () => number
-          getEast: () => number
-          getNorth: () => number
-        }
-      }
-    } | null
+  // const getCurrentBbox = (): string | undefined => {
+  //   const mapObj = mapRef.current as {
+  //     getMap?: () => {
+  //       getBounds?: () => {
+  //         getWest: () => number
+  //         getSouth: () => number
+  //         getEast: () => number
+  //         getNorth: () => number
+  //       }
+  //     }
+  //   } | null
 
-    const bounds = mapObj?.getMap?.()?.getBounds?.()
-    if (!bounds) return undefined
+  //   const bounds = mapObj?.getMap?.()?.getBounds?.()
+  //   if (!bounds) return undefined
 
-    return `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`
-  }
+  //   return `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`
+  // }
 
   const { data: incidentData, isLoading: incidentsLoading } = useQuery({
     queryKey: ['incidents'],
     queryFn: async (): Promise<IncidentCollection> => {
-      const bbox = getCurrentBbox()
-      const response = await apiService.get('/incidents', {
-        params: {
-          status: 'OPEN',
-          ...(bbox ? { bbox } : {}),
-        },
-      })
+      // const bbox = getCurrentBbox()
+      const response = await mapApi.getIncidents('OPEN')
 
-      const payload = response?.data
-
-      if (payload?.success && payload?.data?.type === 'FeatureCollection') {
-        return payload.data as IncidentCollection
+      if (response?.success && response?.data?.type === 'FeatureCollection') {
+        return response.data
       }
 
       return { type: 'FeatureCollection', features: [] }
     },
-    refetchInterval: 30000,
+    refetchInterval: 180000,
     refetchIntervalInBackground: true,
     staleTime: 0,
   })
