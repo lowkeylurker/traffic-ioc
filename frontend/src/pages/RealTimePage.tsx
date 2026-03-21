@@ -6,9 +6,9 @@ import { KPIBar } from '@/components/widgets/KPIBar'
 import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
 import { useSegments } from '@/hooks/useTraffic'
-import { mapApi } from '@/services/api'
+import { mapApi, weatherApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
-import { IncidentCollection, IncidentFeature } from '@/types'
+import { IncidentCollection, IncidentFeature, WeatherData } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import React, { useRef, useState } from 'react'
 
@@ -59,19 +59,23 @@ export const RealTimePage: React.FC = () => {
 
   const incidents = incidentData?.features || []
 
-  // const handleAlertClick = (clickedAlert: Alert) => {
-  //   const originalIncident = incidents.find((inc) => inc.id === clickedAlert.id)
-  //   if (originalIncident && mapRef.current) {
-  //     const [lng, lat] = originalIncident.geometry.coordinates
-  //     mapRef.current.flyTo({
-  //       center: [lng, lat],
-  //       zoom: 16,
-  //       duration: 1500,
-  //       essential: true,
-  //     })
-  //     setSelectedIncident(originalIncident)
-  //   }
-  // }
+  const {
+    data: weatherResponse,
+    isLoading: weatherLoading,
+    error: weatherError,
+  } = useQuery({
+    queryKey: ['weather-current'],
+    queryFn: async () => weatherApi.getCurrent(),
+    refetchInterval: 900000,
+    refetchIntervalInBackground: true,
+    staleTime: 0,
+  })
+
+  const weatherData = (
+    weatherResponse?.success ? weatherResponse.data : null
+  ) as WeatherData | null
+  const weatherErrorMessage =
+    weatherError instanceof Error ? weatherError.message : null
 
   // Map control handlers
   const handleZoomIn = () => {
@@ -170,7 +174,7 @@ export const RealTimePage: React.FC = () => {
             animation: 'dashboard-fade-slide 380ms ease-out both',
           }}
         >
-          <KPIBar />
+          <KPIBar weatherData={weatherData} />
         </div>
 
         {/* Bottom Right - Map Controls (z-index: 10) */}
@@ -236,7 +240,12 @@ export const RealTimePage: React.FC = () => {
               animationDelay: '180ms',
             }}
           >
-            <WeatherWidget compact />
+            <WeatherWidget
+              compact
+              weatherData={weatherData}
+              loading={weatherLoading}
+              error={weatherErrorMessage}
+            />
           </div>
         </div>
 

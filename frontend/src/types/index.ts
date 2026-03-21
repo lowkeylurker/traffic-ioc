@@ -103,11 +103,11 @@ export interface IncidentCollection {
 }
 
 export interface WeatherData {
-  temp_c: number
+  temp_c: number | null
   condition_code: number
   condition_text: string
-  humidity: number
-  wind_kph: number
+  humidity: number | null
+  wind_kph: number | null
   impact_level: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH'
   warning_message: string
   last_updated: string

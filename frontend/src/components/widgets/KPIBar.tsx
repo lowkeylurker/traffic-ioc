@@ -4,20 +4,23 @@ import { Col, Row } from 'antd'
 import React from 'react'
 
 import { MOCK_ALERTS, MOCK_WEATHER } from '@/config/constants'
+import { WeatherData } from '@/types'
 
 interface KPIBarProps {
   avgSpeed?: number
   activeJams?: number
   incidentCount?: number
+  weatherData?: WeatherData | null
 }
 
 export const KPIBar: React.FC<KPIBarProps> = ({
   avgSpeed = 28,
   activeJams = 5,
   incidentCount = MOCK_ALERTS.length,
+  weatherData,
 }) => {
   const [collapsed, setCollapsed] = React.useState(false)
-  const weather = MOCK_WEATHER
+  const weather = weatherData ?? MOCK_WEATHER
 
   return (
     <div
@@ -272,7 +275,7 @@ export const KPIBar: React.FC<KPIBarProps> = ({
                 🌦️ Thời Tiết
               </div>
               <div style={{ fontSize: 20, fontWeight: 700, color: '#1677ff' }}>
-                {weather.temp_c}°C
+                {weather.temp_c === null ? 'N/A' : `${weather.temp_c}°C`}
               </div>
               <div
                 style={{

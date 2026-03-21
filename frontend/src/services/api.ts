@@ -10,17 +10,42 @@ import {
   SpeedComparisonData,
   TrafficStatus,
   VehicleMixData,
+  WeatherData,
 } from '@/types'
 import axios, { AxiosError, AxiosInstance } from 'axios'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL
 
+type AccessTokenGetter = () => Promise<string | null>
+
+let accessTokenGetter: AccessTokenGetter | null = null
+
+export const setAccessTokenGetter = (getter: AccessTokenGetter | null) => {
+  accessTokenGetter = getter
+}
+
 const axiosInstance: AxiosInstance = axios.create({
   baseURL,
-  timeout: 120000,
+  timeout: 180000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
+})
+
+axiosInstance.interceptors.request.use(async (config) => {
+  if (!accessTokenGetter) {
+    return config
+  }
+
+  const token = await accessTokenGetter()
+  if (!token) {
+    return config
+  }
+
+  config.headers = config.headers ?? {}
+  config.headers.Authorization = `Bearer ${token}`
+  return config
 })
 
 // Response Interceptor
@@ -89,7 +114,8 @@ export const simulationApi = {
 
 // Weather API
 export const weatherApi = {
-  getCurrent: (): Promise<ApiResponse> => axiosInstance.get('/weather/current'),
+  getCurrent: (): Promise<ApiResponse<WeatherData>> =>
+    axiosInstance.get('/weather/current'),
 }
 
 export default axiosInstance

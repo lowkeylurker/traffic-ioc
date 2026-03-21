@@ -1,7 +1,7 @@
 // Weather Widget
 
 import { MOCK_WEATHER } from '@/config/constants'
-import { useWeather } from '@/hooks'
+import { WeatherData } from '@/types'
 import { formatTime } from '@/utils'
 import {
   mapConditionCodeToIcon,
@@ -14,6 +14,9 @@ import { useMemo } from 'react'
 interface WeatherWidgetProps {
   style?: React.CSSProperties
   compact?: boolean
+  weatherData?: WeatherData | null
+  loading?: boolean
+  error?: string | null
 }
 
 const iconColorMap: Record<WeatherIconType, string> = {
@@ -132,9 +135,13 @@ const WeatherIcon: React.FC<{ type: WeatherIconType }> = ({ type }) => {
 export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
   style,
   compact = false,
+  weatherData,
+  loading: externalLoading,
+  error: externalError,
 }) => {
-  const { weather, loading, error } = useWeather()
-  const data = weather ?? MOCK_WEATHER
+  const data = weatherData ?? MOCK_WEATHER
+  const loading = externalLoading ?? false
+  const error = externalError ?? null
 
   const conditionLabel = useMemo(
     () => mapConditionCodeToLabel(data.condition_code, data.condition_text),
@@ -156,6 +163,18 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
   const tempFontSize = compact ? 32 : 34
   const conditionFontSize = compact ? 15 : 16
   const metaFontSize = compact ? 12 : 12
+  const temperatureLabel =
+    data.temp_c === null || Number.isNaN(data.temp_c)
+      ? 'N/A'
+      : `${data.temp_c.toFixed(1)}°C`
+  const humidityLabel =
+    data.humidity === null || Number.isNaN(data.humidity)
+      ? 'N/A'
+      : `${data.humidity}%`
+  const windLabel =
+    data.wind_kph === null || Number.isNaN(data.wind_kph)
+      ? 'N/A'
+      : `${data.wind_kph.toFixed(1)} km/h`
 
   return (
     <div
@@ -243,7 +262,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               fontSize: tempFontSize,
             }}
           >
-            {data.temp_c.toFixed(1)}°C
+            {temperatureLabel}
           </div>
           <p
             style={{
@@ -267,13 +286,13 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             <div>
               💧 Độ ẩm:{' '}
               <span style={{ fontWeight: 600, color: 'rgba(15, 23, 42, 0.8)' }}>
-                {data.humidity}%
+                {humidityLabel}
               </span>
             </div>
             <div>
               🌬️ Gió:{' '}
               <span style={{ fontWeight: 600, color: 'rgba(15, 23, 42, 0.8)' }}>
-                {data.wind_kph.toFixed(1)} km/h
+                {windLabel}
               </span>
             </div>
             <div style={{ fontSize: 11, color: 'rgba(15, 23, 42, 0.45)' }}>
