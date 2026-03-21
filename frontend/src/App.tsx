@@ -10,7 +10,6 @@ import { RealTimePage } from '@/pages/RealTimePage'
 import { AnalyticsPage } from '@/pages/AnalyticsPage'
 import { SimulationPage } from '@/pages/SimulationPage'
 import { UserProfilePage } from '@/pages/UserProfilePage'
-import { TrafficLayerPage } from '@/pages/TrafficLayerPage'
 import { RoleGuard } from '@/components'
 import { Result, Button } from 'antd'
 
@@ -52,18 +51,13 @@ function App() {
               </RoleGuard>
             }
           />
+
           <Route
             path="profile"
             element={
               <RoleGuard requiredRole="user">
                 <UserProfilePage />
               </RoleGuard>
-            }
-          />
-          <Route
-            path="traffic-layer"
-            element={
-              <TrafficLayerPage />
             }
           />
         </Route>

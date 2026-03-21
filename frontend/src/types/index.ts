@@ -21,6 +21,25 @@ export type SegmentResponse = {
   features: GeoJSONFeature[]
 }
 
+export interface LegacyIncidentFeature {
+  type: 'Feature'
+  id: number
+  geometry: {
+    type: 'Point'
+    coordinates: [number, number]
+  }
+  properties: LegacyIncidentProperties
+}
+
+export interface LegacyIncidentProperties {
+  id: number
+  type: string
+  severity: string
+  description: string
+  status: string
+  createdAt: string
+}
+
 export interface Segment {
   segmentId: number
   segmentName: string
@@ -49,6 +68,38 @@ export interface Alert {
   severity: 1 | 2 | 3 | 4 | 5
   description: string
   timestamp: Date
+}
+
+// Incident Monitoring Types (A2)
+export type IncidentType =
+  | 'ACCIDENT'
+  | 'FLOOD'
+  | 'CONSTRUCTION'
+  | 'FIRE'
+  | 'OTHER'
+export type IncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+export type IncidentStatus = 'OPEN' | 'RESOLVED' | 'PENDING'
+
+export interface IncidentFeature {
+  type: 'Feature'
+  geometry: {
+    type: 'Point'
+    coordinates: [number, number] // [Lng, Lat]
+  }
+  properties: {
+    id: string
+    type: IncidentType
+    severity: IncidentSeverity
+    title: string
+    description: string
+    status: IncidentStatus
+    timestamp: string
+  }
+}
+
+export interface IncidentCollection {
+  type: 'FeatureCollection'
+  features: IncidentFeature[]
 }
 
 export interface WeatherData {

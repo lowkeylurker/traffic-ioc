@@ -28,10 +28,10 @@ interface TrafficMapProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMapClick?: (event: any) => void
   style?: React.CSSProperties
-  autoRefreshInterval?: number // in milliseconds, default 30s
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mapRef?: React.RefObject<any> // Allow parent to control map
-  heatmapEnabled?: boolean // Toggle heatmap layer
+  autoRefreshInterval?: number
+  mapRef?: React.RefObject<any>
+  heatmapEnabled?: boolean
+  children?: React.ReactNode
 }
 
 export const TrafficMap: React.FC<TrafficMapProps> = ({
@@ -40,10 +40,10 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   style,
   mapRef: externalMapRef,
   heatmapEnabled = false,
+  children,
 }) => {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
   const mapboxStyle = import.meta.env.VITE_MAPBOX_STYLE
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const internalMapRef = useRef<any>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = externalMapRef || internalMapRef
@@ -277,12 +277,9 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     const map = mapRef.current.getMap()
     const layerId = 'traffic-flow-layer'
 
-    // Wait for layer to be loaded
     const waitForLayer = setInterval(() => {
       if (map.getLayer(layerId)) {
         clearInterval(waitForLayer)
-
-        // Change cursor on hover
         map.on('mouseenter', layerId, () => {
           map.getCanvas().style.cursor = 'pointer'
         })
@@ -319,60 +316,11 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     return () => clearInterval(waitForLayer)
   }, [segmentData, mapRef])
 
-  // Determine LOS status display
-  // const getLOSStatus = (losIndex: string) => {
-  //   const losMap: Record<string, { label: string; color: string }> = {
-  //     A: { label: 'Tốt', color: '#52C41A' },
-  //     B: { label: 'Khá', color: '#95DE64' },
-  //     C: { label: 'Bình thường', color: '#FAAD14' },
-  //     D: { label: 'Yếu', color: '#FA8C16' },
-  //     E: { label: 'Rất yếu', color: '#FF7A45' },
-  //     F: { label: 'Kẹt xe', color: '#FF4D4F' },
-  //   }
-  //   return losMap[losIndex] || { label: 'N/A', color: '#999999' }
-  // }
-
   return (
     <div
       ref={containerRef}
       style={{ width: '100%', height: '100%', position: 'relative', ...style }}
     >
-      {/* {loading && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 10,
-            backgroundColor: 'white',
-            padding: '20px',
-            borderRadius: '4px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          }}
-        >
-          <Spin tip="Loading traffic map..." />
-        </div>
-      )} */}
-
-      {/* {error && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            zIndex: 10,
-            backgroundColor: '#ff4d4f',
-            color: 'white',
-            padding: '12px 16px',
-            borderRadius: '4px',
-            fontSize: '14px',
-          }}
-        >
-          Error: {error}
-        </div>
-      )} */}
-
       <Map
         ref={mapRef}
         initialViewState={{
@@ -393,6 +341,9 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
             <Layer {...trafficLayerStyle} />
           </Source>
         )}
+
+        {/* Render children components (e.g., IncidentLayer) */}
+        {children}
       </Map>
 
       {/* Hover Popup */}

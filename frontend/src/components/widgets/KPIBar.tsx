@@ -30,7 +30,7 @@ export const KPIBar: React.FC<KPIBarProps> = ({
         background: 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
         borderRadius: 12,
-        padding: collapsed ? '8px' : '12px',
+        padding: '8px',
         boxShadow:
           '0 8px 32px 0 rgba(0, 0, 0, 0.08), 0 2px 8px 0 rgba(0, 0, 0, 0.04)',
         border: '1px solid rgba(255, 255, 255, 0.8)',

@@ -1,18 +1,19 @@
 // Express App Setup - Cấu hình Express server
 
-import express, { Express } from 'express';
 import cors from 'cors';
+import express, { Express } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { API_VERSIONS, ROUTE_PATHS } from './constants/messages';
+import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { Logger } from './utils/logger';
 
 // Routes
-import mapRoutes from './routes/map.routes';
-import analyticsRoutes from './routes/analytics.routes';
-import simulationRoutes from './routes/simulation.routes';
 import { clerkMiddleware } from '@clerk/express';
+import analyticsRoutes from './routes/analytics.routes';
+import incidentRoutes from './routes/incident.routes';
+import mapRoutes from './routes/map.routes';
+import simulationRoutes from './routes/simulation.routes';
 
 const logger = new Logger('App');
 
@@ -57,11 +58,13 @@ export const createApp = (): Express => {
   app.use(`${apiV1}${ROUTE_PATHS.MAP}`, mapRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.ANALYTICS}`, analyticsRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.SIMULATION}`, simulationRoutes);
+  app.use(`${apiV1}${ROUTE_PATHS.INCIDENT}`, incidentRoutes);
 
   logger.log('Routes registered:', {
     map: `${apiV1}${ROUTE_PATHS.MAP}`,
     analytics: `${apiV1}${ROUTE_PATHS.ANALYTICS}`,
     simulation: `${apiV1}${ROUTE_PATHS.SIMULATION}`,
+    incident: `${apiV1}${ROUTE_PATHS.INCIDENT}`,
   });
 
   // ============================================================================
