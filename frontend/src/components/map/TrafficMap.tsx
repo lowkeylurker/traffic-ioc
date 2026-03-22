@@ -192,23 +192,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         type: 'line',
         paint: {
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.2, 14, 3.8],
-          'line-color': [
-            'match',
-            ['upcase', ['to-string', ['coalesce', ['get', 'losIndex'], 'N/A']]],
-            'A',
-            TRAFFIC_COLORS.FAST,
-            'B',
-            TRAFFIC_COLORS.FAST,
-            'C',
-            TRAFFIC_COLORS.FAST,
-            'D',
-            TRAFFIC_COLORS.MODERATE,
-            'E',
-            TRAFFIC_COLORS.MODERATE,
-            'F',
-            TRAFFIC_COLORS.SLOW,
-            TRAFFIC_COLORS.NO_DATA,
-          ],
+          'line-color': ['coalesce', ['get', 'color'], '#d9d9d9'],
           'line-opacity': 0.92,
         },
         layout: {
@@ -360,38 +344,56 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
           const getPopUpData = (feature: GeoJSONFeature['properties']) => {
             const los = (feature.losIndex || 'N/A').toUpperCase()
 
-            if (los === 'A' || los === 'B' || los === 'C') {
-              return {
-                los,
-                status: 'Thông thoáng',
-                statusColor: TRAFFIC_COLORS.FAST,
-                dotColor: TRAFFIC_COLORS.FAST,
-              }
-            }
-
-            if (los === 'D' || los === 'E') {
-              return {
-                los,
-                status: 'Đông xe',
-                statusColor: TRAFFIC_COLORS.MODERATE,
-                dotColor: TRAFFIC_COLORS.MODERATE,
-              }
-            }
-
-            if (los === 'F') {
-              return {
-                los,
-                status: 'Ùn tắc',
-                statusColor: TRAFFIC_COLORS.SLOW,
-                dotColor: TRAFFIC_COLORS.SLOW,
-              }
-            }
-
-            return {
-              los: 'N/A',
-              status: 'Không có dữ liệu',
-              statusColor: TRAFFIC_COLORS.NO_DATA,
-              dotColor: TRAFFIC_COLORS.NO_DATA,
+            switch (los) {
+              case 'A':
+                return {
+                  los,
+                  status: 'Rất thông thoáng',
+                  statusColor: TRAFFIC_COLORS.FAST,
+                  dotColor: TRAFFIC_COLORS.FAST,
+                }
+              case 'B':
+                return {
+                  los,
+                  status: 'Thông thoáng',
+                  statusColor: TRAFFIC_COLORS.FAST,
+                  dotColor: TRAFFIC_COLORS.FAST,
+                }
+              case 'C':
+                return {
+                  los,
+                  status: 'Khá lưu thông',
+                  statusColor: TRAFFIC_COLORS.FAST,
+                  dotColor: TRAFFIC_COLORS.FAST,
+                }
+              case 'D':
+                return {
+                  los,
+                  status: 'Gần tắc',
+                  statusColor: TRAFFIC_COLORS.MODERATE,
+                  dotColor: TRAFFIC_COLORS.MODERATE,
+                }
+              case 'E':
+                return {
+                  los,
+                  status: 'Đông xe',
+                  statusColor: '#FF6B35',
+                  dotColor: '#FF6B35',
+                }
+              case 'F':
+                return {
+                  los,
+                  status: 'Ùn tắc',
+                  statusColor: TRAFFIC_COLORS.SLOW,
+                  dotColor: TRAFFIC_COLORS.SLOW,
+                }
+              default:
+                return {
+                  los: 'N/A',
+                  status: 'Không có dữ liệu',
+                  statusColor: TRAFFIC_COLORS.NO_DATA,
+                  dotColor: TRAFFIC_COLORS.NO_DATA,
+                }
             }
           }
 

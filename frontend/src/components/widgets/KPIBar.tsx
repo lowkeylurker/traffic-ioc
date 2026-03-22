@@ -21,7 +21,7 @@ export const KPIBar: React.FC<KPIBarProps> = ({
   jamSegments = [],
   onSegmentClick,
 }) => {
-  const [collapsed, setCollapsed] = React.useState(false)
+  const [collapsed, setCollapsed] = React.useState(true)
   const [jamsModalOpen, setJamsModalOpen] = React.useState(false)
 
   return (
