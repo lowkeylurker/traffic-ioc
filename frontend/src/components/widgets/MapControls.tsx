@@ -75,7 +75,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
         }}
       >
         <Space direction="vertical" size={4}>
-          <Tooltip title="Phóng to">
+          <Tooltip title="Phóng to" placement="left">
             <Button
               type="text"
               size="small"
@@ -87,7 +87,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
             />
           </Tooltip>
 
-          <Tooltip title="Thu nhỏ">
+          <Tooltip title="Thu nhỏ" placement="left">
             <Button
               type="text"
               size="small"
@@ -105,7 +105,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
             }}
           />
 
-          <Tooltip title="Đặt lại hướng">
+          <Tooltip title="Đặt lại hướng" placement="left">
             <Button
               type="text"
               size="small"
@@ -117,7 +117,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
             />
           </Tooltip>
 
-          <Tooltip title="Camera giám sát">
+          <Tooltip title="Camera giám sát" placement="left">
             <Button
               type="text"
               size="small"
@@ -130,6 +130,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
           </Tooltip>
 
           <Tooltip
+            placement="left"
             title={
               segmentStatusLayerEnabled
                 ? 'Tắt lớp trạng thái đoạn đường'
@@ -146,6 +147,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
           </Tooltip>
 
           <Tooltip
+            placement="left"
             title={heatmapEnabled ? 'Tắt bản đồ nhiệt' : 'Bật bản đồ nhiệt'}
           >
             <Button
@@ -158,6 +160,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
           </Tooltip>
 
           <Tooltip
+            placement="left"
             title={
               weatherLayerEnabled ? 'Tắt lớp thời tiết' : 'Bật lớp thời tiết'
             }

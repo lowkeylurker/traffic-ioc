@@ -11,7 +11,7 @@ import { mapApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
 import { IncidentCollection, IncidentFeature } from '@/types'
 import { useQuery } from '@tanstack/react-query'
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 export const RealTimePage: React.FC = () => {
   const segmentData = useSegments()
@@ -25,6 +25,27 @@ export const RealTimePage: React.FC = () => {
   const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(false)
   const [_selectedIncident, setSelectedIncident] =
     useState<IncidentFeature | null>(null)
+
+  useEffect(() => {
+    const contentEl = document.querySelector(
+      '.ant-layout-content'
+    ) as HTMLElement | null
+
+    const prevContentOverflow = contentEl?.style.overflow
+    const prevBodyOverflow = document.body.style.overflow
+
+    if (contentEl) {
+      contentEl.style.overflow = 'hidden'
+    }
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      if (contentEl) {
+        contentEl.style.overflow = prevContentOverflow ?? ''
+      }
+      document.body.style.overflow = prevBodyOverflow
+    }
+  }, [])
 
   // const getCurrentBbox = (): string | undefined => {
   //   const mapObj = mapRef.current as {
@@ -221,7 +242,7 @@ export const RealTimePage: React.FC = () => {
             style={{
               pointerEvents: 'auto',
               maxHeight: '48vh',
-              overflowY: 'auto',
+              overflow: 'hidden',
               borderRadius: 12,
               animation: 'dashboard-fade-slide 420ms ease-out both',
               animationDelay: '120ms',
