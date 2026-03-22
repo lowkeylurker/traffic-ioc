@@ -1,9 +1,9 @@
 // Weather Controller - Xử lý HTTP requests cho Weather module
 
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { weatherService } from '../services/weather.service';
-import { ResponseUtil } from '../utils/response';
 import { Logger } from '../utils/logger';
+import { ResponseUtil } from '../utils/response';
 
 const logger = new Logger('WeatherController');
 
@@ -22,6 +22,20 @@ export class WeatherController {
       }
 
       res.json(ResponseUtil.success(weather, 'Weather data retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/v1/weather/segments - Lấy danh sách segment với dữ liệu thời tiết
+   */
+  async getWeatherSegments(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      logger.log('GET /api/v1/weather/segments');
+      const weatherSegments = await weatherService.getWeatherSegments();
+
+      res.json(ResponseUtil.success(weatherSegments, 'Weather segments retrieved successfully'));
     } catch (error) {
       next(error);
     }

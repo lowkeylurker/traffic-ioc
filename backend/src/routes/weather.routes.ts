@@ -12,4 +12,10 @@ const router = Router();
  */
 router.get('/current', authMiddleware, (req, res, next) => weatherController.getCurrentWeather(req, res, next));
 
+/**
+ * GET /api/v1/weather/segments
+ * Lấy danh sách segment với dữ liệu thời tiết
+ */
+router.get('/segments', authMiddleware, (req, res, next) => weatherController.getWeatherSegments(req, res, next));
+
 export default router;

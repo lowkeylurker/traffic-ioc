@@ -1,4 +1,4 @@
-import { IncidentAlertWidget, IncidentLayer, WeatherWidget } from '@/components'
+import { IncidentAlertWidget, IncidentLayer, WeatherLayer } from '@/components'
 import { ErrorState, Loading } from '@/components/common'
 import { TrafficMap } from '@/components/map/TrafficMap'
 import { CCTVModal } from '@/components/widgets/CCTVModal'
@@ -8,7 +8,7 @@ import { MapLegend } from '@/components/widgets/MapLegend'
 import { useSegments } from '@/hooks/useTraffic'
 import { mapApi, weatherApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
-import { IncidentCollection, IncidentFeature, WeatherData } from '@/types'
+import { IncidentCollection, IncidentFeature } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import React, { useRef, useState } from 'react'
 
@@ -18,7 +18,10 @@ export const RealTimePage: React.FC = () => {
   const [cctvModalVisible, setCCTVModalVisible] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null)
+  const [segmentStatusLayerEnabled, setSegmentStatusLayerEnabled] =
+    useState(true)
   const [heatmapEnabled, setHeatmapEnabled] = useState(false)
+  const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(false)
   const [_selectedIncident, setSelectedIncident] =
     useState<IncidentFeature | null>(null)
 
@@ -59,23 +62,20 @@ export const RealTimePage: React.FC = () => {
 
   const incidents = incidentData?.features || []
 
-  const {
-    data: weatherResponse,
-    isLoading: weatherLoading,
-    error: weatherError,
-  } = useQuery({
-    queryKey: ['weather-current'],
-    queryFn: async () => weatherApi.getCurrent(),
-    refetchInterval: 900000,
-    refetchIntervalInBackground: true,
-    staleTime: 0,
-  })
+  const { data: weatherSegmentsResponse, isLoading: _weatherSegmentsLoading } =
+    useQuery({
+      queryKey: ['weather-segments'],
+      queryFn: async () => weatherApi.getSegments(),
+      refetchInterval: 600000, // Increased from 300s to 10 minutes for better performance
+      refetchIntervalInBackground: true,
+      staleTime: 300000, // Cache for 5 minutes
+    })
 
-  const weatherData = (
-    weatherResponse?.success ? weatherResponse.data : null
-  ) as WeatherData | null
-  const weatherErrorMessage =
-    weatherError instanceof Error ? weatherError.message : null
+  const weatherSegments =
+    weatherSegmentsResponse?.success &&
+    weatherSegmentsResponse?.data?.type === 'FeatureCollection'
+      ? weatherSegmentsResponse.data
+      : null
 
   // Map control handlers
   const handleZoomIn = () => {
@@ -100,9 +100,18 @@ export const RealTimePage: React.FC = () => {
     }
   }
 
+  const handleSegmentStatusToggle = (_enabled: boolean) => {
+    setSegmentStatusLayerEnabled(_enabled)
+  }
+
   const handleHeatmapToggle = (_enabled: boolean) => {
     // Heatmap toggle handler
     setHeatmapEnabled(_enabled)
+  }
+
+  const handleWeatherToggle = (_enabled: boolean) => {
+    // Weather layer toggle handler
+    setWeatherLayerEnabled(_enabled)
   }
 
   if (isLoading && !segmentData) {
@@ -149,8 +158,16 @@ export const RealTimePage: React.FC = () => {
           segmentData={segmentData}
           style={{ height: '100%', width: '100%' }}
           mapRef={mapRef}
+          segmentStatusLayerEnabled={segmentStatusLayerEnabled}
           heatmapEnabled={heatmapEnabled}
         >
+          {/* Weather Layer - Displays areas colored by weather with icons */}
+          {weatherLayerEnabled && (
+            <WeatherLayer
+              weatherSegments={weatherSegments}
+              isLoading={_weatherSegmentsLoading}
+            />
+          )}
           {/* Incident Layer - Overlaid on traffic map */}
           <IncidentLayer
             incidents={incidents}
@@ -174,7 +191,7 @@ export const RealTimePage: React.FC = () => {
             animation: 'dashboard-fade-slide 380ms ease-out both',
           }}
         >
-          <KPIBar weatherData={weatherData} />
+          <KPIBar />
         </div>
 
         {/* Bottom Right - Map Controls (z-index: 10) */}
@@ -183,7 +200,9 @@ export const RealTimePage: React.FC = () => {
           onZoomOut={handleZoomOut}
           onCompass={handleCompassReset}
           onCamera={() => setCCTVModalVisible(true)}
+          onSegmentStatusToggle={handleSegmentStatusToggle}
           onHeatmapToggle={handleHeatmapToggle}
+          onWeatherToggle={handleWeatherToggle}
         />
 
         {/* Bottom Right - Map Legend (z-index: 10) */}
@@ -228,23 +247,6 @@ export const RealTimePage: React.FC = () => {
               onIncidentClick={setSelectedIncident}
               mapRef={mapRef}
               floating={false}
-            />
-          </div>
-          <div
-            style={{
-              pointerEvents: 'auto',
-              maxHeight: '34vh',
-              overflowY: 'auto',
-              borderRadius: 12,
-              animation: 'dashboard-fade-slide 420ms ease-out both',
-              animationDelay: '180ms',
-            }}
-          >
-            <WeatherWidget
-              compact
-              weatherData={weatherData}
-              loading={weatherLoading}
-              error={weatherErrorMessage}
             />
           </div>
         </div>

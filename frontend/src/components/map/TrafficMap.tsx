@@ -30,6 +30,7 @@ interface TrafficMapProps {
   style?: React.CSSProperties
   autoRefreshInterval?: number
   mapRef?: React.RefObject<any>
+  segmentStatusLayerEnabled?: boolean
   heatmapEnabled?: boolean
   children?: React.ReactNode
 }
@@ -39,6 +40,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   onMapClick,
   style,
   mapRef: externalMapRef,
+  segmentStatusLayerEnabled = true,
   heatmapEnabled = false,
   children,
 }) => {
@@ -335,12 +337,18 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         onLoad={updateViewportBounds}
         onMoveEnd={updateViewportBounds}
       >
-        {renderedSegmentData && renderedSegmentData.features.length > 0 && (
-          <Source id="traffic-source" type="geojson" data={renderedSegmentData}>
-            {heatmapEnabled && <Layer {...heatmapLayerStyle} />}
-            <Layer {...trafficLayerStyle} />
-          </Source>
-        )}
+        {renderedSegmentData &&
+          renderedSegmentData.features.length > 0 &&
+          segmentStatusLayerEnabled && (
+            <Source
+              id="traffic-source"
+              type="geojson"
+              data={renderedSegmentData}
+            >
+              {heatmapEnabled && <Layer {...heatmapLayerStyle} />}
+              <Layer {...trafficLayerStyle} />
+            </Source>
+          )}
 
         {/* Render children components (e.g., IncidentLayer) */}
         {children}

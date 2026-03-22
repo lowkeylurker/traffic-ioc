@@ -116,6 +116,8 @@ export const simulationApi = {
 export const weatherApi = {
   getCurrent: (): Promise<ApiResponse<WeatherData>> =>
     axiosInstance.get('/weather/current'),
+  getSegments: (): Promise<ApiResponse<any>> =>
+    axiosInstance.get('/weather/segments'),
 }
 
 export default axiosInstance
