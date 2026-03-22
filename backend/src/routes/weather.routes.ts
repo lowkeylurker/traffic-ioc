@@ -18,4 +18,10 @@ router.get('/current', authMiddleware, (req, res, next) => weatherController.get
  */
 router.get('/segments', authMiddleware, (req, res, next) => weatherController.getWeatherSegments(req, res, next));
 
+/**
+ * GET /api/v1/weather/voronoi
+ * Lấy thời tiết theo vùng Voronoi polygons
+ */
+router.get('/voronoi', authMiddleware, (req, res, next) => weatherController.getWeatherVoronoi(req, res, next));
+
 export default router;

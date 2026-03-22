@@ -40,6 +40,20 @@ export class WeatherController {
       next(error);
     }
   }
+
+  /**
+   * GET /api/v1/weather/voronoi - Lấy dữ liệu thời tiết theo Voronoi polygons
+   */
+  async getWeatherVoronoi(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      logger.log('GET /api/v1/weather/voronoi');
+      const weatherVoronoi = await weatherService.getWeatherVoronoiPolygons();
+
+      res.json(ResponseUtil.success(weatherVoronoi, 'Weather Voronoi polygons retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const weatherController = new WeatherController();

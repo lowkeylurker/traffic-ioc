@@ -1,12 +1,13 @@
-import { IncidentAlertWidget, IncidentLayer, WeatherLayer } from '@/components'
+import { IncidentAlertWidget, IncidentLayer } from '@/components'
 import { ErrorState, Loading } from '@/components/common'
 import { TrafficMap } from '@/components/map/TrafficMap'
+import WeatherVoronoiLayer from '@/components/map/WeatherVoronoiLayer'
 import { CCTVModal } from '@/components/widgets/CCTVModal'
 import { KPIBar } from '@/components/widgets/KPIBar'
 import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
 import { useSegments } from '@/hooks/useTraffic'
-import { mapApi, weatherApi } from '@/services/api'
+import { mapApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
 import { IncidentCollection, IncidentFeature } from '@/types'
 import { useQuery } from '@tanstack/react-query'
@@ -61,21 +62,6 @@ export const RealTimePage: React.FC = () => {
   })
 
   const incidents = incidentData?.features || []
-
-  const { data: weatherSegmentsResponse, isLoading: _weatherSegmentsLoading } =
-    useQuery({
-      queryKey: ['weather-segments'],
-      queryFn: async () => weatherApi.getSegments(),
-      refetchInterval: 600000, // Increased from 300s to 10 minutes for better performance
-      refetchIntervalInBackground: true,
-      staleTime: 300000, // Cache for 5 minutes
-    })
-
-  const weatherSegments =
-    weatherSegmentsResponse?.success &&
-    weatherSegmentsResponse?.data?.type === 'FeatureCollection'
-      ? weatherSegmentsResponse.data
-      : null
 
   // Map control handlers
   const handleZoomIn = () => {
@@ -161,11 +147,11 @@ export const RealTimePage: React.FC = () => {
           segmentStatusLayerEnabled={segmentStatusLayerEnabled}
           heatmapEnabled={heatmapEnabled}
         >
-          {/* Weather Layer - Displays areas colored by weather with icons */}
+          {/* Weather Layer - Displays weather Voronoi polygons */}
           {weatherLayerEnabled && (
-            <WeatherLayer
-              weatherSegments={weatherSegments}
-              isLoading={_weatherSegmentsLoading}
+            <WeatherVoronoiLayer
+              visible={weatherLayerEnabled}
+              mapRef={mapRef}
             />
           )}
           {/* Incident Layer - Overlaid on traffic map */}
