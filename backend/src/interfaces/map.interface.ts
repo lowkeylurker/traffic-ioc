@@ -23,9 +23,10 @@ export interface TrafficMapResponse {
 
 // Color Rules
 export const COLOR_RULES = {
-  RED: '#FF4D4F', // Vận tốc < 15 km/h (Tắc nghẽn/Ùn ứ)
-  ORANGE: '#FAAD14', // Vận tốc 15 - 30 km/h (Đông xe/Chậm)
-  GREEN: '#52C41A', // Vận tốc > 30 km/h (Thông thoáng)
+  RED: '#FF4D4F', // LOS F - Ùn tắc
+  RED_ORANGE: '#FF6B35', // LOS E - Đông xe
+  ORANGE: '#FAAD14', // LOS D - Gần tắc
+  GREEN: '#52C41A', // LOS A,B,C - Thông thoáng
   GREY: '#D9D9D9', // Không có dữ liệu
 } as const;
 

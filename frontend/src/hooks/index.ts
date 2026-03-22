@@ -1,1 +1,6 @@
-export { useSegments, useTrafficStatus, useAnalytics } from './useTraffic'
+export {
+  useSegments,
+  useTrafficStatus,
+  useAnalytics,
+  useWeather,
+} from './useTraffic'

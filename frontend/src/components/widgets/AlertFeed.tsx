@@ -16,7 +16,7 @@ interface AlertFeedProps {
 
 export const AlertFeed: React.FC<AlertFeedProps> = ({
   alerts = MOCK_ALERTS,
-  maxHeight = 500,
+  maxHeight = 300,
   style,
   onAlertClick,
 }) => {

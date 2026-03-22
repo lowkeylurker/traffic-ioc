@@ -1,31 +1,45 @@
 // Main Layout Component
 
-import React, { useState } from 'react'
-import { Layout, Menu, Button } from 'antd'
+import { SignInSignUpDialog } from '@/components'
+import { LAYOUT_SIDER_WIDTH } from '@/config/constants'
+import { setAccessTokenGetter } from '@/services/api'
 import {
-  EyeOutlined,
   BarChartOutlined,
   ExperimentOutlined,
+  EyeOutlined,
   LogoutOutlined,
   UserOutlined,
 } from '@ant-design/icons'
-import { useNavigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/clerk-react'
-import { SignInSignUpDialog } from '@/components'
-import { LAYOUT_SIDER_WIDTH } from '@/config/constants'
+import { Button, Layout, Menu } from 'antd'
+import React, { useEffect, useState } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 const { Sider, Content } = Layout
 
 export const MainLayout: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isSignedIn, signOut } = useAuth()
+  const { isSignedIn, signOut, getToken } = useAuth()
   const { user } = useUser()
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
 
   // Guest mode is when user is not signed in
   const isGuest = !isSignedIn
   const isAdmin = isSignedIn && user?.publicMetadata?.role === 'admin'
+
+  useEffect(() => {
+    setAccessTokenGetter(async () => {
+      if (!isSignedIn) {
+        return null
+      }
+      return (await getToken()) ?? null
+    })
+
+    return () => {
+      setAccessTokenGetter(null)
+    }
+  }, [getToken, isSignedIn])
 
   const visibleMenuItems = [
     {

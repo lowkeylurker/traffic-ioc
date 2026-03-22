@@ -13,15 +13,16 @@ export const LOS_COLORS: Record<string, string> = {
   B: '#52c41a', // Traffic Fast
   C: '#52c41a', // Traffic Fast
   D: '#faad14', // Traffic Moderate (Golden Yellow)
-  E: '#faad14', // Traffic Moderate
-  F: '#ff4d4f', // Traffic Slow (Tart Orange)
+  E: '#FF6B35', // Traffic Heavy (Red-Orange)
+  F: '#ff4d4f', // Traffic Slow (Red)
 }
 
 // Traffic Semantic Colors (Design System)
 export const TRAFFIC_COLORS = {
-  FAST: '#52c41a', // Thông thoáng (>30 km/h)
-  MODERATE: '#faad14', // Đông xe (15-30 km/h)
-  SLOW: '#ff4d4f', // Ùn tắc (<15 km/h)
+  FAST: '#52c41a', // Thông thoáng - LOS A,B,C (>30 km/h)
+  MODERATE: '#faad14', // Đông xe vừa phải - LOS D (15-30 km/h)
+  HEAVY: '#FF6B35', // Đông xe nặng - LOS E
+  SLOW: '#ff4d4f', // Ùn tắc - LOS F (<15 km/h)
   JAM: '#cf1322', // Tê liệt
   INCIDENT: '#722ed1', // Sự cố (Purple)
   NO_DATA: '#d9d9d9', // Không có dữ liệu
@@ -42,6 +43,9 @@ export const API_ENDPOINTS = {
   SIMULATION: {
     FORECAST: '/simulation/forecast',
     ROUTING: '/simulation/routing',
+  },
+  WEATHER: {
+    CURRENT: '/weather/current',
   },
 }
 
@@ -66,7 +70,7 @@ export const DATETIME_FORMAT = 'DD/MM/YYYY HH:mm:ss'
 // Polling Intervals
 export const POLLING_INTERVALS = {
   TRAFFIC_DATA: 10000, // 10 seconds
-  WEATHER_DATA: 300000, // 5 minutes
+  WEATHER_DATA: 900000, // 15 minutes
   ANALYTICS_DATA: 60000, // 1 minute
 }
 
@@ -103,9 +107,12 @@ export const MOCK_ALERTS: Alert[] = [
 
 // Mock data - Weather
 export const MOCK_WEATHER: WeatherData = {
-  temperature: 32,
-  condition: 'Partly Cloudy',
+  temp_c: 32,
+  condition_code: 801,
+  condition_text: 'Clouds',
   humidity: 75,
-  windSpeed: 8,
-  rainfall: 2,
+  wind_kph: 8,
+  impact_level: 'NONE',
+  warning_message: 'Thời tiết ổn định, tầm nhìn tốt.',
+  last_updated: new Date().toISOString(),
 }

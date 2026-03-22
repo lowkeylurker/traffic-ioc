@@ -1,21 +1,25 @@
 // Map Controls Component
 
-import React, { useState } from 'react'
-import { Button, Tooltip, Space } from 'antd'
 import {
+  BgColorsOutlined,
+  CameraOutlined,
+  CloudOutlined,
+  CompassOutlined,
+  LineChartOutlined,
   ZoomInOutlined,
   ZoomOutOutlined,
-  CompassOutlined,
-  CameraOutlined,
-  BgColorsOutlined,
 } from '@ant-design/icons'
+import { Button, Space, Tooltip } from 'antd'
+import React, { useState } from 'react'
 
 interface MapControlsProps {
   onZoomIn?: () => void
   onZoomOut?: () => void
   onCompass?: () => void
   onCamera?: () => void
+  onSegmentStatusToggle?: (enabled: boolean) => void
   onHeatmapToggle?: (enabled: boolean) => void
+  onWeatherToggle?: (enabled: boolean) => void
 }
 
 export const MapControls: React.FC<MapControlsProps> = ({
@@ -23,13 +27,28 @@ export const MapControls: React.FC<MapControlsProps> = ({
   onZoomOut,
   onCompass,
   onCamera,
+  onSegmentStatusToggle,
   onHeatmapToggle,
+  onWeatherToggle,
 }) => {
+  const [segmentStatusLayerEnabled, setSegmentStatusLayerEnabled] =
+    useState(true)
   const [heatmapEnabled, setHeatmapEnabled] = useState(false)
+  const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(false)
+
+  const handleSegmentStatusToggle = () => {
+    setSegmentStatusLayerEnabled(!segmentStatusLayerEnabled)
+    onSegmentStatusToggle?.(!segmentStatusLayerEnabled)
+  }
 
   const handleHeatmapToggle = () => {
     setHeatmapEnabled(!heatmapEnabled)
     onHeatmapToggle?.(!heatmapEnabled)
+  }
+
+  const handleWeatherToggle = () => {
+    setWeatherLayerEnabled(!weatherLayerEnabled)
+    onWeatherToggle?.(!weatherLayerEnabled)
   }
 
   return (
@@ -56,7 +75,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
         }}
       >
         <Space direction="vertical" size={4}>
-          <Tooltip title="Phóng to">
+          <Tooltip title="Phóng to" placement="left">
             <Button
               type="text"
               size="small"
@@ -68,7 +87,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
             />
           </Tooltip>
 
-          <Tooltip title="Thu nhỏ">
+          <Tooltip title="Thu nhỏ" placement="left">
             <Button
               type="text"
               size="small"
@@ -86,7 +105,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
             }}
           />
 
-          <Tooltip title="Đặt lại hướng">
+          <Tooltip title="Đặt lại hướng" placement="left">
             <Button
               type="text"
               size="small"
@@ -98,7 +117,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
             />
           </Tooltip>
 
-          <Tooltip title="Camera giám sát">
+          <Tooltip title="Camera giám sát" placement="left">
             <Button
               type="text"
               size="small"
@@ -111,6 +130,24 @@ export const MapControls: React.FC<MapControlsProps> = ({
           </Tooltip>
 
           <Tooltip
+            placement="left"
+            title={
+              segmentStatusLayerEnabled
+                ? 'Tắt lớp trạng thái đoạn đường'
+                : 'Bật lớp trạng thái đoạn đường'
+            }
+          >
+            <Button
+              type={segmentStatusLayerEnabled ? 'primary' : 'text'}
+              size="small"
+              icon={<LineChartOutlined style={{ fontSize: 18 }} />}
+              onClick={handleSegmentStatusToggle}
+              style={{ width: '100%', textAlign: 'center' }}
+            />
+          </Tooltip>
+
+          <Tooltip
+            placement="left"
             title={heatmapEnabled ? 'Tắt bản đồ nhiệt' : 'Bật bản đồ nhiệt'}
           >
             <Button
@@ -118,6 +155,21 @@ export const MapControls: React.FC<MapControlsProps> = ({
               size="small"
               icon={<BgColorsOutlined style={{ fontSize: 18 }} />}
               onClick={handleHeatmapToggle}
+              style={{ width: '100%', textAlign: 'center' }}
+            />
+          </Tooltip>
+
+          <Tooltip
+            placement="left"
+            title={
+              weatherLayerEnabled ? 'Tắt lớp thời tiết' : 'Bật lớp thời tiết'
+            }
+          >
+            <Button
+              type={weatherLayerEnabled ? 'primary' : 'text'}
+              size="small"
+              icon={<CloudOutlined style={{ fontSize: 18 }} />}
+              onClick={handleWeatherToggle}
               style={{ width: '100%', textAlign: 'center' }}
             />
           </Tooltip>

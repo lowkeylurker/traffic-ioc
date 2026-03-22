@@ -1,6 +1,7 @@
 import { IncidentAlertWidget, IncidentLayer } from '@/components'
 import { ErrorState, Loading } from '@/components/common'
 import { TrafficMap } from '@/components/map/TrafficMap'
+import WeatherVoronoiLayer from '@/components/map/WeatherVoronoiLayer'
 import { CCTVModal } from '@/components/widgets/CCTVModal'
 import { KPIBar } from '@/components/widgets/KPIBar'
 import { MapControls } from '@/components/widgets/MapControls'
@@ -8,9 +9,9 @@ import { MapLegend } from '@/components/widgets/MapLegend'
 import { useSegments } from '@/hooks/useTraffic'
 import { mapApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
-import { IncidentCollection, IncidentFeature } from '@/types'
+import { GeoJSONFeature, IncidentCollection, IncidentFeature } from '@/types'
 import { useQuery } from '@tanstack/react-query'
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 export const RealTimePage: React.FC = () => {
   const segmentData = useSegments()
@@ -18,9 +19,33 @@ export const RealTimePage: React.FC = () => {
   const [cctvModalVisible, setCCTVModalVisible] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null)
+  const [segmentStatusLayerEnabled, setSegmentStatusLayerEnabled] =
+    useState(true)
   const [heatmapEnabled, setHeatmapEnabled] = useState(false)
+  const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(false)
   const [_selectedIncident, setSelectedIncident] =
     useState<IncidentFeature | null>(null)
+
+  useEffect(() => {
+    const contentEl = document.querySelector(
+      '.ant-layout-content'
+    ) as HTMLElement | null
+
+    const prevContentOverflow = contentEl?.style.overflow
+    const prevBodyOverflow = document.body.style.overflow
+
+    if (contentEl) {
+      contentEl.style.overflow = 'hidden'
+    }
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      if (contentEl) {
+        contentEl.style.overflow = prevContentOverflow ?? ''
+      }
+      document.body.style.overflow = prevBodyOverflow
+    }
+  }, [])
 
   // const getCurrentBbox = (): string | undefined => {
   //   const mapObj = mapRef.current as {
@@ -59,19 +84,43 @@ export const RealTimePage: React.FC = () => {
 
   const incidents = incidentData?.features || []
 
-  // const handleAlertClick = (clickedAlert: Alert) => {
-  //   const originalIncident = incidents.find((inc) => inc.id === clickedAlert.id)
-  //   if (originalIncident && mapRef.current) {
-  //     const [lng, lat] = originalIncident.geometry.coordinates
-  //     mapRef.current.flyTo({
-  //       center: [lng, lat],
-  //       zoom: 16,
-  //       duration: 1500,
-  //       essential: true,
-  //     })
-  //     setSelectedIncident(originalIncident)
-  //   }
-  // }
+  const activeJamsCount = useMemo(() => {
+    if (!segmentData?.features?.length) return 0
+
+    return segmentData.features.reduce((count, feature) => {
+      const los = String(feature?.properties?.losIndex ?? '').toUpperCase()
+      return los === 'E' || los === 'F' ? count + 1 : count
+    }, 0)
+  }, [segmentData])
+
+  const jamSegments = useMemo(() => {
+    if (!segmentData?.features?.length) return []
+
+    return segmentData.features.filter((feature) => {
+      const los = String(feature?.properties?.losIndex ?? '').toUpperCase()
+      return los === 'E' || los === 'F'
+    })
+  }, [segmentData])
+
+  const handleSegmentClick = (segment: GeoJSONFeature) => {
+    if (!mapRef.current?.getMap) return
+
+    const map = mapRef.current.getMap()
+    const coords = segment.geometry.coordinates
+
+    if (!coords || coords.length === 0) return
+
+    // Calculate center of the segment
+    const centerIdx = Math.floor(coords.length / 2)
+    const [lng, lat] = coords[centerIdx]
+
+    // Fly to the segment
+    map.flyTo({
+      center: [lng, lat],
+      zoom: 16,
+      duration: 1000,
+    })
+  }
 
   // Map control handlers
   const handleZoomIn = () => {
@@ -96,9 +145,18 @@ export const RealTimePage: React.FC = () => {
     }
   }
 
+  const handleSegmentStatusToggle = (_enabled: boolean) => {
+    setSegmentStatusLayerEnabled(_enabled)
+  }
+
   const handleHeatmapToggle = (_enabled: boolean) => {
     // Heatmap toggle handler
     setHeatmapEnabled(_enabled)
+  }
+
+  const handleWeatherToggle = (_enabled: boolean) => {
+    // Weather layer toggle handler
+    setWeatherLayerEnabled(_enabled)
   }
 
   if (isLoading && !segmentData) {
@@ -145,8 +203,16 @@ export const RealTimePage: React.FC = () => {
           segmentData={segmentData}
           style={{ height: '100%', width: '100%' }}
           mapRef={mapRef}
+          segmentStatusLayerEnabled={segmentStatusLayerEnabled}
           heatmapEnabled={heatmapEnabled}
         >
+          {/* Weather Layer - Displays weather Voronoi polygons */}
+          {weatherLayerEnabled && (
+            <WeatherVoronoiLayer
+              visible={weatherLayerEnabled}
+              mapRef={mapRef}
+            />
+          )}
           {/* Incident Layer - Overlaid on traffic map */}
           <IncidentLayer
             incidents={incidents}
@@ -159,7 +225,24 @@ export const RealTimePage: React.FC = () => {
         {/* Floating Widgets - Z-Index Layering */}
 
         {/* Top KPI Bar (z-index: 20) */}
-        <KPIBar />
+        <div
+          style={{
+            position: 'absolute',
+            top: 12,
+            left: 12,
+            right: 'clamp(280px, 26vw, 350px)',
+            maxWidth: 980,
+            zIndex: 25,
+            animation: 'dashboard-fade-slide 380ms ease-out both',
+          }}
+        >
+          <KPIBar
+            incidentCount={incidents.length}
+            activeJams={activeJamsCount}
+            jamSegments={jamSegments}
+            onSegmentClick={handleSegmentClick}
+          />
+        </div>
 
         {/* Bottom Right - Map Controls (z-index: 10) */}
         <MapControls
@@ -167,7 +250,9 @@ export const RealTimePage: React.FC = () => {
           onZoomOut={handleZoomOut}
           onCompass={handleCompassReset}
           onCamera={() => setCCTVModalVisible(true)}
+          onSegmentStatusToggle={handleSegmentStatusToggle}
           onHeatmapToggle={handleHeatmapToggle}
+          onWeatherToggle={handleWeatherToggle}
         />
 
         {/* Bottom Right - Map Legend (z-index: 10) */}
@@ -178,15 +263,59 @@ export const RealTimePage: React.FC = () => {
           visible={cctvModalVisible}
           onClose={() => setCCTVModalVisible(false)}
         />
-      </div>
 
-      {/* Right Sidebar - Incident Alert Widget */}
-      <IncidentAlertWidget
-        incidents={incidents}
-        isLoading={incidentsLoading}
-        onIncidentClick={setSelectedIncident}
-        mapRef={mapRef}
-      />
+        {/* Floating Right Stack Widgets */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            width: 'clamp(260px, 24vw, 330px)',
+            animation: 'dashboard-fade-slide 420ms ease-out both',
+            animationDelay: '80ms',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            zIndex: 20,
+            maxHeight: 'calc(100% - 168px)',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              pointerEvents: 'auto',
+              maxHeight: '48vh',
+              overflow: 'hidden',
+              borderRadius: 12,
+              animation: 'dashboard-fade-slide 420ms ease-out both',
+              animationDelay: '120ms',
+            }}
+          >
+            <IncidentAlertWidget
+              incidents={incidents}
+              isLoading={incidentsLoading}
+              onIncidentClick={setSelectedIncident}
+              mapRef={mapRef}
+              floating={false}
+            />
+          </div>
+        </div>
+
+        <style>{`
+          @keyframes dashboard-fade-slide {
+            0% {
+              opacity: 0;
+              transform: translateY(10px) scale(0.99);
+              filter: blur(2px);
+            }
+            100% {
+              opacity: 1;
+              transform: translateY(0) scale(1);
+              filter: blur(0);
+            }
+          }
+        `}</style>
+      </div>
     </div>
   )
 }

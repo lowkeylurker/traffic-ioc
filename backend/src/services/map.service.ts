@@ -1,9 +1,9 @@
 // Map Service - Xử lý logic lấy dữ liệu đoạn đường và trạng thái giao thông
 // Sử dụng pg Pool trực tiếp (thay prisma.$queryRaw) để hỗ trợ PostGIS
 
-import { prisma } from '../config/prisma';
 import { query } from '../config/db';
-import { TrafficSegment, TrafficStatus } from '../interfaces/index';
+import { prisma } from '../config/prisma';
+import { TrafficStatus } from '../interfaces/index';
 import { COLOR_RULES, GeoJSONFeature, TrafficMapResponse } from '../interfaces/map.interface';
 import { Logger } from '../utils/logger';
 
@@ -276,13 +276,25 @@ const MOCK_TRAFFIC_STATUS = mockDataset.status;
 
 export class MapService {
   /**
-   * Get color based on speed
+   * Get color based on LOS level (A-F)
    */
-  private getColorBySpeed(speed: number | null): string {
-    if (speed === null || speed === undefined) return COLOR_RULES.GREY;
-    if (speed < 15) return COLOR_RULES.RED;
-    if (speed < 30) return COLOR_RULES.ORANGE;
-    return COLOR_RULES.GREEN;
+  private getColorByLOS(losLevel: string | null): string {
+    if (!losLevel || losLevel === 'N/A') return COLOR_RULES.GREY;
+
+    switch (losLevel.toUpperCase()) {
+      case 'A':
+      case 'B':
+      case 'C':
+        return COLOR_RULES.GREEN;
+      case 'D':
+        return COLOR_RULES.ORANGE;
+      case 'E':
+        return COLOR_RULES.RED_ORANGE;
+      case 'F':
+        return COLOR_RULES.RED;
+      default:
+        return COLOR_RULES.GREY;
+    }
   }
 
   /**
@@ -320,6 +332,7 @@ export class MapService {
       // One-pass transform from DB rows to GeoJSON features.
       const features: GeoJSONFeature[] = rows.map((row: any) => {
         const speed = row.avgSpeed ?? null;
+        const losLevel = row.losGrade || 'N/A';
         const timestamp = row.timestamp;
 
         return {
@@ -329,8 +342,8 @@ export class MapService {
             segmentId: row.segmentId,
             segmentName: row.segmentName,
             avgSpeed: speed ?? 0,
-            losIndex: row.losGrade || 'N/A',
-            color: this.getColorBySpeed(speed),
+            losIndex: losLevel,
+            color: this.getColorByLOS(losLevel),
             lastUpdated: timestamp instanceof Date ? timestamp.toISOString() : nowIso,
           },
         };
@@ -417,7 +430,8 @@ export class MapService {
     try {
       logger.log(`Fetching status for segment ${segmentId}`);
 
-      const result = await query(`
+      const result = await query(
+        `
         SELECT
           s.segment_key          AS "segmentId",
           s.segment_id_source::text AS "segmentName",
@@ -437,7 +451,9 @@ export class MapService {
           LIMIT 1
         ) f ON TRUE
         WHERE s.segment_key = $1
-      `, [segmentId]);
+      `,
+        [segmentId]
+      );
 
       const result_row = result.rows.length > 0 ? result.rows[0] : null;
       logger.log(`Segment ${segmentId}: ${result_row ? 'Found' : 'Not found'}`);

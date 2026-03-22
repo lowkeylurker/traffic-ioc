@@ -1,9 +1,10 @@
 // Custom Hooks
 
-import { analyticsApi, mapApi } from '@/services/api'
-import { useAppStore } from '@/stores/useAppStore'
-import { TrafficStatus } from '@/types'
 import { useEffect, useState } from 'react'
+import { TrafficStatus, WeatherData } from '@/types'
+import { mapApi, analyticsApi, weatherApi } from '@/services/api'
+import { useAppStore } from '@/stores/useAppStore'
+import { POLLING_INTERVALS } from '@/config/constants'
 
 // Fetch segments hook (danh sách đoạn đường tĩnh ban đầu - deprecated for map rendering, use useTrafficMap instead)
 export const useSegments = () => {
@@ -138,4 +139,47 @@ export const useAnalytics = () => {
   }, [])
 
   return { vehicleMix, speedComparison, reliabilityRanking, loading, error }
+}
+
+// Fetch weather data hook
+export const useWeather = () => {
+  const [weather, setWeather] = useState<WeatherData | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+
+    const fetchWeather = async () => {
+      setLoading(true)
+      try {
+        const response = await weatherApi.getCurrent()
+        if (response.success && response.data && mounted) {
+          setWeather(response.data as WeatherData)
+          setError(null)
+        }
+      } catch (err) {
+        console.error('Error fetching weather:', err)
+        if (mounted) {
+          setError(
+            err instanceof Error ? err.message : 'Failed to fetch weather data'
+          )
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    fetchWeather()
+    const interval = setInterval(fetchWeather, POLLING_INTERVALS.WEATHER_DATA)
+
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
+  }, [])
+
+  return { weather, loading, error }
 }
