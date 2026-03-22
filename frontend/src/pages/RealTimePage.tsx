@@ -9,9 +9,9 @@ import { MapLegend } from '@/components/widgets/MapLegend'
 import { useSegments } from '@/hooks/useTraffic'
 import { mapApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
-import { IncidentCollection, IncidentFeature } from '@/types'
+import { GeoJSONFeature, IncidentCollection, IncidentFeature } from '@/types'
 import { useQuery } from '@tanstack/react-query'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 export const RealTimePage: React.FC = () => {
   const segmentData = useSegments()
@@ -83,6 +83,44 @@ export const RealTimePage: React.FC = () => {
   })
 
   const incidents = incidentData?.features || []
+
+  const activeJamsCount = useMemo(() => {
+    if (!segmentData?.features?.length) return 0
+
+    return segmentData.features.reduce((count, feature) => {
+      const los = String(feature?.properties?.losIndex ?? '').toUpperCase()
+      return los === 'E' || los === 'F' ? count + 1 : count
+    }, 0)
+  }, [segmentData])
+
+  const jamSegments = useMemo(() => {
+    if (!segmentData?.features?.length) return []
+
+    return segmentData.features.filter((feature) => {
+      const los = String(feature?.properties?.losIndex ?? '').toUpperCase()
+      return los === 'E' || los === 'F'
+    })
+  }, [segmentData])
+
+  const handleSegmentClick = (segment: GeoJSONFeature) => {
+    if (!mapRef.current?.getMap) return
+
+    const map = mapRef.current.getMap()
+    const coords = segment.geometry.coordinates
+
+    if (!coords || coords.length === 0) return
+
+    // Calculate center of the segment
+    const centerIdx = Math.floor(coords.length / 2)
+    const [lng, lat] = coords[centerIdx]
+
+    // Fly to the segment
+    map.flyTo({
+      center: [lng, lat],
+      zoom: 16,
+      duration: 1000,
+    })
+  }
 
   // Map control handlers
   const handleZoomIn = () => {
@@ -198,7 +236,12 @@ export const RealTimePage: React.FC = () => {
             animation: 'dashboard-fade-slide 380ms ease-out both',
           }}
         >
-          <KPIBar />
+          <KPIBar
+            incidentCount={incidents.length}
+            activeJams={activeJamsCount}
+            jamSegments={jamSegments}
+            onSegmentClick={handleSegmentClick}
+          />
         </div>
 
         {/* Bottom Right - Map Controls (z-index: 10) */}

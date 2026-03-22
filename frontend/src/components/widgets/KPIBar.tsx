@@ -1,39 +1,41 @@
 // Top KPI Bar Component
 
-import { Col, Row } from 'antd'
+import { Col, List, Modal, Row } from 'antd'
 import React from 'react'
 
-import { MOCK_ALERTS, MOCK_WEATHER } from '@/config/constants'
-import { WeatherData } from '@/types'
+import { MOCK_ALERTS } from '@/config/constants'
+import type { GeoJSONFeature } from '@/types'
 
 interface KPIBarProps {
   avgSpeed?: number
   activeJams?: number
   incidentCount?: number
-  weatherData?: WeatherData | null
+  jamSegments?: GeoJSONFeature[]
+  onSegmentClick?: (segment: GeoJSONFeature) => void
 }
 
 export const KPIBar: React.FC<KPIBarProps> = ({
   avgSpeed = 28,
   activeJams = 5,
   incidentCount = MOCK_ALERTS.length,
-  weatherData,
+  jamSegments = [],
+  onSegmentClick,
 }) => {
   const [collapsed, setCollapsed] = React.useState(false)
-  const weather = weatherData ?? MOCK_WEATHER
+  const [jamsModalOpen, setJamsModalOpen] = React.useState(false)
 
   return (
     <div
       style={{
         position: 'relative',
-        width: collapsed ? 44 : 'auto',
-        maxWidth: collapsed ? 44 : '100%',
-        minWidth: collapsed ? 44 : 300,
+        width: collapsed ? 72 : 'auto',
+        maxWidth: collapsed ? 72 : '100%',
+        minWidth: collapsed ? 72 : 300,
         zIndex: 20,
         background: 'rgba(255, 255, 255, 0.88)',
         backdropFilter: 'blur(12px)',
         borderRadius: 14,
-        padding: '10px',
+        padding: collapsed ? '8px 20px 8px 8px' : '10px',
         boxShadow:
           '0 12px 32px rgba(15, 23, 42, 0.12), 0 2px 10px rgba(15, 23, 42, 0.06)',
         border: '1px solid rgba(148, 163, 184, 0.24)',
@@ -79,6 +81,100 @@ export const KPIBar: React.FC<KPIBarProps> = ({
 
       <div
         style={{
+          opacity: collapsed ? 1 : 0,
+          maxHeight: collapsed ? 240 : 0,
+          overflow: 'hidden',
+          transition: 'opacity 0.2s ease, max-height 0.3s ease',
+          pointerEvents: collapsed ? 'auto' : 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: '#eff5ff',
+            borderRadius: 8,
+            padding: '4px 6px',
+          }}
+          title="Vận tốc trung bình"
+        >
+          <span style={{ fontSize: 13 }}>🚗</span>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#1677ff',
+              fontFamily: 'Roboto Mono, monospace',
+            }}
+          >
+            {avgSpeed}
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: '#fff1f0',
+            borderRadius: 8,
+            padding: '4px 6px',
+            cursor: 'pointer',
+            transition: 'background 0.2s ease',
+          }}
+          title="Điểm tắc nghẽn (click để xem chi tiết)"
+          onClick={() => setJamsModalOpen(true)}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#ffe7e6'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = '#fff1f0'
+          }}
+        >
+          <span style={{ fontSize: 13 }}>🚦</span>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#cf1322',
+              fontFamily: 'Roboto Mono, monospace',
+            }}
+          >
+            {activeJams}
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: '#fff7e6',
+            borderRadius: 8,
+            padding: '4px 6px',
+          }}
+          title="Số sự cố"
+        >
+          <span style={{ fontSize: 13 }}>⚠️</span>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#d48806',
+              fontFamily: 'Roboto Mono, monospace',
+            }}
+          >
+            {incidentCount}
+          </span>
+        </div>
+      </div>
+
+      <div
+        style={{
           opacity: collapsed ? 0 : 1,
           maxHeight: collapsed ? 0 : 300,
           overflow: 'hidden',
@@ -87,7 +183,7 @@ export const KPIBar: React.FC<KPIBarProps> = ({
         }}
       >
         <Row gutter={[10, 0]} align="middle">
-          <Col xs={12} sm={6} style={{ height: '100%' }}>
+          <Col xs={12} sm={8} style={{ height: '100%' }}>
             <div
               style={{
                 textAlign: 'center',
@@ -140,7 +236,7 @@ export const KPIBar: React.FC<KPIBarProps> = ({
             </div>
           </Col>
 
-          <Col xs={12} sm={6}>
+          <Col xs={12} sm={8}>
             <div
               style={{
                 textAlign: 'center',
@@ -192,7 +288,7 @@ export const KPIBar: React.FC<KPIBarProps> = ({
             </div>
           </Col>
 
-          <Col xs={12} sm={6}>
+          <Col xs={12} sm={8}>
             <div
               style={{
                 textAlign: 'center',
@@ -243,53 +339,62 @@ export const KPIBar: React.FC<KPIBarProps> = ({
               </div>
             </div>
           </Col>
-
-          <Col xs={12} sm={6}>
-            <div
-              style={{
-                textAlign: 'center',
-                padding: '12px',
-                background: '#e6f7ff',
-                borderRadius: 8,
-                transition: 'all 0.3s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#bae7ff'
-                e.currentTarget.style.transform = 'translateY(-2px)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = '#e6f7ff'
-                e.currentTarget.style.transform = 'translateY(0)'
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 12,
-                  color: '#0050b3',
-                  fontWeight: 600,
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                }}
-              >
-                🌦️ Thời Tiết
-              </div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#1677ff' }}>
-                {weather.temp_c === null ? 'N/A' : `${weather.temp_c}°C`}
-              </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: 'rgba(0, 0, 0, 0.45)',
-                  marginTop: 4,
-                }}
-              >
-                {weather.condition_text}
-              </div>
-            </div>
-          </Col>
         </Row>
       </div>
+
+      <Modal
+        title="Các đoạn tắc nghẽn (LOS E/F)"
+        open={jamsModalOpen}
+        onCancel={() => setJamsModalOpen(false)}
+        footer={null}
+        width={400}
+        bodyStyle={{ maxHeight: '60vh', overflow: 'auto' }}
+      >
+        {jamSegments.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+            Không có đoạn tắc nghẽn
+          </div>
+        ) : (
+          <List
+            dataSource={jamSegments}
+            renderItem={(segment) => (
+              <List.Item
+                key={segment.properties.segmentId}
+                style={{
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderBottom: '1px solid #f0f0f0',
+                  transition: 'background 0.2s ease',
+                }}
+                onClick={() => {
+                  onSegmentClick?.(segment)
+                  setJamsModalOpen(false)
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#f5f5f5'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                <List.Item.Meta
+                  title={
+                    <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                      {segment.properties.segmentName}
+                    </span>
+                  }
+                  description={
+                    <span style={{ fontSize: 11, color: '#64748b' }}>
+                      Vận tốc: {segment.properties.avgSpeed} km/h • LOS:{' '}
+                      {segment.properties.losIndex}
+                    </span>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        )}
+      </Modal>
     </div>
   )
 }
