@@ -10,21 +10,25 @@
 ## 🚀 Cài đặt
 
 1. **Cài đặt dependencies:**
+
    ```bash
    npm install
    ```
 
 2. **Cấu hình biến môi trường:**
-   
+
    Sao chép `.env` và cập nhật giá trị:
+
    ```bash
    cp .env.example .env
    ```
 
    Nội dung `.env`:
+
    ```
    VITE_API_BASE_URL=http://localhost:3000/api/v1
    VITE_MAPBOX_TOKEN=your_mapbox_token_here
+   VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxx
    ```
 
 3. **Chạy development server:**
@@ -99,35 +103,53 @@ frontend/
 Frontend kết nối đến backend API tại `http://localhost:3000/api/v1` với 3 module chính:
 
 ### Map Module (`/map`)
+
 - `GET /segments` - Lấy danh sách đoạn đường
 - `GET /status` - Lấy trạng thái giao thông toàn bộ
 - `GET /status/:id` - Lấy trạng thái đoạn đường cụ thể
 
 ### Analytics Module (`/analytics`)
+
 - `GET /vehicle-mix` - Tỷ lệ phương tiện
 - `GET /speed-comparison` - So sánh tốc độ
 - `GET /reliability-ranking` - Bảng xếp hạng độ đáng tin cậy
 
 ### Simulation Module (`/simulation`)
+
 - `POST /forecast` - Dự báo tốc độ (B1)
 - `POST /routing` - Tính toán lộ trình thay thế
+
+### User Module (`/user`)
+
+- `GET /news` - Feed sự cố đã VERIFIED theo lat/long/radius
+- `POST /report` - Gửi báo cáo sự cố dạng multipart/form-data (ảnh tùy chọn)
 
 ## 🎯 Pages
 
 ### 1. Giám sát Vận hành (`/real-time`)
+
 - Fullscreen interactive map với Mapbox GL
 - Overlay: WeatherWidget (top-left), AlertFeed (right)
 - Real-time traffic visualization với LOS-based coloring
 - Tự động cập nhật dữ liệu mỗi 10 giây
 
-### 2. Phân tích & Thống kê (`/analytics`)
+### 2. Tin tức giao thông (`/news`)
+
+- Danh sách sự cố đã xác thực quanh vị trí người dùng
+- Card hiển thị icon + tên đường + thời gian + ảnh (nếu có)
+- Pull-to-refresh và polling nhẹ khi tab đang mở
+- FAB báo cáo: chọn loại (Tai nan/Ngap/Tac) + ảnh tùy chọn + gửi
+
+### 3. Phân tích & Thống kê (`/analytics`)
+
 - Filter bar: quận, đường, date range
 - A3: So sánh tốc độ (Line chart)
 - A9: Tỷ lệ phương tiện (Doughnut chart)
 - A4: Bảng xếp hạng độ đáng tin cậy
 - A5: Heatmap trên bản đồ
 
-### 3. Mô phỏng & Dự báo (`/simulation`)
+### 4. Mô phỏng & Dự báo (`/simulation`)
+
 - Split layout: 70% map, 30% control panel
 - B1: Dự báo tốc độ 60 phút tới
 - Input: Chọn đoạn đường, chọn chặn đường
@@ -135,18 +157,19 @@ Frontend kết nối đến backend API tại `http://localhost:3000/api/v1` v�
 
 ## 🌡️ Trạng thái Giao thông (LOS)
 
-| Grade | Màu   | Tốc độ     | Mô tả    |
-|-------|-------|-----------|----------|
-| A     | 🟢 Xanh | >55 km/h  | Rất tốt  |
-| B     | 🟢 Xanh nhạt | 45-55  | Tốt      |
-| C     | 🟡 Vàng | 35-45    | Trung bình |
-| D     | 🟠 Cam | 25-35     | Tệ       |
-| E     | 🔴 Đỏ | 15-25     | Rất tệ   |
-| F     | 🟣 Tím | <15       | Tắc nghẽn |
+| Grade | Màu          | Tốc độ   | Mô tả      |
+| ----- | ------------ | -------- | ---------- |
+| A     | 🟢 Xanh      | >55 km/h | Rất tốt    |
+| B     | 🟢 Xanh nhạt | 45-55    | Tốt        |
+| C     | 🟡 Vàng      | 35-45    | Trung bình |
+| D     | 🟠 Cam       | 25-35    | Tệ         |
+| E     | 🔴 Đỏ        | 15-25    | Rất tệ     |
+| F     | 🟣 Tím       | <15      | Tắc nghẽn  |
 
 ## 📊 State Management
 
 Dùng Zustand với store `useAppStore`:
+
 ```typescript
 {
   segments: Segment[];
@@ -155,7 +178,7 @@ Dùng Zustand với store `useAppStore`:
   selectedSegmentId: number | null;
   isLoading: boolean;
   error: string | null;
-  
+
   // Actions
   setSegments(segments);
   setTrafficStatus(status);
@@ -170,6 +193,7 @@ Dùng Zustand với store `useAppStore`:
 ## 🔄 Data Fetching
 
 Custom hooks tự động fetch dữ liệu từ API:
+
 - `useSegments()` - Fetch segments on mount
 - `useTrafficStatus()` - Fetch + polling every 10s
 - `useAnalytics()` - Parallel fetch của 3 endpoints
@@ -185,6 +209,7 @@ Custom hooks tự động fetch dữ liệu từ API:
 ## 🌐 Localization
 
 Ứng dụng sử dụng tiếng Việt, cấu hình Ant Design locale:
+
 ```tsx
 <ConfigProvider locale={viVN}>
   <App />
@@ -203,6 +228,7 @@ Custom hooks tự động fetch dữ liệu từ API:
 ## 🛡️ Environment Variables
 
 Tất cả sensitive data phải được lưu trong `.env`:
+
 - ❌ Không commit `.env` (đã được add vào `.gitignore`)
 - ✅ Commit `.env.example` với template
 - ⚠️ Frontend chỉ có thể access `VITE_*` variables
@@ -210,6 +236,7 @@ Tất cả sensitive data phải được lưu trong `.env`:
 ## 🚀 Deployment
 
 ### Build cho production:
+
 ```bash
 npm run build
 ```
@@ -217,6 +244,7 @@ npm run build
 Output trong `dist/` folder sẵn sàng deploy.
 
 ### Environment variables cho production:
+
 ```
 VITE_API_BASE_URL=https://api.yourdomain.com/api/v1
 VITE_MAPBOX_TOKEN=pk.eyJ...
@@ -225,15 +253,18 @@ VITE_MAPBOX_TOKEN=pk.eyJ...
 ## 📞 Support & Troubleshooting
 
 ### Frontend không kết nối Backend
+
 - Kiểm tra Backend đang chạy tại `localhost:3000`
 - Kiểm tra `VITE_API_BASE_URL` trong `.env`
 - Kiểm tra CORS settings trong Backend
 
 ### Mapbox map không hiển thị
+
 - Kiểm tra `VITE_MAPBOX_TOKEN` hợp lệ
 - Kiểm tra GeoJSON data từ API
 
 ### Ant Design styles không tải
+
 - Kiểm tra Ant Design đã được cài: `npm install antd`
 - Import `mapbox-gl/dist/mapbox-gl.css` trong TrafficMap
 

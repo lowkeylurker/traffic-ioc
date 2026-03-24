@@ -19,6 +19,12 @@ PORT=3000
 DATABASE_URL="postgresql://user:password@localhost:5432/traffic_ioc_db?schema=public"
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:5173
+CLERK_PUBLISHABLE_KEY=pk_test_xxx
+CLERK_SECRET_KEY=sk_test_xxx
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_key
+CLOUDINARY_API_SECRET=your_cloudinary_secret
+CLOUDINARY_INCIDENT_FOLDER=traffic-ioc/incidents
 ```
 
 ### 3. Pull Database Schema
@@ -99,26 +105,35 @@ prisma/
 
 ### Map Module (`/api/v1/map`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/segments` | List all segments (GeoJSON) |
-| `GET` | `/status` | Current traffic status (all segments) |
-| `GET` | `/status/:segmentId` | Status of specific segment |
+| Method | Path                 | Description                           |
+| ------ | -------------------- | ------------------------------------- |
+| `GET`  | `/segments`          | List all segments (GeoJSON)           |
+| `GET`  | `/status`            | Current traffic status (all segments) |
+| `GET`  | `/status/:segmentId` | Status of specific segment            |
 
 ### Analytics Module (`/api/v1/analytics`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/vehicle-mix` | Vehicle distribution chart data |
-| `GET` | `/speed-comparison` | Current vs baseline speed comparison |
-| `GET` | `/reliability-ranking` | Top 10 segments by buffer index |
+| Method | Path                   | Description                          |
+| ------ | ---------------------- | ------------------------------------ |
+| `GET`  | `/vehicle-mix`         | Vehicle distribution chart data      |
+| `GET`  | `/speed-comparison`    | Current vs baseline speed comparison |
+| `GET`  | `/reliability-ranking` | Top 10 segments by buffer index      |
 
 ### Simulation Module (`/api/v1/simulation`)
 
-| Method | Path | Description |
-|--------|------|-------------|
+| Method | Path        | Description                  |
+| ------ | ----------- | ---------------------------- |
 | `POST` | `/forecast` | Forecast speed for a segment |
-| `POST` | `/routing` | Compute alternative route |
+| `POST` | `/routing`  | Compute alternative route    |
+
+### User Crowdsourcing Module (`/api/v1/user`)
+
+| Method  | Path                              | Description                                                       |
+| ------- | --------------------------------- | ----------------------------------------------------------------- |
+| `GET`   | `/news?lat=...&long=...&radius=5` | Nearby verified incidents for user news feed                      |
+| `POST`  | `/report`                         | Submit user incident report (multipart/form-data, optional image) |
+| `PATCH` | `/report/:id`                     | Update own pending report (owner only)                            |
+| `PATCH` | `/report/:id/status`              | Moderate report status (admin only)                               |
 
 ## 🔒 Important Notes
 
@@ -127,6 +142,8 @@ prisma/
 - **Never commit `.env`** - Use `.env.example` only
 - All secrets must come from environment variables
 - `.env` is in `.gitignore` automatically
+- Clerk and Cloudinary variables are required for `/api/v1/user/report`
+- See operational notes: `backend/docs/USER_CROWDSOURCING_OPERATIONS.md`
 
 ### Database Schema
 
@@ -157,7 +174,9 @@ All API responses follow standard format:
   "success": true,
   "statusCode": 200,
   "message": "Operation successful",
-  "data": { /* response data */ },
+  "data": {
+    /* response data */
+  },
   "timestamp": "2026-01-26T10:30:00Z"
 }
 ```

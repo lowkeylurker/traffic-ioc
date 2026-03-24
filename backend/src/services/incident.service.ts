@@ -26,13 +26,14 @@ const labelToSeverity = (severity: string | undefined): number => {
 
 const toIncidentType = (
   incidentType: string | null | undefined
-): 'ACCIDENT' | 'FLOOD' | 'CONSTRUCTION' | 'FIRE' | 'OTHER' => {
+): 'ACCIDENT' | 'FLOOD' | 'CONGESTION' | 'CONSTRUCTION' | 'FIRE' | 'OTHER' => {
   switch ((incidentType || '').toUpperCase()) {
     case 'ACCIDENT':
     case 'FLOOD':
+    case 'CONGESTION':
     case 'CONSTRUCTION':
     case 'FIRE':
-      return incidentType!.toUpperCase() as 'ACCIDENT' | 'FLOOD' | 'CONSTRUCTION' | 'FIRE';
+      return incidentType!.toUpperCase() as 'ACCIDENT' | 'FLOOD' | 'CONGESTION' | 'CONSTRUCTION' | 'FIRE';
     default:
       return 'OTHER';
   }

@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { incidentController } from '../controllers/incident.controller';
+import { adminOnly } from '../middlewares/admin.middleware';
+import { authMiddleware } from '../middlewares/auth.middleware';
 
 const router = Router();
 
@@ -13,6 +15,11 @@ router.get('/:id', incidentController.getIncidentById.bind(incidentController));
 router.post('/', incidentController.createIncident.bind(incidentController));
 
 // PATCH /api/v1/incidents/:id/status - Update incident status
-router.patch('/:id/status', incidentController.updateIncidentStatus.bind(incidentController));
+router.patch(
+  '/:id/status',
+  authMiddleware,
+  adminOnly,
+  incidentController.updateIncidentStatus.bind(incidentController)
+);
 
 export default router;

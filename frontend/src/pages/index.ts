@@ -1,6 +1,5 @@
-export { RealTimePage } from './RealTimePage'
 export { AnalyticsPage } from './AnalyticsPage'
+export { NewsPage } from './NewsPage'
+export { RealTimePage } from './RealTimePage'
 export { SimulationPage } from './SimulationPage'
 export { UserProfilePage } from './UserProfilePage'
-export { TrafficLayerPage } from './TrafficLayerPage'
-export { TrafficIncidentPage } from './TrafficIncidentPage'

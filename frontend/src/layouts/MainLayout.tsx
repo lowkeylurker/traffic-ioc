@@ -8,6 +8,7 @@ import {
   ExperimentOutlined,
   EyeOutlined,
   LogoutOutlined,
+  NotificationOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import { useAuth, useUser } from '@clerk/clerk-react'
@@ -46,6 +47,11 @@ export const MainLayout: React.FC = () => {
       key: '/real-time',
       icon: <EyeOutlined />,
       label: 'Giám sát Vận hành',
+    },
+    {
+      key: '/news',
+      icon: <NotificationOutlined />,
+      label: 'Tin tức giao thông',
     },
     // Profile for regular users
     ...(isSignedIn

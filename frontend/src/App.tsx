@@ -1,17 +1,17 @@
-import React from 'react'
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from 'react-router-dom'
+import { RoleGuard } from '@/components'
 import { MainLayout } from '@/layouts/MainLayout'
-import { RealTimePage } from '@/pages/RealTimePage'
 import { AnalyticsPage } from '@/pages/AnalyticsPage'
+import { NewsPage } from '@/pages/NewsPage'
+import { RealTimePage } from '@/pages/RealTimePage'
 import { SimulationPage } from '@/pages/SimulationPage'
 import { UserProfilePage } from '@/pages/UserProfilePage'
-import { RoleGuard } from '@/components'
-import { Result, Button } from 'antd'
+import { Button, Result } from 'antd'
+import {
+  Navigate,
+  Route,
+  BrowserRouter as Router,
+  Routes,
+} from 'react-router-dom'
 
 const UnauthorizedPage = () => (
   <div style={{ padding: '60px 20px', textAlign: 'center' }}>
@@ -35,6 +35,7 @@ function App() {
         <Route path="/" element={<MainLayout />}>
           <Route index element={<Navigate to="/real-time" replace />} />
           <Route path="real-time" element={<RealTimePage />} />
+          <Route path="news" element={<NewsPage />} />
           <Route
             path="analytics"
             element={
