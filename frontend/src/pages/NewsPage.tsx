@@ -32,7 +32,9 @@ import {
 import { AxiosError } from 'axios'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import React, { useEffect, useMemo, useState } from 'react'
+import 'mapbox-gl/dist/mapbox-gl.css'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import Map, { Marker, NavigationControl, ViewState } from 'react-map-gl'
 
 dayjs.extend(relativeTime)
 
@@ -67,6 +69,22 @@ const getIncidentIcon = (type: string) => {
 
 const maxImageSizeMb = 5
 
+const DEFAULT_VIEW_STATE: ViewState = {
+  latitude: 10.7769,
+  longitude: 106.7009,
+  zoom: 13.5,
+  bearing: 0,
+  pitch: 0,
+}
+
+const getIncidentMarkerColor = (type: string): string => {
+  const normalized = type.toUpperCase()
+  if (normalized === 'ACCIDENT') return '#ef4444'
+  if (normalized === 'FLOOD') return '#0284c7'
+  if (normalized === 'CONGESTION') return '#d97706'
+  return '#6b7280'
+}
+
 export const NewsPage: React.FC = () => {
   const { isSignedIn } = useAuth()
   const [messageApi, contextHolder] = message.useMessage()
@@ -77,7 +95,16 @@ export const NewsPage: React.FC = () => {
   const [locationError, setLocationError] = useState<string>('')
   const [locationLoading, setLocationLoading] = useState<boolean>(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(
+    null
+  )
   const [reportForm] = Form.useForm()
+  const [viewState, setViewState] = useState<ViewState>(DEFAULT_VIEW_STATE)
+  const incidentCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
+  const mapStyle =
+    import.meta.env.VITE_MAPBOX_STYLE || 'mapbox://styles/mapbox/streets-v12'
 
   const fetchLocation = () => {
     if (!navigator.geolocation) {
@@ -98,7 +125,7 @@ export const NewsPage: React.FC = () => {
       () => {
         setLocationLoading(false)
         setLocationError(
-          'Khong lay duoc vi tri. Ban co the nhap toa do thu cong.'
+          'Không thể lấy vị trí. Vui lòng cho phép truy cập vị trí hoặc thử lại.'
         )
       },
       { enableHighAccuracy: true, timeout: 10000 }
@@ -112,6 +139,21 @@ export const NewsPage: React.FC = () => {
 
     return () => window.clearTimeout(timer)
   }, [])
+
+  useEffect(() => {
+    if (!coords) {
+      return
+    }
+
+    setViewState((prev) => ({
+      ...prev,
+      latitude: coords.lat,
+      longitude: coords.long,
+      zoom: Math.max(prev.zoom, 14),
+      bearing: 0,
+      pitch: 0,
+    }))
+  }, [coords])
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['user-news', coords?.lat, coords?.long],
@@ -174,6 +216,23 @@ export const NewsPage: React.FC = () => {
 
   const cards = useMemo(() => data?.items || [], [data])
 
+  const focusIncident = (incident: UserNewsItem, scrollCard: boolean) => {
+    setSelectedIncidentId(incident.incidentId)
+    setViewState((prev) => ({
+      ...prev,
+      latitude: incident.location.lat,
+      longitude: incident.location.long,
+      zoom: Math.max(prev.zoom, 15.5),
+      bearing: 0,
+      pitch: 0,
+    }))
+
+    if (scrollCard) {
+      const targetCard = incidentCardRefs.current[incident.incidentId]
+      targetCard?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }
+
   const handleReportSubmit = async () => {
     if (!isSignedIn) {
       messageApi.warning('Vui long dang nhap de gui bao cao.')
@@ -203,119 +262,200 @@ export const NewsPage: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: 12, maxWidth: 720, margin: '0 auto' }}>
+    <div className="news-two-column-page">
       {contextHolder}
 
-      <Space
-        style={{
-          width: '100%',
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 12,
-          alignItems: 'center',
-        }}
-      >
-        <Typography.Title level={4} style={{ margin: 0 }}>
-          Tin tuc giao thong gan ban
-        </Typography.Title>
-        <Button
-          icon={<ReloadOutlined />}
-          size="large"
-          loading={isFetching}
-          onClick={() => refetch()}
-        >
-          Lam moi
-        </Button>
-      </Space>
-
-      <Card style={{ marginBottom: 12 }}>
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Typography.Text type="secondary">Vi tri hien tai</Typography.Text>
-
-          {coords ? (
-            <Space wrap>
-              <Tag icon={<EnvironmentOutlined />} color="blue">
-                Lat: {coords.lat}
-              </Tag>
-              <Tag icon={<EnvironmentOutlined />} color="geekblue">
-                Long: {coords.long}
-              </Tag>
-            </Space>
-          ) : null}
-
-          {locationError ? (
-            <Alert type="warning" message={locationError} />
-          ) : null}
-
-          <Button
-            size="large"
-            onClick={fetchLocation}
-            loading={locationLoading}
+      <div className="news-left-column">
+        <div style={{ padding: 12 }}>
+          <Space
+            style={{
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: 12,
+              alignItems: 'center',
+            }}
           >
-            Lay lai vi tri
-          </Button>
-        </Space>
-      </Card>
+            <Typography.Title level={4} style={{ margin: 0 }}>
+              Tin tức giao thông quanh bạn
+            </Typography.Title>
+            <Button
+              icon={<ReloadOutlined />}
+              size="large"
+              loading={isFetching}
+              onClick={() => refetch()}
+            >
+              Làm mới
+            </Button>
+          </Space>
 
-      <Card bodyStyle={{ padding: 8 }}>
-        <List
-          loading={isLoading}
-          dataSource={cards}
-          locale={{
-            emptyText: (
-              <Empty description="Chua co su co da xac thuc quanh ban" />
-            ),
-          }}
-          renderItem={(item: UserNewsItem) => (
-            <List.Item key={item.incidentId} style={{ padding: 8 }}>
-              <Card
-                style={{ width: '100%' }}
-                bodyStyle={{ padding: 12 }}
-                size="small"
-              >
-                <Space style={{ width: '100%' }} align="start">
-                  <div style={{ marginTop: 2 }}>
-                    {getIncidentIcon(item.incidentType)}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <Typography.Text strong>{item.roadName}</Typography.Text>
-                    <div>
-                      <Tag>{item.incidentType}</Tag>
-                      <Tag color="default">
-                        {dayjs(item.occurredAt).fromNow()}
-                      </Tag>
-                      <Tag color="purple">{item.distanceKm.toFixed(2)} km</Tag>
-                    </div>
-                  </div>
+          <Card style={{ marginBottom: 12 }}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Typography.Text type="secondary">
+                Vị trí hiện tại
+              </Typography.Text>
+
+              {coords ? (
+                <Space wrap>
+                  <Tag icon={<EnvironmentOutlined />} color="blue">
+                    Kinh độ: {coords.lat}
+                  </Tag>
+                  <Tag icon={<EnvironmentOutlined />} color="geekblue">
+                    Vĩ độ: {coords.long}
+                  </Tag>
                 </Space>
+              ) : null}
 
-                {item.imageUrl ? (
-                  <div style={{ marginTop: 10 }}>
-                    <Image
-                      src={item.imageUrl}
-                      alt="incident"
-                      width="100%"
-                      style={{
-                        borderRadius: 8,
-                        objectFit: 'cover',
-                        maxHeight: 220,
-                      }}
-                    />
+              {locationError ? (
+                <Alert type="warning" message={locationError} />
+              ) : null}
+
+              <Button
+                size="large"
+                onClick={fetchLocation}
+                loading={locationLoading}
+              >
+                Lấy lại vị trí
+              </Button>
+            </Space>
+          </Card>
+
+          <Card bodyStyle={{ padding: 8 }}>
+            <List
+              loading={isLoading}
+              dataSource={cards}
+              locale={{
+                emptyText: (
+                  <Empty description="Chưa có sự cố nào xảy ra xung quanh bạn" />
+                ),
+              }}
+              renderItem={(item: UserNewsItem) => (
+                <List.Item key={item.incidentId} style={{ padding: 8 }}>
+                  <div
+                    ref={(el) => {
+                      incidentCardRefs.current[item.incidentId] = el
+                    }}
+                    style={{ width: '100%' }}
+                  >
+                    <Card
+                      style={{ width: '100%' }}
+                      bodyStyle={{ padding: 12 }}
+                      size="small"
+                      hoverable
+                      onClick={() => focusIncident(item, false)}
+                      className={
+                        selectedIncidentId === item.incidentId
+                          ? 'incident-card-selected'
+                          : ''
+                      }
+                    >
+                      <Space style={{ width: '100%' }} align="start">
+                        <div style={{ marginTop: 2 }}>
+                          {getIncidentIcon(item.incidentType)}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <Typography.Text strong>
+                            {item.roadName}
+                          </Typography.Text>
+                          <div>
+                            <Tag>{item.incidentType}</Tag>
+                            <Tag color="default">
+                              {dayjs(item.occurredAt).fromNow()}
+                            </Tag>
+                            <Tag color="purple">
+                              {item.distanceKm.toFixed(2)} km
+                            </Tag>
+                          </div>
+                        </div>
+                      </Space>
+
+                      {item.imageUrl ? (
+                        <div style={{ marginTop: 10 }}>
+                          <Image
+                            src={item.imageUrl}
+                            alt="incident"
+                            width="100%"
+                            style={{
+                              borderRadius: 8,
+                              objectFit: 'cover',
+                              maxHeight: 220,
+                            }}
+                          />
+                        </div>
+                      ) : null}
+                    </Card>
                   </div>
-                ) : null}
-              </Card>
-            </List.Item>
-          )}
-        />
-      </Card>
+                </List.Item>
+              )}
+            />
+          </Card>
+        </div>
+      </div>
+
+      <div className="news-right-column">
+        <Card
+          style={{ height: '100%', borderRadius: 0 }}
+          bodyStyle={{ height: '100%', padding: 0 }}
+        >
+          <Map
+            {...viewState}
+            onMove={(evt) => setViewState(evt.viewState)}
+            mapboxAccessToken={mapboxToken}
+            mapStyle={mapStyle}
+            style={{ width: '100%', height: '100%' }}
+            attributionControl={false}
+          >
+            <NavigationControl position="top-right" />
+            {cards.map((incident) => (
+              <Marker
+                key={incident.incidentId}
+                longitude={incident.location.long}
+                latitude={incident.location.lat}
+                anchor="bottom"
+              >
+                <button
+                  type="button"
+                  onClick={() => focusIncident(incident, true)}
+                  aria-label={`Incident ${incident.incidentType} on ${incident.roadName}`}
+                  style={{
+                    width: selectedIncidentId === incident.incidentId ? 18 : 14,
+                    height:
+                      selectedIncidentId === incident.incidentId ? 18 : 14,
+                    borderRadius: '50%',
+                    border:
+                      selectedIncidentId === incident.incidentId
+                        ? '3px solid #111827'
+                        : '2px solid #ffffff',
+                    background: getIncidentMarkerColor(incident.incidentType),
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.28)',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                />
+              </Marker>
+            ))}
+            {coords ? (
+              <Marker longitude={coords.long} latitude={coords.lat}>
+                <EnvironmentOutlined
+                  style={{
+                    fontSize: 28,
+                    color: '#ef4444',
+                    filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+                  }}
+                />
+              </Marker>
+            ) : null}
+          </Map>
+        </Card>
+      </div>
 
       <FloatButton
         icon={<PlusOutlined />}
         type="primary"
-        tooltip="Bao cao su co"
+        tooltip="Báo cáo sự cố"
         onClick={() => {
           if (!coords) {
-            messageApi.warning('Can co vi tri de gui bao cao.')
+            messageApi.warning('Cần có vị trí để gửi báo cáo.')
           }
           setReportModalOpen(true)
         }}
@@ -323,7 +463,7 @@ export const NewsPage: React.FC = () => {
       />
 
       <Modal
-        title="Bao cao su co"
+        title="Báo cáo sự cố"
         open={isReportModalOpen}
         onCancel={() => {
           if (!submitMutation.isPending) {
@@ -331,7 +471,7 @@ export const NewsPage: React.FC = () => {
           }
         }}
         onOk={handleReportSubmit}
-        okText="Gui bao cao"
+        okText="Gửi báo cáo"
         okButtonProps={{ loading: submitMutation.isPending, size: 'large' }}
         cancelButtonProps={{ size: 'large' }}
         width={560}
@@ -350,14 +490,14 @@ export const NewsPage: React.FC = () => {
             <Alert
               style={{ marginBottom: 12 }}
               type="warning"
-              message="Ban can dang nhap bang Clerk truoc khi gui bao cao."
+              message="Bạn cần đăng nhập trước khi gửi báo cáo."
             />
           ) : null}
 
           <Form.Item
             name="incidentType"
-            label="Loai su co"
-            rules={[{ required: true, message: 'Vui long chon loai su co' }]}
+            label="Loại sự cố"
+            rules={[{ required: true, message: 'Vui lòng chọn loại sự cố' }]}
           >
             <Select size="large" options={INCIDENT_OPTIONS} />
           </Form.Item>
@@ -366,26 +506,26 @@ export const NewsPage: React.FC = () => {
             <Form.Item
               style={{ flex: 1 }}
               name="lat"
-              label="Latitude"
-              rules={[{ required: true, message: 'Nhap latitude' }]}
+              label="Kinh độ"
+              rules={[{ required: true, message: 'Vui lòng nhập kinh độ' }]}
             >
               <Input size="large" />
             </Form.Item>
             <Form.Item
               style={{ flex: 1 }}
               name="long"
-              label="Longitude"
-              rules={[{ required: true, message: 'Nhap longitude' }]}
+              label="Vĩ độ"
+              rules={[{ required: true, message: 'Vui lòng nhập vĩ độ' }]}
             >
               <Input size="large" />
             </Form.Item>
           </Space>
 
-          <Form.Item name="description" label="Mo ta ngan (tuy chon)">
+          <Form.Item name="description" label="Mô tả ngắn (tùy chọn)">
             <Input.TextArea rows={3} maxLength={300} showCount />
           </Form.Item>
 
-          <Form.Item label="Anh minh chung (tuy chon)">
+          <Form.Item label="Ảnh minh chứng (tùy chọn)">
             <Upload
               accept="image/jpeg,image/png,image/webp"
               maxCount={1}
@@ -396,12 +536,12 @@ export const NewsPage: React.FC = () => {
                   'image/webp',
                 ].includes(file.type)
                 if (!isValidType) {
-                  messageApi.error('Chi ho tro JPEG, PNG, WEBP')
+                  messageApi.error('Chỉ hỗ trợ JPEG, PNG, WEBP')
                   return Upload.LIST_IGNORE
                 }
 
                 if (file.size > maxImageSizeMb * 1024 * 1024) {
-                  messageApi.error(`Anh phai nho hon ${maxImageSizeMb}MB`)
+                  messageApi.error(`Ảnh phải nhỏ hơn ${maxImageSizeMb}MB`)
                   return Upload.LIST_IGNORE
                 }
 
@@ -413,12 +553,55 @@ export const NewsPage: React.FC = () => {
               }}
             >
               <Button icon={<CameraOutlined />} size="large">
-                Chon anh
+                Chọn ảnh
               </Button>
             </Upload>
           </Form.Item>
         </Form>
       </Modal>
+
+      <style>{`
+        .news-two-column-page {
+          display: grid;
+          grid-template-columns: minmax(360px, 1fr) minmax(360px, 1fr);
+          gap: 12px;
+          height: 100dvh;
+        }
+
+        .news-left-column {
+          min-height: 0;
+          overflow-y: auto;
+          border-radius: 10px;
+          background: #f0f2f5;
+        }
+
+        .news-right-column {
+          min-height: 0;
+          overflow: hidden;
+          border-radius: 10px;
+        }
+
+        .news-right-column .ant-card,
+        .news-right-column .ant-card-body {
+          height: 100%;
+        }
+
+        .incident-card-selected {
+          border-color: #1677ff !important;
+          box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2);
+        }
+
+        @media (max-width: 1100px) {
+          .news-two-column-page {
+            grid-template-columns: 1fr;
+            height: auto;
+          }
+
+          .news-right-column {
+            height: 360px;
+          }
+        }
+      `}</style>
     </div>
   )
 }
