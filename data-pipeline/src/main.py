@@ -1518,11 +1518,13 @@ def run_cycle_daemon(
     Guarantees:
       - Never crashes hard on API/network/database errors.
       - Logs cycle start time, row counts, success/failure state.
-      - Sleeps with backoff and retries automatically on next cycle.
+        - Fixed-rate cycle starts (based on scheduled start time, not cycle end time).
+        - Sleeps with backoff and retries automatically on next cycle after failures.
     """
     cycle_no = 0
     interval_sec = int(cycle_interval_minutes) * 60
     retry_sec = int(retry_sleep_minutes) * 60
+    next_cycle_at: float | None = None
 
     logger.info(
         "[run-cycle-daemon] started (interval=%sm, retry_backoff=%sm)",
@@ -1587,6 +1589,8 @@ def run_cycle_daemon(
         start_h, end_h = _load_window_hours()
         now_local = datetime.now()
         if not _within_window(now_local, start_h, end_h):
+            # Reset fixed-rate anchor while outside active window.
+            next_cycle_at = None
             sleep_sec = _seconds_until_window_open(now_local, start_h, end_h)
             logger.info(
                 "[run-cycle-daemon] outside ETL window %02d:00-%02d:00 now=%s sleep=%ss",
@@ -1598,9 +1602,29 @@ def run_cycle_daemon(
             time.sleep(sleep_sec)
             continue
 
+        now_ts = time.time()
+        if next_cycle_at is None:
+            next_cycle_at = now_ts
+
+        if now_ts < next_cycle_at:
+            wait_sec = max(1, int(next_cycle_at - now_ts))
+            logger.info(
+                "[run-cycle-daemon] waiting %ss until next fixed-rate slot",
+                wait_sec,
+            )
+            time.sleep(wait_sec)
+            continue
+
         cycle_no += 1
+        scheduled_start_ts = next_cycle_at
+        next_cycle_at = scheduled_start_ts + interval_sec
         cycle_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        logger.info("[run-cycle-daemon] cycle=%s started_at=%s", cycle_no, cycle_start)
+        logger.info(
+            "[run-cycle-daemon] cycle=%s started_at=%s (scheduled_slot=%s)",
+            cycle_no,
+            cycle_start,
+            datetime.fromtimestamp(scheduled_start_ts).strftime("%Y-%m-%d %H:%M:%S"),
+        )
 
         cycle_ok = False
         try:
@@ -1615,19 +1639,31 @@ def run_cycle_daemon(
             cycle_ok = False
 
         if cycle_ok:
-            logger.info(
-                "[run-cycle-daemon] cycle=%s status=success, sleep=%ss before next cycle",
-                cycle_no,
-                interval_sec,
-            )
-            time.sleep(interval_sec)
+            now_after = time.time()
+            if now_after > next_cycle_at:
+                missed_slots = int((now_after - next_cycle_at) // interval_sec) + 1
+                next_cycle_at += missed_slots * interval_sec
+                logger.warning(
+                    "[run-cycle-daemon] cycle=%s overrun detected; skipped %s slot(s), next_slot=%s",
+                    cycle_no,
+                    missed_slots,
+                    datetime.fromtimestamp(next_cycle_at).strftime("%Y-%m-%d %H:%M:%S"),
+                )
+            else:
+                logger.info(
+                    "[run-cycle-daemon] cycle=%s status=success, next_slot=%s",
+                    cycle_no,
+                    datetime.fromtimestamp(next_cycle_at).strftime("%Y-%m-%d %H:%M:%S"),
+                )
         else:
+            # Failure path keeps resilience behavior: short backoff, then re-anchor fixed rate.
+            next_cycle_at = time.time() + retry_sec
             logger.error(
-                "[run-cycle-daemon] cycle=%s status=failed, backoff_sleep=%ss then retry",
+                "[run-cycle-daemon] cycle=%s status=failed, backoff_sleep=%ss then retry_at=%s",
                 cycle_no,
                 retry_sec,
+                datetime.fromtimestamp(next_cycle_at).strftime("%Y-%m-%d %H:%M:%S"),
             )
-            time.sleep(retry_sec)
 
 
 @app.command("run-corridor-central-districts")
