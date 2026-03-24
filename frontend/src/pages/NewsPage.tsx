@@ -33,8 +33,14 @@ import { AxiosError } from 'axios'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import Map, { Marker, NavigationControl, ViewState } from 'react-map-gl'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Map, {
+  MapLayerMouseEvent,
+  Marker,
+  NavigationControl,
+  ViewState,
+  ViewStateChangeEvent,
+} from 'react-map-gl'
 
 dayjs.extend(relativeTime)
 
@@ -75,6 +81,7 @@ const DEFAULT_VIEW_STATE: ViewState = {
   zoom: 13.5,
   bearing: 0,
   pitch: 0,
+  padding: { top: 0, right: 0, bottom: 0, left: 0 },
 }
 
 const getIncidentMarkerColor = (type: string): string => {
@@ -94,6 +101,10 @@ export const NewsPage: React.FC = () => {
   )
   const [locationError, setLocationError] = useState<string>('')
   const [locationLoading, setLocationLoading] = useState<boolean>(false)
+  const [locationAccuracyM, setLocationAccuracyM] = useState<number | null>(
+    null
+  )
+  const [isPickingLocation, setIsPickingLocation] = useState<boolean>(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(
     null
@@ -101,59 +112,111 @@ export const NewsPage: React.FC = () => {
   const [reportForm] = Form.useForm()
   const [viewState, setViewState] = useState<ViewState>(DEFAULT_VIEW_STATE)
   const incidentCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const geoWatchIdRef = useRef<number | null>(null)
+  const geoTimeoutRef = useRef<number | null>(null)
 
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
   const mapStyle =
     import.meta.env.VITE_MAPBOX_STYLE || 'mapbox://styles/mapbox/streets-v12'
 
-  const fetchLocation = () => {
+  const clearGeoTracking = useCallback(() => {
+    if (geoWatchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(geoWatchIdRef.current)
+      geoWatchIdRef.current = null
+    }
+
+    if (geoTimeoutRef.current !== null) {
+      window.clearTimeout(geoTimeoutRef.current)
+      geoTimeoutRef.current = null
+    }
+  }, [])
+
+  const fetchLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationError('Trinh duyet khong ho tro geolocation.')
       return
     }
 
+    clearGeoTracking()
+    setIsPickingLocation(false)
     setLocationLoading(true)
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
+    setLocationError('')
+
+    let bestSample: { lat: number; long: number; accuracy: number } | null =
+      null
+    let sampleCount = 0
+
+    const finish = (withSuccess: boolean) => {
+      clearGeoTracking()
+      setLocationLoading(false)
+
+      const resolvedSample = bestSample
+
+      if (withSuccess && resolvedSample) {
         setCoords({
-          lat: Number(position.coords.latitude.toFixed(6)),
-          long: Number(position.coords.longitude.toFixed(6)),
+          lat: Number(resolvedSample.lat.toFixed(6)),
+          long: Number(resolvedSample.long.toFixed(6)),
         })
-        setLocationError('')
-        setLocationLoading(false)
+        setViewState((prev) => ({
+          ...prev,
+          latitude: Number(resolvedSample.lat.toFixed(6)),
+          longitude: Number(resolvedSample.long.toFixed(6)),
+          zoom: Math.max(prev.zoom, 14),
+          bearing: 0,
+          pitch: 0,
+        }))
+        setLocationAccuracyM(Math.round(resolvedSample.accuracy))
+        return
+      }
+
+      setLocationError(
+        'Không thể lấy vị trí chính xác. Hãy bật GPS/chế độ định vị chính xác rồi thử lại.'
+      )
+    }
+
+    geoWatchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        sampleCount += 1
+
+        const sample = {
+          lat: position.coords.latitude,
+          long: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        }
+
+        if (!bestSample || sample.accuracy < bestSample.accuracy) {
+          bestSample = sample
+        }
+
+        if (sample.accuracy <= 25 || sampleCount >= 3) {
+          finish(true)
+        }
       },
       () => {
-        setLocationLoading(false)
-        setLocationError(
-          'Không thể lấy vị trí. Vui lòng cho phép truy cập vị trí hoặc thử lại.'
-        )
+        finish(Boolean(bestSample))
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0,
+      }
     )
-  }
+
+    geoTimeoutRef.current = window.setTimeout(() => {
+      finish(Boolean(bestSample))
+    }, 9000)
+  }, [clearGeoTracking])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       fetchLocation()
     }, 0)
 
-    return () => window.clearTimeout(timer)
-  }, [])
-
-  useEffect(() => {
-    if (!coords) {
-      return
+    return () => {
+      window.clearTimeout(timer)
+      clearGeoTracking()
     }
-
-    setViewState((prev) => ({
-      ...prev,
-      latitude: coords.lat,
-      longitude: coords.long,
-      zoom: Math.max(prev.zoom, 14),
-      bearing: 0,
-      pitch: 0,
-    }))
-  }, [coords])
+  }, [clearGeoTracking, fetchLocation])
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['user-news', coords?.lat, coords?.long],
@@ -215,6 +278,32 @@ export const NewsPage: React.FC = () => {
   })
 
   const cards = useMemo(() => data?.items || [], [data])
+
+  const handleMapCoordinatePick = useCallback(
+    (evt: MapLayerMouseEvent) => {
+      if (!isPickingLocation) {
+        return
+      }
+
+      const nextLat = Number(evt.lngLat.lat.toFixed(6))
+      const nextLong = Number(evt.lngLat.lng.toFixed(6))
+
+      setCoords({ lat: nextLat, long: nextLong })
+      setViewState((prev) => ({
+        ...prev,
+        latitude: nextLat,
+        longitude: nextLong,
+        zoom: Math.max(prev.zoom, 15),
+        bearing: 0,
+        pitch: 0,
+      }))
+      setLocationAccuracyM(null)
+      setLocationError('')
+      setIsPickingLocation(false)
+      messageApi.success('Da cap nhat vi tri theo toa do ban chon tren ban do.')
+    },
+    [isPickingLocation, messageApi]
+  )
 
   const focusIncident = (incident: UserNewsItem, scrollCard: boolean) => {
     setSelectedIncidentId(incident.incidentId)
@@ -298,11 +387,14 @@ export const NewsPage: React.FC = () => {
               {coords ? (
                 <Space wrap>
                   <Tag icon={<EnvironmentOutlined />} color="blue">
-                    Kinh độ: {coords.lat}
+                    Vi do: {coords.lat}
                   </Tag>
                   <Tag icon={<EnvironmentOutlined />} color="geekblue">
-                    Vĩ độ: {coords.long}
+                    Kinh do: {coords.long}
                   </Tag>
+                  {locationAccuracyM !== null ? (
+                    <Tag color="processing">Sai so: ~{locationAccuracyM} m</Tag>
+                  ) : null}
                 </Space>
               ) : null}
 
@@ -310,13 +402,33 @@ export const NewsPage: React.FC = () => {
                 <Alert type="warning" message={locationError} />
               ) : null}
 
-              <Button
-                size="large"
-                onClick={fetchLocation}
-                loading={locationLoading}
-              >
-                Lấy lại vị trí
-              </Button>
+              {isPickingLocation ? (
+                <Alert
+                  type="info"
+                  message="Dang chon lai toa do"
+                  description="Nhan vao vi tri chinh xac tren ban do ben phai de cap nhat."
+                  showIcon
+                />
+              ) : null}
+
+              <Space wrap>
+                <Button
+                  size="large"
+                  onClick={fetchLocation}
+                  loading={locationLoading}
+                >
+                  Lấy lại vị trí
+                </Button>
+                <Button
+                  size="large"
+                  type={isPickingLocation ? 'primary' : 'default'}
+                  onClick={() => setIsPickingLocation((prev) => !prev)}
+                >
+                  {isPickingLocation
+                    ? 'Hủy chọn tọa độ'
+                    : 'Chọn lại tọa độ trên bản đồ'}
+                </Button>
+              </Space>
             </Space>
           </Card>
 
@@ -399,10 +511,15 @@ export const NewsPage: React.FC = () => {
         >
           <Map
             {...viewState}
-            onMove={(evt) => setViewState(evt.viewState)}
+            onMove={(evt: ViewStateChangeEvent) => setViewState(evt.viewState)}
+            onClick={handleMapCoordinatePick}
             mapboxAccessToken={mapboxToken}
             mapStyle={mapStyle}
-            style={{ width: '100%', height: '100%' }}
+            style={{
+              width: '100%',
+              height: '100%',
+              cursor: isPickingLocation ? 'crosshair' : 'default',
+            }}
             attributionControl={false}
           >
             <NavigationControl position="top-right" />
@@ -439,7 +556,7 @@ export const NewsPage: React.FC = () => {
                 <EnvironmentOutlined
                   style={{
                     fontSize: 28,
-                    color: '#ef4444',
+                    color: isPickingLocation ? '#1677ff' : '#ef4444',
                     filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
                   }}
                 />
@@ -506,16 +623,16 @@ export const NewsPage: React.FC = () => {
             <Form.Item
               style={{ flex: 1 }}
               name="lat"
-              label="Kinh độ"
-              rules={[{ required: true, message: 'Vui lòng nhập kinh độ' }]}
+              label="Vi do"
+              rules={[{ required: true, message: 'Vui lòng nhập vi do' }]}
             >
               <Input size="large" />
             </Form.Item>
             <Form.Item
               style={{ flex: 1 }}
               name="long"
-              label="Vĩ độ"
-              rules={[{ required: true, message: 'Vui lòng nhập vĩ độ' }]}
+              label="Kinh do"
+              rules={[{ required: true, message: 'Vui lòng nhập kinh do' }]}
             >
               <Input size="large" />
             </Form.Item>
