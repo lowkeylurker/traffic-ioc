@@ -19,7 +19,7 @@ from math import ceil
 import time
 import os
 from datetime import datetime, timedelta
-from typing import Tuple
+from typing import Optional, Tuple
 
 import requests
 import typer
@@ -800,7 +800,7 @@ def _allocate_target_corridor_segments(rows, limit: int) -> list[dict]:
             corridor_selected_counts[member_corridor] += 1
         return True
 
-    def _next_available_segment(corridor_key: int) -> int | None:
+    def _next_available_segment(corridor_key: int) -> Optional[int]:
         candidates = corridor_candidates[corridor_key]
         cursor = corridor_cursors[corridor_key]
         while cursor < len(candidates) and candidates[cursor][0] in selected_segments:
@@ -923,7 +923,7 @@ def _allocate_target_corridor_segments(rows, limit: int) -> list[dict]:
 def _load_segment_points(
     engine: Engine,
     limit: int = _MAX_SEGMENTS_PER_CYCLE,
-    bbox: dict | None = None,
+    bbox: Optional[dict] = None,
     target_corridor_mode: bool = False,
     full_target_coverage: bool = True,
     overfetch_factor: int = _OVERFETCH_FACTOR,
@@ -1441,7 +1441,7 @@ def run_mock_incidents(
         max=500,
         help="Number of simulated incidents to generate",
     ),
-    seed: int | None = typer.Option(
+    seed: Optional[int] = typer.Option(
         None,
         help="Optional random seed for deterministic generation",
     ),
@@ -1524,7 +1524,7 @@ def run_cycle_daemon(
     cycle_no = 0
     interval_sec = int(cycle_interval_minutes) * 60
     retry_sec = int(retry_sleep_minutes) * 60
-    next_cycle_at: float | None = None
+    next_cycle_at: Optional[float] = None
 
     logger.info(
         "[run-cycle-daemon] started (interval=%sm, retry_backoff=%sm)",
