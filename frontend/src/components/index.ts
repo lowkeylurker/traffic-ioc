@@ -16,4 +16,8 @@ export { TrafficMap } from './map/TrafficMap'
 export { WeatherLayer } from './map/WeatherLayer'
 
 // Chart Components
-export { DoughnutChart, LineChart } from './charts/ChartComponents'
+export {
+  ComparisonChart,
+  DoughnutChart,
+  LineChart,
+} from './charts/ChartComponents'

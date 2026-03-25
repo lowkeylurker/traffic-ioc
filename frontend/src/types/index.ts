@@ -135,6 +135,43 @@ export interface ReliabilityRankData {
   bufferIndex: number
 }
 
+export type ComparisonMetric =
+  | 'currentSpeedKmh'
+  | 'pcuVolume'
+  | 'trafficIndex'
+  | 'losScore'
+  | 'congestionLevel'
+  | 'delaySeconds'
+  | 'occupancyRate'
+  | 'bufferIndex'
+
+export type ComparisonScopeType = 'segment' | 'road'
+
+export interface RoadOption {
+  roadKey: string
+  roadName: string
+}
+
+export interface ComparisonDataPoint {
+  hour: number
+  baselineAvg: number | null
+  baselineStdDev: number | null
+  lowerBound: number | null
+  upperBound: number | null
+  todayValue: number | null
+  isAnomaly: boolean
+  unit: string
+  metric: ComparisonMetric
+}
+
+export interface ComparisonQueryParams {
+  scopeType?: ComparisonScopeType
+  segmentId?: string
+  roadKey?: string
+  metric: ComparisonMetric
+  date: string
+}
+
 export interface ForecastData {
   segmentId: number
   predictedSpeed: number

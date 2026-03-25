@@ -72,6 +72,7 @@ export const POLLING_INTERVALS = {
   TRAFFIC_DATA: 10000, // 10 seconds
   WEATHER_DATA: 900000, // 15 minutes
   ANALYTICS_DATA: 60000, // 1 minute
+  ANALYTICS_COMPARISON: 300000, // 5 minutes
 }
 
 // Mock data - Alerts

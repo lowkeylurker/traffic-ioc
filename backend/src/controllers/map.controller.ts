@@ -1,9 +1,9 @@
 // Map Controller - Xử lý HTTP requests cho Map module
 
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { mapService } from '../services/map.service';
-import { ResponseUtil } from '../utils/response';
 import { Logger } from '../utils/logger';
+import { ResponseUtil } from '../utils/response';
 
 const logger = new Logger('MapController');
 
@@ -29,6 +29,19 @@ export class MapController {
       logger.log('GET /segments');
       const segments = await mapService.getSegments();
       res.json(ResponseUtil.success(segments, 'Segments retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /roads - Lấy danh sách tuyến đường
+   */
+  async getRoads(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      logger.log('GET /roads');
+      const roads = await mapService.getRoads();
+      res.json(ResponseUtil.success(roads, 'Roads retrieved successfully'));
     } catch (error) {
       next(error);
     }

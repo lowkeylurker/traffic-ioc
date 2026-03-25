@@ -105,3 +105,35 @@ export interface WeatherData {
   warning_message: string;
   last_updated: string;
 }
+
+export type ComparisonMetric =
+  | 'currentSpeedKmh'
+  | 'pcuVolume'
+  | 'trafficIndex'
+  | 'losScore'
+  | 'congestionLevel'
+  | 'delaySeconds'
+  | 'occupancyRate'
+  | 'bufferIndex';
+
+export type ComparisonScopeType = 'segment' | 'road';
+
+export interface ComparisonQuery {
+  scopeType: ComparisonScopeType;
+  segmentId?: string;
+  roadKey?: string;
+  metric: ComparisonMetric;
+  date: string;
+}
+
+export interface ComparisonPoint {
+  hour: number;
+  baselineAvg: number | null;
+  baselineStdDev: number | null;
+  lowerBound: number | null;
+  upperBound: number | null;
+  todayValue: number | null;
+  isAnomaly: boolean;
+  unit: string;
+  metric: ComparisonMetric;
+}

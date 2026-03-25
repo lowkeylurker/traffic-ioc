@@ -385,6 +385,29 @@ export class MapService {
   }
 
   /**
+   * Lấy danh sách tuyến đường
+   */
+  async getRoads(): Promise<Array<{ roadKey: string; roadName: string }>> {
+    try {
+      logger.log('Fetching all roads');
+
+      const result = await query(`
+        SELECT
+          road_key::text AS "roadKey",
+          name AS "roadName"
+        FROM dim_road
+        WHERE name IS NOT NULL
+        ORDER BY name ASC
+      `);
+
+      return result.rows as Array<{ roadKey: string; roadName: string }>;
+    } catch (error) {
+      logger.error('Error fetching roads', error);
+      throw error;
+    }
+  }
+
+  /**
    * Lấy trạng thái giao thông hiện tại của tất cả đoạn đường
    */
   async getTrafficStatus(): Promise<TrafficStatus[]> {

@@ -2,8 +2,8 @@
 
 import { Router } from 'express';
 import { analyticsController } from '../controllers/analytics.controller';
-import { authMiddleware } from '../middlewares/auth.middleware';
 import { adminOnly } from '../middlewares/admin.middleware';
+import { authMiddleware } from '../middlewares/auth.middleware';
 
 const router = Router();
 
@@ -21,6 +21,14 @@ router.get('/vehicle-mix', authMiddleware, adminOnly, (req, res, next) =>
  */
 router.get('/speed-comparison', authMiddleware, adminOnly, (req, res, next) =>
   analyticsController.getSpeedComparison(req, res, next)
+);
+
+/**
+ * GET /api/v1/analytics/comparison
+ * Lấy dữ liệu so sánh Baseline vs Today cho 8 đại lượng (A3)
+ */
+router.get('/comparison', authMiddleware, adminOnly, (req, res, next) =>
+  analyticsController.getComparison(req, res, next)
 );
 
 /**
