@@ -1,4 +1,10 @@
-import { ComparisonChart } from '@/components/charts/ChartComponents'
+import {
+  AnomalyDistributionChart,
+  ComparisonChart,
+  ComparisonChartType,
+  ComparisonDeltaBarChart,
+  DataQualityDoughnutChart,
+} from '@/components/charts/ChartComponents'
 import { EmptyState, ErrorState, Loading } from '@/components/common'
 import {
   useAnalyticsComparison,
@@ -6,7 +12,16 @@ import {
   useSegments,
 } from '@/hooks/useTraffic'
 import { ComparisonMetric, ComparisonScopeType } from '@/types'
-import { Card, DatePicker, Select, Space, Tag, Typography } from 'antd'
+import {
+  Card,
+  Col,
+  DatePicker,
+  Row,
+  Select,
+  Space,
+  Tag,
+  Typography,
+} from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
 import { useMemo, useState } from 'react'
 
@@ -52,6 +67,21 @@ const metricLabelMap: Record<ComparisonMetric, string> = {
   bufferIndex: 'Buffer Index',
 }
 
+const chartTypeOptions: Array<{ label: string; value: ComparisonChartType }> = [
+  {
+    label: 'Line + Safety Band',
+    value: 'lineBand',
+  },
+  {
+    label: 'Grouped Bar (Baseline/Today)',
+    value: 'groupedBar',
+  },
+  {
+    label: 'Scatter (điểm theo giờ)',
+    value: 'scatter',
+  },
+]
+
 export const AnalyticsPage: React.FC = () => {
   const segments = useSegments()
   const { roads } = useRoads()
@@ -61,6 +91,8 @@ export const AnalyticsPage: React.FC = () => {
   const [selectedMetric, setSelectedMetric] =
     useState<ComparisonMetric>('currentSpeedKmh')
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs())
+  const [comparisonChartType, setComparisonChartType] =
+    useState<ComparisonChartType>('lineBand')
 
   const segmentOptions = useMemo(() => {
     const features = segments?.features ?? []
@@ -101,6 +133,39 @@ export const AnalyticsPage: React.FC = () => {
   )
 
   const hasAnyValue = comparisonData.some((item) => item.todayValue !== null)
+
+  const renderMainContent = () => {
+    if (loading) {
+      return (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100%',
+          }}
+        >
+          <Loading />
+        </div>
+      )
+    }
+
+    if (error) {
+      return <ErrorState message={error} onRetry={refetch} />
+    }
+
+    if (!hasAnyValue) {
+      return <EmptyState message="Chưa có dữ liệu cho bộ lọc hiện tại" />
+    }
+
+    return (
+      <ComparisonChart
+        data={comparisonData}
+        metricLabel={metricLabelMap[selectedMetric]}
+        chartType={comparisonChartType}
+      />
+    )
+  }
 
   return (
     <div>
@@ -169,31 +234,63 @@ export const AnalyticsPage: React.FC = () => {
           </Space>
         }
         extra={<Text type="secondary">Polling: mỗi 5 phút</Text>}
+        style={{ marginBottom: 16 }}
       >
-        <div style={{ height: 420 }}>
-          {loading ? (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100%',
-              }}
-            >
-              <Loading />
-            </div>
-          ) : error ? (
-            <ErrorState message={error} onRetry={refetch} />
-          ) : !hasAnyValue ? (
-            <EmptyState message="Chưa có dữ liệu cho bộ lọc hiện tại" />
-          ) : (
-            <ComparisonChart
-              data={comparisonData}
-              metricLabel={metricLabelMap[selectedMetric]}
-            />
-          )}
-        </div>
+        <Space style={{ marginBottom: 12 }} wrap>
+          <Text strong>Biểu đồ so sánh chính:</Text>
+          <Select
+            style={{ minWidth: 280 }}
+            value={comparisonChartType}
+            options={chartTypeOptions}
+            onChange={(value: ComparisonChartType) =>
+              setComparisonChartType(value)
+            }
+          />
+        </Space>
+
+        <div style={{ height: 420 }}>{renderMainContent()}</div>
       </Card>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={14}>
+          <Card title="Delta theo giờ (Today - Baseline)">
+            <div style={{ height: 320 }}>
+              {!loading && !error && hasAnyValue ? (
+                <ComparisonDeltaBarChart
+                  data={comparisonData}
+                  metricLabel={metricLabelMap[selectedMetric]}
+                />
+              ) : (
+                <EmptyState message="Chưa có dữ liệu để vẽ Delta" />
+              )}
+            </div>
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={10}>
+          <Card title="Chất lượng dữ liệu theo bộ lọc">
+            <div style={{ height: 320 }}>
+              {!loading && !error && comparisonData.length > 0 ? (
+                <DataQualityDoughnutChart data={comparisonData} />
+              ) : (
+                <EmptyState message="Chưa có dữ liệu để đánh giá chất lượng" />
+              )}
+            </div>
+          </Card>
+        </Col>
+
+        <Col xs={24}>
+          <Card title="Phân bổ mức bất thường theo giờ">
+            <div style={{ height: 280 }}>
+              {!loading && !error && comparisonData.length > 0 ? (
+                <AnomalyDistributionChart data={comparisonData} />
+              ) : (
+                <EmptyState message="Chưa có dữ liệu để phân tích bất thường" />
+              )}
+            </div>
+          </Card>
+        </Col>
+      </Row>
     </div>
   )
 }
