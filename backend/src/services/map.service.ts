@@ -278,8 +278,8 @@ export class MapService {
   /**
    * Get color based on LOS level (A-F)
    */
-  private getColorByLOS(losLevel: string | null): string {
-    if (!losLevel || losLevel === 'N/A') return COLOR_RULES.GREY;
+  private getColorByLOS(losLevel: string | null): string | null {
+    if (!losLevel || losLevel === 'N/A') return null;
 
     switch (losLevel.toUpperCase()) {
       case 'A':
@@ -293,7 +293,7 @@ export class MapService {
       case 'F':
         return COLOR_RULES.RED;
       default:
-        return COLOR_RULES.GREY;
+        return null;
     }
   }
 

@@ -13,7 +13,7 @@ export interface GeoJSONFeature {
     roadName?: string;
     avgSpeed: number; // Đơn vị: km/h
     losIndex: string; // Mức độ phục vụ: 'A' -> 'F'
-    color: string; // Mã màu Hex (#FF0000, #00FF00...)
+    color: string | null; // Mã màu Hex (#FF0000, #00FF00...)
     lastUpdated: string; // ISO Date String
   };
 }
