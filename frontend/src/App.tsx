@@ -1,6 +1,7 @@
 import { RoleGuard } from '@/components'
 import { MainLayout } from '@/layouts/MainLayout'
 import { AnalyticsPage } from '@/pages/AnalyticsPage'
+import { CitizenReportsAdminPage } from '@/pages/CitizenReportsAdminPage'
 import { NewsPage } from '@/pages/NewsPage'
 import { RealTimePage } from '@/pages/RealTimePage'
 import { SimulationPage } from '@/pages/SimulationPage'
@@ -49,6 +50,14 @@ function App() {
             element={
               <RoleGuard requiredRole="admin">
                 <SimulationPage />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="incident-reports"
+            element={
+              <RoleGuard requiredRole="admin">
+                <CitizenReportsAdminPage />
               </RoleGuard>
             }
           />

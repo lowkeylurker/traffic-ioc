@@ -4,6 +4,7 @@ import { SignInSignUpDialog } from '@/components'
 import { LAYOUT_SIDER_WIDTH } from '@/config/constants'
 import { setAccessTokenGetter } from '@/services/api'
 import {
+  AuditOutlined,
   BarChartOutlined,
   ExperimentOutlined,
   EyeOutlined,
@@ -75,6 +76,11 @@ export const MainLayout: React.FC = () => {
             key: '/simulation',
             icon: <ExperimentOutlined />,
             label: 'Mô phỏng & Dự báo',
+          },
+          {
+            key: '/incident-reports',
+            icon: <AuditOutlined />,
+            label: 'Duyệt báo cáo công dân',
           },
         ]
       : []),

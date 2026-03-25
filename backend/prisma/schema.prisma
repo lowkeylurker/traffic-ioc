@@ -54,6 +54,7 @@ model dim_date {
   bridge_date_holiday          bridge_date_holiday[]
   dim_month_year               dim_month_year?                @relation(fields: [month_year_key], references: [month_year_key], onDelete: NoAction, onUpdate: NoAction)
   fact_corridor_performance    fact_corridor_performance[]
+  fact_citizen_report          fact_citizen_report[]
   fact_event                   fact_event[]
   fact_incident                fact_incident[]
   fact_simulation_scenario     fact_simulation_scenario[]
@@ -73,15 +74,16 @@ model dim_holiday {
 }
 
 model dim_location {
-  location_key     BigInt                   @id
-  ward             String?                  @db.VarChar(100)
-  district         String?                  @db.VarChar(100)
-  city             String?                  @default("Hồ Chí Minh") @db.VarChar(100)
-  geometry_polygon Unsupported("geometry")?
-  record_timestamp DateTime?                @default(now()) @db.Timestamp(6)
-  dim_segment      dim_segment[]
-  fact_event       fact_event[]
-  fact_incident    fact_incident[]
+  location_key        BigInt                   @id
+  ward                String?                  @db.VarChar(100)
+  district            String?                  @db.VarChar(100)
+  city                String?                  @default("Hồ Chí Minh") @db.VarChar(100)
+  geometry_polygon    Unsupported("geometry")?
+  record_timestamp    DateTime?                @default(now()) @db.Timestamp(6)
+  dim_segment         dim_segment[]
+  fact_citizen_report fact_citizen_report[]
+  fact_event          fact_event[]
+  fact_incident       fact_incident[]
 }
 
 model dim_month_year {
@@ -138,6 +140,7 @@ model dim_segment {
   dim_node_dim_segment_to_node_keyTodim_node   dim_node?                      @relation("dim_segment_to_node_keyTodim_node", fields: [to_node_key], references: [node_key], onDelete: NoAction, onUpdate: NoAction)
   dim_way                                      dim_way?                       @relation(fields: [way_key], references: [way_key], onDelete: NoAction, onUpdate: NoAction)
   fact_corridor_performance                    fact_corridor_performance[]
+  fact_citizen_report                          fact_citizen_report[]
   fact_incident                                fact_incident[]
   fact_simulation_scenario                     fact_simulation_scenario[]
   fact_traffic_flow                            fact_traffic_flow[]
@@ -172,6 +175,7 @@ model dim_time_of_day {
   is_business_hours                                     Boolean?                       @default(false)
   dim_shift                                             dim_shift?                     @relation(fields: [default_shift_key], references: [shift_key], onDelete: NoAction, onUpdate: NoAction)
   fact_corridor_performance                             fact_corridor_performance[]
+  fact_citizen_report                                   fact_citizen_report[]
   fact_event_fact_event_end_time_keyTodim_time_of_day   fact_event[]                   @relation("fact_event_end_time_keyTodim_time_of_day")
   fact_event_fact_event_start_time_keyTodim_time_of_day fact_event[]                   @relation("fact_event_start_time_keyTodim_time_of_day")
   fact_incident                                         fact_incident[]
@@ -258,17 +262,42 @@ model fact_event {
   @@index([location_key], map: "idx_fact_event_location")
 }
 
-enum incident_source {
-  SENSOR
-  ADMIN
-  USER_REPORT
+enum citizen_report_status {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
-enum incident_status {
-  PENDING
-  VERIFIED
-  REJECTED
-  RESOLVED
+model fact_citizen_report {
+  report_key            BigInt                  @id @default(autoincrement())
+  time_key              Int
+  date_key              Int
+  segment_key           BigInt
+  location_key          BigInt?
+  incident_type         String                  @db.VarChar(50)
+  description           String?
+  image_url             String?
+  timestamp             DateTime                @db.Timestamp(6)
+  geometry              Unsupported("geometry")
+  reporter_id           String                  @db.VarChar(255)
+  status                citizen_report_status   @default(PENDING)
+  moderation_note       String?
+  moderated_by          String?                 @db.VarChar(255)
+  approved_incident_key BigInt?
+  approved_at           DateTime?               @db.Timestamp(6)
+  rejected_at           DateTime?               @db.Timestamp(6)
+  created_at            DateTime                @default(now()) @db.Timestamp(6)
+  updated_at            DateTime                @default(now()) @db.Timestamp(6)
+  dim_date              dim_date                @relation(fields: [date_key], references: [date_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_location          dim_location?           @relation(fields: [location_key], references: [location_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_segment           dim_segment             @relation(fields: [segment_key], references: [segment_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_time_of_day       dim_time_of_day         @relation(fields: [time_key], references: [time_key], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([status], map: "idx_fact_citizen_report_status")
+  @@index([reporter_id], map: "idx_fact_citizen_report_reporter")
+  @@index([created_at], map: "idx_fact_citizen_report_created")
+  @@index([geometry], map: "idx_fact_citizen_report_geom_gist", type: Gist)
+  @@index([approved_incident_key], map: "idx_fact_citizen_report_approved_incident")
 }
 
 /// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
@@ -285,11 +314,6 @@ model fact_incident {
   geometry        Unsupported("geometry")?
   is_simulated    Boolean?                 @default(false)
   is_active       Boolean?                 @default(true)
-  source          incident_source          @default(SENSOR)
-  status          incident_status          @default(VERIFIED)
-  reporter_id     String?                  @db.VarChar(255)
-  image_url       String?
-  upvotes         Int                      @default(0)
   inserted_at     DateTime                 @default(now()) @db.Timestamp(6)
   quality_flag    Int?                     @default(1) @db.SmallInt
   dim_date        dim_date                 @relation(fields: [date_key], references: [date_key], onDelete: NoAction, onUpdate: NoAction)
@@ -305,8 +329,6 @@ model fact_incident {
   @@index([segment_key], map: "idx_fact_incident_segment")
   @@index([segment_key, date_key], map: "idx_fact_incident_segment_date")
   @@index([timestamp], map: "idx_fact_incident_ts_brin", type: Brin)
-  @@index([status], map: "idx_fact_incident_status")
-  @@index([reporter_id], map: "idx_fact_incident_reporter")
 }
 
 model fact_simulation_scenario {

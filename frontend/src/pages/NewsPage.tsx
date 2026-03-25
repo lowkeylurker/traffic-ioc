@@ -1,12 +1,15 @@
 import { userApi } from '@/services/api'
-import { NewsFeedResponse, UserNewsItem } from '@/types'
+import { CitizenReportItem, NewsFeedResponse, UserNewsItem } from '@/types'
 import {
   CameraOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
   EnvironmentOutlined,
   ExclamationCircleOutlined,
   FireOutlined,
   PlusOutlined,
   ReloadOutlined,
+  StopOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons'
 import { useAuth } from '@clerk/clerk-react'
@@ -24,6 +27,8 @@ import {
   Modal,
   Select,
   Space,
+  Statistic,
+  Tabs,
   Tag,
   Typography,
   Upload,
@@ -47,9 +52,9 @@ dayjs.extend(relativeTime)
 type IncidentReportType = 'ACCIDENT' | 'FLOOD' | 'CONGESTION'
 
 const INCIDENT_OPTIONS: Array<{ label: string; value: IncidentReportType }> = [
-  { label: 'Tai nan', value: 'ACCIDENT' },
-  { label: 'Ngap', value: 'FLOOD' },
-  { label: 'Tac duong', value: 'CONGESTION' },
+  { label: 'Tai nạn', value: 'ACCIDENT' },
+  { label: 'Ngập', value: 'FLOOD' },
+  { label: 'Tắc đường', value: 'CONGESTION' },
 ]
 
 const getIncidentIcon = (type: string) => {
@@ -92,6 +97,28 @@ const getIncidentMarkerColor = (type: string): string => {
   return '#6b7280'
 }
 
+const reportStatusColor = (status: string): string => {
+  const normalized = status.toUpperCase()
+  if (normalized === 'APPROVED') return 'green'
+  if (normalized === 'REJECTED') return 'red'
+  return 'gold'
+}
+
+const reportStatusLabel = (status: string): string => {
+  const normalized = status.toUpperCase()
+  if (normalized === 'APPROVED') return 'Đã duyệt'
+  if (normalized === 'REJECTED') return 'Đã từ chối'
+  return 'Chờ duyệt'
+}
+
+const incidentTypeLabel = (type: string): string => {
+  const normalized = type.toUpperCase()
+  if (normalized === 'ACCIDENT') return 'Tai nạn'
+  if (normalized === 'FLOOD') return 'Ngập'
+  if (normalized === 'CONGESTION') return 'Tắc đường'
+  return type
+}
+
 export const NewsPage: React.FC = () => {
   const { isSignedIn } = useAuth()
   const [messageApi, contextHolder] = message.useMessage()
@@ -109,6 +136,7 @@ export const NewsPage: React.FC = () => {
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(
     null
   )
+  const [activeLeftTab, setActiveLeftTab] = useState<'feed' | 'mine'>('feed')
   const [reportForm] = Form.useForm()
   const [viewState, setViewState] = useState<ViewState>(DEFAULT_VIEW_STATE)
   const incidentCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -268,6 +296,7 @@ export const NewsPage: React.FC = () => {
       setSelectedFile(null)
       reportForm.resetFields()
       refetch()
+      refetchOwnReports()
     },
     onError: (error: AxiosError<{ message?: string }>) => {
       const apiMessage =
@@ -278,6 +307,32 @@ export const NewsPage: React.FC = () => {
   })
 
   const cards = useMemo(() => data?.items || [], [data])
+
+  const {
+    data: ownReports,
+    isLoading: ownReportsLoading,
+    refetch: refetchOwnReports,
+  } = useQuery({
+    queryKey: ['my-citizen-reports'],
+    enabled: Boolean(isSignedIn),
+    queryFn: async () => {
+      const response = await userApi.getMyReports()
+      return response.data?.items ?? []
+    },
+  })
+
+  const ownReportStats = useMemo(() => {
+    const source = ownReports ?? []
+    const pending = source.filter((item) => item.status === 'PENDING').length
+    const approved = source.filter((item) => item.status === 'APPROVED').length
+    const rejected = source.filter((item) => item.status === 'REJECTED').length
+    return {
+      total: source.length,
+      pending,
+      approved,
+      rejected,
+    }
+  }, [ownReports])
 
   const handleMapCoordinatePick = useCallback(
     (evt: MapLayerMouseEvent) => {
@@ -356,30 +411,48 @@ export const NewsPage: React.FC = () => {
 
       <div className="news-left-column">
         <div style={{ padding: 12 }}>
-          <Space
+          <Card
             style={{
-              width: '100%',
-              display: 'flex',
-              justifyContent: 'space-between',
               marginBottom: 12,
-              alignItems: 'center',
+              background:
+                'linear-gradient(135deg, rgba(22,119,255,0.12) 0%, rgba(56,189,248,0.08) 100%)',
+              border: '1px solid rgba(22,119,255,0.18)',
             }}
           >
-            <Typography.Title level={4} style={{ margin: 0 }}>
-              Tin tức giao thông quanh bạn
-            </Typography.Title>
-            <Button
-              icon={<ReloadOutlined />}
-              size="large"
-              loading={isFetching}
-              onClick={() => refetch()}
+            <Space
+              style={{
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+              wrap
             >
-              Làm mới
-            </Button>
-          </Space>
+              <div>
+                <Typography.Title level={4} style={{ margin: 0 }}>
+                  Tin tức giao thông quanh bạn
+                </Typography.Title>
+                <Typography.Text type="secondary">
+                  Cập nhật sự cố theo vị trí hiện tại và theo dõi trạng thái các
+                  báo cáo bạn đã gửi.
+                </Typography.Text>
+              </div>
+              <Button
+                icon={<ReloadOutlined />}
+                size="large"
+                loading={isFetching}
+                onClick={() => {
+                  refetch()
+                  refetchOwnReports()
+                }}
+              >
+                Làm mới
+              </Button>
+            </Space>
+          </Card>
 
           <Card style={{ marginBottom: 12 }}>
-            <Space direction="vertical" style={{ width: '100%' }}>
+            <Space direction="vertical" style={{ width: '100%' }} size={10}>
               <Typography.Text type="secondary">
                 Vị trí hiện tại
               </Typography.Text>
@@ -387,16 +460,31 @@ export const NewsPage: React.FC = () => {
               {coords ? (
                 <Space wrap>
                   <Tag icon={<EnvironmentOutlined />} color="blue">
-                    Vi do: {coords.lat}
+                    Vĩ độ: {coords.lat}
                   </Tag>
                   <Tag icon={<EnvironmentOutlined />} color="geekblue">
-                    Kinh do: {coords.long}
+                    Kinh độ: {coords.long}
                   </Tag>
                   {locationAccuracyM !== null ? (
-                    <Tag color="processing">Sai so: ~{locationAccuracyM} m</Tag>
+                    <Tag color="processing">Sai số: ~{locationAccuracyM} m</Tag>
                   ) : null}
                 </Space>
               ) : null}
+
+              <Space wrap style={{ width: '100%' }}>
+                <Card size="small" style={{ minWidth: 140 }}>
+                  <Statistic title="Sự cố quanh bạn" value={cards.length} />
+                </Card>
+                <Card size="small" style={{ minWidth: 140 }}>
+                  <Statistic
+                    title="Báo cáo của bạn"
+                    value={ownReportStats.total}
+                  />
+                </Card>
+                <Card size="small" style={{ minWidth: 140 }}>
+                  <Statistic title="Chờ duyệt" value={ownReportStats.pending} />
+                </Card>
+              </Space>
 
               {locationError ? (
                 <Alert type="warning" message={locationError} />
@@ -405,8 +493,8 @@ export const NewsPage: React.FC = () => {
               {isPickingLocation ? (
                 <Alert
                   type="info"
-                  message="Dang chon lai toa do"
-                  description="Nhan vao vi tri chinh xac tren ban do ben phai de cap nhat."
+                  message="Đang chọn lại tọa độ"
+                  description="Nhấn vào vị trí chính xác trên bản đồ bên phải để cập nhật."
                   showIcon
                 />
               ) : null}
@@ -433,72 +521,178 @@ export const NewsPage: React.FC = () => {
           </Card>
 
           <Card bodyStyle={{ padding: 8 }}>
-            <List
-              loading={isLoading}
-              dataSource={cards}
-              locale={{
-                emptyText: (
-                  <Empty description="Chưa có sự cố nào xảy ra xung quanh bạn" />
-                ),
-              }}
-              renderItem={(item: UserNewsItem) => (
-                <List.Item key={item.incidentId} style={{ padding: 8 }}>
-                  <div
-                    ref={(el) => {
-                      incidentCardRefs.current[item.incidentId] = el
-                    }}
-                    style={{ width: '100%' }}
-                  >
-                    <Card
-                      style={{ width: '100%' }}
-                      bodyStyle={{ padding: 12 }}
-                      size="small"
-                      hoverable
-                      onClick={() => focusIncident(item, false)}
-                      className={
-                        selectedIncidentId === item.incidentId
-                          ? 'incident-card-selected'
-                          : ''
-                      }
-                    >
-                      <Space style={{ width: '100%' }} align="start">
-                        <div style={{ marginTop: 2 }}>
-                          {getIncidentIcon(item.incidentType)}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <Typography.Text strong>
-                            {item.roadName}
-                          </Typography.Text>
-                          <div>
-                            <Tag>{item.incidentType}</Tag>
-                            <Tag color="default">
-                              {dayjs(item.occurredAt).fromNow()}
-                            </Tag>
-                            <Tag color="purple">
-                              {item.distanceKm.toFixed(2)} km
-                            </Tag>
-                          </div>
-                        </div>
-                      </Space>
-
-                      {item.imageUrl ? (
-                        <div style={{ marginTop: 10 }}>
-                          <Image
-                            src={item.imageUrl}
-                            alt="incident"
-                            width="100%"
-                            style={{
-                              borderRadius: 8,
-                              objectFit: 'cover',
-                              maxHeight: 220,
+            <Tabs
+              activeKey={activeLeftTab}
+              onChange={(value) => setActiveLeftTab(value as 'feed' | 'mine')}
+              items={[
+                {
+                  key: 'feed',
+                  label: 'Sự cố quanh bạn',
+                  children: (
+                    <List
+                      loading={isLoading}
+                      dataSource={cards}
+                      locale={{
+                        emptyText: (
+                          <Empty description="Chưa có sự cố nào xảy ra xung quanh bạn" />
+                        ),
+                      }}
+                      renderItem={(item: UserNewsItem) => (
+                        <List.Item key={item.incidentId} style={{ padding: 8 }}>
+                          <div
+                            ref={(el) => {
+                              incidentCardRefs.current[item.incidentId] = el
                             }}
-                          />
-                        </div>
-                      ) : null}
-                    </Card>
-                  </div>
-                </List.Item>
-              )}
+                            style={{ width: '100%' }}
+                          >
+                            <Card
+                              style={{ width: '100%' }}
+                              bodyStyle={{ padding: 12 }}
+                              size="small"
+                              hoverable
+                              onClick={() => focusIncident(item, false)}
+                              className={
+                                selectedIncidentId === item.incidentId
+                                  ? 'incident-card-selected'
+                                  : ''
+                              }
+                            >
+                              <Space style={{ width: '100%' }} align="start">
+                                <div style={{ marginTop: 2 }}>
+                                  {getIncidentIcon(item.incidentType)}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <Typography.Text strong>
+                                    {item.roadName}
+                                  </Typography.Text>
+                                  <div>
+                                    <Tag>
+                                      {incidentTypeLabel(item.incidentType)}
+                                    </Tag>
+                                    <Tag color="default">
+                                      {dayjs(item.occurredAt).fromNow()}
+                                    </Tag>
+                                    <Tag color="purple">
+                                      {item.distanceKm.toFixed(2)} km
+                                    </Tag>
+                                  </div>
+                                </div>
+                              </Space>
+
+                              {item.imageUrl ? (
+                                <div style={{ marginTop: 10 }}>
+                                  <Image
+                                    src={item.imageUrl}
+                                    alt="incident"
+                                    width="100%"
+                                    style={{
+                                      borderRadius: 8,
+                                      objectFit: 'cover',
+                                      maxHeight: 220,
+                                    }}
+                                  />
+                                </div>
+                              ) : null}
+                            </Card>
+                          </div>
+                        </List.Item>
+                      )}
+                    />
+                  ),
+                },
+                {
+                  key: 'mine',
+                  label: 'Báo cáo của tôi',
+                  children: (
+                    <List
+                      loading={ownReportsLoading}
+                      dataSource={ownReports || []}
+                      locale={{
+                        emptyText: (
+                          <Empty description="Bạn chưa gửi báo cáo sự cố nào" />
+                        ),
+                      }}
+                      renderItem={(item: CitizenReportItem) => (
+                        <List.Item key={item.reportId} style={{ padding: 8 }}>
+                          <Card
+                            style={{ width: '100%' }}
+                            bodyStyle={{ padding: 12 }}
+                            size="small"
+                          >
+                            <Space style={{ width: '100%' }} align="start">
+                              <div style={{ marginTop: 2 }}>
+                                {item.status === 'APPROVED' ? (
+                                  <CheckCircleOutlined
+                                    style={{ color: '#16a34a', fontSize: 18 }}
+                                  />
+                                ) : item.status === 'REJECTED' ? (
+                                  <StopOutlined
+                                    style={{ color: '#dc2626', fontSize: 18 }}
+                                  />
+                                ) : (
+                                  <ClockCircleOutlined
+                                    style={{ color: '#d97706', fontSize: 18 }}
+                                  />
+                                )}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <Typography.Text strong>
+                                  {item.roadName}
+                                </Typography.Text>
+                                <div>
+                                  <Tag>
+                                    {incidentTypeLabel(item.incidentType)}
+                                  </Tag>
+                                  <Tag color={reportStatusColor(item.status)}>
+                                    {reportStatusLabel(item.status)}
+                                  </Tag>
+                                  <Tag color="default">
+                                    {dayjs(item.occurredAt).format(
+                                      'DD/MM/YYYY HH:mm'
+                                    )}
+                                  </Tag>
+                                </div>
+                                {item.description ? (
+                                  <Typography.Text type="secondary">
+                                    {item.description}
+                                  </Typography.Text>
+                                ) : null}
+                                {item.moderationNote ? (
+                                  <Alert
+                                    style={{ marginTop: 8 }}
+                                    type={
+                                      item.status === 'REJECTED'
+                                        ? 'error'
+                                        : 'success'
+                                    }
+                                    message={item.moderationNote}
+                                    showIcon
+                                  />
+                                ) : null}
+                              </div>
+                            </Space>
+
+                            {item.imageUrl ? (
+                              <div style={{ marginTop: 10 }}>
+                                <Image
+                                  src={item.imageUrl}
+                                  alt="report"
+                                  width="100%"
+                                  style={{
+                                    borderRadius: 8,
+                                    objectFit: 'cover',
+                                    maxHeight: 220,
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </Card>
+                        </List.Item>
+                      )}
+                    />
+                  ),
+                },
+              ]}
             />
           </Card>
         </div>

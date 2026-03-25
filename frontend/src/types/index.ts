@@ -119,9 +119,33 @@ export interface NewsFeedResponse {
   items: UserNewsItem[]
 }
 
+export type CitizenReportStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export interface CitizenReportItem {
+  reportId: string
+  incidentType: string
+  status: CitizenReportStatus
+  description: string | null
+  imageUrl: string | null
+  moderationNote: string | null
+  roadName: string
+  occurredAt: string
+  updatedAt: string
+  location: {
+    lat: number
+    long: number
+  }
+  distanceKm?: number
+  reporterId?: string
+}
+
+export interface CitizenReportListResponse {
+  items: CitizenReportItem[]
+}
+
 export interface IncidentReportCreateResponse {
   reportId: string
-  status: 'PENDING' | 'VERIFIED' | 'REJECTED' | 'RESOLVED'
+  status: CitizenReportStatus
   message: string
 }
 

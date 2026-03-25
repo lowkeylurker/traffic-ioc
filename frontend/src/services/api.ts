@@ -2,6 +2,7 @@
 
 import {
   ApiResponse,
+  CitizenReportListResponse,
   ForecastData,
   IncidentCollection,
   IncidentReportCreateResponse,
@@ -141,6 +142,22 @@ export const userApi = {
         'Content-Type': 'multipart/form-data',
       },
     }),
+
+  getMyReports: (params?: {
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED'
+  }): Promise<ApiResponse<CitizenReportListResponse>> =>
+    axiosInstance.get('/user/reports/me', { params }),
+
+  getReportsForAdmin: (params?: {
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED'
+  }): Promise<ApiResponse<CitizenReportListResponse>> =>
+    axiosInstance.get('/user/reports', { params }),
+
+  moderateReport: (
+    reportId: string,
+    payload: { status: 'APPROVED' | 'REJECTED'; note?: string }
+  ): Promise<ApiResponse<null>> =>
+    axiosInstance.patch(`/user/report/${reportId}/status`, payload),
 }
 
 export default axiosInstance

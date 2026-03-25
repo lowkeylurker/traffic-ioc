@@ -20,6 +20,14 @@ router.patch('/report/:id', authMiddleware, imageUpload.single('image'), (req, r
   userIncidentController.updateOwnReport(req, res, next)
 );
 
+// GET /api/v1/user/reports/me (owner reports)
+router.get('/reports/me', authMiddleware, (req, res, next) => userIncidentController.getOwnReports(req, res, next));
+
+// GET /api/v1/user/reports (admin moderation list)
+router.get('/reports', authMiddleware, adminOnly, (req, res, next) =>
+  userIncidentController.getReportsForAdmin(req, res, next)
+);
+
 // PATCH /api/v1/user/report/:id/status (admin moderation)
 router.patch('/report/:id/status', authMiddleware, adminOnly, (req, res, next) =>
   userIncidentController.moderateReport(req, res, next)

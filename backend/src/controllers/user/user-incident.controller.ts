@@ -66,7 +66,7 @@ export class UserIncidentController {
           {
             reportId: created.reportId,
             status: created.status,
-            message: 'Cam on, bao cao dang cho duyet',
+            message: 'Cảm ơn, báo cáo đang chờ duyệt',
           },
           'Report submitted successfully',
           201
@@ -106,12 +106,40 @@ export class UserIncidentController {
     }
   }
 
+  async getOwnReports(req: AuthedRequest, res: Response, _next: NextFunction) {
+    try {
+      const reporterId = req.auth?.userId;
+      if (!reporterId) {
+        return res.status(401).json(ResponseUtil.error('Authentication required', 401));
+      }
+
+      const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+      const items = await userIncidentService.getOwnReports(reporterId, status);
+      return res.json(ResponseUtil.success({ items }, 'Own reports fetched successfully'));
+    } catch (error) {
+      return res.status(400).json(ResponseUtil.badRequest((error as Error).message));
+    }
+  }
+
+  async getReportsForAdmin(req: Request, res: Response, _next: NextFunction) {
+    try {
+      const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+      const items = await userIncidentService.getReportsForAdmin(status);
+      return res.json(ResponseUtil.success({ items }, 'Citizen reports fetched successfully'));
+    } catch (error) {
+      return res.status(400).json(ResponseUtil.badRequest((error as Error).message));
+    }
+  }
+
   async moderateReport(req: Request, res: Response, _next: NextFunction) {
     try {
+      const authedReq = req as AuthedRequest;
       const { id } = req.params;
       const status = String(req.body.status || '');
+      const moderationNote = typeof req.body.note === 'string' ? req.body.note : undefined;
+      const moderatorId = authedReq.auth?.userId;
 
-      await userIncidentService.moderateReport(id, status);
+      await userIncidentService.moderateReport(id, status, moderatorId, moderationNote);
       return res.json(ResponseUtil.success(null, 'Report moderation status updated'));
     } catch (error) {
       return res.status(400).json(ResponseUtil.badRequest((error as Error).message));
