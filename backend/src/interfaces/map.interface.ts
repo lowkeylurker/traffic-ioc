@@ -9,6 +9,8 @@ export interface GeoJSONFeature {
   properties: {
     segmentId: number;
     segmentName: string;
+    roadKey?: string;
+    roadName?: string;
     avgSpeed: number; // Đơn vị: km/h
     losIndex: string; // Mức độ phục vụ: 'A' -> 'F'
     color: string; // Mã màu Hex (#FF0000, #00FF00...)

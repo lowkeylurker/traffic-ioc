@@ -68,6 +68,37 @@ interface DeltaBarChartProps {
   metricLabel: string
 }
 
+interface DeltaPercentBarChartProps {
+  data: ComparisonDataPoint[]
+}
+
+interface RollingAverageChartProps {
+  data: ComparisonDataPoint[]
+  metricLabel: string
+  windows: Array<3 | 6>
+}
+
+interface CumulativeMetricChartProps {
+  data: ComparisonDataPoint[]
+  metricLabel: string
+}
+
+interface MultiTimeframeComparisonChartProps {
+  todayData: ComparisonDataPoint[]
+  yesterdayData: ComparisonDataPoint[]
+  lastWeekData: ComparisonDataPoint[]
+  metricLabel: string
+}
+
+interface TrendPoint {
+  label: string
+  value: number | null
+}
+
+interface MiniSparklineChartProps {
+  points: TrendPoint[]
+}
+
 interface AnomalyDistributionChartProps {
   data: ComparisonDataPoint[]
 }
@@ -84,6 +115,20 @@ const formatValue = (value: number | null, unit: string) => {
 }
 
 const getHourLabel = (hour: number) => `${hour.toString().padStart(2, '0')}:00`
+
+const movingAverage = (values: Array<number | null>, windowSize: number) => {
+  return values.map((_, idx) => {
+    const start = Math.max(0, idx - windowSize + 1)
+    const chunk = values.slice(start, idx + 1).filter((value) => value !== null)
+
+    if (chunk.length === 0) {
+      return null
+    }
+
+    const sum = chunk.reduce((acc, value) => acc + Number(value), 0)
+    return sum / chunk.length
+  })
+}
 
 export const ComparisonChart: React.FC<ComparisonChartProps> = ({
   data,
@@ -414,6 +459,329 @@ export const ComparisonDeltaBarChart: React.FC<DeltaBarChartProps> = ({
   }
 
   return <Bar data={chartData} options={options} />
+}
+
+export const ComparisonDeltaPercentBarChart: React.FC<
+  DeltaPercentBarChartProps
+> = ({ data }) => {
+  const labels = data.map((point) => getHourLabel(point.hour))
+  const deltas = data.map((point) => {
+    if (point.todayValue === null || point.baselineAvg === null) {
+      return null
+    }
+
+    if (point.baselineAvg === 0) {
+      return null
+    }
+
+    return ((point.todayValue - point.baselineAvg) / point.baselineAvg) * 100
+  })
+
+  const chartData = {
+    labels,
+    datasets: [
+      {
+        label: 'Delta % so với Baseline',
+        data: deltas,
+        backgroundColor: deltas.map((delta) => {
+          if (delta === null) {
+            return 'rgba(201, 201, 201, 0.45)'
+          }
+          return delta >= 0
+            ? 'rgba(82, 196, 26, 0.65)'
+            : 'rgba(255, 77, 79, 0.7)'
+        }),
+        borderColor: deltas.map((delta) => {
+          if (delta === null) {
+            return '#d9d9d9'
+          }
+          return delta >= 0 ? '#52c41a' : '#ff4d4f'
+        }),
+        borderWidth: 1,
+      },
+    ],
+  }
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      tooltip: {
+        callbacks: {
+          label: (context: { raw: number | null }) => {
+            const value = context.raw
+            if (value === null) {
+              return 'N/A'
+            }
+            return `Delta: ${value.toFixed(2)}%`
+          },
+        },
+      },
+    },
+    scales: {
+      y: {
+        title: {
+          display: true,
+          text: 'Delta (%)',
+        },
+      },
+      x: {
+        title: {
+          display: true,
+          text: 'Khung giờ',
+        },
+      },
+    },
+  }
+
+  return <Bar data={chartData} options={options} />
+}
+
+export const RollingAverageChart: React.FC<RollingAverageChartProps> = ({
+  data,
+  metricLabel,
+  windows,
+}) => {
+  const labels = data.map((point) => getHourLabel(point.hour))
+  const raw = data.map((point) => point.todayValue)
+  const unit = data[0]?.unit ?? ''
+
+  const datasets = [
+    {
+      label: 'Today (raw)',
+      data: raw,
+      borderColor: '#13c2c2',
+      backgroundColor: 'rgba(19, 194, 194, 0.18)',
+      borderWidth: 2,
+      tension: 0.25,
+      pointRadius: 2,
+    },
+  ]
+
+  windows.forEach((windowSize) => {
+    datasets.push({
+      label: `MA ${windowSize}h`,
+      data: movingAverage(raw, windowSize),
+      borderColor: windowSize === 3 ? '#1677ff' : '#fa8c16',
+      backgroundColor:
+        windowSize === 3
+          ? 'rgba(22, 119, 255, 0.15)'
+          : 'rgba(250, 140, 22, 0.15)',
+      borderWidth: 2,
+      tension: 0.28,
+      pointRadius: 1.5,
+    })
+  })
+
+  const chartData = {
+    labels,
+    datasets,
+  }
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: `${metricLabel} (${unit})`,
+        },
+      },
+      x: {
+        title: {
+          display: true,
+          text: 'Khung giờ',
+        },
+      },
+    },
+  }
+
+  return <Line data={chartData} options={options} />
+}
+
+export const CumulativeMetricChart: React.FC<CumulativeMetricChartProps> = ({
+  data,
+  metricLabel,
+}) => {
+  const labels = data.map((point) => getHourLabel(point.hour))
+  const unit = data[0]?.unit ?? ''
+
+  let running = 0
+  const cumulative = data.map((point) => {
+    if (point.todayValue !== null) {
+      running += point.todayValue
+    }
+    return running
+  })
+
+  const chartData = {
+    labels,
+    datasets: [
+      {
+        label: `Lũy kế ${metricLabel}`,
+        data: cumulative,
+        borderColor: '#fa8c16',
+        backgroundColor: 'rgba(250, 140, 22, 0.2)',
+        borderWidth: 2,
+        tension: 0.2,
+        fill: true,
+        pointRadius: 2,
+      },
+    ],
+  }
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: `${metricLabel} tích lũy (${unit})`,
+        },
+      },
+      x: {
+        title: {
+          display: true,
+          text: 'Khung giờ',
+        },
+      },
+    },
+  }
+
+  return <Line data={chartData} options={options} />
+}
+
+export const MultiTimeframeComparisonChart: React.FC<
+  MultiTimeframeComparisonChartProps
+> = ({ todayData, yesterdayData, lastWeekData, metricLabel }) => {
+  const labels = todayData.map((point) => getHourLabel(point.hour))
+  const unit = todayData[0]?.unit ?? ''
+
+  const chartData = {
+    labels,
+    datasets: [
+      {
+        label: 'Ngày chọn',
+        data: todayData.map((point) => point.todayValue),
+        borderColor: '#13c2c2',
+        backgroundColor: 'rgba(19, 194, 194, 0.2)',
+        borderWidth: 2,
+        tension: 0.2,
+      },
+      {
+        label: 'Hôm qua',
+        data: yesterdayData.map((point) => point.todayValue),
+        borderColor: '#1677ff',
+        backgroundColor: 'rgba(22, 119, 255, 0.16)',
+        borderWidth: 2,
+        tension: 0.2,
+      },
+      {
+        label: 'Tuần trước cùng thứ',
+        data: lastWeekData.map((point) => point.todayValue),
+        borderColor: '#722ed1',
+        backgroundColor: 'rgba(114, 46, 209, 0.16)',
+        borderWidth: 2,
+        tension: 0.2,
+      },
+    ],
+  }
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: `${metricLabel} (${unit})`,
+        },
+      },
+      x: {
+        title: {
+          display: true,
+          text: 'Khung giờ',
+        },
+      },
+    },
+  }
+
+  return <Line data={chartData} options={options} />
+}
+
+export const MiniSparklineChart: React.FC<MiniSparklineChartProps> = ({
+  points,
+}) => {
+  const labels = points.map((point) => point.label)
+
+  const chartData = {
+    labels,
+    datasets: [
+      {
+        label: 'Trend 7 ngày',
+        data: points.map((point) => point.value),
+        borderColor: '#1677ff',
+        backgroundColor: 'rgba(22, 119, 255, 0.16)',
+        borderWidth: 2,
+        tension: 0.35,
+        fill: true,
+        pointRadius: 2,
+      },
+    ],
+  }
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false,
+      },
+      tooltip: {
+        callbacks: {
+          label: (context: { raw: number | null }) => {
+            if (context.raw === null) {
+              return 'N/A'
+            }
+            return `Giá trị TB: ${Number(context.raw).toFixed(2)}`
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        display: false,
+      },
+      y: {
+        display: false,
+      },
+    },
+  }
+
+  return <Line data={chartData} options={options} />
 }
 
 export const AnomalyDistributionChart: React.FC<

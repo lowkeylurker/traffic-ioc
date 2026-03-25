@@ -9,6 +9,8 @@ export interface GeoJSONFeature {
   properties: {
     segmentId: number
     segmentName: string
+    roadKey?: string
+    roadName?: string
     avgSpeed: number
     losIndex: string
     color: string
