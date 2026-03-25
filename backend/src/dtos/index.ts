@@ -65,3 +65,10 @@ export const ComparisonQuerySchema = z
 export type ComparisonMetricDto = z.infer<typeof ComparisonMetricSchema>;
 export type ComparisonQueryDto = z.infer<typeof ComparisonQuerySchema>;
 export type ComparisonScopeDto = z.infer<typeof ComparisonScopeSchema>;
+
+export const CorridorDashboardQuerySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be in YYYY-MM-DD format'),
+  corridorKey: z.string().regex(/^\d+$/, 'corridorKey must be numeric').optional(),
+});
+
+export type CorridorDashboardQueryDto = z.infer<typeof CorridorDashboardQuerySchema>;

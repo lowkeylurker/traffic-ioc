@@ -32,6 +32,22 @@ router.get('/comparison', authMiddleware, adminOnly, (req, res, next) =>
 );
 
 /**
+ * GET /api/v1/analytics/corridors
+ * Lấy danh sách hành lang giao thông
+ */
+router.get('/corridors', authMiddleware, adminOnly, (req, res, next) =>
+  analyticsController.getCorridorOptions(req, res, next)
+);
+
+/**
+ * GET /api/v1/analytics/corridor-dashboard
+ * Lấy dữ liệu dashboard hành lang (MVP + nâng cao)
+ */
+router.get('/corridor-dashboard', authMiddleware, adminOnly, (req, res, next) =>
+  analyticsController.getCorridorDashboard(req, res, next)
+);
+
+/**
  * GET /api/v1/analytics/reliability-ranking
  * Lấy bảng xếp hạng Top 10 đoạn đường có Buffer Index cao nhất
  */

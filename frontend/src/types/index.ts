@@ -174,6 +174,78 @@ export interface ComparisonQueryParams {
   date: string
 }
 
+export interface CorridorAnalyticsOption {
+  corridorKey: string
+  corridorName: string
+  importanceLevel: number | null
+  targetAvgSpeed: number | null
+}
+
+export interface CorridorKpi {
+  avgCorridorSpeed: number | null
+  targetAvgSpeed: number | null
+  totalDelaySeconds: number | null
+  travelTimeIndex: number | null
+  corridorEfficiency: number | null
+  activeIncidentCount: number | null
+}
+
+export interface CorridorSpeedTargetPoint {
+  hour: number
+  avgCorridorSpeed: number | null
+  targetAvgSpeed: number | null
+}
+
+export interface CorridorTtiPoint {
+  hour: number
+  travelTimeIndex: number | null
+}
+
+export interface CorridorDelayRankingItem {
+  corridorKey: string
+  corridorName: string
+  totalDelaySeconds: number
+}
+
+export interface CorridorHeatmapCell {
+  corridorKey: string
+  corridorName: string
+  hour: number
+  travelTimeIndex: number | null
+}
+
+export interface CorridorBottleneckItem {
+  segmentKey: string
+  count: number
+}
+
+export interface CorridorAlerts {
+  isBelowTargetSpeed: boolean
+  isHighTti: boolean
+  isHighIncidentCount: boolean
+}
+
+export interface CorridorBaselineComparison {
+  speedDeltaPct: number | null
+  delayDeltaPct: number | null
+}
+
+export interface CorridorDashboardData {
+  kpis: CorridorKpi
+  speedVsTarget: CorridorSpeedTargetPoint[]
+  ttiHourly: CorridorTtiPoint[]
+  topDelayCorridors: CorridorDelayRankingItem[]
+  heatmap: CorridorHeatmapCell[]
+  topBottlenecks: CorridorBottleneckItem[]
+  alerts: CorridorAlerts
+  baselineComparison: CorridorBaselineComparison
+}
+
+export interface CorridorDashboardQueryParams {
+  date: string
+  corridorKey?: string
+}
+
 export interface ForecastData {
   segmentId: number
   predictedSpeed: number

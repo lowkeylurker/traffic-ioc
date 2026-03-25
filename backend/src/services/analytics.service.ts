@@ -1,7 +1,15 @@
 // Analytics Service - Xử lý logic phân tích & thống kê
 
 import { prisma } from '../config/prisma';
-import { ComparisonMetric, ComparisonPoint, ComparisonQuery, VehicleMixData } from '../interfaces/index';
+import {
+  ComparisonMetric,
+  ComparisonPoint,
+  ComparisonQuery,
+  CorridorDashboardData,
+  CorridorDashboardQuery,
+  CorridorOption,
+  VehicleMixData,
+} from '../interfaces/index';
 import { AppError } from '../middlewares/error.middleware';
 import { Logger } from '../utils/logger';
 
@@ -334,6 +342,250 @@ export class AnalyticsService {
       return result;
     } catch (error) {
       logger.error('Error fetching comparison data', error);
+      throw error;
+    }
+  }
+
+  async getCorridorOptions(): Promise<CorridorOption[]> {
+    try {
+      const rows = await prisma.$queryRawUnsafe<
+        Array<{
+          corridorKey: bigint;
+          corridorName: string;
+          importanceLevel: number | null;
+          targetAvgSpeed: number | null;
+        }>
+      >(`
+        SELECT
+          c.corridor_key AS "corridorKey",
+          c.corridor_name AS "corridorName",
+          c.importance_level AS "importanceLevel",
+          c.target_avg_speed AS "targetAvgSpeed"
+        FROM dim_corridor c
+        ORDER BY c.importance_level DESC NULLS LAST, c.corridor_name ASC
+      `);
+
+      return rows.map((row) => ({
+        corridorKey: row.corridorKey.toString(),
+        corridorName: row.corridorName,
+        importanceLevel: row.importanceLevel,
+        targetAvgSpeed: toNullableNumber(row.targetAvgSpeed),
+      }));
+    } catch (error) {
+      logger.error('Error fetching corridor options', error);
+      throw error;
+    }
+  }
+
+  async getCorridorDashboard(query: CorridorDashboardQuery): Promise<CorridorDashboardData> {
+    try {
+      const corridorKey = query.corridorKey ? BigInt(query.corridorKey) : null;
+
+      const rows = await prisma.$queryRawUnsafe<
+        Array<{
+          corridorKey: bigint;
+          corridorName: string;
+          targetAvgSpeed: number | null;
+          bottleneckSegKey: bigint | null;
+          hour: number;
+          avgCorridorSpeed: number | null;
+          totalDelaySeconds: number | null;
+          travelTimeIndex: number | null;
+          corridorEfficiency: number | null;
+          activeIncidentCount: number | null;
+        }>
+      >(
+        `
+        SELECT
+          c.corridor_key AS "corridorKey",
+          c.corridor_name AS "corridorName",
+          c.target_avg_speed AS "targetAvgSpeed",
+          f.bottleneck_seg_key AS "bottleneckSegKey",
+          EXTRACT(HOUR FROM f.timestamp)::int AS hour,
+          AVG(f.avg_corridor_speed)::numeric AS "avgCorridorSpeed",
+          SUM(f.total_delay_seconds)::numeric AS "totalDelaySeconds",
+          AVG(f.travel_time_index)::numeric AS "travelTimeIndex",
+          AVG(f.corridor_efficiency)::numeric AS "corridorEfficiency",
+          SUM(f.active_incident_count)::numeric AS "activeIncidentCount"
+        FROM fact_corridor_performance f
+        INNER JOIN dim_corridor c ON c.corridor_key = f.corridor_key
+        WHERE f.timestamp >= $1::date
+          AND f.timestamp < ($1::date + INTERVAL '1 day')
+          AND ($2::bigint IS NULL OR f.corridor_key = $2)
+        GROUP BY
+          c.corridor_key,
+          c.corridor_name,
+          c.target_avg_speed,
+          f.bottleneck_seg_key,
+          EXTRACT(HOUR FROM f.timestamp)
+        ORDER BY hour ASC
+      `,
+        query.date,
+        corridorKey
+      );
+
+      const baselineRows = await prisma.$queryRawUnsafe<
+        Array<{
+          avgSpeedBaseline: number | null;
+          delayBaseline: number | null;
+        }>
+      >(
+        `
+        SELECT
+          AVG(f.avg_corridor_speed)::numeric AS "avgSpeedBaseline",
+          AVG(f.total_delay_seconds)::numeric AS "delayBaseline"
+        FROM fact_corridor_performance f
+        WHERE f.timestamp >= ($1::date - INTERVAL '30 days')
+          AND f.timestamp < $1::date
+          AND EXTRACT(ISODOW FROM f.timestamp) = EXTRACT(ISODOW FROM $1::date)
+          AND ($2::bigint IS NULL OR f.corridor_key = $2)
+      `,
+        query.date,
+        corridorKey
+      );
+
+      const kpiSource = rows;
+      const avg = (values: Array<number | null>) => {
+        const valid = values.filter((v): v is number => v !== null && Number.isFinite(v));
+        if (valid.length === 0) return null;
+        return valid.reduce((acc, v) => acc + v, 0) / valid.length;
+      };
+
+      const sum = (values: Array<number | null>) => values.reduce<number>((acc, value) => acc + (value ?? 0), 0);
+
+      const kpis = {
+        avgCorridorSpeed: avg(kpiSource.map((row) => toNullableNumber(row.avgCorridorSpeed))),
+        targetAvgSpeed: avg(kpiSource.map((row) => toNullableNumber(row.targetAvgSpeed))),
+        totalDelaySeconds: sum(kpiSource.map((row) => toNullableNumber(row.totalDelaySeconds))),
+        travelTimeIndex: avg(kpiSource.map((row) => toNullableNumber(row.travelTimeIndex))),
+        corridorEfficiency: avg(kpiSource.map((row) => toNullableNumber(row.corridorEfficiency))),
+        activeIncidentCount: sum(kpiSource.map((row) => toNullableNumber(row.activeIncidentCount))),
+      };
+
+      const hourlyMap = new Map<
+        number,
+        {
+          speedValues: number[];
+          targetValues: number[];
+          ttiValues: number[];
+        }
+      >();
+
+      rows.forEach((row) => {
+        const bucket = hourlyMap.get(row.hour) ?? {
+          speedValues: [],
+          targetValues: [],
+          ttiValues: [],
+        };
+
+        const speed = toNullableNumber(row.avgCorridorSpeed);
+        const target = toNullableNumber(row.targetAvgSpeed);
+        const tti = toNullableNumber(row.travelTimeIndex);
+
+        if (speed !== null) bucket.speedValues.push(speed);
+        if (target !== null) bucket.targetValues.push(target);
+        if (tti !== null) bucket.ttiValues.push(tti);
+
+        hourlyMap.set(row.hour, bucket);
+      });
+
+      const speedVsTarget = Array.from(hourlyMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([hour, value]) => ({
+          hour,
+          avgCorridorSpeed:
+            value.speedValues.length > 0
+              ? value.speedValues.reduce((acc, x) => acc + x, 0) / value.speedValues.length
+              : null,
+          targetAvgSpeed:
+            value.targetValues.length > 0
+              ? value.targetValues.reduce((acc, x) => acc + x, 0) / value.targetValues.length
+              : null,
+        }));
+
+      const ttiHourly = Array.from(hourlyMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([hour, value]) => ({
+          hour,
+          travelTimeIndex:
+            value.ttiValues.length > 0 ? value.ttiValues.reduce((acc, x) => acc + x, 0) / value.ttiValues.length : null,
+        }));
+
+      const delayByCorridor = new Map<string, { corridorName: string; totalDelaySeconds: number }>();
+      rows.forEach((row) => {
+        const key = row.corridorKey.toString();
+        const current = delayByCorridor.get(key) ?? {
+          corridorName: row.corridorName,
+          totalDelaySeconds: 0,
+        };
+        current.totalDelaySeconds += toNullableNumber(row.totalDelaySeconds) ?? 0;
+        delayByCorridor.set(key, current);
+      });
+
+      const topDelayCorridors = Array.from(delayByCorridor.entries())
+        .map(([key, value]) => ({
+          corridorKey: key,
+          corridorName: value.corridorName,
+          totalDelaySeconds: value.totalDelaySeconds,
+        }))
+        .sort((a, b) => b.totalDelaySeconds - a.totalDelaySeconds)
+        .slice(0, 10);
+
+      const heatmap = rows.map((row) => ({
+        corridorKey: row.corridorKey.toString(),
+        corridorName: row.corridorName,
+        hour: row.hour,
+        travelTimeIndex: toNullableNumber(row.travelTimeIndex),
+      }));
+
+      const bottleneckCounter = new Map<string, number>();
+      rows.forEach((row) => {
+        if (row.bottleneckSegKey === null) return;
+        const key = row.bottleneckSegKey.toString();
+        bottleneckCounter.set(key, (bottleneckCounter.get(key) ?? 0) + 1);
+      });
+
+      const topBottlenecks = Array.from(bottleneckCounter.entries())
+        .map(([segmentKey, count]) => ({ segmentKey, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      const baseline = baselineRows[0] ?? { avgSpeedBaseline: null, delayBaseline: null };
+      const speedBaseline = toNullableNumber(baseline.avgSpeedBaseline);
+      const delayBaseline = toNullableNumber(baseline.delayBaseline);
+
+      const speedDeltaPct =
+        speedBaseline && speedBaseline !== 0 && kpis.avgCorridorSpeed !== null
+          ? ((kpis.avgCorridorSpeed - speedBaseline) / speedBaseline) * 100
+          : null;
+
+      const delayDeltaPct =
+        delayBaseline && delayBaseline !== 0 && kpis.totalDelaySeconds !== null
+          ? ((kpis.totalDelaySeconds - delayBaseline) / delayBaseline) * 100
+          : null;
+
+      return {
+        kpis,
+        speedVsTarget,
+        ttiHourly,
+        topDelayCorridors,
+        heatmap,
+        topBottlenecks,
+        alerts: {
+          isBelowTargetSpeed:
+            kpis.avgCorridorSpeed !== null &&
+            kpis.targetAvgSpeed !== null &&
+            kpis.avgCorridorSpeed < kpis.targetAvgSpeed,
+          isHighTti: kpis.travelTimeIndex !== null && kpis.travelTimeIndex > 1.5,
+          isHighIncidentCount: kpis.activeIncidentCount !== null && kpis.activeIncidentCount >= 5,
+        },
+        baselineComparison: {
+          speedDeltaPct,
+          delayDeltaPct,
+        },
+      };
+    } catch (error) {
+      logger.error('Error fetching corridor dashboard data', error);
       throw error;
     }
   }

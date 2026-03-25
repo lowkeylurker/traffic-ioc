@@ -7,6 +7,8 @@ import {
   ComparisonDataPoint,
   ComparisonMetric,
   ComparisonScopeType,
+  CorridorAnalyticsOption,
+  CorridorDashboardData,
   RoadOption,
   TrafficStatus,
   WeatherData,
@@ -265,6 +267,131 @@ export const useAnalyticsComparison = (params: AnalyticsComparisonParams) => {
     loading,
     error,
     refetch: fetchComparison,
+  }
+}
+
+interface CorridorDashboardParams {
+  date: string
+  corridorKey?: string
+}
+
+const emptyCorridorDashboard: CorridorDashboardData = {
+  kpis: {
+    avgCorridorSpeed: null,
+    targetAvgSpeed: null,
+    totalDelaySeconds: null,
+    travelTimeIndex: null,
+    corridorEfficiency: null,
+    activeIncidentCount: null,
+  },
+  speedVsTarget: [],
+  ttiHourly: [],
+  topDelayCorridors: [],
+  heatmap: [],
+  topBottlenecks: [],
+  alerts: {
+    isBelowTargetSpeed: false,
+    isHighTti: false,
+    isHighIncidentCount: false,
+  },
+  baselineComparison: {
+    speedDeltaPct: null,
+    delayDeltaPct: null,
+  },
+}
+
+export const useCorridorOptions = () => {
+  const [corridors, setCorridors] = useState<CorridorAnalyticsOption[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchCorridors = async () => {
+      setLoading(true)
+      try {
+        const response = await analyticsApi.getCorridors()
+        if (response.success && response.data) {
+          setCorridors(response.data)
+          setError(null)
+        }
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : 'Failed to fetch corridors'
+        )
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchCorridors()
+  }, [])
+
+  return { corridors, loading, error }
+}
+
+export const useCorridorDashboard = (params: CorridorDashboardParams) => {
+  const [data, setData] = useState<CorridorDashboardData>(
+    emptyCorridorDashboard
+  )
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  const fetchCorridorDashboard = useCallback(async () => {
+    if (abortRef.current) {
+      abortRef.current.abort()
+    }
+
+    const controller = new AbortController()
+    abortRef.current = controller
+    setLoading(true)
+
+    try {
+      const response = await analyticsApi.getCorridorDashboard(
+        {
+          date: params.date,
+          corridorKey: params.corridorKey,
+        },
+        controller.signal
+      )
+
+      if (response.success && response.data) {
+        setData(response.data)
+        setError(null)
+      } else {
+        setData(emptyCorridorDashboard)
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'CanceledError') {
+        return
+      }
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to fetch corridor dashboard data'
+      )
+      setData(emptyCorridorDashboard)
+    } finally {
+      setLoading(false)
+    }
+  }, [params.corridorKey, params.date])
+
+  useEffect(() => {
+    fetchCorridorDashboard()
+
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort()
+      }
+    }
+  }, [fetchCorridorDashboard])
+
+  return {
+    data,
+    loading,
+    error,
+    refetch: fetchCorridorDashboard,
   }
 }
 
