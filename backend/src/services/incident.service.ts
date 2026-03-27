@@ -238,7 +238,7 @@ export class IncidentService {
           TO_CHAR(b.ts, 'YYYYMMDD')::int AS date_key,
           COALESCE(ns.segment_key, (SELECT segment_key FROM dim_segment ORDER BY segment_key LIMIT 1)) AS segment_key,
           ns.location_key,
-          ${incidentType}::varchar(50) AS incident_type,
+          LOWER(${incidentType})::varchar(50) AS incident_type,
           b.ts AS timestamp,
           ${severityLevel}::smallint AS severity_level,
           0::int AS delay_seconds,

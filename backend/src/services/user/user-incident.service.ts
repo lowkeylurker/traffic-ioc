@@ -391,25 +391,11 @@ export class UserIncidentService {
         Array<{
           status: ReportStatus;
           approved_incident_key: bigint | null;
-          time_key: number;
-          date_key: number;
-          segment_key: bigint;
-          location_key: bigint | null;
-          incident_type: string | null;
-          timestamp: Date;
-          geometry: unknown;
         }>
       >(Prisma.sql`
         SELECT
           status,
-          approved_incident_key,
-          time_key,
-          date_key,
-          segment_key,
-          location_key,
-          incident_type,
-          timestamp,
-          geometry
+          approved_incident_key
         FROM fact_citizen_report
         WHERE report_key = ${reportKey}
         LIMIT 1
@@ -457,7 +443,7 @@ export class UserIncidentService {
             r.date_key,
             r.segment_key,
             r.location_key,
-            COALESCE(r.incident_type, 'OTHER')::varchar(50),
+            LOWER(COALESCE(r.incident_type, 'other'))::varchar(50),
             r.timestamp,
             2::smallint,
             0::int,
