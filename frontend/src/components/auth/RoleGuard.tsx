@@ -5,7 +5,7 @@ import { Navigate } from 'react-router-dom'
 
 interface RoleGuardProps {
   children: React.ReactNode
-  requiredRole?: 'admin' | 'user' | 'guest'
+  requiredRole?: 'admin' | 'user' | 'guest' | 'user,admin'
 }
 
 export const RoleGuard: React.FC<RoleGuardProps> = ({
@@ -39,6 +39,14 @@ export const RoleGuard: React.FC<RoleGuardProps> = ({
     const userRole = user?.publicMetadata?.role as string | undefined
     if (!userRole) return <>{children}</> // If no role is set, treat as regular user
     if (userRole !== 'user') {
+      return <Navigate to="/unauthorized" replace />
+    }
+  }
+
+  if (requiredRole === 'user,admin') {
+    const userRole = user?.publicMetadata?.role as string | undefined
+    if (!userRole) return <>{children}</> // If no role is set, treat as regular user
+    if (userRole !== 'user' && userRole !== 'admin') {
       return <Navigate to="/unauthorized" replace />
     }
   }
