@@ -192,8 +192,13 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         type: 'line',
         paint: {
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.2, 14, 3.8],
-          'line-color': ['coalesce', ['get', 'color'], '#d9d9d9'],
-          'line-opacity': 0.92,
+          'line-color': [
+            'case',
+            ['==', ['get', 'losIndex'], 'N/A'],
+            'rgba(0,0,0,0)',
+            ['coalesce', ['get', 'color'], 'rgba(0,0,0,0)'],
+          ],
+          'line-opacity': ['case', ['==', ['get', 'losIndex'], 'N/A'], 0, 0.92],
         },
         layout: {
           'line-join': 'round',

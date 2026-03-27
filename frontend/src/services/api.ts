@@ -2,12 +2,18 @@
 
 import {
   ApiResponse,
+  ComparisonDataPoint,
+  ComparisonQueryParams,
+  CorridorAnalyticsOption,
+  CorridorDashboardData,
+  CorridorDashboardQueryParams,
   CitizenReportListResponse,
   ForecastData,
   IncidentCollection,
   IncidentReportCreateResponse,
   NewsFeedResponse,
   ReliabilityRankData,
+  RoadOption,
   RoutingData,
   SegmentResponse,
   SpeedComparisonData,
@@ -67,6 +73,8 @@ axiosInstance.interceptors.response.use(
 export const mapApi = {
   getSegments: (): Promise<ApiResponse<SegmentResponse>> =>
     axiosInstance.get('/map/segments'),
+  getRoads: (): Promise<ApiResponse<RoadOption[]>> =>
+    axiosInstance.get('/map/roads'),
   getStatus: (): Promise<ApiResponse<TrafficStatus[]>> =>
     axiosInstance.get('/map/status'),
   getSegmentStatus: (segmentId: number): Promise<ApiResponse<TrafficStatus>> =>
@@ -91,6 +99,18 @@ export const analyticsApi = {
     axiosInstance.get('/analytics/speed-comparison'),
   getReliabilityRanking: (): Promise<ApiResponse<ReliabilityRankData[]>> =>
     axiosInstance.get('/analytics/reliability-ranking'),
+  getComparison: (
+    params: ComparisonQueryParams,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<ComparisonDataPoint[]>> =>
+    axiosInstance.get('/analytics/comparison', { params, signal }),
+  getCorridors: (): Promise<ApiResponse<CorridorAnalyticsOption[]>> =>
+    axiosInstance.get('/analytics/corridors'),
+  getCorridorDashboard: (
+    params: CorridorDashboardQueryParams,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<CorridorDashboardData>> =>
+    axiosInstance.get('/analytics/corridor-dashboard', { params, signal }),
 }
 
 // Simulation API

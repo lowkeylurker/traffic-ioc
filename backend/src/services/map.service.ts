@@ -278,8 +278,8 @@ export class MapService {
   /**
    * Get color based on LOS level (A-F)
    */
-  private getColorByLOS(losLevel: string | null): string {
-    if (!losLevel || losLevel === 'N/A') return COLOR_RULES.GREY;
+  private getColorByLOS(losLevel: string | null): string | null {
+    if (!losLevel || losLevel === 'N/A') return null;
 
     switch (losLevel.toUpperCase()) {
       case 'A':
@@ -293,7 +293,7 @@ export class MapService {
       case 'F':
         return COLOR_RULES.RED;
       default:
-        return COLOR_RULES.GREY;
+        return null;
     }
   }
 
@@ -317,11 +317,15 @@ export class MapService {
         SELECT
           s.segment_key::text as "segmentId",
           s.segment_id_source::text as "segmentName",
+          w.road_key::text as "roadKey",
+          r.name as "roadName",
           ST_AsGeoJSON(s.geometry_linestring)::json as geometry,
           lf.current_speed_kmh as "avgSpeed",
           lf.los_level as "losGrade",
           lf.timestamp as "timestamp"
         FROM dim_segment s
+        LEFT JOIN dim_way w ON w.way_key = s.way_key
+        LEFT JOIN dim_road r ON r.road_key = w.road_key
         LEFT JOIN latest_flow lf ON lf.segment_key = s.segment_key
         WHERE s.geometry_linestring IS NOT NULL
         ORDER BY s.segment_key
@@ -341,6 +345,8 @@ export class MapService {
           properties: {
             segmentId: row.segmentId,
             segmentName: row.segmentName,
+            roadKey: row.roadKey,
+            roadName: row.roadName,
             avgSpeed: speed ?? 0,
             losIndex: losLevel,
             color: this.getColorByLOS(losLevel),
@@ -380,6 +386,29 @@ export class MapService {
       return result.rows;
     } catch (error) {
       logger.error('Error fetching segments', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy danh sách tuyến đường
+   */
+  async getRoads(): Promise<Array<{ roadKey: string; roadName: string }>> {
+    try {
+      logger.log('Fetching all roads');
+
+      const result = await query(`
+        SELECT
+          road_key::text AS "roadKey",
+          name AS "roadName"
+        FROM dim_road
+        WHERE name IS NOT NULL
+        ORDER BY name ASC
+      `);
+
+      return result.rows as Array<{ roadKey: string; roadName: string }>;
+    } catch (error) {
+      logger.error('Error fetching roads', error);
       throw error;
     }
   }

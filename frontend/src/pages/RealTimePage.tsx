@@ -12,9 +12,11 @@ import { useAppStore } from '@/stores/useAppStore'
 import { GeoJSONFeature, IncidentCollection, IncidentFeature } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 
 export const RealTimePage: React.FC = () => {
   const segmentData = useSegments()
+  const location = useLocation()
   const { isLoading, error } = useAppStore()
   const [cctvModalVisible, setCCTVModalVisible] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,6 +27,7 @@ export const RealTimePage: React.FC = () => {
   const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(false)
   const [_selectedIncident, setSelectedIncident] =
     useState<IncidentFeature | null>(null)
+  const lastHandledDeepLinkRef = useRef<string | null>(null)
 
   useEffect(() => {
     const contentEl = document.querySelector(
@@ -102,24 +105,77 @@ export const RealTimePage: React.FC = () => {
     })
   }, [segmentData])
 
-  const handleSegmentClick = (segment: GeoJSONFeature) => {
+  const getSegmentCenter = (segment: GeoJSONFeature) => {
+    const coords = segment.geometry.coordinates
+    if (!coords || coords.length === 0) {
+      return null
+    }
+
+    const centerIdx = Math.floor(coords.length / 2)
+    const [lng, lat] = coords[centerIdx]
+    return { lng, lat }
+  }
+
+  const handleSegmentClick = (segment: GeoJSONFeature, zoom = 16) => {
     if (!mapRef.current?.getMap) return
 
     const map = mapRef.current.getMap()
-    const coords = segment.geometry.coordinates
-
-    if (!coords || coords.length === 0) return
-
-    // Calculate center of the segment
-    const centerIdx = Math.floor(coords.length / 2)
-    const [lng, lat] = coords[centerIdx]
+    const center = getSegmentCenter(segment)
+    if (!center) return
 
     // Fly to the segment
     map.flyTo({
-      center: [lng, lat],
-      zoom: 16,
+      center: [center.lng, center.lat],
+      zoom,
       duration: 1000,
     })
+  }
+
+  const handleRoadFocus = (segments: GeoJSONFeature[]) => {
+    if (segments.length === 0) {
+      return
+    }
+
+    const centers = segments
+      .map((segment) => ({
+        segment,
+        center: getSegmentCenter(segment),
+      }))
+      .filter(
+        (
+          item
+        ): item is {
+          segment: GeoJSONFeature
+          center: { lng: number; lat: number }
+        } => item.center !== null
+      )
+
+    if (centers.length === 0) {
+      return
+    }
+
+    const centroid = centers.reduce(
+      (acc, item) => ({
+        lng: acc.lng + item.center.lng,
+        lat: acc.lat + item.center.lat,
+      }),
+      { lng: 0, lat: 0 }
+    )
+
+    centroid.lng /= centers.length
+    centroid.lat /= centers.length
+
+    const representative = centers.reduce((best, current) => {
+      const bestDistance =
+        (best.center.lng - centroid.lng) ** 2 +
+        (best.center.lat - centroid.lat) ** 2
+      const currentDistance =
+        (current.center.lng - centroid.lng) ** 2 +
+        (current.center.lat - centroid.lat) ** 2
+      return currentDistance < bestDistance ? current : best
+    })
+
+    handleSegmentClick(representative.segment, 15)
   }
 
   // Map control handlers
@@ -158,6 +214,53 @@ export const RealTimePage: React.FC = () => {
     // Weather layer toggle handler
     setWeatherLayerEnabled(_enabled)
   }
+
+  useEffect(() => {
+    if (!segmentData?.features?.length) {
+      return
+    }
+
+    if (!location.search) {
+      return
+    }
+
+    if (lastHandledDeepLinkRef.current === location.search) {
+      return
+    }
+
+    const params = new URLSearchParams(location.search)
+    const segmentId = params.get('segmentId')
+    const roadKey = params.get('roadKey')
+
+    if (segmentId) {
+      const selectedFeature = segmentData.features.find(
+        (feature) => String(feature.properties.segmentId) === segmentId
+      )
+
+      if (selectedFeature) {
+        handleSegmentClick(selectedFeature)
+      }
+
+      lastHandledDeepLinkRef.current = location.search
+      return
+    }
+
+    if (roadKey) {
+      const roadSegments = segmentData.features.filter(
+        (feature) => feature.properties.roadKey === roadKey
+      )
+
+      if (roadSegments.length > 0) {
+        handleRoadFocus(roadSegments)
+      }
+
+      lastHandledDeepLinkRef.current = location.search
+      return
+    }
+
+    lastHandledDeepLinkRef.current = location.search
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search, segmentData])
 
   if (isLoading && !segmentData) {
     return (

@@ -23,3 +23,52 @@ export const SegmentQuerySchema = z.object({
 });
 
 export type SegmentQueryDto = z.infer<typeof SegmentQuerySchema>;
+
+export const ComparisonMetricSchema = z.enum([
+  'currentSpeedKmh',
+  'pcuVolume',
+  'trafficIndex',
+  'losScore',
+  'congestionLevel',
+  'delaySeconds',
+  'occupancyRate',
+  'bufferIndex',
+]);
+
+export const ComparisonScopeSchema = z.enum(['segment', 'road']);
+export const ComparisonQuerySchema = z
+  .object({
+    scopeType: ComparisonScopeSchema.default('segment'),
+    segmentId: z.string().regex(/^\d+$/, 'segmentId must be numeric').optional(),
+    roadKey: z.string().regex(/^\d+$/, 'roadKey must be numeric').optional(),
+    metric: ComparisonMetricSchema,
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be in YYYY-MM-DD format'),
+  })
+  .superRefine((value, ctx) => {
+    if (value.scopeType === 'segment' && !value.segmentId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'segmentId is required when scopeType=segment',
+        path: ['segmentId'],
+      });
+    }
+
+    if (value.scopeType === 'road' && !value.roadKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'roadKey is required when scopeType=road',
+        path: ['roadKey'],
+      });
+    }
+  });
+
+export type ComparisonMetricDto = z.infer<typeof ComparisonMetricSchema>;
+export type ComparisonQueryDto = z.infer<typeof ComparisonQuerySchema>;
+export type ComparisonScopeDto = z.infer<typeof ComparisonScopeSchema>;
+
+export const CorridorDashboardQuerySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be in YYYY-MM-DD format'),
+  corridorKey: z.string().regex(/^\d+$/, 'corridorKey must be numeric').optional(),
+});
+
+export type CorridorDashboardQueryDto = z.infer<typeof CorridorDashboardQuerySchema>;

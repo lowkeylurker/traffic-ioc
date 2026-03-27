@@ -1,0 +1,19 @@
+name: add-a3-comparison-anomaly-dashboard
+schema: spec-driven
+description: >
+  Deliver A3 Diagnostic Analytics with a single comparison API,
+  reusable anomaly chart, and interactive dashboard for 8 traffic metrics.
+created: "2026-03-25"
+status: proposed
+artifacts:
+  - id: proposal
+    status: proposed
+    description: Problem framing, scope, architecture, and rollout strategy for A3.
+  - id: spec
+    status: proposed
+    description: Detailed API/UI/data contract and validation rules for A3.
+    depends_on: [proposal]
+  - id: tasks
+    status: proposed
+    description: Execution plan by phase (DB/Data, Backend, Frontend, Integration, QA).
+    depends_on: [spec]

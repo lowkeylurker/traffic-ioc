@@ -105,3 +105,107 @@ export interface WeatherData {
   warning_message: string;
   last_updated: string;
 }
+
+export type ComparisonMetric =
+  | 'currentSpeedKmh'
+  | 'pcuVolume'
+  | 'trafficIndex'
+  | 'losScore'
+  | 'congestionLevel'
+  | 'delaySeconds'
+  | 'occupancyRate'
+  | 'bufferIndex';
+
+export type ComparisonScopeType = 'segment' | 'road';
+
+export interface ComparisonQuery {
+  scopeType: ComparisonScopeType;
+  segmentId?: string;
+  roadKey?: string;
+  metric: ComparisonMetric;
+  date: string;
+}
+
+export interface ComparisonPoint {
+  hour: number;
+  baselineAvg: number | null;
+  baselineStdDev: number | null;
+  lowerBound: number | null;
+  upperBound: number | null;
+  todayValue: number | null;
+  isAnomaly: boolean;
+  unit: string;
+  metric: ComparisonMetric;
+}
+
+export interface CorridorDashboardQuery {
+  date: string;
+  corridorKey?: string;
+}
+
+export interface CorridorOption {
+  corridorKey: string;
+  corridorName: string;
+  importanceLevel: number | null;
+  targetAvgSpeed: number | null;
+}
+
+export interface CorridorKpi {
+  avgCorridorSpeed: number | null;
+  targetAvgSpeed: number | null;
+  totalDelaySeconds: number | null;
+  travelTimeIndex: number | null;
+  corridorEfficiency: number | null;
+  activeIncidentCount: number | null;
+}
+
+export interface CorridorSpeedTargetPoint {
+  hour: number;
+  avgCorridorSpeed: number | null;
+  targetAvgSpeed: number | null;
+}
+
+export interface CorridorTtiPoint {
+  hour: number;
+  travelTimeIndex: number | null;
+}
+
+export interface CorridorDelayRankingItem {
+  corridorKey: string;
+  corridorName: string;
+  totalDelaySeconds: number;
+}
+
+export interface CorridorHeatmapCell {
+  corridorKey: string;
+  corridorName: string;
+  hour: number;
+  travelTimeIndex: number | null;
+}
+
+export interface CorridorBottleneckItem {
+  segmentKey: string;
+  count: number;
+}
+
+export interface CorridorAlerts {
+  isBelowTargetSpeed: boolean;
+  isHighTti: boolean;
+  isHighIncidentCount: boolean;
+}
+
+export interface CorridorBaselineComparison {
+  speedDeltaPct: number | null;
+  delayDeltaPct: number | null;
+}
+
+export interface CorridorDashboardData {
+  kpis: CorridorKpi;
+  speedVsTarget: CorridorSpeedTargetPoint[];
+  ttiHourly: CorridorTtiPoint[];
+  topDelayCorridors: CorridorDelayRankingItem[];
+  heatmap: CorridorHeatmapCell[];
+  topBottlenecks: CorridorBottleneckItem[];
+  alerts: CorridorAlerts;
+  baselineComparison: CorridorBaselineComparison;
+}
