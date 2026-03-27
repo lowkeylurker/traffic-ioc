@@ -102,6 +102,53 @@ export interface IncidentCollection {
   features: IncidentFeature[]
 }
 
+export interface UserNewsItem {
+  incidentId: string
+  incidentType: string
+  roadName: string
+  occurredAt: string
+  imageUrl: string | null
+  distanceKm: number
+  location: {
+    lat: number
+    long: number
+  }
+}
+
+export interface NewsFeedResponse {
+  items: UserNewsItem[]
+}
+
+export type CitizenReportStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export interface CitizenReportItem {
+  reportId: string
+  incidentType: string
+  status: CitizenReportStatus
+  description: string | null
+  imageUrl: string | null
+  moderationNote: string | null
+  roadName: string
+  occurredAt: string
+  updatedAt: string
+  location: {
+    lat: number
+    long: number
+  }
+  distanceKm?: number
+  reporterId?: string
+}
+
+export interface CitizenReportListResponse {
+  items: CitizenReportItem[]
+}
+
+export interface IncidentReportCreateResponse {
+  reportId: string
+  status: CitizenReportStatus
+  message: string
+}
+
 export interface WeatherData {
   temp_c: number | null
   condition_code: number

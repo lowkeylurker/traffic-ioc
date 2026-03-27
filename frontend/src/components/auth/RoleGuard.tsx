@@ -1,7 +1,7 @@
+import { Loading } from '@/components'
+import { useAuth, useUser } from '@clerk/clerk-react'
 import React from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAuth, useUser } from '@clerk/clerk-react'
-import { Loading } from '@/components'
 
 interface RoleGuardProps {
   children: React.ReactNode
@@ -31,6 +31,14 @@ export const RoleGuard: React.FC<RoleGuardProps> = ({
   if (requiredRole === 'admin') {
     const userRole = user?.publicMetadata?.role as string | undefined
     if (userRole !== 'admin') {
+      return <Navigate to="/unauthorized" replace />
+    }
+  }
+
+  if (requiredRole === 'user') {
+    const userRole = user?.publicMetadata?.role as string | undefined
+    if (!userRole) return <>{children}</> // If no role is set, treat as regular user
+    if (userRole !== 'user') {
       return <Navigate to="/unauthorized" replace />
     }
   }
