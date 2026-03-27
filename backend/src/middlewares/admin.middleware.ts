@@ -4,6 +4,7 @@ import { NextFunction, Request, Response } from 'express';
 // Middleware to check if user has admin role
 export const adminOnly = async (req: Request & { auth?: any }, res: Response, next: NextFunction) => {
   try {
+    // Access role from Clerk session claims (support both top-level and metadata claim layouts).
     const auth = typeof req.auth === 'function' ? req.auth() : req.auth;
     const userId = auth?.userId as string | undefined;
 

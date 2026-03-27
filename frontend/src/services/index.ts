@@ -1,7 +1,8 @@
 export {
-  mapApi,
   analyticsApi,
-  simulationApi,
-  weatherApi,
   default as axiosInstance,
+  mapApi,
+  simulationApi,
+  userApi,
+  weatherApi,
 } from './api'

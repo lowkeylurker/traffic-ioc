@@ -4,10 +4,12 @@ import { SignInSignUpDialog } from '@/components'
 import { LAYOUT_SIDER_WIDTH } from '@/config/constants'
 import { setAccessTokenGetter } from '@/services/api'
 import {
+  AuditOutlined,
   BarChartOutlined,
   ExperimentOutlined,
   EyeOutlined,
   LogoutOutlined,
+  NotificationOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import { useAuth, useUser } from '@clerk/clerk-react'
@@ -47,16 +49,16 @@ export const MainLayout: React.FC = () => {
       icon: <EyeOutlined />,
       label: 'Giám sát Vận hành',
     },
-    // Profile for regular users
-    ...(isSignedIn
+    ...(isSignedIn && !isAdmin
       ? [
           {
-            key: '/profile',
-            icon: <UserOutlined />,
-            label: 'Hồ sơ cá nhân',
+            key: '/news',
+            icon: <NotificationOutlined />,
+            label: 'Tin tức giao thông',
           },
         ]
       : []),
+
     // Analytics and Simulation only for admin
     ...(isAdmin
       ? [
@@ -69,6 +71,22 @@ export const MainLayout: React.FC = () => {
             key: '/simulation',
             icon: <ExperimentOutlined />,
             label: 'Mô phỏng & Dự báo',
+          },
+          {
+            key: '/incident-reports',
+            icon: <AuditOutlined />,
+            label: 'Duyệt báo cáo công dân',
+          },
+        ]
+      : []),
+
+    // Profile for regular users
+    ...(isSignedIn
+      ? [
+          {
+            key: '/profile',
+            icon: <UserOutlined />,
+            label: 'Hồ sơ cá nhân',
           },
         ]
       : []),

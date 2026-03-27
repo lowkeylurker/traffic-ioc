@@ -7,8 +7,11 @@ import {
   CorridorAnalyticsOption,
   CorridorDashboardData,
   CorridorDashboardQueryParams,
+  CitizenReportListResponse,
   ForecastData,
   IncidentCollection,
+  IncidentReportCreateResponse,
+  NewsFeedResponse,
   ReliabilityRankData,
   RoadOption,
   RoutingData,
@@ -140,6 +143,41 @@ export const weatherApi = {
     axiosInstance.get('/weather/segments'),
   getVoronoi: (): Promise<ApiResponse<unknown>> =>
     axiosInstance.get('/weather/voronoi'),
+}
+
+// User crowdsourcing API
+export const userApi = {
+  getNews: (params: {
+    lat: number
+    long: number
+    radius?: number
+  }): Promise<ApiResponse<NewsFeedResponse>> =>
+    axiosInstance.get('/user/news', { params }),
+
+  submitReport: (
+    formData: FormData
+  ): Promise<ApiResponse<IncidentReportCreateResponse>> =>
+    axiosInstance.post('/user/report', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
+
+  getMyReports: (params?: {
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED'
+  }): Promise<ApiResponse<CitizenReportListResponse>> =>
+    axiosInstance.get('/user/reports/me', { params }),
+
+  getReportsForAdmin: (params?: {
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED'
+  }): Promise<ApiResponse<CitizenReportListResponse>> =>
+    axiosInstance.get('/user/reports', { params }),
+
+  moderateReport: (
+    reportId: string,
+    payload: { status: 'APPROVED' | 'REJECTED'; note?: string }
+  ): Promise<ApiResponse<null>> =>
+    axiosInstance.patch(`/user/report/${reportId}/status`, payload),
 }
 
 export default axiosInstance

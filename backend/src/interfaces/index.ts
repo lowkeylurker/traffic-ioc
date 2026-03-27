@@ -53,9 +53,9 @@ export interface RoutingResponse {
 }
 
 // Incident Monitoring Interfaces (A2)
-export type IncidentType = 'ACCIDENT' | 'FLOOD' | 'CONSTRUCTION' | 'FIRE' | 'OTHER';
+export type IncidentType = 'ACCIDENT' | 'FLOOD' | 'CONGESTION' | 'CONSTRUCTION' | 'FIRE' | 'OTHER';
 export type IncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-export type IncidentStatus = 'OPEN' | 'RESOLVED' | 'PENDING';
+export type IncidentStatus = 'OPEN' | 'RESOLVED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 
 export interface Incident {
   id: string;
