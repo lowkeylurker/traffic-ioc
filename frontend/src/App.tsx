@@ -72,7 +72,7 @@ function App() {
           <Route
             path="profile"
             element={
-              <RoleGuard requiredRole="user">
+              <RoleGuard requiredRole="user,admin">
                 <UserProfilePage />
               </RoleGuard>
             }
