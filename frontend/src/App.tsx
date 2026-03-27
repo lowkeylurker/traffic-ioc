@@ -36,7 +36,14 @@ function App() {
         <Route path="/" element={<MainLayout />}>
           <Route index element={<Navigate to="/real-time" replace />} />
           <Route path="real-time" element={<RealTimePage />} />
-          <Route path="news" element={<NewsPage />} />
+          <Route
+            path="news"
+            element={
+              <RoleGuard requiredRole="user">
+                <NewsPage />
+              </RoleGuard>
+            }
+          />
           <Route
             path="analytics"
             element={

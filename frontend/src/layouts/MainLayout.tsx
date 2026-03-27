@@ -49,21 +49,16 @@ export const MainLayout: React.FC = () => {
       icon: <EyeOutlined />,
       label: 'Giám sát Vận hành',
     },
-    {
-      key: '/news',
-      icon: <NotificationOutlined />,
-      label: 'Tin tức giao thông',
-    },
-    // Profile for regular users
-    ...(isSignedIn
+    ...(isSignedIn && !isAdmin
       ? [
           {
-            key: '/profile',
-            icon: <UserOutlined />,
-            label: 'Hồ sơ cá nhân',
+            key: '/news',
+            icon: <NotificationOutlined />,
+            label: 'Tin tức giao thông',
           },
         ]
       : []),
+
     // Analytics and Simulation only for admin
     ...(isAdmin
       ? [
@@ -81,6 +76,17 @@ export const MainLayout: React.FC = () => {
             key: '/incident-reports',
             icon: <AuditOutlined />,
             label: 'Duyệt báo cáo công dân',
+          },
+        ]
+      : []),
+
+    // Profile for regular users
+    ...(isSignedIn
+      ? [
+          {
+            key: '/profile',
+            icon: <UserOutlined />,
+            label: 'Hồ sơ cá nhân',
           },
         ]
       : []),
