@@ -37,6 +37,7 @@ export const RoleGuard: React.FC<RoleGuardProps> = ({
 
   if (requiredRole === 'user') {
     const userRole = user?.publicMetadata?.role as string | undefined
+    if (!userRole) return <>{children}</> // If no role is set, treat as regular user
     if (userRole !== 'user') {
       return <Navigate to="/unauthorized" replace />
     }
