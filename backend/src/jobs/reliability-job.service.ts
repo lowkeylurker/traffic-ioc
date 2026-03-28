@@ -24,34 +24,58 @@ function parseBoolean(value: string | undefined, defaultValue: boolean): boolean
   return value.toLowerCase() === 'true';
 }
 
+function parseSourcePeriod(value: string | undefined, defaultValue: ReliabilitySourcePeriod): ReliabilitySourcePeriod {
+  if (!value) return defaultValue;
+  const normalized = value.toUpperCase();
+  return normalized === 'MONTHLY' ? 'MONTHLY' : 'WEEKLY';
+}
+
+function toIdSafe(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, '-');
+}
+
 function buildJobId(payload: ReliabilityBatchPayload): string {
-  return `reliability:${payload.sourcePeriod}:${payload.periodStart}:${payload.periodEnd}`;
+  return `reliability-${payload.sourcePeriod}-${toIdSafe(payload.periodStart)}-${toIdSafe(payload.periodEnd)}`;
 }
 
 function buildRecurringJobId(sourcePeriod: ReliabilitySourcePeriod): string {
-  return `reliability:repeat:${sourcePeriod}`;
+  return `reliability-repeat-${sourcePeriod}`;
+}
+
+function subtractOneMonthUtcClamped(date: Date): Date {
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const maxDayInPreviousMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const targetDay = Math.min(date.getUTCDate(), maxDayInPreviousMonth);
+
+  return new Date(
+    Date.UTC(
+      year,
+      month - 1,
+      targetDay,
+      date.getUTCHours(),
+      date.getUTCMinutes(),
+      date.getUTCSeconds(),
+      date.getUTCMilliseconds()
+    )
+  );
 }
 
 function getPeriodRange(sourcePeriod: ReliabilitySourcePeriod): { periodStart: string; periodEnd: string } {
   const now = new Date();
+  const periodEnd = new Date(now);
 
   if (sourcePeriod === 'MONTHLY') {
-    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1, 0, 0, 0, 0));
-    const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
-    return { periodStart: start.toISOString(), periodEnd: end.toISOString() };
+    const periodStart = subtractOneMonthUtcClamped(now);
+    return { periodStart: periodStart.toISOString(), periodEnd: periodEnd.toISOString() };
   }
 
-  const day = now.getUTCDay();
-  const daysSinceMonday = day === 0 ? 6 : day - 1;
-  const thisWeekStart = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysSinceMonday, 0, 0, 0, 0)
-  );
-  const previousWeekStart = new Date(thisWeekStart);
-  previousWeekStart.setUTCDate(previousWeekStart.getUTCDate() - 7);
+  const periodStart = new Date(now);
+  periodStart.setUTCDate(periodStart.getUTCDate() - 7);
 
   return {
-    periodStart: previousWeekStart.toISOString(),
-    periodEnd: thisWeekStart.toISOString(),
+    periodStart: periodStart.toISOString(),
+    periodEnd: periodEnd.toISOString(),
   };
 }
 
@@ -138,7 +162,7 @@ class ReliabilityJobService {
       return;
     }
 
-    const sourcePeriod: ReliabilitySourcePeriod = 'WEEKLY';
+    const sourcePeriod: ReliabilitySourcePeriod = 'MONTHLY';
     const currentPeriod = getPeriodRange(sourcePeriod);
     const payload: ReliabilityBatchPayload = {
       periodStart: currentPeriod.periodStart,
@@ -160,16 +184,16 @@ class ReliabilityJobService {
       return;
     }
 
-    const weeklyEnabled = parseBoolean(process.env.RELIABILITY_WEEKLY_ENABLED, true);
-    const monthlyEnabled = parseBoolean(process.env.RELIABILITY_MONTHLY_ENABLED, true);
-
-    if (weeklyEnabled) {
-      await this.upsertRecurringJob('WEEKLY', process.env.RELIABILITY_WEEKLY_CRON || '0 5 * * 1');
+    const dailyEnabled = parseBoolean(process.env.RELIABILITY_DAILY_ENABLED, true);
+    if (!dailyEnabled) {
+      logger.log('Reliability daily schedule is disabled by RELIABILITY_DAILY_ENABLED=false');
+      return;
     }
 
-    if (monthlyEnabled) {
-      await this.upsertRecurringJob('MONTHLY', process.env.RELIABILITY_MONTHLY_CRON || '0 4 1 * *');
-    }
+    const sourcePeriod = parseSourcePeriod(process.env.RELIABILITY_SCHEDULE_SOURCE_PERIOD, 'WEEKLY');
+    const pattern = process.env.RELIABILITY_DAILY_CRON || '0 2 * * *';
+
+    await this.upsertRecurringJob(sourcePeriod, pattern);
   }
 
   private async upsertRecurringJob(sourcePeriod: ReliabilitySourcePeriod, pattern: string): Promise<void> {
