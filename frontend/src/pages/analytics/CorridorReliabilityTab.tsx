@@ -1,4 +1,10 @@
 import { EmptyState, ErrorState, Loading } from '@/components/common'
+import { analyticsApi } from '@/services/api'
+import {
+  CorridorReliabilityData,
+  ReliabilitySortBy,
+  ReliabilityTimeWindow,
+} from '@/types'
 import {
   DatabaseOutlined,
   FilterOutlined,
@@ -23,256 +29,55 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 
 const { Text, Title } = Typography
 
-type TimeWindow = 'AM_PEAK' | 'PM_PEAK' | 'OFF_PEAK'
-type SortBy = 'buffer_index' | 'pti'
-
 type ReliabilityCauseMap = Record<string, number>
 
-interface CorridorReliabilityItem {
-  corridorId: string
-  corridorName: string
-  bufferIndex: number
-  pti: number
-  rootCauses: ReliabilityCauseMap
+interface CorridorReliabilityItem extends CorridorReliabilityData {
   geometry: GeoJSON.LineString
 }
 
-const MOCK_DATA: Record<TimeWindow, CorridorReliabilityItem[]> = {
-  AM_PEAK: [
-    {
-      corridorId: 'c1',
-      corridorName: 'Hành lang Võ Văn Kiệt',
-      bufferIndex: 0.46,
-      pti: 2.1,
-      rootCauses: { flood: 60, accident: 40 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.6602, 10.755],
-          [106.6732, 10.758],
-          [106.692, 10.7602],
-          [106.7095, 10.763],
-        ],
-      },
-    },
-    {
-      corridorId: 'c2',
-      corridorName: 'Hành lang Trường Chinh',
-      bufferIndex: 0.41,
-      pti: 1.95,
-      rootCauses: { accident: 50, construction: 30, flood: 20 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.6305, 10.804],
-          [106.646, 10.802],
-          [106.6615, 10.799],
-        ],
-      },
-    },
-    {
-      corridorId: 'c3',
-      corridorName: 'Hành lang Xa lộ Hà Nội',
-      bufferIndex: 0.35,
-      pti: 1.8,
-      rootCauses: { construction: 45, accident: 35, flood: 20 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.741, 10.804],
-          [106.762, 10.815],
-          [106.787, 10.835],
-        ],
-      },
-    },
-    {
-      corridorId: 'c4',
-      corridorName: 'Hành lang Nguyễn Văn Linh',
-      bufferIndex: 0.28,
-      pti: 1.6,
-      rootCauses: { construction: 55, accident: 25, flood: 20 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.681, 10.727],
-          [106.702, 10.723],
-          [106.724, 10.719],
-        ],
-      },
-    },
-    {
-      corridorId: 'c5',
-      corridorName: 'Hành lang Cộng Hòa',
-      bufferIndex: 0.18,
-      pti: 1.3,
-      rootCauses: { accident: 70, construction: 20, flood: 10 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.649, 10.801],
-          [106.663, 10.803],
-          [106.676, 10.805],
-        ],
-      },
-    },
-  ],
-  PM_PEAK: [
-    {
-      corridorId: 'c1',
-      corridorName: 'Hành lang Võ Văn Kiệt',
-      bufferIndex: 0.49,
-      pti: 2.2,
-      rootCauses: { flood: 55, accident: 45 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.6602, 10.755],
-          [106.6732, 10.758],
-          [106.692, 10.7602],
-          [106.7095, 10.763],
-        ],
-      },
-    },
-    {
-      corridorId: 'c2',
-      corridorName: 'Hành lang Trường Chinh',
-      bufferIndex: 0.39,
-      pti: 1.9,
-      rootCauses: { accident: 60, construction: 25, flood: 15 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.6305, 10.804],
-          [106.646, 10.802],
-          [106.6615, 10.799],
-        ],
-      },
-    },
-    {
-      corridorId: 'c3',
-      corridorName: 'Hành lang Xa lộ Hà Nội',
-      bufferIndex: 0.33,
-      pti: 1.75,
-      rootCauses: { construction: 50, accident: 30, flood: 20 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.741, 10.804],
-          [106.762, 10.815],
-          [106.787, 10.835],
-        ],
-      },
-    },
-    {
-      corridorId: 'c4',
-      corridorName: 'Hành lang Nguyễn Văn Linh',
-      bufferIndex: 0.24,
-      pti: 1.5,
-      rootCauses: { construction: 58, accident: 22, flood: 20 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.681, 10.727],
-          [106.702, 10.723],
-          [106.724, 10.719],
-        ],
-      },
-    },
-    {
-      corridorId: 'c5',
-      corridorName: 'Hành lang Cộng Hòa',
-      bufferIndex: 0.21,
-      pti: 1.35,
-      rootCauses: { accident: 65, construction: 20, flood: 15 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.649, 10.801],
-          [106.663, 10.803],
-          [106.676, 10.805],
-        ],
-      },
-    },
-  ],
-  OFF_PEAK: [
-    {
-      corridorId: 'c1',
-      corridorName: 'Hành lang Võ Văn Kiệt',
-      bufferIndex: 0.31,
-      pti: 1.65,
-      rootCauses: { flood: 48, accident: 52 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.6602, 10.755],
-          [106.6732, 10.758],
-          [106.692, 10.7602],
-          [106.7095, 10.763],
-        ],
-      },
-    },
-    {
-      corridorId: 'c2',
-      corridorName: 'Hành lang Trường Chinh',
-      bufferIndex: 0.26,
-      pti: 1.45,
-      rootCauses: { accident: 55, construction: 30, flood: 15 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.6305, 10.804],
-          [106.646, 10.802],
-          [106.6615, 10.799],
-        ],
-      },
-    },
-    {
-      corridorId: 'c3',
-      corridorName: 'Hành lang Xa lộ Hà Nội',
-      bufferIndex: 0.19,
-      pti: 1.25,
-      rootCauses: { construction: 45, accident: 35, flood: 20 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.741, 10.804],
-          [106.762, 10.815],
-          [106.787, 10.835],
-        ],
-      },
-    },
-    {
-      corridorId: 'c4',
-      corridorName: 'Hành lang Nguyễn Văn Linh',
-      bufferIndex: 0.16,
-      pti: 1.2,
-      rootCauses: { construction: 60, accident: 25, flood: 15 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.681, 10.727],
-          [106.702, 10.723],
-          [106.724, 10.719],
-        ],
-      },
-    },
-    {
-      corridorId: 'c5',
-      corridorName: 'Hành lang Cộng Hòa',
-      bufferIndex: 0.14,
-      pti: 1.15,
-      rootCauses: { accident: 65, construction: 25, flood: 10 },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [106.649, 10.801],
-          [106.663, 10.803],
-          [106.676, 10.805],
-        ],
-      },
-    },
-  ],
-}
+const CORRIDOR_GEOMETRY_POOL: GeoJSON.LineString[] = [
+  {
+    type: 'LineString',
+    coordinates: [
+      [106.6602, 10.755],
+      [106.6732, 10.758],
+      [106.692, 10.7602],
+      [106.7095, 10.763],
+    ],
+  },
+  {
+    type: 'LineString',
+    coordinates: [
+      [106.6305, 10.804],
+      [106.646, 10.802],
+      [106.6615, 10.799],
+    ],
+  },
+  {
+    type: 'LineString',
+    coordinates: [
+      [106.741, 10.804],
+      [106.762, 10.815],
+      [106.787, 10.835],
+    ],
+  },
+  {
+    type: 'LineString',
+    coordinates: [
+      [106.681, 10.727],
+      [106.702, 10.723],
+      [106.724, 10.719],
+    ],
+  },
+  {
+    type: 'LineString',
+    coordinates: [
+      [106.649, 10.801],
+      [106.663, 10.803],
+      [106.676, 10.805],
+    ],
+  },
+]
 
 const toColorByBufferIndex = (bufferIndex: number) => {
   if (bufferIndex < 0.2) {
@@ -286,26 +91,52 @@ const toColorByBufferIndex = (bufferIndex: number) => {
   return '#cf1322'
 }
 
+const toGeometryFromCorridorKey = (corridorKey: string): GeoJSON.LineString => {
+  const numeric = Number(corridorKey)
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return CORRIDOR_GEOMETRY_POOL[
+      Math.floor(numeric) % CORRIDOR_GEOMETRY_POOL.length
+    ]
+  }
+
+  const hash = corridorKey
+    .split('')
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0)
+
+  return CORRIDOR_GEOMETRY_POOL[hash % CORRIDOR_GEOMETRY_POOL.length]
+}
+
 const fetchReliabilityCorridors = async (
-  timeWindow: TimeWindow,
-  sortBy: SortBy,
-  limit: number
+  timeWindow: ReliabilityTimeWindow,
+  sortBy: ReliabilitySortBy,
+  limit: number,
+  signal?: AbortSignal
 ): Promise<CorridorReliabilityItem[]> => {
-  const source = MOCK_DATA[timeWindow] ?? []
-  const sorted = [...source].sort((a, b) => {
-    if (sortBy === 'pti') {
-      return b.pti - a.pti
-    }
+  const response = await analyticsApi.getCorridorReliability(
+    {
+      timeWindow,
+      sortBy,
+      limit,
+    },
+    signal
+  )
 
-    return b.bufferIndex - a.bufferIndex
-  })
+  if (!response.success || !response.data) {
+    return []
+  }
 
-  return sorted.slice(0, limit)
+  return response.data.map((item) => ({
+    ...item,
+    bufferIndex: item.bufferIndex ?? 0,
+    pti: item.pti ?? 0,
+    rootCauses: item.rootCauses ?? { accident: 0, flood: 0, construction: 0 },
+    geometry: item.geometry ?? toGeometryFromCorridorKey(item.corridorKey),
+  }))
 }
 
 export const CorridorReliabilityTab: React.FC = () => {
-  const [timeWindow, setTimeWindow] = useState<TimeWindow>('AM_PEAK')
-  const [sortBy, setSortBy] = useState<SortBy>('buffer_index')
+  const [timeWindow, setTimeWindow] = useState<ReliabilityTimeWindow>('AM_PEAK')
+  const [sortBy, setSortBy] = useState<ReliabilitySortBy>('buffer_index')
   const [limit, setLimit] = useState<number>(10)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -318,7 +149,7 @@ export const CorridorReliabilityTab: React.FC = () => {
     import.meta.env.VITE_MAPBOX_STYLE || 'mapbox://styles/mapbox/streets-v12'
 
   useEffect(() => {
-    let active = true
+    const controller = new AbortController()
 
     const loadData = async () => {
       setLoading(true)
@@ -327,31 +158,33 @@ export const CorridorReliabilityTab: React.FC = () => {
         const result = await fetchReliabilityCorridors(
           timeWindow,
           sortBy,
-          limit
+          limit,
+          controller.signal
         )
-        if (active) {
-          setRows(result)
-        }
+        setRows(result)
       } catch (fetchError) {
-        if (active) {
-          setRows([])
-          setError(
-            fetchError instanceof Error
-              ? fetchError.message
-              : 'Không thể tải dữ liệu reliability corridor'
-          )
+        if (
+          fetchError instanceof Error &&
+          fetchError.name === 'CanceledError'
+        ) {
+          return
         }
+
+        setRows([])
+        setError(
+          fetchError instanceof Error
+            ? fetchError.message
+            : 'Không thể tải dữ liệu reliability corridor'
+        )
       } finally {
-        if (active) {
-          setLoading(false)
-        }
+        setLoading(false)
       }
     }
 
     loadData()
 
     return () => {
-      active = false
+      controller.abort()
     }
   }, [limit, sortBy, timeWindow])
 
@@ -362,11 +195,12 @@ export const CorridorReliabilityTab: React.FC = () => {
         type: 'Feature',
         geometry: item.geometry,
         properties: {
-          corridorId: item.corridorId,
+          corridorId: item.corridorKey,
           corridorName: item.corridorName,
           bufferIndex: item.bufferIndex,
-          lineColor: toColorByBufferIndex(item.bufferIndex),
-          isSelected: selectedCorridor?.corridorId === item.corridorId ? 1 : 0,
+          lineColor: toColorByBufferIndex(item.bufferIndex ?? 0),
+          isSelected:
+            selectedCorridor?.corridorKey === item.corridorKey ? 1 : 0,
         },
       })),
     }),
@@ -399,6 +233,10 @@ export const CorridorReliabilityTab: React.FC = () => {
     const labels = Object.keys(selectedCorridor.rootCauses)
     const values = Object.values(selectedCorridor.rootCauses)
 
+    if (labels.length === 0) {
+      return null
+    }
+
     return {
       labels,
       datasets: [
@@ -422,6 +260,11 @@ export const CorridorReliabilityTab: React.FC = () => {
       title: 'Corridor',
       dataIndex: 'corridorName',
       key: 'corridorName',
+    },
+    {
+      title: 'Số segment',
+      dataIndex: 'segmentCount',
+      key: 'segmentCount',
     },
     {
       title: 'Buffer Index',
@@ -476,7 +319,7 @@ export const CorridorReliabilityTab: React.FC = () => {
           <Select
             style={{ minWidth: 220 }}
             value={timeWindow}
-            onChange={(value: TimeWindow) => setTimeWindow(value)}
+            onChange={(value: ReliabilityTimeWindow) => setTimeWindow(value)}
             options={[
               { label: 'Giờ cao điểm sáng', value: 'AM_PEAK' },
               { label: 'Giờ cao điểm chiều', value: 'PM_PEAK' },
@@ -486,7 +329,7 @@ export const CorridorReliabilityTab: React.FC = () => {
           <Select
             style={{ minWidth: 220 }}
             value={sortBy}
-            onChange={(value: SortBy) => setSortBy(value)}
+            onChange={(value: ReliabilitySortBy) => setSortBy(value)}
             options={[
               { label: 'Sắp theo Buffer Index', value: 'buffer_index' },
               { label: 'Sắp theo PTI', value: 'pti' },
@@ -519,7 +362,7 @@ export const CorridorReliabilityTab: React.FC = () => {
               }
             >
               <Table<CorridorReliabilityItem>
-                rowKey="corridorId"
+                rowKey="corridorKey"
                 columns={tableColumns}
                 dataSource={rows}
                 pagination={false}
@@ -603,11 +446,13 @@ export const CorridorReliabilityTab: React.FC = () => {
             </div>
             <Title level={5} style={{ marginBottom: 0 }}>
               Người dân đi qua đây phải dự phòng thêm{' '}
-              {(selectedCorridor.bufferIndex * 100).toFixed(0)}% thời gian so
-              với bình thường.
+              {((selectedCorridor.bufferIndex ?? 0) * 100).toFixed(0)}% thời
+              gian so với bình thường.
             </Title>
           </Space>
-        ) : null}
+        ) : (
+          <EmptyState message="Chưa có dữ liệu nguyên nhân cho corridor này" />
+        )}
       </Modal>
     </Space>
   )

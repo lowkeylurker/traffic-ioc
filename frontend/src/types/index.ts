@@ -293,6 +293,37 @@ export interface CorridorDashboardQueryParams {
   corridorKey?: string
 }
 
+export type ReliabilityTimeWindow = 'AM_PEAK' | 'PM_PEAK' | 'OFF_PEAK'
+export type ReliabilitySortBy = 'buffer_index' | 'pti'
+
+export interface CorridorReliabilityRootCauses {
+  accident: number
+  flood: number
+  construction: number
+}
+
+export interface CorridorReliabilityData {
+  corridorKey: string
+  corridorName: string
+  segmentCount: number
+  geometry: GeoJSON.LineString | null
+  timeWindow: ReliabilityTimeWindow
+  periodStart: string
+  periodEnd: string
+  tAvg: number | null
+  t95: number | null
+  tFreeflow: number | null
+  bufferIndex: number | null
+  pti: number | null
+  rootCauses: CorridorReliabilityRootCauses
+}
+
+export interface CorridorReliabilityQueryParams {
+  timeWindow?: ReliabilityTimeWindow
+  sortBy?: ReliabilitySortBy
+  limit?: number
+}
+
 export interface ForecastData {
   segmentId: number
   predictedSpeed: number

@@ -4,6 +4,8 @@ import 'dotenv/config';
 import { createApp } from './app';
 import { Logger } from './utils/logger';
 import { prisma } from './config/prisma';
+import { closeRedisConnection } from './config/redis';
+import { reliabilityJobService } from './services/reliability-job.service';
 
 const logger = new Logger('Server');
 
@@ -19,6 +21,8 @@ async function main() {
 
     // Khởi tạo Express app
     const app = createApp();
+
+    await reliabilityJobService.start();
 
     // Start server
     const server = app.listen(PORT, () => {
@@ -39,6 +43,8 @@ async function main() {
     process.on('SIGTERM', () => {
       logger.log('SIGTERM received, shutting down gracefully...');
       server.close(async () => {
+        await reliabilityJobService.stop();
+        await closeRedisConnection();
         await prisma.$disconnect();
         logger.log('✓ Server shut down successfully');
         process.exit(0);
@@ -48,6 +54,8 @@ async function main() {
     process.on('SIGINT', () => {
       logger.log('SIGINT received, shutting down gracefully...');
       server.close(async () => {
+        await reliabilityJobService.stop();
+        await closeRedisConnection();
         await prisma.$disconnect();
         logger.log('✓ Server shut down successfully');
         process.exit(0);
