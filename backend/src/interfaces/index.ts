@@ -217,6 +217,7 @@ export interface ReliabilityQueryParams {
   timeWindow: ReliabilityTimeWindow;
   sortBy: ReliabilitySortBy;
   limit: number;
+  corridorKey?: string;
 }
 
 export interface ReliabilityRootCauses {
@@ -228,7 +229,8 @@ export interface ReliabilityRootCauses {
 export interface ReliabilityRecord {
   corridorKey: string;
   corridorName: string;
-  segmentCount: number;
+  segmentKey: string;
+  segmentName: string;
   geometry: LineString | null;
   timeWindow: ReliabilityTimeWindow;
   periodStart: string;

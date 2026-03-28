@@ -1,6 +1,7 @@
 import { EmptyState, ErrorState, Loading } from '@/components/common'
 import { analyticsApi } from '@/services/api'
 import {
+  CorridorAnalyticsOption,
   CorridorReliabilityData,
   ReliabilitySortBy,
   ReliabilityTimeWindow,
@@ -22,62 +23,39 @@ import {
   Tag,
   Typography,
 } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
-import Map, { Layer, LayerProps, NavigationControl, Source } from 'react-map-gl'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import Map, {
+  Layer,
+  LayerProps,
+  MapRef,
+  NavigationControl,
+  Source,
+} from 'react-map-gl'
 import { Doughnut } from 'react-chartjs-2'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 const { Text, Title } = Typography
 
-type ReliabilityCauseMap = Record<string, number>
+type CorridorReliabilityItem = CorridorReliabilityData
+type CorridorLimitOption = number | 'all'
+type ReliabilitySortOption = 'buffer_index' | 'pti'
 
-interface CorridorReliabilityItem extends CorridorReliabilityData {
-  geometry: GeoJSON.LineString
+const RELIABILITY_LIMIT_ALL = 10000
+
+interface CorridorSummaryRow {
+  corridorKey: string
+  corridorName: string
+  segmentCount: number
+  bufferIndexAvg: number
+  ptiAvg: number
+  tAvgSeconds: number
+  tFreeflowSeconds: number
+  rootCauses: {
+    accident: number
+    flood: number
+    construction: number
+  }
 }
-
-const CORRIDOR_GEOMETRY_POOL: GeoJSON.LineString[] = [
-  {
-    type: 'LineString',
-    coordinates: [
-      [106.6602, 10.755],
-      [106.6732, 10.758],
-      [106.692, 10.7602],
-      [106.7095, 10.763],
-    ],
-  },
-  {
-    type: 'LineString',
-    coordinates: [
-      [106.6305, 10.804],
-      [106.646, 10.802],
-      [106.6615, 10.799],
-    ],
-  },
-  {
-    type: 'LineString',
-    coordinates: [
-      [106.741, 10.804],
-      [106.762, 10.815],
-      [106.787, 10.835],
-    ],
-  },
-  {
-    type: 'LineString',
-    coordinates: [
-      [106.681, 10.727],
-      [106.702, 10.723],
-      [106.724, 10.719],
-    ],
-  },
-  {
-    type: 'LineString',
-    coordinates: [
-      [106.649, 10.801],
-      [106.663, 10.803],
-      [106.676, 10.805],
-    ],
-  },
-]
 
 const toColorByBufferIndex = (bufferIndex: number) => {
   if (bufferIndex < 0.2) {
@@ -91,25 +69,47 @@ const toColorByBufferIndex = (bufferIndex: number) => {
   return '#cf1322'
 }
 
-const toGeometryFromCorridorKey = (corridorKey: string): GeoJSON.LineString => {
-  const numeric = Number(corridorKey)
-  if (Number.isFinite(numeric) && numeric > 0) {
-    return CORRIDOR_GEOMETRY_POOL[
-      Math.floor(numeric) % CORRIDOR_GEOMETRY_POOL.length
-    ]
+const getLineMidpoint = (geometry: GeoJSON.LineString): [number, number] => {
+  if (!geometry.coordinates.length) {
+    return [106.7009, 10.7769]
   }
 
-  const hash = corridorKey
-    .split('')
-    .reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const midIndex = Math.floor(geometry.coordinates.length / 2)
+  const point = geometry.coordinates[midIndex]
+  return [point[0], point[1]]
+}
 
-  return CORRIDOR_GEOMETRY_POOL[hash % CORRIDOR_GEOMETRY_POOL.length]
+const sumOrZero = (values: Array<number | null | undefined>) => {
+  const valid = values.filter(
+    (value): value is number => value !== null && value !== undefined
+  )
+
+  if (valid.length === 0) {
+    return 0
+  }
+
+  return valid.reduce((sum, value) => sum + value, 0)
+}
+
+const formatTravelTime = (seconds: number | null | undefined): string => {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {
+    return '--'
+  }
+
+  if (seconds < 60) {
+    return `${Math.round(seconds)} giây`
+  }
+
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = Math.round(seconds % 60)
+  return `${minutes} phút ${remainingSeconds} giây`
 }
 
 const fetchReliabilityCorridors = async (
   timeWindow: ReliabilityTimeWindow,
   sortBy: ReliabilitySortBy,
   limit: number,
+  corridorKey?: string,
   signal?: AbortSignal
 ): Promise<CorridorReliabilityItem[]> => {
   const response = await analyticsApi.getCorridorReliability(
@@ -117,6 +117,7 @@ const fetchReliabilityCorridors = async (
       timeWindow,
       sortBy,
       limit,
+      corridorKey,
     },
     signal
   )
@@ -130,23 +131,58 @@ const fetchReliabilityCorridors = async (
     bufferIndex: item.bufferIndex ?? 0,
     pti: item.pti ?? 0,
     rootCauses: item.rootCauses ?? { accident: 0, flood: 0, construction: 0 },
-    geometry: item.geometry ?? toGeometryFromCorridorKey(item.corridorKey),
   }))
 }
 
 export const CorridorReliabilityTab: React.FC = () => {
   const [timeWindow, setTimeWindow] = useState<ReliabilityTimeWindow>('AM_PEAK')
-  const [sortBy, setSortBy] = useState<ReliabilitySortBy>('buffer_index')
-  const [limit, setLimit] = useState<number>(10)
+  const [segmentSortBy, setSegmentSortBy] =
+    useState<ReliabilitySortOption>('buffer_index')
+  const [corridorSortBy, setCorridorSortBy] =
+    useState<ReliabilitySortOption>('buffer_index')
+  const [corridorLimit, setCorridorLimit] = useState<CorridorLimitOption>(10)
+  const [corridorOptions, setCorridorOptions] = useState<
+    CorridorAnalyticsOption[]
+  >([])
+  const [selectedCorridorKey, setSelectedCorridorKey] = useState<
+    string | 'all'
+  >('all')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<CorridorReliabilityItem[]>([])
-  const [selectedCorridor, setSelectedCorridor] =
-    useState<CorridorReliabilityItem | null>(null)
+  const [activeSegmentKey, setActiveSegmentKey] = useState<string | null>(null)
+  const [selectedCorridorAnalysis, setSelectedCorridorAnalysis] =
+    useState<CorridorSummaryRow | null>(null)
+  const mapRef = useRef<MapRef | null>(null)
 
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
   const mapStyle =
     import.meta.env.VITE_MAPBOX_STYLE || 'mapbox://styles/mapbox/streets-v12'
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const loadCorridors = async () => {
+      try {
+        const response = await analyticsApi.getCorridors()
+        if (!controller.signal.aborted) {
+          setCorridorOptions(
+            response.success && response.data ? response.data : []
+          )
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setCorridorOptions([])
+        }
+      }
+    }
+
+    loadCorridors()
+
+    return () => {
+      controller.abort()
+    }
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -157,8 +193,9 @@ export const CorridorReliabilityTab: React.FC = () => {
       try {
         const result = await fetchReliabilityCorridors(
           timeWindow,
-          sortBy,
-          limit,
+          'buffer_index',
+          RELIABILITY_LIMIT_ALL,
+          undefined,
           controller.signal
         )
         setRows(result)
@@ -186,35 +223,84 @@ export const CorridorReliabilityTab: React.FC = () => {
     return () => {
       controller.abort()
     }
-  }, [limit, sortBy, timeWindow])
+  }, [timeWindow])
+
+  const segmentRows = useMemo(() => {
+    const filteredRows =
+      selectedCorridorKey === 'all'
+        ? rows
+        : rows.filter((item) => item.corridorKey === selectedCorridorKey)
+
+    const sorted = [...filteredRows]
+    sorted.sort((a, b) => {
+      const aValue =
+        segmentSortBy === 'pti' ? (a.pti ?? 0) : (a.bufferIndex ?? 0)
+      const bValue =
+        segmentSortBy === 'pti' ? (b.pti ?? 0) : (b.bufferIndex ?? 0)
+      return bValue - aValue
+    })
+    return sorted
+  }, [rows, segmentSortBy, selectedCorridorKey])
+
+  const focusSegmentOnMap = (segment: CorridorReliabilityItem) => {
+    if (!segment.geometry || !mapRef.current) {
+      return
+    }
+
+    const [longitude, latitude] = getLineMidpoint(segment.geometry)
+    mapRef.current.flyTo({
+      center: [longitude, latitude],
+      zoom: 14,
+      duration: 900,
+      essential: true,
+    })
+  }
+
+  const toggleSegmentSelection = (segment: CorridorReliabilityItem) => {
+    if (activeSegmentKey === segment.segmentKey) {
+      setActiveSegmentKey(null)
+      return
+    }
+
+    setActiveSegmentKey(segment.segmentKey)
+    focusSegmentOnMap(segment)
+  }
 
   const mapGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.LineString>>(
     () => ({
       type: 'FeatureCollection',
-      features: rows.map((item) => ({
-        type: 'Feature',
-        geometry: item.geometry,
-        properties: {
-          corridorId: item.corridorKey,
-          corridorName: item.corridorName,
-          bufferIndex: item.bufferIndex,
-          lineColor: toColorByBufferIndex(item.bufferIndex ?? 0),
-          isSelected:
-            selectedCorridor?.corridorKey === item.corridorKey ? 1 : 0,
-        },
-      })),
+      features: segmentRows
+        .filter(
+          (
+            item
+          ): item is CorridorReliabilityItem & {
+            geometry: GeoJSON.LineString
+          } => Boolean(item.geometry)
+        )
+        .map((item) => ({
+          type: 'Feature',
+          geometry: item.geometry,
+          properties: {
+            segmentKey: item.segmentKey,
+            corridorId: item.corridorKey,
+            corridorName: item.corridorName,
+            bufferIndex: item.bufferIndex,
+            lineColor: toColorByBufferIndex(item.bufferIndex ?? 0),
+            isSelected: activeSegmentKey === item.segmentKey ? 1 : 0,
+          },
+        })),
     }),
-    [rows, selectedCorridor]
+    [activeSegmentKey, segmentRows]
   )
 
-  const lineLayer = useMemo(
+  const lineLayer = useMemo<LayerProps>(
     () =>
       ({
         id: 'reliability-corridor-layer',
         type: 'line',
         paint: {
           'line-color': ['coalesce', ['get', 'lineColor'], '#52c41a'],
-          'line-width': ['case', ['==', ['get', 'isSelected'], 1], 8, 5],
+          'line-width': 5,
           'line-opacity': 0.9,
         },
         layout: {
@@ -225,16 +311,68 @@ export const CorridorReliabilityTab: React.FC = () => {
     []
   )
 
+  const selectedOutlineLayer = useMemo<LayerProps>(
+    () =>
+      ({
+        id: 'reliability-corridor-selected-outline-layer',
+        type: 'line',
+        filter: ['==', ['get', 'isSelected'], 1],
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 10,
+          'line-opacity': 0.95,
+        },
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+      }) as LayerProps,
+    []
+  )
+
+  const selectedLineLayer = useMemo<LayerProps>(
+    () =>
+      ({
+        id: 'reliability-corridor-selected-line-layer',
+        type: 'line',
+        filter: ['==', ['get', 'isSelected'], 1],
+        paint: {
+          'line-color': ['coalesce', ['get', 'lineColor'], '#cf1322'],
+          'line-width': 7,
+          'line-opacity': 1,
+        },
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+      }) as LayerProps,
+    []
+  )
+
   const rootCauseChartData = useMemo(() => {
-    if (!selectedCorridor) {
+    if (!selectedCorridorAnalysis) {
       return null
     }
 
-    const labels = Object.keys(selectedCorridor.rootCauses)
-    const values = Object.values(selectedCorridor.rootCauses)
+    const labels = ['accident', 'flood', 'construction']
+    const values = [
+      selectedCorridorAnalysis.rootCauses?.accident ?? 0,
+      selectedCorridorAnalysis.rootCauses?.flood ?? 0,
+      selectedCorridorAnalysis.rootCauses?.construction ?? 0,
+    ]
+    const total = values.reduce((sum, value) => sum + value, 0)
 
-    if (labels.length === 0) {
-      return null
+    if (total <= 0) {
+      return {
+        labels: ['no_data'],
+        datasets: [
+          {
+            data: [1],
+            backgroundColor: ['#d9d9d9'],
+            borderWidth: 1,
+          },
+        ],
+      }
     }
 
     return {
@@ -253,18 +391,95 @@ export const CorridorReliabilityTab: React.FC = () => {
         },
       ],
     }
-  }, [selectedCorridor])
+  }, [selectedCorridorAnalysis])
 
-  const tableColumns = [
+  const corridorSummaryRows = useMemo<CorridorSummaryRow[]>(() => {
+    const grouped = new globalThis.Map<
+      string,
+      {
+        corridorName: string
+        segmentCount: number
+        bufferSum: number
+        ptiSum: number
+      }
+    >()
+
+    rows.forEach((row) => {
+      const existing = grouped.get(row.corridorKey)
+      if (existing) {
+        existing.segmentCount += 1
+        existing.bufferSum += row.bufferIndex ?? 0
+        existing.ptiSum += row.pti ?? 0
+        return
+      }
+
+      grouped.set(row.corridorKey, {
+        corridorName: row.corridorName,
+        segmentCount: 1,
+        bufferSum: row.bufferIndex ?? 0,
+        ptiSum: row.pti ?? 0,
+      })
+    })
+
+    const summaryRows = Array.from(grouped.entries()).map(
+      ([corridorKey, value]) => {
+        const corridorSegments = rows.filter(
+          (item) => item.corridorKey === corridorKey
+        )
+
+        return {
+          corridorKey,
+          corridorName: value.corridorName,
+          segmentCount: value.segmentCount,
+          bufferIndexAvg:
+            value.segmentCount > 0 ? value.bufferSum / value.segmentCount : 0,
+          ptiAvg:
+            value.segmentCount > 0 ? value.ptiSum / value.segmentCount : 0,
+          tAvgSeconds: sumOrZero(corridorSegments.map((item) => item.tAvg)),
+          tFreeflowSeconds: sumOrZero(
+            corridorSegments.map((item) => item.tFreeflow)
+          ),
+          rootCauses: {
+            accident: corridorSegments.reduce(
+              (sum, item) => sum + (item.rootCauses?.accident ?? 0),
+              0
+            ),
+            flood: corridorSegments.reduce(
+              (sum, item) => sum + (item.rootCauses?.flood ?? 0),
+              0
+            ),
+            construction: corridorSegments.reduce(
+              (sum, item) => sum + (item.rootCauses?.construction ?? 0),
+              0
+            ),
+          },
+        }
+      }
+    )
+
+    summaryRows.sort((a, b) => {
+      const aValue = corridorSortBy === 'pti' ? a.ptiAvg : a.bufferIndexAvg
+      const bValue = corridorSortBy === 'pti' ? b.ptiAvg : b.bufferIndexAvg
+      return bValue - aValue
+    })
+
+    if (corridorLimit === 'all') {
+      return summaryRows
+    }
+
+    return summaryRows.slice(0, corridorLimit)
+  }, [corridorLimit, corridorSortBy, rows])
+
+  const segmentTableColumns = [
+    {
+      title: 'Segment',
+      dataIndex: 'segmentName',
+      key: 'segmentName',
+    },
     {
       title: 'Corridor',
       dataIndex: 'corridorName',
       key: 'corridorName',
-    },
-    {
-      title: 'Số segment',
-      dataIndex: 'segmentCount',
-      key: 'segmentCount',
     },
     {
       title: 'Buffer Index',
@@ -283,13 +498,59 @@ export const CorridorReliabilityTab: React.FC = () => {
       render: (value: number) => value.toFixed(2),
     },
     {
+      title: 'Tg di chuyển',
+      dataIndex: 'tAvg',
+      key: 'tAvg',
+      render: (value: number | null) => formatTravelTime(value),
+    },
+    {
+      title: 'Segment Key',
+      dataIndex: 'segmentKey',
+      key: 'segmentKey',
+    },
+  ]
+
+  const corridorSummaryColumns = [
+    {
+      title: 'Corridor',
+      dataIndex: 'corridorName',
+      key: 'corridorName',
+    },
+    {
+      title: 'Số segment',
+      dataIndex: 'segmentCount',
+      key: 'segmentCount',
+    },
+    {
+      title: 'Buffer Index (TB)',
+      dataIndex: 'bufferIndexAvg',
+      key: 'bufferIndexAvg',
+      render: (value: number) => (
+        <Tag color={value < 0.2 ? 'green' : value <= 0.4 ? 'orange' : 'red'}>
+          {value.toFixed(2)}
+        </Tag>
+      ),
+    },
+    {
+      title: 'PTI (TB)',
+      dataIndex: 'ptiAvg',
+      key: 'ptiAvg',
+      render: (value: number) => value.toFixed(2),
+    },
+    {
+      title: 'Tg đi hết corridor',
+      dataIndex: 'tAvgSeconds',
+      key: 'tAvgSeconds',
+      render: (value: number) => formatTravelTime(value),
+    },
+    {
       title: 'Action',
       key: 'action',
-      render: (_: unknown, row: CorridorReliabilityItem) => (
+      render: (_: unknown, row: CorridorSummaryRow) => (
         <Button
           icon={<SearchOutlined />}
           type="text"
-          onClick={() => setSelectedCorridor(row)}
+          onClick={() => setSelectedCorridorAnalysis(row)}
         >
           Phân tích
         </Button>
@@ -327,22 +588,24 @@ export const CorridorReliabilityTab: React.FC = () => {
             ]}
           />
           <Select
-            style={{ minWidth: 220 }}
-            value={sortBy}
-            onChange={(value: ReliabilitySortBy) => setSortBy(value)}
+            style={{ minWidth: 260 }}
+            value={selectedCorridorKey}
+            onChange={(value: string | 'all') => setSelectedCorridorKey(value)}
             options={[
-              { label: 'Sắp theo Buffer Index', value: 'buffer_index' },
-              { label: 'Sắp theo PTI', value: 'pti' },
+              { label: 'Tất cả corridor', value: 'all' },
+              ...corridorOptions.map((corridor) => ({
+                label: corridor.corridorName,
+                value: corridor.corridorKey,
+              })),
             ]}
           />
           <Select
-            style={{ minWidth: 160 }}
-            value={limit}
-            onChange={(value) => setLimit(value)}
+            style={{ minWidth: 220 }}
+            value={segmentSortBy}
+            onChange={(value: ReliabilitySortBy) => setSegmentSortBy(value)}
             options={[
-              { label: 'Top 5', value: 5 },
-              { label: 'Top 10', value: 10 },
-              { label: 'Top 15', value: 15 },
+              { label: 'Segment sort: Buffer Index', value: 'buffer_index' },
+              { label: 'Segment sort: PTI', value: 'pti' },
             ]}
           />
         </Space>
@@ -357,18 +620,19 @@ export const CorridorReliabilityTab: React.FC = () => {
               title={
                 <Space size={8}>
                   <DatabaseOutlined />
-                  <span>Bảng xếp hạng corridor reliability</span>
+                  <span>Danh sách segment reliability</span>
                 </Space>
               }
             >
               <Table<CorridorReliabilityItem>
-                rowKey="corridorKey"
-                columns={tableColumns}
-                dataSource={rows}
+                rowKey="segmentKey"
+                columns={segmentTableColumns}
+                dataSource={segmentRows}
                 pagination={false}
                 size="small"
+                scroll={{ y: 420 }}
                 onRow={(record) => ({
-                  onClick: () => setSelectedCorridor(record),
+                  onClick: () => toggleSegmentSelection(record),
                 })}
               />
             </Card>
@@ -388,6 +652,7 @@ export const CorridorReliabilityTab: React.FC = () => {
                   style={{ height: 480, borderRadius: 8, overflow: 'hidden' }}
                 >
                   <Map
+                    ref={mapRef}
                     initialViewState={{
                       latitude: 10.7769,
                       longitude: 106.7009,
@@ -403,6 +668,8 @@ export const CorridorReliabilityTab: React.FC = () => {
                       data={mapGeoJson}
                     >
                       <Layer {...lineLayer} />
+                      <Layer {...selectedOutlineLayer} />
+                      <Layer {...selectedLineLayer} />
                     </Source>
                   </Map>
                 </div>
@@ -420,18 +687,79 @@ export const CorridorReliabilityTab: React.FC = () => {
         </Row>
       )}
 
+      {corridorSummaryRows.length > 0 && (
+        <Card
+          title={
+            <Space size={8}>
+              <DatabaseOutlined />
+              <span>Bảng tổng hợp corridor reliability (TB theo segment)</span>
+            </Space>
+          }
+          extra={
+            <Space size={8}>
+              <Select
+                style={{ width: 220 }}
+                value={corridorSortBy}
+                onChange={(value: ReliabilitySortBy) =>
+                  setCorridorSortBy(value)
+                }
+                options={[
+                  {
+                    label: 'Corridor sort: Buffer Index (TB)',
+                    value: 'buffer_index',
+                  },
+                  { label: 'Corridor sort: PTI (TB)', value: 'pti' },
+                ]}
+              />
+              <Select
+                style={{ width: 140 }}
+                value={corridorLimit}
+                onChange={(value: CorridorLimitOption) =>
+                  setCorridorLimit(value)
+                }
+                options={[
+                  { label: 'All', value: 'all' },
+                  { label: 'Top 5', value: 5 },
+                  { label: 'Top 10', value: 10 },
+                  { label: 'Top 15', value: 15 },
+                ]}
+              />
+            </Space>
+          }
+        >
+          <Table<CorridorSummaryRow>
+            rowKey="corridorKey"
+            columns={corridorSummaryColumns}
+            dataSource={corridorSummaryRows}
+            pagination={false}
+            size="small"
+            scroll={{ y: 360 }}
+            onRow={(record) => ({
+              onClick: () => {
+                const segmentFromAllRows = rows.find(
+                  (segment) => segment.corridorKey === record.corridorKey
+                )
+                if (segmentFromAllRows) {
+                  toggleSegmentSelection(segmentFromAllRows)
+                }
+              },
+            })}
+          />
+        </Card>
+      )}
+
       <Modal
-        open={Boolean(selectedCorridor)}
+        open={Boolean(selectedCorridorAnalysis)}
         title={
-          selectedCorridor
-            ? `Phân tích nguyên nhân - ${selectedCorridor.corridorName}`
+          selectedCorridorAnalysis
+            ? `Phân tích nguyên nhân - ${selectedCorridorAnalysis.corridorName}`
             : 'Phân tích nguyên nhân'
         }
-        onCancel={() => setSelectedCorridor(null)}
+        onCancel={() => setSelectedCorridorAnalysis(null)}
         footer={null}
         destroyOnClose
       >
-        {selectedCorridor && rootCauseChartData ? (
+        {selectedCorridorAnalysis && rootCauseChartData ? (
           <Space direction="vertical" size={12} style={{ width: '100%' }}>
             <div style={{ height: 260 }}>
               <Doughnut
@@ -445,9 +773,19 @@ export const CorridorReliabilityTab: React.FC = () => {
               />
             </div>
             <Title level={5} style={{ marginBottom: 0 }}>
-              Người dân đi qua đây phải dự phòng thêm{' '}
-              {((selectedCorridor.bufferIndex ?? 0) * 100).toFixed(0)}% thời
-              gian so với bình thường.
+              Thời gian di chuyển trung bình của corridor là{' '}
+              {formatTravelTime(selectedCorridorAnalysis.tAvgSeconds)}; so với
+              điều kiện thông thoáng ({' '}
+              {formatTravelTime(selectedCorridorAnalysis.tFreeflowSeconds)}),
+              người dân nên dự phòng thêm khoảng{' '}
+              {formatTravelTime(
+                Math.max(
+                  0,
+                  selectedCorridorAnalysis.tAvgSeconds -
+                    selectedCorridorAnalysis.tFreeflowSeconds
+                )
+              )}
+              .
             </Title>
           </Space>
         ) : (

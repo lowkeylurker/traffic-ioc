@@ -20,12 +20,14 @@ export interface ReliabilityQuery {
   timeWindow: ReliabilityTimeWindow;
   sortBy: ReliabilitySortBy;
   limit: number;
+  corridorKey?: string;
 }
 
 interface ReliabilityApiRow {
   corridorKey: bigint;
   corridorName: string;
-  segmentCount: number;
+  segmentKey: bigint;
+  segmentName: unknown;
   geometry: unknown;
   timeWindow: string;
   periodStart: Date;
@@ -98,6 +100,7 @@ export class ReliabilityMartService {
       WITH flow_source AS (
         SELECT
           bcs.corridor_key,
+          f.segment_key,
           f.timestamp,
           CASE
             WHEN EXTRACT(HOUR FROM f.timestamp) BETWEEN 7 AND 9 THEN 'AM_PEAK'
@@ -122,6 +125,7 @@ export class ReliabilityMartService {
       metric_source AS (
         SELECT
           corridor_key,
+          segment_key,
           time_window,
           travel_time_seconds
         FROM flow_source
@@ -132,16 +136,18 @@ export class ReliabilityMartService {
       metric_agg AS (
         SELECT
           corridor_key,
+          segment_key,
           time_window,
           AVG(travel_time_seconds)::numeric AS t_avg,
           percentile_cont(0.95) WITHIN GROUP (ORDER BY travel_time_seconds)::numeric AS t_95,
           COUNT(*)::int AS sample_count
         FROM metric_source
-        GROUP BY corridor_key, time_window
+        GROUP BY corridor_key, segment_key, time_window
       ),
       freeflow_source AS (
         SELECT
           bcs.corridor_key,
+          f.segment_key,
           CASE
             WHEN f.current_speed_kmh IS NOT NULL AND f.current_speed_kmh > 0 AND s.length_m IS NOT NULL
               THEN (s.length_m::numeric * 3.6) / f.current_speed_kmh
@@ -160,15 +166,27 @@ export class ReliabilityMartService {
       freeflow_agg AS (
         SELECT
           corridor_key,
+          segment_key,
           AVG(travel_time_seconds)::numeric AS t_freeflow
         FROM freeflow_source
         WHERE travel_time_seconds IS NOT NULL
           AND travel_time_seconds > 0
-        GROUP BY corridor_key
+        GROUP BY corridor_key, segment_key
+      ),
+      freeflow_fallback_agg AS (
+        SELECT
+          corridor_key,
+          segment_key,
+          percentile_cont(0.15) WITHIN GROUP (ORDER BY travel_time_seconds)::numeric AS t_freeflow
+        FROM flow_source
+        WHERE travel_time_seconds IS NOT NULL
+          AND travel_time_seconds > 0
+        GROUP BY corridor_key, segment_key
       ),
       incident_source AS (
         SELECT
           bcs.corridor_key,
+          ${spatialSegmentExpr} AS segment_key,
           CASE
             WHEN EXTRACT(HOUR FROM i.timestamp) BETWEEN 7 AND 9 THEN 'AM_PEAK'
             WHEN EXTRACT(HOUR FROM i.timestamp) BETWEEN 16 AND 19 THEN 'PM_PEAK'
@@ -185,18 +203,21 @@ export class ReliabilityMartService {
       root_cause_agg AS (
         SELECT
           corridor_key,
+          segment_key,
           time_window,
           SUM(CASE WHEN incident_type = 'ACCIDENT' THEN 1 ELSE 0 END)::int AS cause_accident_count,
           SUM(CASE WHEN incident_type = 'FLOOD' THEN 1 ELSE 0 END)::int AS cause_flood_count,
           SUM(CASE WHEN incident_type IN ('CONSTRUCTION', 'ROADWORK', 'ROAD_WORK', 'ROADWORKS') THEN 1 ELSE 0 END)::int AS cause_construction_count
         FROM incident_source
         WHERE corridor_key IS NOT NULL
+          AND segment_key IS NOT NULL
           AND time_window IS NOT NULL
-        GROUP BY corridor_key, time_window
+        GROUP BY corridor_key, segment_key, time_window
       ),
       upserted AS (
         INSERT INTO report_reliability (
           corridor_key,
+          segment_key,
           time_window,
           period_start,
           period_end,
@@ -215,14 +236,19 @@ export class ReliabilityMartService {
         )
         SELECT
           m.corridor_key,
+          m.segment_key,
           m.time_window,
           $1::timestamp,
           $2::timestamp,
           m.t_avg,
           m.t_95,
-          ff.t_freeflow,
+          COALESCE(ff.t_freeflow, ffb.t_freeflow) AS t_freeflow,
           CASE WHEN m.t_avg > 0 THEN (m.t_95 - m.t_avg) / m.t_avg ELSE NULL END AS buffer_index,
-          CASE WHEN ff.t_freeflow > 0 THEN m.t_95 / ff.t_freeflow ELSE NULL END AS pti,
+          CASE
+            WHEN COALESCE(ff.t_freeflow, ffb.t_freeflow) > 0
+              THEN m.t_95 / COALESCE(ff.t_freeflow, ffb.t_freeflow)
+            ELSE NULL
+          END AS pti,
           COALESCE(rc.cause_accident_count, 0),
           COALESCE(rc.cause_flood_count, 0),
           COALESCE(rc.cause_construction_count, 0),
@@ -231,13 +257,14 @@ export class ReliabilityMartService {
           NOW(),
           CASE
             WHEN m.sample_count < 3 OR m.t_avg IS NULL OR m.t_95 IS NULL THEN 0
-            WHEN ff.t_freeflow IS NULL OR ff.t_freeflow <= 0 THEN 0
+            WHEN COALESCE(ff.t_freeflow, ffb.t_freeflow) IS NULL OR COALESCE(ff.t_freeflow, ffb.t_freeflow) <= 0 THEN 0
             ELSE 1
           END::smallint AS quality_flag
         FROM metric_agg m
-        LEFT JOIN freeflow_agg ff ON ff.corridor_key = m.corridor_key
-        LEFT JOIN root_cause_agg rc ON rc.corridor_key = m.corridor_key AND rc.time_window = m.time_window
-        ON CONFLICT (corridor_key, time_window, period_start, period_end)
+        LEFT JOIN freeflow_agg ff ON ff.corridor_key = m.corridor_key AND ff.segment_key = m.segment_key
+        LEFT JOIN freeflow_fallback_agg ffb ON ffb.corridor_key = m.corridor_key AND ffb.segment_key = m.segment_key
+        LEFT JOIN root_cause_agg rc ON rc.corridor_key = m.corridor_key AND rc.segment_key = m.segment_key AND rc.time_window = m.time_window
+        ON CONFLICT (corridor_key, segment_key, time_window, period_start, period_end)
         DO UPDATE SET
           t_avg = EXCLUDED.t_avg,
           t_95 = EXCLUDED.t_95,
@@ -275,7 +302,8 @@ export class ReliabilityMartService {
     Array<{
       corridorKey: string;
       corridorName: string;
-      segmentCount: number;
+      segmentKey: string;
+      segmentName: string;
       geometry: GeoJSON.LineString | null;
       timeWindow: ReliabilityTimeWindow;
       periodStart: string;
@@ -299,22 +327,20 @@ export class ReliabilityMartService {
         SELECT MAX(period_end) AS period_end
         FROM report_reliability
         WHERE time_window = $1
+          AND ($2::bigint IS NULL OR corridor_key = $2::bigint)
       ),
-      corridor_geom AS (
+      segment_geom AS (
         SELECT
-          c.corridor_key AS corridor_key,
-          COUNT(DISTINCT bcs.segment_key)::int AS segment_count,
-          ST_AsGeoJSON(ST_LineMerge(ST_Union(s.geometry_linestring)))::json AS geometry
-        FROM bridge_corridor_segment bcs
-        INNER JOIN dim_corridor c ON c.corridor_key = bcs.corridor_key
-        INNER JOIN dim_segment s ON s.segment_key = bcs.segment_key
-        GROUP BY c.corridor_key
+          s.segment_key,
+          ST_AsGeoJSON(s.geometry_linestring)::json AS geometry
+        FROM dim_segment s
       )
       SELECT
         rr.corridor_key AS "corridorKey",
         c.corridor_name AS "corridorName",
-        COALESCE(cg.segment_count, 0) AS "segmentCount",
-        cg.geometry AS "geometry",
+        rr.segment_key AS "segmentKey",
+        COALESCE(s.segment_id_source::text, rr.segment_key::text) AS "segmentName",
+        sg.geometry AS "geometry",
         rr.time_window AS "timeWindow",
         rr.period_start AS "periodStart",
         rr.period_end AS "periodEnd",
@@ -328,19 +354,23 @@ export class ReliabilityMartService {
         rr.cause_construction_count AS "causeConstructionCount"
       FROM report_reliability rr
       INNER JOIN dim_corridor c ON c.corridor_key = rr.corridor_key
-      LEFT JOIN corridor_geom cg ON cg.corridor_key = rr.corridor_key
+      INNER JOIN dim_segment s ON s.segment_key = rr.segment_key
+      LEFT JOIN segment_geom sg ON sg.segment_key = rr.segment_key
       WHERE rr.time_window = $1
+        AND ($2::bigint IS NULL OR rr.corridor_key = $2::bigint)
         AND rr.period_end = (SELECT period_end FROM latest_period)
-      ORDER BY ${sortColumn} DESC NULLS LAST, rr.corridor_key ASC
-      LIMIT $2
+      ORDER BY ${sortColumn} DESC NULLS LAST, rr.corridor_key ASC, rr.segment_key ASC
+      LIMIT $3
     `;
 
-    const rows = await prisma.$queryRawUnsafe<ReliabilityApiRow[]>(sql, query.timeWindow, query.limit);
+    const corridorKey = query.corridorKey ? BigInt(query.corridorKey) : null;
+    const rows = await prisma.$queryRawUnsafe<ReliabilityApiRow[]>(sql, query.timeWindow, corridorKey, query.limit);
 
     return rows.map((row) => ({
       corridorKey: row.corridorKey.toString(),
       corridorName: row.corridorName,
-      segmentCount: row.segmentCount ?? 0,
+      segmentKey: row.segmentKey.toString(),
+      segmentName: String(row.segmentName ?? row.segmentKey),
       geometry:
         row.geometry && typeof row.geometry === 'object' && (row.geometry as { type?: string }).type === 'LineString'
           ? (row.geometry as GeoJSON.LineString)

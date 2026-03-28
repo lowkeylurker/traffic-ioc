@@ -1,11 +1,14 @@
 -- ==============================================================================
 -- FILE: 7_create_report_reliability.sql
--- DESCRIPTION: Tạo bảng mart report_reliability ở cấp corridor
+-- DESCRIPTION: Tạo bảng mart report_reliability ở cấp segment trong corridor
 -- ==============================================================================
+
+DROP TABLE IF EXISTS report_reliability;
 
 CREATE TABLE IF NOT EXISTS report_reliability (
     report_key BIGSERIAL PRIMARY KEY,
     corridor_key BIGINT NOT NULL REFERENCES dim_corridor (corridor_key),
+    segment_key BIGINT NOT NULL REFERENCES dim_segment (segment_key),
     time_window VARCHAR(20) NOT NULL,
     period_start TIMESTAMP NOT NULL,
     period_end TIMESTAMP NOT NULL,
@@ -21,16 +24,18 @@ CREATE TABLE IF NOT EXISTS report_reliability (
     job_run_id VARCHAR(120),
     computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     quality_flag SMALLINT DEFAULT 1,
-    CONSTRAINT uq_report_reliability_corridor_window_period UNIQUE (
+    CONSTRAINT uq_report_reliability_corridor_segment_window_period UNIQUE (
         corridor_key,
+        segment_key,
         time_window,
         period_start,
         period_end
     )
 );
 
-CREATE INDEX IF NOT EXISTS idx_report_reliability_corridor_period ON report_reliability (
+CREATE INDEX IF NOT EXISTS idx_report_reliability_corridor_segment_period ON report_reliability (
     corridor_key,
+    segment_key,
     period_start,
     period_end
 );

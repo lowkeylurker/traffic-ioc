@@ -305,7 +305,8 @@ export interface CorridorReliabilityRootCauses {
 export interface CorridorReliabilityData {
   corridorKey: string
   corridorName: string
-  segmentCount: number
+  segmentKey: string
+  segmentName: string
   geometry: GeoJSON.LineString | null
   timeWindow: ReliabilityTimeWindow
   periodStart: string
@@ -322,6 +323,7 @@ export interface CorridorReliabilityQueryParams {
   timeWindow?: ReliabilityTimeWindow
   sortBy?: ReliabilitySortBy
   limit?: number
+  corridorKey?: string
 }
 
 export interface ForecastData {
