@@ -123,7 +123,36 @@ class ReliabilityJobService {
     });
 
     await this.enqueueScheduledJobs();
+    await this.enqueueBootstrapJobIfMartEmpty();
     logger.log('Reliability queue and worker started');
+  }
+
+  private async enqueueBootstrapJobIfMartEmpty(): Promise<void> {
+    if (!this.queue) {
+      return;
+    }
+
+    const martEmpty = await reliabilityMartService.isMartEmpty();
+    if (!martEmpty) {
+      logger.log('Reliability mart already has data, skipping bootstrap job');
+      return;
+    }
+
+    const sourcePeriod: ReliabilitySourcePeriod = 'WEEKLY';
+    const currentPeriod = getPeriodRange(sourcePeriod);
+    const payload: ReliabilityBatchPayload = {
+      periodStart: currentPeriod.periodStart,
+      periodEnd: currentPeriod.periodEnd,
+      sourcePeriod,
+    };
+
+    await this.queue.add(JOB_NAME, payload, {
+      jobId: buildJobId(payload),
+    });
+
+    logger.log(
+      `Reliability mart is empty, enqueued bootstrap job for ${sourcePeriod}: ${payload.periodStart} -> ${payload.periodEnd}`
+    );
   }
 
   private async enqueueScheduledJobs(): Promise<void> {

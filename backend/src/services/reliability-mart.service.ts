@@ -57,6 +57,13 @@ function parseIsoDate(value: string, fieldName: string): Date {
 }
 
 export class ReliabilityMartService {
+  async isMartEmpty(): Promise<boolean> {
+    const result = await prisma.$queryRaw<Array<{ has_rows: boolean }>>`
+      SELECT EXISTS (SELECT 1 FROM report_reliability LIMIT 1) AS has_rows
+    `;
+    return !(result[0]?.has_rows ?? false);
+  }
+
   async computeReliabilityPeriod(payload: ReliabilityBatchPayload): Promise<{ upsertedRows: number }> {
     const periodStartDate = parseIsoDate(payload.periodStart, 'periodStart');
     const periodEndDate = parseIsoDate(payload.periodEnd, 'periodEnd');
