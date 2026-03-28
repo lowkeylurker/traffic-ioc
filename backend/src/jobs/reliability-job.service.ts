@@ -1,7 +1,11 @@
 import { JobsOptions, Queue, Worker } from 'bullmq';
 import { getRedisConnection } from '../config/redis';
 import { Logger } from '../utils/logger';
-import { ReliabilityBatchPayload, ReliabilitySourcePeriod, reliabilityMartService } from './reliability-mart.service';
+import {
+  ReliabilityBatchPayload,
+  ReliabilitySourcePeriod,
+  reliabilityMartService,
+} from '../services/reliability-mart.service';
 
 const logger = new Logger('ReliabilityJobService');
 
@@ -22,6 +26,10 @@ function parseBoolean(value: string | undefined, defaultValue: boolean): boolean
 
 function buildJobId(payload: ReliabilityBatchPayload): string {
   return `reliability:${payload.sourcePeriod}:${payload.periodStart}:${payload.periodEnd}`;
+}
+
+function buildRecurringJobId(sourcePeriod: ReliabilitySourcePeriod): string {
+  return `reliability:repeat:${sourcePeriod}`;
 }
 
 function getPeriodRange(sourcePeriod: ReliabilitySourcePeriod): { periodStart: string; periodEnd: string } {
@@ -79,8 +87,20 @@ class ReliabilityJobService {
         const startedAt = Date.now();
         logger.log(`Started reliability job ${job.id}`, job.data);
 
+        const isRecurringJob = Boolean(job.opts.repeat);
+        const effectivePayload: ReliabilityBatchPayload = isRecurringJob
+          ? {
+              ...job.data,
+              ...getPeriodRange(job.data.sourcePeriod),
+            }
+          : job.data;
+
+        logger.log(
+          `Executing reliability job ${job.id} (${isRecurringJob ? 'recurring' : 'manual'}) for ${effectivePayload.sourcePeriod}: ${effectivePayload.periodStart} -> ${effectivePayload.periodEnd}`
+        );
+
         const result = await reliabilityMartService.computeReliabilityPeriod({
-          ...job.data,
+          ...effectivePayload,
           jobRunId: job.id,
         });
 
@@ -136,7 +156,7 @@ class ReliabilityJobService {
     };
 
     const defaultOptions: JobsOptions = {
-      jobId: buildJobId(payload),
+      jobId: buildRecurringJobId(sourcePeriod),
       repeat: { pattern },
     };
 

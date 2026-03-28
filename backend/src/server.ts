@@ -5,7 +5,7 @@ import { createApp } from './app';
 import { Logger } from './utils/logger';
 import { prisma } from './config/prisma';
 import { closeRedisConnection } from './config/redis';
-import { reliabilityJobService } from './services/reliability-job.service';
+import { reliabilityJobService } from './jobs/reliability-job.service';
 
 const logger = new Logger('Server');
 
