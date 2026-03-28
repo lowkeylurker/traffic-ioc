@@ -9,6 +9,7 @@ Complete documentation and guides for the Traffic IoC Data Pipeline ETL system.
 - **[Q1 ETL Corridors Guide](./Q1_ETL_CORRIDORS_GUIDE.txt)** - Specialized guide for Q1 corridor analysis
 - **[Implementation Summary](./IMPLEMENTATION_SUMMARY.md)** - Complete overview of implementation
 - **[Implementation Guide](./IMPLEMENTATION_GUIDE.md)** - Detailed implementation steps
+- **[ETL Logic Documentation](./ETL_LOGIC.md)** - Core ETL transformation logic and architecture
 
 ### Analysis & Reference
 - **[Corridor False Positive Analysis](./analysis/CORRIDOR_FALSE_POSITIVE_ANALYSIS.md)** - In-depth analysis of false positive patterns
