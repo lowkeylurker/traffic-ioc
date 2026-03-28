@@ -8,10 +8,13 @@ import {
   CorridorDashboardData,
   CorridorDashboardQuery,
   CorridorOption,
+  ReliabilityQueryParams,
+  ReliabilityRecord,
   VehicleMixData,
 } from '../interfaces/index';
 import { AppError } from '../middlewares/error.middleware';
 import { Logger } from '../utils/logger';
+import { reliabilityMartService } from './reliability-mart.service';
 
 const logger = new Logger('AnalyticsService');
 
@@ -624,6 +627,22 @@ export class AnalyticsService {
       return (ranking as any[]) || [];
     } catch (error) {
       logger.error('Error fetching reliability ranking', error);
+      throw error;
+    }
+  }
+
+  async getReliability(query: ReliabilityQueryParams): Promise<ReliabilityRecord[]> {
+    try {
+      logger.log(
+        `Fetching reliability mart data: timeWindow=${query.timeWindow}, sortBy=${query.sortBy}, limit=${query.limit}`
+      );
+
+      const records = await reliabilityMartService.getReliabilityFromMart(query);
+      logger.log(`Retrieved reliability mart rows: ${records.length}`);
+
+      return records;
+    } catch (error) {
+      logger.error('Error fetching reliability mart data', error);
       throw error;
     }
   }

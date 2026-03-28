@@ -1,0 +1,23 @@
+name: build-a4-reliability-mart-and-api
+schema: spec-driven
+description: >
+  Build A4 reliability data mart and root-cause aggregation batch pipeline,
+  and start reliability API scope for FE integration using BullMQ + Redis and Prisma migrations.
+created: "2026-03-28"
+status: proposed
+artifacts:
+  - id: proposal
+    status: proposed
+    description: Why, scope, architecture, rollout, risks and acceptance criteria for DAT-62 + DAT-67.
+  - id: design
+    status: proposed
+    description: DE/BE architecture for reliability mart, BullMQ scheduling, and API contract-first integration.
+    depends_on: [proposal]
+  - id: spec
+    status: proposed
+    description: Capability-level requirements for mart schema, batch computation, root-cause aggregation, orchestration, and API.
+    depends_on: [design]
+  - id: tasks
+    status: proposed
+    description: Ordered execution checklist with dependencies and validation gates.
+    depends_on: [spec]

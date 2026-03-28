@@ -1,7 +1,7 @@
 // Analytics Controller - Xử lý HTTP requests cho Analytics module
 
 import { NextFunction, Request, Response } from 'express';
-import { ComparisonQuerySchema, CorridorDashboardQuerySchema } from '../dtos';
+import { ComparisonQuerySchema, CorridorDashboardQuerySchema, ReliabilityQuerySchema } from '../dtos';
 import { AppError } from '../middlewares/error.middleware';
 import { analyticsService } from '../services/analytics.service';
 import { Logger } from '../utils/logger';
@@ -95,6 +95,25 @@ export class AnalyticsController {
       logger.log('GET /reliability-ranking');
       const data = await analyticsService.getReliabilityRanking();
       res.json(ResponseUtil.success(data, 'Reliability ranking retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /reliability - Lấy dữ liệu mart reliability cho A4
+   */
+  async getReliability(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      logger.log('GET /reliability');
+
+      const parsed = ReliabilityQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        throw new AppError(400, 'Invalid reliability query params', 'BAD_REQUEST');
+      }
+
+      const data = await analyticsService.getReliability(parsed.data);
+      res.json(ResponseUtil.success(data, 'Reliability data retrieved successfully'));
     } catch (error) {
       next(error);
     }

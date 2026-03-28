@@ -72,3 +72,15 @@ export const CorridorDashboardQuerySchema = z.object({
 });
 
 export type CorridorDashboardQueryDto = z.infer<typeof CorridorDashboardQuerySchema>;
+
+export const ReliabilityTimeWindowSchema = z.enum(['AM_PEAK', 'PM_PEAK', 'OFF_PEAK']);
+export const ReliabilitySortBySchema = z.enum(['buffer_index', 'pti']);
+
+export const ReliabilityQuerySchema = z.object({
+  timeWindow: ReliabilityTimeWindowSchema.default('AM_PEAK'),
+  sortBy: ReliabilitySortBySchema.default('buffer_index'),
+  limit: z.coerce.number().int().min(1).max(10000).default(10),
+  corridorKey: z.string().regex(/^\d+$/, 'corridorKey must be numeric').optional(),
+});
+
+export type ReliabilityQueryDto = z.infer<typeof ReliabilityQuerySchema>;

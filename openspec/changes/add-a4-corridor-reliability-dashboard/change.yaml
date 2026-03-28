@@ -1,0 +1,24 @@
+name: add-a4-corridor-reliability-dashboard
+schema: spec-driven
+description: >
+  Deliver A4 corridor reliability dashboard with FE-first scope:
+  ranking table, static corridor heatmap, and root-cause analysis modal,
+  while deferring reliability API implementation to next phase.
+created: "2026-03-28"
+status: proposed
+artifacts:
+  - id: proposal
+    status: proposed
+    description: Problem framing, scope, FE-first strategy, and rollout plan for DAT-66.
+  - id: design
+    status: proposed
+    description: FE-first architecture and temporary data contract strategy for corridor reliability UX.
+    depends_on: [proposal]
+  - id: spec
+    status: proposed
+    description: Requirement deltas for A4 corridor reliability table, heatmap, and analysis modal.
+    depends_on: [design]
+  - id: tasks
+    status: proposed
+    description: Ordered implementation plan across DAT-68/69/70 with DAT-67 deferred.
+    depends_on: [spec]

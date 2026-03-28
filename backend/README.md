@@ -25,6 +25,8 @@ CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_cloudinary_key
 CLOUDINARY_API_SECRET=your_cloudinary_secret
 CLOUDINARY_INCIDENT_FOLDER=traffic-ioc/incidents
+REDIS_URL=redis://localhost:6379
+RELIABILITY_QUEUE_ENABLED=true
 ```
 
 ### 3. Pull Database Schema
@@ -118,6 +120,7 @@ prisma/
 | `GET`  | `/vehicle-mix`         | Vehicle distribution chart data      |
 | `GET`  | `/speed-comparison`    | Current vs baseline speed comparison |
 | `GET`  | `/reliability-ranking` | Top 10 segments by buffer index      |
+| `GET`  | `/reliability`         | Corridor reliability mart data for A4 |
 
 ### Simulation Module (`/api/v1/simulation`)
 

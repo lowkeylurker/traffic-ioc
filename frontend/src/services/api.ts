@@ -4,6 +4,8 @@ import {
   ApiResponse,
   ComparisonDataPoint,
   ComparisonQueryParams,
+  CorridorReliabilityData,
+  CorridorReliabilityQueryParams,
   CorridorAnalyticsOption,
   CorridorDashboardData,
   CorridorDashboardQueryParams,
@@ -111,6 +113,11 @@ export const analyticsApi = {
     signal?: AbortSignal
   ): Promise<ApiResponse<CorridorDashboardData>> =>
     axiosInstance.get('/analytics/corridor-dashboard', { params, signal }),
+  getCorridorReliability: (
+    params: CorridorReliabilityQueryParams,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<CorridorReliabilityData[]>> =>
+    axiosInstance.get('/analytics/reliability', { params, signal }),
 }
 
 // Simulation API

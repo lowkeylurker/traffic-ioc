@@ -55,4 +55,12 @@ router.get('/reliability-ranking', authMiddleware, adminOnly, (req, res, next) =
   analyticsController.getReliabilityRanking(req, res, next)
 );
 
+/**
+ * GET /api/v1/analytics/reliability
+ * Lấy dữ liệu reliability từ mart precompute
+ */
+router.get('/reliability', authMiddleware, adminOnly, (req, res, next) =>
+  analyticsController.getReliability(req, res, next)
+);
+
 export default router;
