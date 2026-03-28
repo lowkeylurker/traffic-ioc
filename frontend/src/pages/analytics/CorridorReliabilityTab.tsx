@@ -1,0 +1,614 @@
+import { EmptyState, ErrorState, Loading } from '@/components/common'
+import {
+  DatabaseOutlined,
+  FilterOutlined,
+  SearchOutlined,
+} from '@ant-design/icons'
+import {
+  Button,
+  Card,
+  Col,
+  Modal,
+  Row,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from 'antd'
+import { useEffect, useMemo, useState } from 'react'
+import Map, { Layer, LayerProps, NavigationControl, Source } from 'react-map-gl'
+import { Doughnut } from 'react-chartjs-2'
+import 'mapbox-gl/dist/mapbox-gl.css'
+
+const { Text, Title } = Typography
+
+type TimeWindow = 'AM_PEAK' | 'PM_PEAK' | 'OFF_PEAK'
+type SortBy = 'buffer_index' | 'pti'
+
+type ReliabilityCauseMap = Record<string, number>
+
+interface CorridorReliabilityItem {
+  corridorId: string
+  corridorName: string
+  bufferIndex: number
+  pti: number
+  rootCauses: ReliabilityCauseMap
+  geometry: GeoJSON.LineString
+}
+
+const MOCK_DATA: Record<TimeWindow, CorridorReliabilityItem[]> = {
+  AM_PEAK: [
+    {
+      corridorId: 'c1',
+      corridorName: 'Hành lang Võ Văn Kiệt',
+      bufferIndex: 0.46,
+      pti: 2.1,
+      rootCauses: { flood: 60, accident: 40 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.6602, 10.755],
+          [106.6732, 10.758],
+          [106.692, 10.7602],
+          [106.7095, 10.763],
+        ],
+      },
+    },
+    {
+      corridorId: 'c2',
+      corridorName: 'Hành lang Trường Chinh',
+      bufferIndex: 0.41,
+      pti: 1.95,
+      rootCauses: { accident: 50, construction: 30, flood: 20 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.6305, 10.804],
+          [106.646, 10.802],
+          [106.6615, 10.799],
+        ],
+      },
+    },
+    {
+      corridorId: 'c3',
+      corridorName: 'Hành lang Xa lộ Hà Nội',
+      bufferIndex: 0.35,
+      pti: 1.8,
+      rootCauses: { construction: 45, accident: 35, flood: 20 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.741, 10.804],
+          [106.762, 10.815],
+          [106.787, 10.835],
+        ],
+      },
+    },
+    {
+      corridorId: 'c4',
+      corridorName: 'Hành lang Nguyễn Văn Linh',
+      bufferIndex: 0.28,
+      pti: 1.6,
+      rootCauses: { construction: 55, accident: 25, flood: 20 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.681, 10.727],
+          [106.702, 10.723],
+          [106.724, 10.719],
+        ],
+      },
+    },
+    {
+      corridorId: 'c5',
+      corridorName: 'Hành lang Cộng Hòa',
+      bufferIndex: 0.18,
+      pti: 1.3,
+      rootCauses: { accident: 70, construction: 20, flood: 10 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.649, 10.801],
+          [106.663, 10.803],
+          [106.676, 10.805],
+        ],
+      },
+    },
+  ],
+  PM_PEAK: [
+    {
+      corridorId: 'c1',
+      corridorName: 'Hành lang Võ Văn Kiệt',
+      bufferIndex: 0.49,
+      pti: 2.2,
+      rootCauses: { flood: 55, accident: 45 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.6602, 10.755],
+          [106.6732, 10.758],
+          [106.692, 10.7602],
+          [106.7095, 10.763],
+        ],
+      },
+    },
+    {
+      corridorId: 'c2',
+      corridorName: 'Hành lang Trường Chinh',
+      bufferIndex: 0.39,
+      pti: 1.9,
+      rootCauses: { accident: 60, construction: 25, flood: 15 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.6305, 10.804],
+          [106.646, 10.802],
+          [106.6615, 10.799],
+        ],
+      },
+    },
+    {
+      corridorId: 'c3',
+      corridorName: 'Hành lang Xa lộ Hà Nội',
+      bufferIndex: 0.33,
+      pti: 1.75,
+      rootCauses: { construction: 50, accident: 30, flood: 20 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.741, 10.804],
+          [106.762, 10.815],
+          [106.787, 10.835],
+        ],
+      },
+    },
+    {
+      corridorId: 'c4',
+      corridorName: 'Hành lang Nguyễn Văn Linh',
+      bufferIndex: 0.24,
+      pti: 1.5,
+      rootCauses: { construction: 58, accident: 22, flood: 20 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.681, 10.727],
+          [106.702, 10.723],
+          [106.724, 10.719],
+        ],
+      },
+    },
+    {
+      corridorId: 'c5',
+      corridorName: 'Hành lang Cộng Hòa',
+      bufferIndex: 0.21,
+      pti: 1.35,
+      rootCauses: { accident: 65, construction: 20, flood: 15 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.649, 10.801],
+          [106.663, 10.803],
+          [106.676, 10.805],
+        ],
+      },
+    },
+  ],
+  OFF_PEAK: [
+    {
+      corridorId: 'c1',
+      corridorName: 'Hành lang Võ Văn Kiệt',
+      bufferIndex: 0.31,
+      pti: 1.65,
+      rootCauses: { flood: 48, accident: 52 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.6602, 10.755],
+          [106.6732, 10.758],
+          [106.692, 10.7602],
+          [106.7095, 10.763],
+        ],
+      },
+    },
+    {
+      corridorId: 'c2',
+      corridorName: 'Hành lang Trường Chinh',
+      bufferIndex: 0.26,
+      pti: 1.45,
+      rootCauses: { accident: 55, construction: 30, flood: 15 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.6305, 10.804],
+          [106.646, 10.802],
+          [106.6615, 10.799],
+        ],
+      },
+    },
+    {
+      corridorId: 'c3',
+      corridorName: 'Hành lang Xa lộ Hà Nội',
+      bufferIndex: 0.19,
+      pti: 1.25,
+      rootCauses: { construction: 45, accident: 35, flood: 20 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.741, 10.804],
+          [106.762, 10.815],
+          [106.787, 10.835],
+        ],
+      },
+    },
+    {
+      corridorId: 'c4',
+      corridorName: 'Hành lang Nguyễn Văn Linh',
+      bufferIndex: 0.16,
+      pti: 1.2,
+      rootCauses: { construction: 60, accident: 25, flood: 15 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.681, 10.727],
+          [106.702, 10.723],
+          [106.724, 10.719],
+        ],
+      },
+    },
+    {
+      corridorId: 'c5',
+      corridorName: 'Hành lang Cộng Hòa',
+      bufferIndex: 0.14,
+      pti: 1.15,
+      rootCauses: { accident: 65, construction: 25, flood: 10 },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [106.649, 10.801],
+          [106.663, 10.803],
+          [106.676, 10.805],
+        ],
+      },
+    },
+  ],
+}
+
+const toColorByBufferIndex = (bufferIndex: number) => {
+  if (bufferIndex < 0.2) {
+    return '#52c41a'
+  }
+
+  if (bufferIndex <= 0.4) {
+    return '#faad14'
+  }
+
+  return '#cf1322'
+}
+
+const fetchReliabilityCorridors = async (
+  timeWindow: TimeWindow,
+  sortBy: SortBy,
+  limit: number
+): Promise<CorridorReliabilityItem[]> => {
+  const source = MOCK_DATA[timeWindow] ?? []
+  const sorted = [...source].sort((a, b) => {
+    if (sortBy === 'pti') {
+      return b.pti - a.pti
+    }
+
+    return b.bufferIndex - a.bufferIndex
+  })
+
+  return sorted.slice(0, limit)
+}
+
+export const CorridorReliabilityTab: React.FC = () => {
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>('AM_PEAK')
+  const [sortBy, setSortBy] = useState<SortBy>('buffer_index')
+  const [limit, setLimit] = useState<number>(10)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [rows, setRows] = useState<CorridorReliabilityItem[]>([])
+  const [selectedCorridor, setSelectedCorridor] =
+    useState<CorridorReliabilityItem | null>(null)
+
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
+  const mapStyle =
+    import.meta.env.VITE_MAPBOX_STYLE || 'mapbox://styles/mapbox/streets-v12'
+
+  useEffect(() => {
+    let active = true
+
+    const loadData = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const result = await fetchReliabilityCorridors(
+          timeWindow,
+          sortBy,
+          limit
+        )
+        if (active) {
+          setRows(result)
+        }
+      } catch (fetchError) {
+        if (active) {
+          setRows([])
+          setError(
+            fetchError instanceof Error
+              ? fetchError.message
+              : 'Không thể tải dữ liệu reliability corridor'
+          )
+        }
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadData()
+
+    return () => {
+      active = false
+    }
+  }, [limit, sortBy, timeWindow])
+
+  const mapGeoJson = useMemo<GeoJSON.FeatureCollection<GeoJSON.LineString>>(
+    () => ({
+      type: 'FeatureCollection',
+      features: rows.map((item) => ({
+        type: 'Feature',
+        geometry: item.geometry,
+        properties: {
+          corridorId: item.corridorId,
+          corridorName: item.corridorName,
+          bufferIndex: item.bufferIndex,
+          lineColor: toColorByBufferIndex(item.bufferIndex),
+          isSelected: selectedCorridor?.corridorId === item.corridorId ? 1 : 0,
+        },
+      })),
+    }),
+    [rows, selectedCorridor]
+  )
+
+  const lineLayer = useMemo(
+    () =>
+      ({
+        id: 'reliability-corridor-layer',
+        type: 'line',
+        paint: {
+          'line-color': ['coalesce', ['get', 'lineColor'], '#52c41a'],
+          'line-width': ['case', ['==', ['get', 'isSelected'], 1], 8, 5],
+          'line-opacity': 0.9,
+        },
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+      }) as LayerProps,
+    []
+  )
+
+  const rootCauseChartData = useMemo(() => {
+    if (!selectedCorridor) {
+      return null
+    }
+
+    const labels = Object.keys(selectedCorridor.rootCauses)
+    const values = Object.values(selectedCorridor.rootCauses)
+
+    return {
+      labels,
+      datasets: [
+        {
+          data: values,
+          backgroundColor: [
+            '#1677ff',
+            '#13c2c2',
+            '#faad14',
+            '#cf1322',
+            '#722ed1',
+          ],
+          borderWidth: 1,
+        },
+      ],
+    }
+  }, [selectedCorridor])
+
+  const tableColumns = [
+    {
+      title: 'Corridor',
+      dataIndex: 'corridorName',
+      key: 'corridorName',
+    },
+    {
+      title: 'Buffer Index',
+      dataIndex: 'bufferIndex',
+      key: 'bufferIndex',
+      render: (value: number) => (
+        <Tag color={value < 0.2 ? 'green' : value <= 0.4 ? 'orange' : 'red'}>
+          {value.toFixed(2)}
+        </Tag>
+      ),
+    },
+    {
+      title: 'PTI',
+      dataIndex: 'pti',
+      key: 'pti',
+      render: (value: number) => value.toFixed(2),
+    },
+    {
+      title: 'Action',
+      key: 'action',
+      render: (_: unknown, row: CorridorReliabilityItem) => (
+        <Button
+          icon={<SearchOutlined />}
+          type="text"
+          onClick={() => setSelectedCorridor(row)}
+        >
+          Phân tích
+        </Button>
+      ),
+    },
+  ]
+
+  if (loading) {
+    return <Loading />
+  }
+
+  if (error) {
+    return <ErrorState message={error} />
+  }
+
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Card
+        title={
+          <Space size={8}>
+            <FilterOutlined />
+            <span>Bộ lọc độ tin cậy corridor</span>
+          </Space>
+        }
+      >
+        <Space size={12} wrap>
+          <Select
+            style={{ minWidth: 220 }}
+            value={timeWindow}
+            onChange={(value: TimeWindow) => setTimeWindow(value)}
+            options={[
+              { label: 'Giờ cao điểm sáng', value: 'AM_PEAK' },
+              { label: 'Giờ cao điểm chiều', value: 'PM_PEAK' },
+              { label: 'Giờ bình thường', value: 'OFF_PEAK' },
+            ]}
+          />
+          <Select
+            style={{ minWidth: 220 }}
+            value={sortBy}
+            onChange={(value: SortBy) => setSortBy(value)}
+            options={[
+              { label: 'Sắp theo Buffer Index', value: 'buffer_index' },
+              { label: 'Sắp theo PTI', value: 'pti' },
+            ]}
+          />
+          <Select
+            style={{ minWidth: 160 }}
+            value={limit}
+            onChange={(value) => setLimit(value)}
+            options={[
+              { label: 'Top 5', value: 5 },
+              { label: 'Top 10', value: 10 },
+              { label: 'Top 15', value: 15 },
+            ]}
+          />
+        </Space>
+      </Card>
+
+      {rows.length === 0 ? (
+        <EmptyState message="Chưa có dữ liệu reliability corridor" />
+      ) : (
+        <Row gutter={[16, 16]}>
+          <Col xs={24} xl={10}>
+            <Card
+              title={
+                <Space size={8}>
+                  <DatabaseOutlined />
+                  <span>Bảng xếp hạng corridor reliability</span>
+                </Space>
+              }
+            >
+              <Table<CorridorReliabilityItem>
+                rowKey="corridorId"
+                columns={tableColumns}
+                dataSource={rows}
+                pagination={false}
+                size="small"
+                onRow={(record) => ({
+                  onClick: () => setSelectedCorridor(record),
+                })}
+              />
+            </Card>
+          </Col>
+
+          <Col xs={24} xl={14}>
+            <Card title="Static heatmap reliability theo corridor">
+              <Text
+                type="secondary"
+                style={{ display: 'block', marginBottom: 12 }}
+              >
+                Quy tắc màu: Xanh (&lt;0.2), Vàng/Cam (0.2-0.4), Đỏ sẫm
+                (&gt;0.4).
+              </Text>
+              {mapboxToken ? (
+                <div
+                  style={{ height: 480, borderRadius: 8, overflow: 'hidden' }}
+                >
+                  <Map
+                    initialViewState={{
+                      latitude: 10.7769,
+                      longitude: 106.7009,
+                      zoom: 11.3,
+                    }}
+                    mapStyle={mapStyle}
+                    mapboxAccessToken={mapboxToken}
+                  >
+                    <NavigationControl position="top-right" />
+                    <Source
+                      id="reliability-corridor-source"
+                      type="geojson"
+                      data={mapGeoJson}
+                    >
+                      <Layer {...lineLayer} />
+                    </Source>
+                  </Map>
+                </div>
+              ) : (
+                <ErrorState message="Thiếu VITE_MAPBOX_TOKEN để hiển thị heatmap corridor" />
+              )}
+
+              <Space size={8} style={{ marginTop: 12 }} wrap>
+                <Tag color="green">Ổn định (&lt; 0.2)</Tag>
+                <Tag color="orange">Thất thường (0.2 - 0.4)</Tag>
+                <Tag color="red">Báo động (&gt; 0.4)</Tag>
+              </Space>
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      <Modal
+        open={Boolean(selectedCorridor)}
+        title={
+          selectedCorridor
+            ? `Phân tích nguyên nhân - ${selectedCorridor.corridorName}`
+            : 'Phân tích nguyên nhân'
+        }
+        onCancel={() => setSelectedCorridor(null)}
+        footer={null}
+        destroyOnClose
+      >
+        {selectedCorridor && rootCauseChartData ? (
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <div style={{ height: 260 }}>
+              <Doughnut
+                data={rootCauseChartData}
+                options={{
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { position: 'bottom' as const },
+                  },
+                }}
+              />
+            </div>
+            <Title level={5} style={{ marginBottom: 0 }}>
+              Người dân đi qua đây phải dự phòng thêm{' '}
+              {(selectedCorridor.bufferIndex * 100).toFixed(0)}% thời gian so
+              với bình thường.
+            </Title>
+          </Space>
+        ) : null}
+      </Modal>
+    </Space>
+  )
+}
