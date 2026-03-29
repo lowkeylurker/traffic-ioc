@@ -11,10 +11,10 @@ export interface GeoJSONFeature {
     segmentName: string
     roadKey?: string
     roadName?: string
-    avgSpeed: number
-    losIndex: string
-    color: string
-    lastUpdated: string
+    avgSpeed?: number
+    losIndex?: string
+    color?: string
+    lastUpdated?: string
   }
 }
 

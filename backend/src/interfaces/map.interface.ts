@@ -11,10 +11,10 @@ export interface GeoJSONFeature {
     segmentName: string;
     roadKey?: string;
     roadName?: string;
-    avgSpeed: number; // Đơn vị: km/h
-    losIndex: string; // Mức độ phục vụ: 'A' -> 'F'
-    color: string | null; // Mã màu Hex (#FF0000, #00FF00...)
-    lastUpdated: string; // ISO Date String
+    avgSpeed?: number; // Optional cho bản đồ tĩnh
+    losIndex?: string;
+    color?: string | null;
+    lastUpdated?: string;
   };
 }
 

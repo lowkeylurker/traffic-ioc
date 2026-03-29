@@ -319,15 +319,13 @@ export class MapService {
           s.segment_id_source::text as "segmentName",
           w.road_key::text as "roadKey",
           r.name as "roadName",
-          ST_AsGeoJSON(s.geometry_linestring)::json as geometry
+          ST_AsGeoJSON(ST_Simplify(s.geometry_linestring, 0.00005), 6)::json as geometry
         FROM dim_segment s
         LEFT JOIN dim_way w ON w.way_key = s.way_key
         LEFT JOIN dim_road r ON r.road_key = w.road_key
         WHERE s.geometry_linestring IS NOT NULL
         ORDER BY s.segment_key
       `;
-
-      const nowIso = new Date().toISOString();
 
       // One-pass transform from DB rows to GeoJSON features.
       const features: GeoJSONFeature[] = rows.map((row: any) => {
@@ -339,11 +337,6 @@ export class MapService {
             segmentName: row.segmentName,
             roadKey: row.roadKey,
             roadName: row.roadName,
-            // Default empty/null speed, will be merged in frontend with trafficStatus
-            avgSpeed: 0,
-            losIndex: 'N/A',
-            color: null,
-            lastUpdated: nowIso,
           },
         };
       });

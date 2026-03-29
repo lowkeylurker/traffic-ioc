@@ -9,6 +9,7 @@ import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { Logger } from './utils/logger';
 
 // Routes
+import compression from 'compression';
 import { clerkMiddleware } from '@clerk/express';
 import analyticsRoutes from './routes/analytics.routes';
 import incidentRoutes from './routes/incident.routes';
@@ -27,8 +28,9 @@ export const createApp = (): Express => {
   app.use(clerkMiddleware());
   // ============================================================================
 
-  // Security
+  // Security & Compression
   app.use(helmet());
+  app.use(compression());
 
   // CORS
   app.use(
