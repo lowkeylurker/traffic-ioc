@@ -93,15 +93,23 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     if (!segmentData?.features?.length) return null
 
     if (!viewportBounds) {
+      const featuresWithData = segmentData.features.filter(
+        (f) => f.properties.losIndex && f.properties.losIndex !== 'N/A'
+      )
       return {
         ...segmentData,
-        features: segmentData.features.slice(0, renderCap),
+        features: featuresWithData.slice(0, renderCap),
       }
     }
 
     const visibleFeatures: GeoJSONFeature[] = []
 
     for (let i = 0; i < segmentData.features.length; i += 1) {
+      const feature = segmentData.features[i]
+      const los = feature.properties.losIndex
+
+      if (!los || los === 'N/A') continue
+
       const bounds = featureBounds[i]
       if (!bounds) continue
 
@@ -112,7 +120,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         bounds.minLat <= viewportBounds.maxLat
 
       if (intersectsViewport) {
-        visibleFeatures.push(segmentData.features[i])
+        visibleFeatures.push(feature)
       }
 
       if (visibleFeatures.length >= renderCap) {
@@ -468,7 +476,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
                         lineHeight: '1',
                       }}
                     >
-                      {Math.round(hoveredFeature.avgSpeed)}
+                      {Math.round(hoveredFeature.avgSpeed || 0)}
                     </span>
                     <span
                       style={{
@@ -531,9 +539,11 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
                   </div>
                   <div style={{ color: '#9CA3AF', fontSize: '11px' }}>
                     Cập nhật:{' '}
-                    {new Date(hoveredFeature.lastUpdated).toLocaleTimeString(
-                      'vi-VN'
-                    )}
+                    {hoveredFeature.lastUpdated
+                      ? new Date(hoveredFeature.lastUpdated).toLocaleTimeString(
+                          'vi-VN'
+                        )
+                      : 'N/A'}
                   </div>
                 </div>
               </div>
