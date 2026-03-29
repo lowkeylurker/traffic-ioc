@@ -32,6 +32,14 @@ router.get('/comparison', authMiddleware, adminOnly, (req, res, next) =>
 );
 
 /**
+ * GET /api/v1/analytics/relative-comparison
+ * Lấy dữ liệu so sánh 7-day trend, yesterday, lastWeek
+ */
+router.get('/relative-comparison', authMiddleware, adminOnly, (req, res, next) =>
+  analyticsController.getRelativeComparison(req, res, next)
+);
+
+/**
  * GET /api/v1/analytics/corridors
  * Lấy danh sách hành lang giao thông
  */

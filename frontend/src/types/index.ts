@@ -213,6 +213,17 @@ export interface ComparisonDataPoint {
   metric: ComparisonMetric
 }
 
+export interface TrendPoint {
+  label: string
+  value: number | null
+}
+
+export interface RelativeComparisonResult {
+  yesterday: ComparisonDataPoint[]
+  lastWeek: ComparisonDataPoint[]
+  trend7: TrendPoint[]
+}
+
 export interface ComparisonQueryParams {
   scopeType?: ComparisonScopeType
   segmentId?: string

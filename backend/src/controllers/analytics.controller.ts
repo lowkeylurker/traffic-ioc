@@ -56,6 +56,25 @@ export class AnalyticsController {
   }
 
   /**
+   * GET /relative-comparison - Lấy dữ liệu so sánh 7-day trend, yesterday, lastWeek
+   */
+  async getRelativeComparison(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      logger.log('GET /relative-comparison');
+
+      const parsed = ComparisonQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        throw new AppError(400, 'Invalid comparison query params', 'BAD_REQUEST');
+      }
+
+      const data = await analyticsService.getRelativeComparison(parsed.data);
+      res.json(ResponseUtil.success(data, 'Relative comparison data retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * GET /corridors - Lấy danh sách hành lang giao thông
    */
   async getCorridorOptions(req: Request, res: Response, next: NextFunction): Promise<void> {

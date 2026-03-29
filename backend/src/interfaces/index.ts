@@ -138,6 +138,18 @@ export interface ComparisonPoint {
   metric: ComparisonMetric;
 }
 
+export interface TrendPoint {
+  label: string;
+  value: number | null;
+}
+
+export interface RelativeComparisonResult {
+  yesterday: ComparisonPoint[];
+  lastWeek: ComparisonPoint[];
+  trend7: TrendPoint[];
+}
+
+
 export interface CorridorDashboardQuery {
   date: string;
   corridorKey?: string;

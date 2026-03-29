@@ -8,8 +8,10 @@ import {
   CorridorDashboardData,
   CorridorDashboardQuery,
   CorridorOption,
+  RelativeComparisonResult,
   ReliabilityQueryParams,
   ReliabilityRecord,
+  TrendPoint,
   VehicleMixData,
 } from '../interfaces/index';
 import { AppError } from '../middlewares/error.middleware';
@@ -152,32 +154,23 @@ export class AnalyticsService {
         throw new AppError(400, 'Unsupported metric', 'BAD_REQUEST');
       }
 
-      let filterSql = '';
-      let scopeValue: bigint;
+      let segmentKeys: bigint[] = [];
 
       if (query.scopeType === 'road') {
         if (!query.roadKey) {
           throw new AppError(400, 'roadKey is required for road scope', 'BAD_REQUEST');
         }
 
-        const road = await prisma.dim_road.findUnique({
-          where: {
-            road_key: BigInt(query.roadKey),
-          },
-          select: { road_key: true },
+        const segments = await prisma.dim_segment.findMany({
+          where: { dim_way: { road_key: BigInt(query.roadKey) } },
+          select: { segment_key: true },
         });
 
-        if (!road) {
-          throw new AppError(404, 'Road not found', 'NOT_FOUND');
+        if (!segments || segments.length === 0) {
+          throw new AppError(404, 'No segments found for this road', 'NOT_FOUND');
         }
 
-        scopeValue = BigInt(query.roadKey);
-        filterSql = `
-          FROM fact_traffic_flow f
-          INNER JOIN dim_segment s ON s.segment_key = f.segment_key
-          INNER JOIN dim_way w ON w.way_key = s.way_key
-          WHERE w.road_key = $1
-        `;
+        segmentKeys = segments.map((s) => s.segment_key);
       } else {
         if (!query.segmentId) {
           throw new AppError(400, 'segmentId is required for segment scope', 'BAD_REQUEST');
@@ -194,39 +187,40 @@ export class AnalyticsService {
           throw new AppError(404, 'Segment not found', 'NOT_FOUND');
         }
 
-        scopeValue = BigInt(query.segmentId);
-        filterSql = `
-          FROM fact_traffic_flow f
-          WHERE f.segment_key = $1
-        `;
+        segmentKeys = [BigInt(query.segmentId)];
       }
 
       const sql = `
         WITH hours AS (
           SELECT generate_series(0, 23) AS hour
         ),
-        today AS (
+        raw_data AS (
           SELECT
             EXTRACT(HOUR FROM f.timestamp)::int AS hour,
-            AVG((${metric.sqlExpr})::numeric) AS today_value
-          ${filterSql}
-            AND f.timestamp >= $2::date
+            f.timestamp::date AS date_val,
+            EXTRACT(ISODOW FROM f.timestamp)::int AS day_of_week,
+            (${metric.sqlExpr})::numeric AS metric_value
+          FROM fact_traffic_flow f
+          WHERE f.segment_key = ANY($1::bigint[])
+            AND f.timestamp >= ($2::date - INTERVAL '30 days')
             AND f.timestamp < CASE
               WHEN $2::date = CURRENT_DATE THEN NOW()
               ELSE ($2::date + INTERVAL '1 day')
             END
             AND (${metric.sqlExpr}) IS NOT NULL
+        ),
+        today AS (
+          SELECT
+            hour,
+            AVG(metric_value)::numeric AS today_value
+          FROM raw_data
+          WHERE date_val = $2::date
           GROUP BY 1
         ),
         baseline_source AS (
-          SELECT
-            EXTRACT(HOUR FROM f.timestamp)::int AS hour,
-            (${metric.sqlExpr})::numeric AS metric_value
-          ${filterSql}
-            AND f.timestamp >= ($2::date - INTERVAL '30 days')
-            AND f.timestamp < $2::date
-            AND EXTRACT(ISODOW FROM f.timestamp) = EXTRACT(ISODOW FROM $2::date)
-            AND (${metric.sqlExpr}) IS NOT NULL
+          SELECT hour, metric_value, day_of_week, date_val
+          FROM raw_data
+          WHERE date_val < $2::date
         ),
         baseline_weekday AS (
           SELECT
@@ -235,16 +229,8 @@ export class AnalyticsService {
             COALESCE(STDDEV_SAMP(metric_value), 0)::numeric AS baseline_std_dev,
             COUNT(*)::int AS sample_count
           FROM baseline_source
+          WHERE day_of_week = EXTRACT(ISODOW FROM $2::date)::int
           GROUP BY hour
-        ),
-        baseline_30d_source AS (
-          SELECT
-            EXTRACT(HOUR FROM f.timestamp)::int AS hour,
-            (${metric.sqlExpr})::numeric AS metric_value
-          ${filterSql}
-            AND f.timestamp >= ($2::date - INTERVAL '30 days')
-            AND f.timestamp < $2::date
-            AND (${metric.sqlExpr}) IS NOT NULL
         ),
         baseline_30d AS (
           SELECT
@@ -252,17 +238,8 @@ export class AnalyticsService {
             AVG(metric_value)::numeric AS baseline_avg,
             COALESCE(STDDEV_SAMP(metric_value), 0)::numeric AS baseline_std_dev,
             COUNT(*)::int AS sample_count
-          FROM baseline_30d_source
+          FROM baseline_source
           GROUP BY hour
-        ),
-        baseline_7d_source AS (
-          SELECT
-            EXTRACT(HOUR FROM f.timestamp)::int AS hour,
-            (${metric.sqlExpr})::numeric AS metric_value
-          ${filterSql}
-            AND f.timestamp >= (NOW() - INTERVAL '7 days')
-            AND f.timestamp < NOW()
-            AND (${metric.sqlExpr}) IS NOT NULL
         ),
         baseline_7d AS (
           SELECT
@@ -270,7 +247,8 @@ export class AnalyticsService {
             AVG(metric_value)::numeric AS baseline_avg,
             COALESCE(STDDEV_SAMP(metric_value), 0)::numeric AS baseline_std_dev,
             COUNT(*)::int AS sample_count
-          FROM baseline_7d_source
+          FROM baseline_source
+          WHERE date_val >= ($2::date - INTERVAL '7 days')
           GROUP BY hour
         ),
         baseline AS (
@@ -304,7 +282,7 @@ export class AnalyticsService {
         ORDER BY h.hour ASC
       `;
 
-      const rows = await prisma.$queryRawUnsafe<ComparisonRow[]>(sql, scopeValue, query.date);
+      const rows = await prisma.$queryRawUnsafe<ComparisonRow[]>(sql, segmentKeys, query.date);
 
       const result: ComparisonPoint[] = rows.map((row) => {
         const baselineAvg = toNullableNumber(row.baselineAvg);
@@ -347,6 +325,126 @@ export class AnalyticsService {
       logger.error('Error fetching comparison data', error);
       throw error;
     }
+  }
+
+  async getRelativeComparison(query: ComparisonQuery): Promise<RelativeComparisonResult> {
+    try {
+      logger.log(
+        `Fetching relative comparison data for scope=${query.scopeType}, segment=${query.segmentId ?? 'n/a'}, road=${query.roadKey ?? 'n/a'}, metric=${query.metric}, date=${query.date}`
+      );
+
+      const targetDate = new Date(query.date);
+      const yesterdayDate = new Date(targetDate);
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      const lastWeekDate = new Date(targetDate);
+      lastWeekDate.setDate(lastWeekDate.getDate() - 7);
+
+      const formatYMD = (d: Date) => d.toISOString().substring(0, 10);
+
+      const [yesterday, lastWeek, trend7] = await Promise.all([
+        this.getComparison({ ...query, date: formatYMD(yesterdayDate) }),
+        this.getComparison({ ...query, date: formatYMD(lastWeekDate) }),
+        this.getTrend7(query),
+      ]);
+
+      return { yesterday, lastWeek, trend7 };
+    } catch (error) {
+      logger.error('Error fetching relative comparison data', error);
+      throw error;
+    }
+  }
+
+  private async getTrend7(query: ComparisonQuery): Promise<TrendPoint[]> {
+    const metric = metricConfig[query.metric];
+    if (!metric) {
+      throw new AppError(400, 'Unsupported metric', 'BAD_REQUEST');
+    }
+
+    let segmentKeys: bigint[] = [];
+
+    if (query.scopeType === 'road') {
+      if (!query.roadKey) {
+        throw new AppError(400, 'roadKey is required for road scope', 'BAD_REQUEST');
+      }
+
+      const segments = await prisma.dim_segment.findMany({
+        where: { dim_way: { road_key: BigInt(query.roadKey) } },
+        select: { segment_key: true },
+      });
+
+      if (!segments || segments.length === 0) {
+        throw new AppError(404, 'No segments found for this road', 'NOT_FOUND');
+      }
+
+      segmentKeys = segments.map((s) => s.segment_key);
+    } else {
+      if (!query.segmentId) {
+        throw new AppError(400, 'segmentId is required for segment scope', 'BAD_REQUEST');
+      }
+
+      const segment = await prisma.dim_segment.findUnique({
+        where: {
+          segment_key: BigInt(query.segmentId),
+        },
+        select: { segment_key: true },
+      });
+
+      if (!segment) {
+        throw new AppError(404, 'Segment not found', 'NOT_FOUND');
+      }
+
+      segmentKeys = [BigInt(query.segmentId)];
+    }
+
+    const sql = `
+      WITH dates AS (
+        SELECT ($2::date - i) AS d
+        FROM generate_series(0, 6) AS i
+      ),
+      raw_data AS (
+        SELECT
+          f.timestamp::date AS date_val,
+          (${metric.sqlExpr})::numeric AS metric_value
+        FROM fact_traffic_flow f
+        WHERE f.segment_key = ANY($1::bigint[])
+          AND f.timestamp >= ($2::date - INTERVAL '6 days')
+          AND f.timestamp < CASE
+            WHEN $2::date = CURRENT_DATE THEN NOW()
+            ELSE ($2::date + INTERVAL '1 day')
+          END
+          AND (${metric.sqlExpr}) IS NOT NULL
+      ),
+      daily_averages AS (
+        SELECT
+          date_val,
+          AVG(metric_value)::numeric AS avg_value
+        FROM raw_data
+        GROUP BY 1
+      )
+      SELECT
+        d.d AS "dateStr",
+        da.avg_value AS "avgValue"
+      FROM dates d
+      LEFT JOIN daily_averages da ON da.date_val = d.d
+      ORDER BY d.d ASC
+    `;
+
+    const rows = await prisma.$queryRawUnsafe<Array<{ dateStr: Date; avgValue: number | null }>>(
+      sql,
+      segmentKeys,
+      query.date
+    );
+
+    return rows.map((row) => {
+      const d = new Date(row.dateStr);
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+
+      return {
+        label: `${day}/${month}`,
+        value: toNullableNumber(row.avgValue),
+      };
+    });
   }
 
   async getCorridorOptions(): Promise<CorridorOption[]> {
