@@ -6,7 +6,7 @@ import { CCTVModal } from '@/components/widgets/CCTVModal'
 import { KPIBar } from '@/components/widgets/KPIBar'
 import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
-import { useSegments } from '@/hooks/useTraffic'
+import { useTrafficMap } from '@/hooks/useTraffic'
 import { mapApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
 import { GeoJSONFeature, IncidentCollection, IncidentFeature } from '@/types'
@@ -15,9 +15,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 
 export const RealTimePage: React.FC = () => {
-  const segmentData = useSegments()
+  const segmentData = useTrafficMap()
   const location = useLocation()
-  const { isLoading, error } = useAppStore()
+  const { error } = useAppStore()
   const [cctvModalVisible, setCCTVModalVisible] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null)
@@ -90,7 +90,7 @@ export const RealTimePage: React.FC = () => {
   const activeJamsCount = useMemo(() => {
     if (!segmentData?.features?.length) return 0
 
-    return segmentData.features.reduce((count, feature) => {
+    return segmentData.features.reduce((count: number, feature: GeoJSONFeature) => {
       const los = String(feature?.properties?.losIndex ?? '').toUpperCase()
       return los === 'E' || los === 'F' ? count + 1 : count
     }, 0)
@@ -99,7 +99,7 @@ export const RealTimePage: React.FC = () => {
   const jamSegments = useMemo(() => {
     if (!segmentData?.features?.length) return []
 
-    return segmentData.features.filter((feature) => {
+    return segmentData.features.filter((feature: GeoJSONFeature) => {
       const los = String(feature?.properties?.losIndex ?? '').toUpperCase()
       return los === 'E' || los === 'F'
     })
@@ -234,7 +234,7 @@ export const RealTimePage: React.FC = () => {
 
     if (segmentId) {
       const selectedFeature = segmentData.features.find(
-        (feature) => String(feature.properties.segmentId) === segmentId
+        (feature: GeoJSONFeature) => String(feature.properties.segmentId) === segmentId
       )
 
       if (selectedFeature) {
@@ -247,7 +247,7 @@ export const RealTimePage: React.FC = () => {
 
     if (roadKey) {
       const roadSegments = segmentData.features.filter(
-        (feature) => feature.properties.roadKey === roadKey
+        (feature: GeoJSONFeature) => feature.properties.roadKey === roadKey
       )
 
       if (roadSegments.length > 0) {
@@ -262,7 +262,7 @@ export const RealTimePage: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, segmentData])
 
-  if (isLoading && !segmentData) {
+  if (!segmentData || segmentData.features.length === 0) {
     return (
       <div
         style={{

@@ -14,6 +14,7 @@ import {
   IncidentCollection,
   IncidentReportCreateResponse,
   NewsFeedResponse,
+  RelativeComparisonResult,
   ReliabilityRankData,
   RoadOption,
   RoutingData,
@@ -106,6 +107,11 @@ export const analyticsApi = {
     signal?: AbortSignal
   ): Promise<ApiResponse<ComparisonDataPoint[]>> =>
     axiosInstance.get('/analytics/comparison', { params, signal }),
+  getRelativeComparison: (
+    params: ComparisonQueryParams,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<RelativeComparisonResult>> =>
+    axiosInstance.get('/analytics/relative-comparison', { params, signal }),
   getCorridors: (): Promise<ApiResponse<CorridorAnalyticsOption[]>> =>
     axiosInstance.get('/analytics/corridors'),
   getCorridorDashboard: (

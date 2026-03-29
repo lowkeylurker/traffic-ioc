@@ -157,23 +157,6 @@ const longestStreak = (flags: boolean[]) => {
   return maxStreak
 }
 
-const averageToday = (
-  points: Array<{
-    todayValue: number | null
-  }>
-) => {
-  const values = points
-    .map((point) => point.todayValue)
-    .filter((value): value is number => value !== null)
-
-  if (values.length === 0) {
-    return null
-  }
-
-  const sum = values.reduce((acc, value) => acc + value, 0)
-  return sum / values.length
-}
-
 const createCountUpFormatter = (decimals = 0) => {
   // eslint-disable-next-line react/display-name
   return (value: string | number | undefined) => {
@@ -277,50 +260,24 @@ export const SegmentRoadAnalyticsTab: React.FC = () => {
           segmentId: scopeType === 'segment' ? effectiveSegment : undefined,
           roadKey: scopeType === 'road' ? effectiveRoad : undefined,
           metric: selectedMetric,
+          date: selectedDate.format('YYYY-MM-DD'),
         }
 
-        const yesterday = selectedDate.subtract(1, 'day').format('YYYY-MM-DD')
-        const lastWeek = selectedDate.subtract(7, 'day').format('YYYY-MM-DD')
-
-        const trendDays = Array.from({ length: 7 }, (_, idx) =>
-          selectedDate.subtract(6 - idx, 'day')
-        )
-
-        const trendRequests = trendDays.map((dateItem) =>
-          analyticsApi.getComparison({
-            ...baseParams,
-            date: dateItem.format('YYYY-MM-DD'),
-          })
-        )
-
-        const [yesterdayRes, lastWeekRes, ...trendResponses] =
-          await Promise.all([
-            analyticsApi.getComparison({ ...baseParams, date: yesterday }),
-            analyticsApi.getComparison({ ...baseParams, date: lastWeek }),
-            ...trendRequests,
-          ])
+        const res = await analyticsApi.getRelativeComparison(baseParams)
 
         if (!active) {
           return
         }
 
-        setYesterdayData(
-          yesterdayRes.success && yesterdayRes.data ? yesterdayRes.data : []
-        )
-        setLastWeekData(
-          lastWeekRes.success && lastWeekRes.data ? lastWeekRes.data : []
-        )
-
-        const trendValues = trendResponses.map((res, idx) => {
-          const label = trendDays[idx].format('DD/MM')
-          const source = res.success && res.data ? res.data : []
-          return {
-            label,
-            value: averageToday(source),
-          }
-        })
-
-        setTrend7(trendValues)
+        if (res.success && res.data) {
+          setYesterdayData(res.data.yesterday)
+          setLastWeekData(res.data.lastWeek)
+          setTrend7(res.data.trend7)
+        } else {
+          setYesterdayData([])
+          setLastWeekData([])
+          setTrend7([])
+        }
       } catch (fetchError) {
         console.error('Relative comparison fetch failed', fetchError)
         if (active) {
@@ -490,6 +447,21 @@ export const SegmentRoadAnalyticsTab: React.FC = () => {
 
   const oneDecimalCountFormatter = useMemo(() => createCountUpFormatter(1), [])
   const twoDecimalCountFormatter = useMemo(() => createCountUpFormatter(2), [])
+
+  if (!segments || segments.features.length === 0 || roads.length === 0) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '60vh',
+        }}
+      >
+        <Loading />
+      </div>
+    )
+  }
 
   return (
     <div style={{ paddingBottom: 8 }}>

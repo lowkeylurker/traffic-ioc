@@ -275,6 +275,9 @@ const MOCK_TRAFFIC_DATA = mockDataset.features;
 const MOCK_TRAFFIC_STATUS = mockDataset.status;
 
 export class MapService {
+  private cachedTopologyMap: TrafficMapResponse | null = null;
+  private lastTopologyFetch: number = 0;
+
   /**
    * Get color based on LOS level (A-F)
    */
@@ -302,31 +305,24 @@ export class MapService {
    */
   async getTrafficMap(): Promise<TrafficMapResponse> {
     try {
-      logger.log('Fetching traffic map data with joined latest traffic snapshot');
+      const nowMs = Date.now();
+      // Cache for 1 hour (3600000 ms) because topology rarely changes
+      if (this.cachedTopologyMap && (nowMs - this.lastTopologyFetch < 3600000)) {
+        return this.cachedTopologyMap;
+      }
+
+      logger.log('Fetching map topology data from DB (No join applied)');
 
       const rows = await prisma.$queryRaw<any[]>`
-        WITH latest_flow AS (
-          SELECT DISTINCT ON (segment_key)
-            segment_key,
-            current_speed_kmh,
-            los_level,
-            timestamp
-          FROM fact_traffic_flow
-          ORDER BY segment_key, timestamp DESC
-        )
         SELECT
           s.segment_key::text as "segmentId",
           s.segment_id_source::text as "segmentName",
           w.road_key::text as "roadKey",
           r.name as "roadName",
-          ST_AsGeoJSON(s.geometry_linestring)::json as geometry,
-          lf.current_speed_kmh as "avgSpeed",
-          lf.los_level as "losGrade",
-          lf.timestamp as "timestamp"
+          ST_AsGeoJSON(s.geometry_linestring)::json as geometry
         FROM dim_segment s
         LEFT JOIN dim_way w ON w.way_key = s.way_key
         LEFT JOIN dim_road r ON r.road_key = w.road_key
-        LEFT JOIN latest_flow lf ON lf.segment_key = s.segment_key
         WHERE s.geometry_linestring IS NOT NULL
         ORDER BY s.segment_key
       `;
@@ -335,10 +331,6 @@ export class MapService {
 
       // One-pass transform from DB rows to GeoJSON features.
       const features: GeoJSONFeature[] = rows.map((row: any) => {
-        const speed = row.avgSpeed ?? null;
-        const losLevel = row.losGrade || 'N/A';
-        const timestamp = row.timestamp;
-
         return {
           type: 'Feature',
           geometry: row.geometry,
@@ -347,17 +339,21 @@ export class MapService {
             segmentName: row.segmentName,
             roadKey: row.roadKey,
             roadName: row.roadName,
-            avgSpeed: speed ?? 0,
-            losIndex: losLevel,
-            color: this.getColorByLOS(losLevel),
-            lastUpdated: timestamp instanceof Date ? timestamp.toISOString() : nowIso,
+            // Default empty/null speed, will be merged in frontend with trafficStatus
+            avgSpeed: 0,
+            losIndex: 'N/A',
+            color: null,
+            lastUpdated: nowIso,
           },
         };
       });
 
-      return { type: 'FeatureCollection', features };
+      this.cachedTopologyMap = { type: 'FeatureCollection', features };
+      this.lastTopologyFetch = nowMs;
+
+      return this.cachedTopologyMap;
     } catch (error) {
-      logger.error('Error fetching traffic map', error);
+      logger.error('Error fetching traffic map topology', error);
       throw error;
     }
   }
@@ -418,11 +414,17 @@ export class MapService {
    */
   async getTrafficStatus(): Promise<TrafficStatus[]> {
     try {
-      logger.log('Fetching traffic status');
+      logger.log('Fetching traffic status (dynamic flow)');
 
       const result = await query(`
+        WITH latest_flow AS (
+          SELECT DISTINCT ON (segment_key)
+            segment_key, current_speed_kmh, los_level, traffic_index, pcu_volume, timestamp
+          FROM fact_traffic_flow
+          ORDER BY segment_key, timestamp DESC
+        )
         SELECT
-          s.segment_key          AS "segmentId",
+          f.segment_key          AS "segmentId",
           s.segment_id_source::text AS "segmentName",
           f.current_speed_kmh    AS "currentSpeed",
           f.current_speed_kmh    AS "avgSpeed",
@@ -431,21 +433,18 @@ export class MapService {
           f.pcu_volume           AS "pcuValue",
           NULL::float            AS "occupancyRate",
           f.timestamp            AS timestamp
-        FROM dim_segment s
-        LEFT JOIN LATERAL (
-          SELECT *
-          FROM fact_traffic_flow ftf
-          WHERE ftf.segment_key = s.segment_key
-          ORDER BY ftf.timestamp DESC
-          LIMIT 1
-        ) f ON TRUE
+        FROM latest_flow f
+        LEFT JOIN dim_segment s ON f.segment_key = s.segment_key
         WHERE s.geometry_linestring IS NOT NULL
-        ORDER BY s.segment_key
-        LIMIT 5000
       `);
 
       logger.log(`Retrieved traffic status for ${result.rows.length} segments`);
-      return result.rows as TrafficStatus[];
+      
+      // Inject colors directly in result
+      return result.rows.map(row => ({
+        ...row,
+        color: this.getColorByLOS(row.losGrade)
+      })) as TrafficStatus[];
     } catch (error) {
       logger.error('Error fetching traffic status', error);
       throw error;

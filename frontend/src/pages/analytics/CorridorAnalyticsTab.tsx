@@ -41,7 +41,7 @@ export const CorridorAnalyticsTab: React.FC<CorridorAnalyticsTabProps> = ({
     string | undefined
   >(undefined)
 
-  const { corridors } = useCorridorOptions()
+  const { corridors, loading: corridorsLoading } = useCorridorOptions()
   const {
     data: corridorDashboard,
     loading: corridorLoading,
@@ -184,6 +184,21 @@ export const CorridorAnalyticsTab: React.FC<CorridorAnalyticsTabProps> = ({
 
   const integerCountFormatter = useMemo(() => createCountUpFormatter(0), [])
   const twoDecimalCountFormatter = useMemo(() => createCountUpFormatter(2), [])
+
+  if (corridorsLoading || corridors.length === 0) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '60vh',
+        }}
+      >
+        <Loading />
+      </div>
+    )
+  }
 
   return (
     <Card

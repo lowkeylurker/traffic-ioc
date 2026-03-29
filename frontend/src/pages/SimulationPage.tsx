@@ -98,7 +98,7 @@ export const SimulationPage: React.FC = () => {
           bodyStyle={{ height: 'calc(100% - 57px)', padding: 0 }}
         >
           <TrafficMap
-            segments={segments}
+            segmentData={segments}
             trafficStatus={trafficStatus}
             onMapClick={(event) => {
               // In thực tế, cần click vào segment để chọn
