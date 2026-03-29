@@ -10,8 +10,10 @@ import {
   CorridorAnalyticsOption,
   CorridorDashboardData,
   RoadOption,
+  SegmentResponse,
   TrafficStatus,
   WeatherData,
+  GeoJSONFeature,
 } from '@/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -68,30 +70,64 @@ export const useRoads = () => {
 
 // Get data of road segments with speed color (GeoJSON FeatureCollection) with polling
 export const useTrafficMap = () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [trafficMap, setTrafficMap] = useState<any>({
-    type: 'FeatureCollection',
-    features: [],
-  })
+  const segmentData = useSegments()
+  const [trafficMap, setTrafficMap] = useState<SegmentResponse | null>(null)
 
   useEffect(() => {
-    const fetchTrafficMap = async () => {
+    let interval: ReturnType<typeof setInterval>
+
+    const fetchTrafficStatus = async () => {
+      if (!segmentData || !segmentData.features || segmentData.features.length === 0) {
+        return
+      }
+
       try {
-        const response = await mapApi.getSegments()
+        const response = await mapApi.getStatus()
         if (response.success && response.data) {
-          setTrafficMap(response.data)
+          const statuses = response.data as TrafficStatus[]
+          
+          // Create lookup map for O(1)
+          const statusMap = new Map()
+          for (const s of statuses) {
+            statusMap.set(String(s.segmentId), s)
+          }
+
+          // Merge static properties with dynamic status
+          const newFeatures = segmentData.features.map((feature: GeoJSONFeature) => {
+             const stat = statusMap.get(String(feature.properties.segmentId))
+             if (stat) {
+               return {
+                 ...feature,
+                 properties: {
+                   ...feature.properties,
+                   avgSpeed: stat.avgSpeed,
+                   losIndex: stat.losGrade,
+                   color: stat.color || null,
+                   lastUpdated: stat.timestamp,
+                 }
+               }
+             }
+             return feature
+          })
+
+          setTrafficMap({
+             type: 'FeatureCollection',
+             features: newFeatures
+          })
         }
       } catch (error) {
-        console.error('Error fetching traffic map:', error)
+        console.error('Error fetching traffic status for map merging:', error)
       }
     }
 
-    fetchTrafficMap()
-    // Polling 15 giây/lần
-    const interval = setInterval(fetchTrafficMap, 15000)
+    // Fetch immediately if segmentData is ready
+    fetchTrafficStatus()
+    
+    // Polling 15 seconds interval
+    interval = setInterval(fetchTrafficStatus, 15000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [segmentData])
 
   return trafficMap
 }

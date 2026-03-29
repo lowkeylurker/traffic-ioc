@@ -491,6 +491,21 @@ export const SegmentRoadAnalyticsTab: React.FC = () => {
   const oneDecimalCountFormatter = useMemo(() => createCountUpFormatter(1), [])
   const twoDecimalCountFormatter = useMemo(() => createCountUpFormatter(2), [])
 
+  if (!segments || segments.features.length === 0 || roads.length === 0) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '60vh',
+        }}
+      >
+        <Loading />
+      </div>
+    )
+  }
+
   return (
     <div style={{ paddingBottom: 8 }}>
       <Card

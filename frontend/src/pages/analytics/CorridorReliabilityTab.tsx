@@ -558,8 +558,19 @@ export const CorridorReliabilityTab: React.FC = () => {
     },
   ]
 
-  if (loading) {
-    return <Loading />
+  if (loading || corridorOptions.length === 0) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '60vh',
+        }}
+      >
+        <Loading />
+      </div>
+    )
   }
 
   if (error) {
