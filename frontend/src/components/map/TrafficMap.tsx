@@ -540,8 +540,15 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
                   <div style={{ color: '#9CA3AF', fontSize: '11px' }}>
                     Cập nhật:{' '}
                     {hoveredFeature.lastUpdated
-                      ? new Date(hoveredFeature.lastUpdated).toLocaleTimeString(
-                          'vi-VN'
+                      ? new Date(hoveredFeature.lastUpdated).toLocaleString(
+                          'vi-VN',
+                          {
+                            day: '2-digit',
+                            month: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                          }
                         )
                       : 'N/A'}
                   </div>
