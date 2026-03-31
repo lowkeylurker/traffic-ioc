@@ -307,25 +307,50 @@ export class MapService {
     try {
       const nowMs = Date.now();
       // Cache for 1 hour (3600000 ms) because topology rarely changes
-      if (this.cachedTopologyMap && (nowMs - this.lastTopologyFetch < 3600000)) {
+      if (this.cachedTopologyMap && nowMs - this.lastTopologyFetch < 3600000) {
         return this.cachedTopologyMap;
       }
 
-      logger.log('Fetching map topology data from DB (No join applied)');
+      logger.log('Fetching map topology data from DB');
 
-      const rows = await prisma.$queryRaw<any[]>`
-        SELECT
-          s.segment_key::text as "segmentId",
-          s.segment_id_source::text as "segmentName",
-          w.road_key::text as "roadKey",
-          r.name as "roadName",
-          ST_AsGeoJSON(ST_Simplify(s.geometry_linestring, 0.00005), 6)::json as geometry
-        FROM dim_segment s
-        LEFT JOIN dim_way w ON w.way_key = s.way_key
-        LEFT JOIN dim_road r ON r.road_key = w.road_key
-        WHERE s.geometry_linestring IS NOT NULL
-        ORDER BY s.segment_key
-      `;
+      let rows: any[] = [];
+      try {
+        rows = await prisma.$queryRaw<any[]>`
+          SELECT
+            s.segment_key::text as "segmentId",
+            s.segment_id_source::text as "segmentName",
+            w.road_key::text as "roadKey",
+            r.name as "roadName",
+            EXISTS (
+              SELECT 1
+              FROM bridge_corridor_segment bcs
+              WHERE bcs.segment_key = s.segment_key
+            ) as "isCorridor",
+            ST_AsGeoJSON(ST_Simplify(s.geometry_linestring, 0.00005), 6)::json as geometry
+          FROM dim_segment s
+          LEFT JOIN dim_way w ON w.way_key = s.way_key
+          LEFT JOIN dim_road r ON r.road_key = w.road_key
+          WHERE s.geometry_linestring IS NOT NULL
+          ORDER BY s.segment_key
+        `;
+      } catch (error) {
+        logger.warn('Corridor mapping table unavailable, fallback to topology-only query', error);
+
+        rows = await prisma.$queryRaw<any[]>`
+          SELECT
+            s.segment_key::text as "segmentId",
+            s.segment_id_source::text as "segmentName",
+            w.road_key::text as "roadKey",
+            r.name as "roadName",
+            false as "isCorridor",
+            ST_AsGeoJSON(ST_Simplify(s.geometry_linestring, 0.00005), 6)::json as geometry
+          FROM dim_segment s
+          LEFT JOIN dim_way w ON w.way_key = s.way_key
+          LEFT JOIN dim_road r ON r.road_key = w.road_key
+          WHERE s.geometry_linestring IS NOT NULL
+          ORDER BY s.segment_key
+        `;
+      }
 
       // One-pass transform from DB rows to GeoJSON features.
       const features: GeoJSONFeature[] = rows.map((row: any) => {
@@ -337,6 +362,7 @@ export class MapService {
             segmentName: row.segmentName,
             roadKey: row.roadKey,
             roadName: row.roadName,
+            isCorridor: row.isCorridor,
           },
         };
       });
@@ -425,6 +451,11 @@ export class MapService {
           f.traffic_index        AS "losScore",
           f.pcu_volume           AS "pcuValue",
           NULL::float            AS "occupancyRate",
+          EXISTS (
+            SELECT 1
+            FROM bridge_corridor_segment bcs
+            WHERE bcs.segment_key = f.segment_key
+          )                     AS "isCorridor",
           f.timestamp            AS timestamp
         FROM latest_flow f
         LEFT JOIN dim_segment s ON f.segment_key = s.segment_key
@@ -432,11 +463,11 @@ export class MapService {
       `);
 
       logger.log(`Retrieved traffic status for ${result.rows.length} segments`);
-      
+
       // Inject colors directly in result
-      return result.rows.map(row => ({
+      return result.rows.map((row) => ({
         ...row,
-        color: this.getColorByLOS(row.losGrade)
+        color: this.getColorByLOS(row.losGrade),
       })) as TrafficStatus[];
     } catch (error) {
       logger.error('Error fetching traffic status', error);

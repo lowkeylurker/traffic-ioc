@@ -11,6 +11,7 @@ export interface GeoJSONFeature {
     segmentName: string
     roadKey?: string
     roadName?: string
+    isCorridor?: boolean
     avgSpeed?: number
     losIndex?: string
     color?: string
@@ -59,6 +60,7 @@ export interface TrafficStatus {
   losScore: number
   pcuValue: number
   occupancyRate: number
+  isCorridor?: boolean
   timestamp: Date
 }
 

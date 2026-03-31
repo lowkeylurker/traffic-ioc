@@ -199,7 +199,29 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         id: 'traffic-flow-layer',
         type: 'line',
         paint: {
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.2, 14, 3.8],
+          'line-width': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+
+            // Tại mức Zoom = 10
+            10,
+            [
+              'case',
+              ['==', ['get', 'isCorridor'], true],
+              2.2, // Hành lang dày 2.2
+              1.1, // Đường thường cũng dày 2.2
+            ],
+
+            // Tại mức Zoom = 14
+            14,
+            [
+              'case',
+              ['==', ['get', 'isCorridor'], true],
+              3.8, // Hành lang dày lên 3.8
+              1.9, // Đường thường thu nhỏ còn 1.9
+            ],
+          ],
           'line-color': [
             'case',
             ['==', ['get', 'losIndex'], 'N/A'],

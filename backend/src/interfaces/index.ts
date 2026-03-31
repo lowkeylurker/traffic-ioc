@@ -18,6 +18,7 @@ export interface TrafficStatus {
   losScore: number;
   pcuValue: number;
   occupancyRate: number;
+  isCorridor?: boolean;
   timestamp: Date;
 }
 
@@ -148,7 +149,6 @@ export interface RelativeComparisonResult {
   lastWeek: ComparisonPoint[];
   trend7: TrendPoint[];
 }
-
 
 export interface CorridorDashboardQuery {
   date: string;

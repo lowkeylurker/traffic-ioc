@@ -11,6 +11,7 @@ export interface GeoJSONFeature {
     segmentName: string;
     roadKey?: string;
     roadName?: string;
+    isCorridor?: boolean;
     avgSpeed?: number; // Optional cho bản đồ tĩnh
     losIndex?: string;
     color?: string | null;

@@ -77,7 +77,11 @@ export const useTrafficMap = () => {
     let interval: ReturnType<typeof setInterval>
 
     const fetchTrafficStatus = async () => {
-      if (!segmentData || !segmentData.features || segmentData.features.length === 0) {
+      if (
+        !segmentData ||
+        !segmentData.features ||
+        segmentData.features.length === 0
+      ) {
         return
       }
 
@@ -85,7 +89,7 @@ export const useTrafficMap = () => {
         const response = await mapApi.getStatus()
         if (response.success && response.data) {
           const statuses = response.data as TrafficStatus[]
-          
+
           // Create lookup map for O(1)
           const statusMap = new Map()
           for (const s of statuses) {
@@ -93,26 +97,30 @@ export const useTrafficMap = () => {
           }
 
           // Merge static properties with dynamic status
-          const newFeatures = segmentData.features.map((feature: GeoJSONFeature) => {
-             const stat = statusMap.get(String(feature.properties.segmentId))
-             if (stat) {
-               return {
-                 ...feature,
-                 properties: {
-                   ...feature.properties,
-                   avgSpeed: stat.avgSpeed,
-                   losIndex: stat.losGrade,
-                   color: stat.color || null,
-                   lastUpdated: stat.timestamp,
-                 }
-               }
-             }
-             return feature
-          })
+          const newFeatures = segmentData.features.map(
+            (feature: GeoJSONFeature) => {
+              const stat = statusMap.get(String(feature.properties.segmentId))
+              if (stat) {
+                return {
+                  ...feature,
+                  properties: {
+                    ...feature.properties,
+                    avgSpeed: stat.avgSpeed,
+                    losIndex: stat.losGrade,
+                    color: stat.color || null,
+                    isCorridor:
+                      stat.isCorridor ?? feature.properties.isCorridor,
+                    lastUpdated: stat.timestamp,
+                  },
+                }
+              }
+              return feature
+            }
+          )
 
           setTrafficMap({
-             type: 'FeatureCollection',
-             features: newFeatures
+            type: 'FeatureCollection',
+            features: newFeatures,
           })
         }
       } catch (error) {
@@ -122,7 +130,7 @@ export const useTrafficMap = () => {
 
     // Fetch immediately if segmentData is ready
     fetchTrafficStatus()
-    
+
     // Polling 15 seconds interval
     interval = setInterval(fetchTrafficStatus, 15000)
 
