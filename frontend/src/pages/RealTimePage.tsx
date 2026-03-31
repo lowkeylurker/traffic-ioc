@@ -1,5 +1,6 @@
 import { IncidentAlertWidget, IncidentLayer } from '@/components'
 import { ErrorState, Loading } from '@/components/common'
+import IncidentImpactLayer from '@/components/map/IncidentImpactLayer'
 import { TrafficMap } from '@/components/map/TrafficMap'
 import WeatherVoronoiLayer from '@/components/map/WeatherVoronoiLayer'
 import { CCTVModal } from '@/components/widgets/CCTVModal'
@@ -9,7 +10,13 @@ import { MapLegend } from '@/components/widgets/MapLegend'
 import { useTrafficMap } from '@/hooks/useTraffic'
 import { mapApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
-import { GeoJSONFeature, IncidentCollection, IncidentFeature } from '@/types'
+import {
+  GeoJSONFeature,
+  IncidentCollection,
+  IncidentFeature,
+  IncidentImpactResponse,
+} from '@/types'
+import { Spin } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
@@ -25,7 +32,9 @@ export const RealTimePage: React.FC = () => {
     useState(true)
   const [heatmapEnabled, setHeatmapEnabled] = useState(false)
   const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(false)
-  const [_selectedIncident, setSelectedIncident] =
+  const [weatherLayerLoading, setWeatherLayerLoading] = useState(false)
+  const [incidentLayerEnabled, setIncidentLayerEnabled] = useState(false)
+  const [selectedIncident, setSelectedIncident] =
     useState<IncidentFeature | null>(null)
   const lastHandledDeepLinkRef = useRef<string | null>(null)
 
@@ -87,13 +96,49 @@ export const RealTimePage: React.FC = () => {
 
   const incidents = incidentData?.features || []
 
+  const {
+    data: impactResponse,
+    isLoading: impactLoading,
+    isError: impactError,
+  } = useQuery({
+    queryKey: ['incident-impact-propagation', selectedIncident?.properties?.id],
+    queryFn: async (): Promise<IncidentImpactResponse | null> => {
+      if (!selectedIncident?.properties?.id) return null
+
+      const response = await mapApi.getIncidentImpactPropagation(
+        selectedIncident.properties.id,
+        {
+          radiusMeters: 2000,
+          ttiThreshold: 1.5,
+          maxDepth: 4,
+          maxSegments: 200,
+        }
+      )
+
+      if (response?.success && response?.data) {
+        return response.data
+      }
+
+      return null
+    },
+    enabled: incidentLayerEnabled && Boolean(selectedIncident?.properties?.id),
+    refetchInterval: selectedIncident?.properties?.id ? 30000 : false,
+    refetchIntervalInBackground: false,
+    staleTime: 0,
+  })
+
+  const impactedSegments = impactResponse?.impactedSegments ?? []
+
   const activeJamsCount = useMemo(() => {
     if (!segmentData?.features?.length) return 0
 
-    return segmentData.features.reduce((count: number, feature: GeoJSONFeature) => {
-      const los = String(feature?.properties?.losIndex ?? '').toUpperCase()
-      return los === 'E' || los === 'F' ? count + 1 : count
-    }, 0)
+    return segmentData.features.reduce(
+      (count: number, feature: GeoJSONFeature) => {
+        const los = String(feature?.properties?.losIndex ?? '').toUpperCase()
+        return los === 'E' || los === 'F' ? count + 1 : count
+      },
+      0
+    )
   }, [segmentData])
 
   const jamSegments = useMemo(() => {
@@ -213,6 +258,16 @@ export const RealTimePage: React.FC = () => {
   const handleWeatherToggle = (_enabled: boolean) => {
     // Weather layer toggle handler
     setWeatherLayerEnabled(_enabled)
+    if (!_enabled) {
+      setWeatherLayerLoading(false)
+    }
+  }
+
+  const handleIncidentToggle = (_enabled: boolean) => {
+    setIncidentLayerEnabled(_enabled)
+    if (!_enabled) {
+      setSelectedIncident(null)
+    }
   }
 
   useEffect(() => {
@@ -234,7 +289,8 @@ export const RealTimePage: React.FC = () => {
 
     if (segmentId) {
       const selectedFeature = segmentData.features.find(
-        (feature: GeoJSONFeature) => String(feature.properties.segmentId) === segmentId
+        (feature: GeoJSONFeature) =>
+          String(feature.properties.segmentId) === segmentId
       )
 
       if (selectedFeature) {
@@ -259,7 +315,7 @@ export const RealTimePage: React.FC = () => {
     }
 
     lastHandledDeepLinkRef.current = location.search
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, segmentData])
 
   if (!segmentData || segmentData.features.length === 0) {
@@ -314,13 +370,26 @@ export const RealTimePage: React.FC = () => {
             <WeatherVoronoiLayer
               visible={weatherLayerEnabled}
               mapRef={mapRef}
+              onLoadingChange={setWeatherLayerLoading}
             />
           )}
           {/* Incident Layer - Overlaid on traffic map */}
-          <IncidentLayer
-            incidents={incidents}
-            isLoading={incidentsLoading}
-            onIncidentClick={setSelectedIncident}
+          {incidentLayerEnabled && (
+            <IncidentLayer
+              incidents={incidents}
+              isLoading={incidentsLoading}
+              onIncidentClick={setSelectedIncident}
+              mapRef={mapRef}
+            />
+          )}
+
+          <IncidentImpactLayer
+            visible={
+              incidentLayerEnabled &&
+              Boolean(selectedIncident) &&
+              impactedSegments.length > 0
+            }
+            segments={impactedSegments}
             mapRef={mapRef}
           />
         </TrafficMap>
@@ -356,10 +425,47 @@ export const RealTimePage: React.FC = () => {
           onSegmentStatusToggle={handleSegmentStatusToggle}
           onHeatmapToggle={handleHeatmapToggle}
           onWeatherToggle={handleWeatherToggle}
+          onIncidentToggle={handleIncidentToggle}
         />
 
         {/* Bottom Right - Map Legend (z-index: 10) */}
         <MapLegend />
+
+        {weatherLayerEnabled && weatherLayerLoading && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 24,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(15, 23, 42, 0.18)',
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
+              pointerEvents: 'none',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                color: '#F8FAFC',
+                fontSize: 13,
+                fontWeight: 600,
+                padding: '10px 14px',
+                borderRadius: 999,
+                background: 'rgba(15, 23, 42, 0.62)',
+                border: '1px solid rgba(248, 250, 252, 0.18)',
+                boxShadow: '0 10px 24px rgba(2, 6, 23, 0.25)',
+              }}
+            >
+              <Spin size="small" />
+              Đang tải lớp thời tiết...
+            </div>
+          </div>
+        )}
 
         {/* CCTV Modal (Hidden by default) */}
         <CCTVModal
@@ -368,41 +474,165 @@ export const RealTimePage: React.FC = () => {
         />
 
         {/* Floating Right Stack Widgets */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 12,
-            right: 12,
-            width: 'clamp(260px, 24vw, 330px)',
-            animation: 'dashboard-fade-slide 420ms ease-out both',
-            animationDelay: '80ms',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-            zIndex: 20,
-            maxHeight: 'calc(100% - 168px)',
-            pointerEvents: 'none',
-          }}
-        >
+        {incidentLayerEnabled && (
           <div
             style={{
-              pointerEvents: 'auto',
-              maxHeight: '48vh',
-              overflow: 'hidden',
-              borderRadius: 12,
+              position: 'absolute',
+              top: 12,
+              right: 12,
+              width: 'clamp(260px, 24vw, 330px)',
               animation: 'dashboard-fade-slide 420ms ease-out both',
-              animationDelay: '120ms',
+              animationDelay: '80ms',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              zIndex: 20,
+              maxHeight: 'calc(100% - 168px)',
+              pointerEvents: 'none',
             }}
           >
-            <IncidentAlertWidget
-              incidents={incidents}
-              isLoading={incidentsLoading}
-              onIncidentClick={setSelectedIncident}
-              mapRef={mapRef}
-              floating={false}
-            />
+            <div
+              style={{
+                pointerEvents: 'auto',
+                maxHeight: '48vh',
+                overflow: 'hidden',
+                borderRadius: 12,
+                animation: 'dashboard-fade-slide 420ms ease-out both',
+                animationDelay: '120ms',
+              }}
+            >
+              <IncidentAlertWidget
+                incidents={incidents}
+                isLoading={incidentsLoading}
+                onIncidentClick={setSelectedIncident}
+                mapRef={mapRef}
+                floating={false}
+              />
+            </div>
           </div>
-        </div>
+        )}
+
+        {incidentLayerEnabled && selectedIncident && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 84,
+              left: 12,
+              zIndex: 26,
+              pointerEvents: 'none',
+              minWidth: 280,
+              maxWidth: 380,
+            }}
+          >
+            <div
+              style={{
+                borderRadius: 12,
+                border: '1px solid rgba(255,255,255,0.22)',
+                background: 'rgba(15, 23, 42, 0.78)',
+                color: '#F8FAFC',
+                padding: '12px 14px',
+                boxShadow: '0 12px 28px rgba(2,6,23,0.28)',
+                pointerEvents: 'auto',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 13 }}>
+                  Vết loang kẹt xe
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIncident(null)}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#CBD5E1',
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    lineHeight: 1,
+                    padding: 0,
+                  }}
+                  title="Tắt vết loang"
+                >
+                  ×
+                </button>
+              </div>
+
+              {impactLoading && (
+                <div style={{ fontSize: 12, color: '#CBD5E1' }}>
+                  Đang phân tích vùng ảnh hưởng...
+                </div>
+              )}
+
+              {!impactLoading && impactError && (
+                <div style={{ fontSize: 12, color: '#FECACA' }}>
+                  Không lấy được dữ liệu vết loang. Vui lòng thử lại.
+                </div>
+              )}
+
+              {!impactLoading &&
+                !impactError &&
+                impactedSegments.length === 0 && (
+                  <div style={{ fontSize: 12, color: '#E2E8F0' }}>
+                    Chưa ghi nhận vết loang đáng kể trong bán kính hiện tại.
+                  </div>
+                )}
+
+              {!impactLoading &&
+                !impactError &&
+                impactedSegments.length > 0 &&
+                impactResponse && (
+                  <>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                        gap: '8px 10px',
+                        fontSize: 12,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <div>
+                        Đoạn đường:{' '}
+                        <b>{impactResponse.summary.totalImpactedSegments}</b>
+                      </div>
+                      <div>
+                        Chiều dài:{' '}
+                        <b>
+                          {impactResponse.summary.impactedLengthKm.toFixed(2)}{' '}
+                          km
+                        </b>
+                      </div>
+                      <div>
+                        Hàng đợi xa nhất:{' '}
+                        <b>
+                          {impactResponse.summary.maxQueueDistanceKm.toFixed(2)}{' '}
+                          km
+                        </b>
+                      </div>
+                      <div>
+                        Mức độ nghiêm trọng:{' '}
+                        <b>{impactResponse.summary.severityScore}</b>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: 11, color: '#CBD5E1' }}>
+                      Legend: <span style={{ color: '#FB7185' }}>CRITICAL</span>{' '}
+                      / <span style={{ color: '#F97316' }}>HIGH</span> /{' '}
+                      <span style={{ color: '#FB923C' }}>MEDIUM</span> /{' '}
+                      <span style={{ color: '#F59E0B' }}>LOW</span>
+                    </div>
+                  </>
+                )}
+            </div>
+          </div>
+        )}
 
         <style>{`
           @keyframes dashboard-fade-slide {

@@ -35,6 +35,7 @@ interface WeatherVoronoiLayerProps {
   visible?: boolean
   opacity?: number
   mapRef?: React.RefObject<{ getMap?: () => mapboxgl.Map } | null>
+  onLoadingChange?: (isLoading: boolean) => void
 }
 
 type HoverState = {
@@ -92,11 +93,12 @@ export const WeatherVoronoiLayer: React.FC<WeatherVoronoiLayerProps> = ({
   visible = false,
   opacity = 0.26,
   mapRef,
+  onLoadingChange,
 }) => {
   const [hovered, setHovered] = useState<HoverState | null>(null)
   const rightHoldRef = useRef(false)
 
-  const { data } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['weather-voronoi'],
     queryFn: async (): Promise<WeatherVoronoiResponse> => {
       const response = await weatherApi.getVoronoi()
@@ -107,6 +109,10 @@ export const WeatherVoronoiLayer: React.FC<WeatherVoronoiLayerProps> = ({
     staleTime: 120000,
     enabled: visible,
   })
+
+  useEffect(() => {
+    onLoadingChange?.(Boolean(visible && (isLoading || isFetching)))
+  }, [isFetching, isLoading, onLoadingChange, visible])
 
   const sourceData = useMemo(
     () =>

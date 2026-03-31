@@ -12,6 +12,7 @@ import {
   CitizenReportListResponse,
   ForecastData,
   IncidentCollection,
+  IncidentImpactResponse,
   IncidentReportCreateResponse,
   NewsFeedResponse,
   RelativeComparisonResult,
@@ -91,6 +92,19 @@ export const mapApi = {
         status,
         ...(bbox ? { bbox } : {}),
       },
+    }),
+  getIncidentImpactPropagation: (
+    incidentId: string,
+    params?: {
+      radiusMeters?: number
+      targetSpeedKmh?: number
+      ttiThreshold?: number
+      maxDepth?: number
+      maxSegments?: number
+    }
+  ): Promise<ApiResponse<IncidentImpactResponse>> =>
+    axiosInstance.get(`/incidents/${incidentId}/impact-propagation`, {
+      params,
     }),
 }
 

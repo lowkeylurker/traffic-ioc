@@ -1,0 +1,24 @@
+name: add-dynamic-impact-propagation-incident-spillover
+schema: spec-driven
+description: >
+  Add Dynamic Impact Propagation (vet loang ket xe) capability so operators can
+  click an incident and immediately visualize upstream congestion spillover on map
+  using impacted segments from existing traffic speed data.
+created: "2026-03-31"
+status: proposed
+artifacts:
+  - id: proposal
+    status: proposed
+    description: Problem framing, scope, API draft, UX goals, and rollout for incident spillover visualization.
+  - id: design
+    status: proposed
+    description: FE-BE-DB architecture, PostGIS upstream tracing strategy, cache and guardrails.
+    depends_on: [proposal]
+  - id: spec
+    status: proposed
+    description: Requirement deltas for impact propagation API and map overlay visualization.
+    depends_on: [design]
+  - id: tasks
+    status: proposed
+    description: Ordered implementation and validation plan with dependencies.
+    depends_on: [spec]

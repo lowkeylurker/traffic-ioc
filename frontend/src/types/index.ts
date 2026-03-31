@@ -106,6 +106,41 @@ export interface IncidentCollection {
   features: IncidentFeature[]
 }
 
+export type ImpactSeverityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+
+export interface IncidentImpactSegment {
+  segmentId: string
+  geometry: {
+    type: 'LineString'
+    coordinates: number[][]
+  }
+  currentSpeed: number
+  targetSpeed: number
+  tti: number
+  distanceFromIncidentM: number
+  severityLevel: ImpactSeverityLevel
+}
+
+export interface IncidentImpactSummary {
+  totalImpactedSegments: number
+  impactedLengthKm: number
+  maxQueueDistanceKm: number
+  severityScore: number
+}
+
+export interface IncidentImpactResponse {
+  incident: {
+    incidentId: string
+    type: IncidentType
+    severity: IncidentSeverity
+    timestamp: string
+    coordinates: [number, number]
+  }
+  impactedSegments: IncidentImpactSegment[]
+  summary: IncidentImpactSummary
+  degradedMode: boolean
+}
+
 export interface UserNewsItem {
   incidentId: string
   incidentType: string

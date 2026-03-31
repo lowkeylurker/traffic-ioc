@@ -8,6 +8,9 @@ const router = Router();
 // GET /api/v1/incidents - Get all incidents
 router.get('/', incidentController.getIncidents.bind(incidentController));
 
+// GET /api/v1/incidents/:id/impact-propagation - Get dynamic impact propagation
+router.get('/:id/impact-propagation', incidentController.getIncidentImpactPropagation.bind(incidentController));
+
 // GET /api/v1/incidents/:id - Get incident by ID
 router.get('/:id', incidentController.getIncidentById.bind(incidentController));
 

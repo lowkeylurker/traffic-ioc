@@ -1,6 +1,7 @@
 // Map Controls Component
 
 import {
+  AlertOutlined,
   BgColorsOutlined,
   CameraOutlined,
   CloudOutlined,
@@ -20,6 +21,7 @@ interface MapControlsProps {
   onSegmentStatusToggle?: (enabled: boolean) => void
   onHeatmapToggle?: (enabled: boolean) => void
   onWeatherToggle?: (enabled: boolean) => void
+  onIncidentToggle?: (enabled: boolean) => void
 }
 
 export const MapControls: React.FC<MapControlsProps> = ({
@@ -30,11 +32,13 @@ export const MapControls: React.FC<MapControlsProps> = ({
   onSegmentStatusToggle,
   onHeatmapToggle,
   onWeatherToggle,
+  onIncidentToggle,
 }) => {
   const [segmentStatusLayerEnabled, setSegmentStatusLayerEnabled] =
     useState(true)
   const [heatmapEnabled, setHeatmapEnabled] = useState(false)
   const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(false)
+  const [incidentLayerEnabled, setIncidentLayerEnabled] = useState(false)
 
   const handleSegmentStatusToggle = () => {
     setSegmentStatusLayerEnabled(!segmentStatusLayerEnabled)
@@ -49,6 +53,11 @@ export const MapControls: React.FC<MapControlsProps> = ({
   const handleWeatherToggle = () => {
     setWeatherLayerEnabled(!weatherLayerEnabled)
     onWeatherToggle?.(!weatherLayerEnabled)
+  }
+
+  const handleIncidentToggle = () => {
+    setIncidentLayerEnabled(!incidentLayerEnabled)
+    onIncidentToggle?.(!incidentLayerEnabled)
   }
 
   return (
@@ -170,6 +179,19 @@ export const MapControls: React.FC<MapControlsProps> = ({
               size="small"
               icon={<CloudOutlined style={{ fontSize: 18 }} />}
               onClick={handleWeatherToggle}
+              style={{ width: '100%', textAlign: 'center' }}
+            />
+          </Tooltip>
+
+          <Tooltip
+            placement="left"
+            title={incidentLayerEnabled ? 'Tắt lớp sự cố' : 'Bật lớp sự cố'}
+          >
+            <Button
+              type={incidentLayerEnabled ? 'primary' : 'text'}
+              size="small"
+              icon={<AlertOutlined style={{ fontSize: 18 }} />}
+              onClick={handleIncidentToggle}
               style={{ width: '100%', textAlign: 'center' }}
             />
           </Tooltip>

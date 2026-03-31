@@ -96,6 +96,46 @@ export interface IncidentQuery {
   bbox?: string; // minLng,minLat,maxLng,maxLat
 }
 
+export interface IncidentImpactQuery {
+  radiusMeters?: number;
+  targetSpeedKmh?: number;
+  ttiThreshold?: number;
+  maxDepth?: number;
+  maxSegments?: number;
+}
+
+export type ImpactSeverityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export interface IncidentImpactSegment {
+  segmentId: string;
+  geometry: GeoJSON.LineString;
+  currentSpeed: number;
+  targetSpeed: number;
+  tti: number;
+  distanceFromIncidentM: number;
+  severityLevel: ImpactSeverityLevel;
+}
+
+export interface IncidentImpactSummary {
+  totalImpactedSegments: number;
+  impactedLengthKm: number;
+  maxQueueDistanceKm: number;
+  severityScore: number;
+}
+
+export interface IncidentImpactResponse {
+  incident: {
+    incidentId: string;
+    type: IncidentType;
+    severity: IncidentSeverity;
+    timestamp: string;
+    coordinates: [number, number];
+  };
+  impactedSegments: IncidentImpactSegment[];
+  summary: IncidentImpactSummary;
+  degradedMode: boolean;
+}
+
 export interface WeatherData {
   temp_c: number | null;
   condition_code: number;
