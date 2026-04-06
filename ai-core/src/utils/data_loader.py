@@ -159,7 +159,7 @@ def load_corridor_data(corridor_id: int, start_date: str, end_date: str, peak_ho
 # Test thử hàm nếu chạy file này trực tiếp
 if __name__ == "__main__":
     # Thay segment_id và khoảng thời gian bằng dữ liệu thực tế trong DB của bạn
-    test_df = load_segment_data(segment_id=8206185629154005, start_date='2026-03-09', end_date='2026-03-15')
+    test_df = load_segment_data(segment_id=8206185629154005, start_date='2026-03-09', end_date='2026-04-06')
     print(test_df[0:10])  # In ra 5 dòng đầu tiên để kiểm tra
     print("Kích thước dữ liệu:", test_df.shape)
     print("Kiểm tra null:\n", test_df.isnull().sum())
