@@ -151,6 +151,7 @@ def train_model(model, train_loader, val_loader, train_dataset, epochs=50, learn
 # --- KHỐI TEST ĐỘC LẬP TẠI CHỖ ---
 if __name__ == "__main__":
     import pandas as pd
+    import joblib  # BỔ SUNG: Import thư viện lưu trữ
     from src.utils.data_loader import load_bulk_corridor_data
     from src.ml.dataset import prepare_dataloaders
     from src.ml.traffic_model import TrafficCongestionModel
@@ -166,22 +167,34 @@ if __name__ == "__main__":
         # Chuẩn bị Loaders
         train_loader, val_loader, scaler, encoders = prepare_dataloaders(df_test, train_ratio=0.8, batch_size=64, window_size=12)
         
+        # ========================================================
+        # BỔ SUNG ĐOẠN CODE NÀY ĐỂ LƯU ARTIFACTS DÀNH CHO INFERENCE
+        # ========================================================
+        print("💾 Đang lưu Scaler và Encoders...")
+        artifacts = {
+            'scaler': scaler,
+            'encoders': encoders
+        }
+        joblib.dump(artifacts, 'preprocessing_artifacts.pkl')
+        print("✅ Đã xuất file 'preprocessing_artifacts.pkl' thành công!")
+        # ========================================================
+
         # Lấy kích thước Từ điển
         vocab_sizes = {col: len(enc.classes_) for col, enc in encoders.items()}
         
         # Khởi tạo Mô hình
         model = TrafficCongestionModel(vocab_sizes=vocab_sizes)
         
-        # Xác định thiết bị (Tự động nhận diện GPU NVIDIA, Mac M1/M2 hoặc fallback về CPU)
+        # Xác định thiết bị
         device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
         
-        # Bắn lệnh Train (Chạy thử 3 Epochs để xem luồng Loss có giảm không)
+        # Bắn lệnh Train (Chạy thử 3 Epochs để sinh ra file 'best_traffic_model.pt')
         history = train_model(
             model=model, 
             train_loader=train_loader, 
             val_loader=val_loader, 
-            train_dataset=train_loader.dataset, # Truyền vào để tính class weights
+            train_dataset=train_loader.dataset,
             epochs=3, 
-            learning_rate=0.0001, 
+            learning_rate=0.001, 
             device=device
         )
