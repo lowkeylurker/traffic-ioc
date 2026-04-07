@@ -11,6 +11,7 @@ Returns pandas DataFrame hoặc structured data.
 """
 
 import pandas as pd
+import numpy as np
 from sqlalchemy import text
 from src.core.database import get_engine
 
@@ -21,37 +22,49 @@ def load_segment_data(
     peak_hours_only: bool = True,
 ) -> pd.DataFrame:
     """
-    Truy xuất dữ liệu giao thông của một segment cụ thể và xử lý missing values.
-
-    Args:
-        segment_id: Mã segment cần truy xuất.
-        start_date: Thời gian bắt đầu (YYYY-MM-DD hoặc datetime string).
-        end_date: Thời gian kết thúc (YYYY-MM-DD hoặc datetime string).
-        peak_hours_only: Chỉ giữ dữ liệu trong khung ETL hoạt động 06:00-21:00.
+    Truy xuất dữ liệu giao thông tích hợp đầy đủ đặc trưng Động và Tĩnh.
     """
     engine = get_engine()
     
-    # SQL Query: Join Fact Table với các Dim Tables
+    # SQL Query: Join đầy đủ Fact với các Dimension để lấy Đặc trưng Tĩnh 
     query = """
         SELECT
             f.timestamp,
+            -- Nhóm Động (Dynamic)
             f.current_speed_kmh,
             f.pcu_volume,
             f.traffic_index,
             f.delay_seconds,
-            COALESCE(s.is_peak_hour, FALSE) AS is_peak_hour,
-            COALESCE(w.severity_level, 0) AS weather_severity
+            f.quality_flag,
+            f.congestion_level AS target_label, -- Nhãn mục tiêu cho t+1 
+            
+            -- Nhóm Tĩnh (Static) - Hạ tầng 
+            w_dim.default_lane_count,
+            f.free_flow_speed_kmh AS static_free_flow,
+            w_dim.osm_highway_type,
+            
+            -- Nhóm Tĩnh (Static) - Ngữ cảnh 
+            loc.district,
+            d_date.day_of_week,
+            shift.shift_code,
+            w_weather.severity_level AS weather_severity,
+            d_time.time_key -- Dùng để tính sin/cos 
+            
         FROM fact_traffic_flow f
-        LEFT JOIN dim_time_of_day d ON f.time_key = d.time_key
-        LEFT JOIN dim_shift s ON d.default_shift_key = s.shift_key
-        LEFT JOIN dim_weather w ON f.weather_key = w.weather_key
+        JOIN dim_segment s_dim ON f.segment_key = s_dim.segment_key 
+        JOIN dim_way w_dim ON s_dim.way_key = w_dim.way_key 
+        JOIN dim_location loc ON s_dim.location_key = loc.location_key 
+        JOIN dim_time_of_day d_time ON f.time_key = d_time.time_key 
+        JOIN dim_date d_date ON f.date_key = d_date.date_key 
+        LEFT JOIN dim_shift shift ON d_time.default_shift_key = shift.shift_key 
+        LEFT JOIN dim_weather w_weather ON f.weather_key = w_weather.weather_key 
+        
         WHERE f.segment_key = :segment_id
           AND f.timestamp >= :start_date
           AND f.timestamp <= :end_date
         ORDER BY f.timestamp ASC;
     """
     
-    # 1. Đọc dữ liệu vào Pandas DataFrame
     df = pd.read_sql(
         text(query),
         engine,
@@ -61,57 +74,56 @@ def load_segment_data(
             "end_date": end_date,
         },
     )
-    # Đảm bảo cột timestamp là kiểu datetime
+    
+    if df.empty:
+        return pd.DataFrame()
+
     df['timestamp'] = pd.to_datetime(df['timestamp'])
-    
-    # 2. Xử lý Missing Data (Data Imputation)
-    # Resample dữ liệu theo đúng khung 15 phút để phát hiện các khoảng thời gian bị "lủng"
     df.set_index('timestamp', inplace=True)
-    df = df.resample('15min').agg({
-        'current_speed_kmh': 'mean',  # Lấy trung bình vận tốc trong 15 phút
-        'pcu_volume': 'mean',         # Lấy trung bình lưu lượng
-        'traffic_index': 'mean',      # Lấy trung bình chỉ số kẹt xe
-        'delay_seconds': 'mean',      # Lấy trung bình thời gian trì hoãn
-        'is_peak_hour': 'max',        # Ưu tiên True: Nếu có bất kỳ lúc nào trong 15p là giờ cao điểm -> True
-        'weather_severity': 'max'     # Lấy mức độ thời tiết xấu nhất ghi nhận trong 15p đó
-    })
 
+    # 1. Resample & Aggregation (Đảm bảo khung 15p chuẩn TomTom) 
+    # Lưu ý: Các biến tĩnh dùng 'first' hoặc 'max' vì chúng không đổi trong 15p
+    agg_logic = {
+        'current_speed_kmh': 'mean',
+        'pcu_volume': 'mean',
+        'traffic_index': 'mean',
+        'delay_seconds': 'mean',
+        'quality_flag': 'mean',
+        'target_label': 'max', # Lấy mức kẹt cao nhất ghi nhận được
+        'default_lane_count': 'first',
+        'static_free_flow': 'first',
+        'osm_highway_type': 'first',
+        'district': 'first',
+        'day_of_week': 'first',
+        'shift_code': 'first',
+        'weather_severity': 'max',
+        'time_key': 'first'
+    }
+    df = df.resample('15min').agg(agg_logic)
+
+    # 2. Xử lý Lượng giác cho time_key (Cyclical Encoding) 
+    # time_key chạy từ 0-1439 đại diện cho phút trong ngày
+    df['time_sin'] = np.sin(2 * np.pi * df['time_key'] / 1440)
+    df['time_cos'] = np.cos(2 * np.pi * df['time_key'] / 1440)
+
+    # 3. Lọc khung giờ hoạt động (06:00 - 21:00)
     if peak_hours_only:
-        minute_of_day = df.index.hour * 60 + df.index.minute
-        is_active_window = (minute_of_day >= 6 * 60) & (minute_of_day <= 21 * 60)
-        df = df[is_active_window]
+        df = df.between_time('06:00', '21:00')
 
-    total_rows = len(df)
-    missing_speeds = df['current_speed_kmh'].isnull().sum()
-    missing_ratio = (missing_speeds / total_rows) * 100
-    
-    print(f"\n📊 THỐNG KÊ CHẤT LƯỢNG DỮ LIỆU (Segment {segment_id}):")
-    print(f"- Tổng số khung thời gian: {total_rows}")
-    print(f"- Số khung bị khuyết dữ liệu (NaN): {missing_speeds}")
-    print(f"- Tỷ lệ khuyết: {missing_ratio:.2f}%")
-    
-    if missing_ratio > 30:
-        print("⚠️ CẢNH BÁO: Dữ liệu bị khuyết quá 30%, kết quả dự báo có thể bị nhiễu!")
-    print("-" * 50)
-    # ---------------------------------------------------------
-
-    print(df[0:100])  # In ra 5 dòng đầu tiên để kiểm tra
-    
-    # Dùng nội suy tuyến tính (linear interpolation) cho các biến liên tục
-    continuous_cols = ['current_speed_kmh', 'pcu_volume', 'traffic_index', 'delay_seconds']
+    # 4. Imputation (Nội suy dữ liệu khuyết)
+    # Các biến liên tục dùng Linear Interpolation
+    continuous_cols = ['current_speed_kmh', 'pcu_volume', 'traffic_index', 'delay_seconds', 'quality_flag']
     df[continuous_cols] = df[continuous_cols].interpolate(method='linear')
     
-    # Dùng forward fill (lấy giá trị trước đó lấp vào) cho các biến phân loại (categorical)
-    categorical_cols = ['is_peak_hour', 'weather_severity']
-    df[categorical_cols] = df[categorical_cols].ffill()
+    # Các biến phân loại dùng Forward Fill sau đó Backward Fill
+    categorical_cols = ['target_label', 'osm_highway_type', 'district', 'day_of_week', 'shift_code', 'weather_severity']
+    df[categorical_cols] = df[categorical_cols].ffill().bfill()
     
-    # Đổ các giá trị NaN còn sót lại ở những dòng đầu tiên (nếu có) bằng backward fill
-    df.bfill(inplace=True)
-    
-    # Reset index để đưa timestamp trở lại thành cột bình thường.
-    # Gán trực tiếp từ index rồi drop index để tránh lỗi trùng tên cột.
-    df['timestamp'] = df.index
-    df.reset_index(drop=True, inplace=True)
+    # Lấp nốt các giá trị tĩnh hạ tầng
+    static_cols = ['default_lane_count', 'static_free_flow', 'time_sin', 'time_cos']
+    df[static_cols] = df[static_cols].ffill().bfill()
+
+    df.reset_index(inplace=True)
     
     return df
 
@@ -159,7 +171,7 @@ def load_corridor_data(corridor_id: int, start_date: str, end_date: str, peak_ho
 # Test thử hàm nếu chạy file này trực tiếp
 if __name__ == "__main__":
     # Thay segment_id và khoảng thời gian bằng dữ liệu thực tế trong DB của bạn
-    test_df = load_segment_data(segment_id=8206185629154005, start_date='2026-03-20', end_date='2026-04-06')
+    test_df = load_segment_data(segment_id=8206185629154005, start_date='2026-03-20', end_date='2026-04-07')
     # print(test_df[-10:])  # In ra 5 dòng đầu tiên để kiểm tra
     print("Kích thước dữ liệu:", test_df.shape)
     print("Kiểm tra null:\n", test_df.isnull().sum())
