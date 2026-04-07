@@ -5,6 +5,13 @@ import numpy as np
 import time
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.utils.class_weight import compute_class_weight
+import pandas as pd
+import joblib
+
+# Đảm bảo import đúng đường dẫn theo cấu trúc project của bạn
+from src.utils.data_loader import load_bulk_corridor_data
+from src.ml.dataset import prepare_dataloaders
+from src.ml.traffic_model import TrafficCongestionModel
 
 def get_class_weights(train_dataset, num_classes=6):
     """
@@ -41,53 +48,35 @@ def train_model(model, train_loader, val_loader, train_dataset, epochs=50, learn
     print(f"\n🚀 BẮT ĐẦU HUẤN LUYỆN TRÊN THIẾT BỊ: {str(device).upper()}")
     model.to(device)
     
-    # 1. Khởi tạo Hàm Mất Mát (Loss Function) với Trọng số Cân bằng
     class_weights = get_class_weights(train_dataset).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
     
-    # 2. Khởi tạo Bộ Tối ưu hóa (Optimizer) AdamW chống over-fitting tốt hơn Adam
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-4)
-    
-    # Biến lưu trữ lịch sử để vẽ biểu đồ sau này
     history = {'train_loss': [], 'val_loss': [], 'val_acc': [], 'val_f1': []}
-    
-    # Biến phục vụ Checkpointing (Lưu model tốt nhất)
     best_f1 = 0.0
     
     for epoch in range(epochs):
         start_time = time.time()
         
         # ==========================================
-        # PHA 1: HUẤN LUYỆN (TRAINING PHASE)
+        # PHA 1: HUẤN LUYỆN
         # ==========================================
-        model.train() # Mở khóa cập nhật trọng số
+        model.train() 
         train_loss = 0.0
         
         for batch in train_loader:
-            # Rã batch và đẩy lên thiết bị (CPU/GPU)
             x_dynamic, x_static, x_cat, y_target = [tensor.to(device) for tensor in batch]
             
-            # Xóa sạch gradient của bước trước (bắt buộc trong PyTorch)
             optimizer.zero_grad()
-            
-            # Forward Pass: Đưa dữ liệu qua mô hình
             logits = model(x_dynamic, x_static, x_cat)
-            
-            # Tính toán sai số (Loss)
             loss = criterion(logits, y_target)
             
-            # KIỂM TRA NaN TRONG LOSS
             if torch.isnan(loss):
                 print("❌ Loss bị NaN! Đang dừng để kiểm tra...")
                 return history
 
-            # Backward Pass: Lan truyền ngược để tính đạo hàm
             loss.backward()
-            
-            # Gradient Clipping: Ngăn chặn hiện tượng exploding gradients (đặc biệt quan trọng với LSTM)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-
-            # Tối ưu hóa: Cập nhật trọng số
             optimizer.step()
             
             train_loss += loss.item() * x_dynamic.size(0)
@@ -95,14 +84,13 @@ def train_model(model, train_loader, val_loader, train_dataset, epochs=50, learn
         train_loss = train_loss / len(train_loader.dataset)
         
         # ==========================================
-        # PHA 2: ĐÁNH GIÁ (VALIDATION PHASE)
+        # PHA 2: ĐÁNH GIÁ
         # ==========================================
-        model.eval() # Khóa cập nhật trọng số, tắt Dropout
+        model.eval() 
         val_loss = 0.0
         all_preds = []
         all_targets = []
         
-        # Tắt đồ thị tính toán (Gradient Graph) để tiết kiệm RAM siêu hiệu quả
         with torch.no_grad():
             for batch in val_loader:
                 x_dynamic, x_static, x_cat, y_target = [tensor.to(device) for tensor in batch]
@@ -111,18 +99,12 @@ def train_model(model, train_loader, val_loader, train_dataset, epochs=50, learn
                 loss = criterion(logits, y_target)
                 val_loss += loss.item() * x_dynamic.size(0)
                 
-                # Tìm ra class có xác suất cao nhất (hàm argmax)
                 preds = torch.argmax(logits, dim=1)
-                
-                # Gom dữ liệu để tính Metrics
                 all_preds.extend(preds.cpu().numpy())
                 all_targets.extend(y_target.cpu().numpy())
                 
         val_loss = val_loss / len(val_loader.dataset)
-        
-        # Tính toán các chỉ số chất lượng
         val_acc = accuracy_score(all_targets, all_preds)
-        # Macro F1 cực kỳ quan trọng cho dữ liệu mất cân bằng (chấm công bằng cho mọi lớp)
         val_f1 = f1_score(all_targets, all_preds, average='macro')
         
         history['train_loss'].append(train_loss)
@@ -132,14 +114,10 @@ def train_model(model, train_loader, val_loader, train_dataset, epochs=50, learn
         
         epoch_time = time.time() - start_time
         
-        # In Log tiến độ
         print(f"Epoch {epoch+1:03d}/{epochs} | Time: {epoch_time:.1f}s | "
               f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | "
               f"Val Acc: {val_acc:.4f} | Val Macro-F1: {val_f1:.4f}")
               
-        # ==========================================
-        # MODEL CHECKPOINTING: Lưu lại phiên bản tốt nhất
-        # ==========================================
         if val_f1 > best_f1:
             best_f1 = val_f1
             print(f"🌟 Kỷ lục mới! Macro-F1 tăng lên {best_f1:.4f}. Đang lưu mô hình...")
@@ -148,53 +126,84 @@ def train_model(model, train_loader, val_loader, train_dataset, epochs=50, learn
     print(f"\n✅ HUẤN LUYỆN HOÀN TẤT. Macro-F1 tốt nhất đạt: {best_f1:.4f}")
     return history
 
-# --- KHỐI TEST ĐỘC LẬP TẠI CHỖ ---
+# =====================================================================
+# KHỐI THỰC THI CHÍNH (MASTER PLAN)
+# =====================================================================
 if __name__ == "__main__":
-    import pandas as pd
-    import joblib  # BỔ SUNG: Import thư viện lưu trữ
-    from src.utils.data_loader import load_bulk_corridor_data
-    from src.ml.dataset import prepare_dataloaders
-    from src.ml.traffic_model import TrafficCongestionModel
+    print("--- KHỞI ĐỘNG HUẤN LUYỆN TOÀN TẬP TRÊN 6 CORRIDORS ---")
     
-    print("--- CHUẨN BỊ MÔI TRƯỜNG TEST TRAIN LOOP ---")
-    # Kéo 1 đoạn data ngắn
-    corridor_data = load_bulk_corridor_data(corridor_id=646713380690000556, start_date='2026-03-20', end_date='2026-03-25')
+    # 1. CẤU HÌNH DỮ LIỆU
+    # BẠN HÃY THAY THẾ bằng 6 ID thực tế trong database của bạn nhé!
+    CORRIDOR_IDS = [
+        136550177913819656, 
+        392537437542429252, # Xóa dòng này đi và thay bằng ID thật
+        646713380690000556, 
+        647577676530405923, 
+        988709510142577156, 
+        1100735735503891924  
+    ]
     
-    if corridor_data:
-        df_test = pd.concat(corridor_data.values(), ignore_index=True)
-        df_test = df_test.sort_values(by=['segment_key', 'timestamp']).reset_index(drop=True)
-        
-        # Chuẩn bị Loaders
-        train_loader, val_loader, scaler, encoders = prepare_dataloaders(df_test, train_ratio=0.8, batch_size=64, window_size=12)
-        
-        # ========================================================
-        # BỔ SUNG ĐOẠN CODE NÀY ĐỂ LƯU ARTIFACTS DÀNH CHO INFERENCE
-        # ========================================================
-        print("💾 Đang lưu Scaler và Encoders...")
-        artifacts = {
-            'scaler': scaler,
-            'encoders': encoders
-        }
-        joblib.dump(artifacts, 'preprocessing_artifacts.pkl')
-        print("✅ Đã xuất file 'preprocessing_artifacts.pkl' thành công!")
-        # ========================================================
-
-        # Lấy kích thước Từ điển
-        vocab_sizes = {col: len(enc.classes_) for col, enc in encoders.items()}
-        
-        # Khởi tạo Mô hình
-        model = TrafficCongestionModel(vocab_sizes=vocab_sizes)
-        
-        # Xác định thiết bị
-        device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
-        
-        # Bắn lệnh Train (Chạy thử 3 Epochs để sinh ra file 'best_traffic_model.pt')
-        history = train_model(
-            model=model, 
-            train_loader=train_loader, 
-            val_loader=val_loader, 
-            train_dataset=train_loader.dataset,
-            epochs=3, 
-            learning_rate=0.001, 
-            device=device
+    # Khung thời gian huấn luyện tổng quát
+    START_DATE = '2025-03-20' # Điều chỉnh cho khớp DB của bạn
+    END_DATE = '2026-04-07'   # Điều chỉnh cho khớp DB của bạn
+    
+    all_segments_data = []
+    
+    print(f"🌍 BẮT ĐẦU KÉO DỮ LIỆU TỪ {len(CORRIDOR_IDS)} CORRIDORS...")
+    for cid in CORRIDOR_IDS:
+        print(f"\n👉 Đang truy xuất Corridor ID: {cid}")
+        c_data = load_bulk_corridor_data(
+            corridor_id=cid, 
+            start_date=START_DATE, 
+            end_date=END_DATE,
+            peak_hours_only=True
         )
+        
+        if c_data:
+            df_corridor = pd.concat(c_data.values(), ignore_index=True)
+            all_segments_data.append(df_corridor)
+            
+    if not all_segments_data:
+        print("❌ Không lấy được dữ liệu nào. Hãy kiểm tra lại Database hoặc Thời gian.")
+        exit()
+        
+    # 2. GỘP VÀ CHUẨN BỊ SIÊU TẬP DỮ LIỆU
+    df_master = pd.concat(all_segments_data, ignore_index=True)
+    
+    # BẮT BUỘC: Sort lại toàn bộ theo segment và thời gian để cửa sổ trượt hoạt động đúng
+    df_master = df_master.sort_values(by=['segment_key', 'timestamp']).reset_index(drop=True)
+    
+    print(f"\n✅ ĐÃ TẢI THÀNH CÔNG SIÊU TẬP DỮ LIỆU: {df_master.shape[0]} dòng.")
+    print("⏳ Đang tính toán DataLoaders (Quá trình mã hóa và scale có thể mất vài phút)...")
+    
+    # Với 1.4M dòng, nên dùng batch_size lớn (128, 256, hoặc 512) để tận dụng GPU
+    train_loader, val_loader, scaler, encoders = prepare_dataloaders(
+        df_master, train_ratio=0.8, batch_size=256, window_size=12
+    )
+    
+    # 3. LƯU ARTIFACTS DÀNH CHO MODULE INFERENCE
+    print("\n💾 Đang xuất các bộ biến đổi (Scaler & Encoders)...")
+    artifacts = {
+        'scaler': scaler,
+        'encoders': encoders
+    }
+    joblib.dump(artifacts, 'preprocessing_artifacts.pkl')
+    print("✅ Đã xuất file 'preprocessing_artifacts.pkl' thành công!")
+    
+    # 4. KHỞI TẠO VÀ HUẤN LUYỆN MÔ HÌNH
+    vocab_sizes = {col: len(enc.classes_) for col, enc in encoders.items()}
+    model = TrafficCongestionModel(vocab_sizes=vocab_sizes)
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
+    
+    # Bắt đầu vòng lặp huấn luyện thực tế
+    # Mình để mặc định epochs=30, bạn có thể tăng lên 50 nếu mô hình vẫn chưa có dấu hiệu Overfitting
+    history = train_model(
+        model=model, 
+        train_loader=train_loader, 
+        val_loader=val_loader, 
+        train_dataset=train_loader.dataset,
+        epochs=30, 
+        learning_rate=0.001, 
+        device=device
+    )

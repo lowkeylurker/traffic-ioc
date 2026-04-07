@@ -30,7 +30,7 @@ class TrafficDataset(Dataset):
                                         'time_sin', 'time_cos', 'weather_severity']].astype(np.float32).values
                                         
         # Các biến Categorical - BẮT BUỘC ép về int64 (vì nn.Embedding chỉ nhận số nguyên)
-        self.cat_features = self.df[['osm_highway_type', 'district', 'day_of_week', 'shift_code']].astype(np.int64).values
+        self.cat_features = self.df[['osm_highway_type', 'district', 'shift_code', 'day_of_week']].astype(np.int64).values
         
         # 3. Nhãn Mục Tiêu (Target) - BẮT BUỘC ép về int64 để dùng cho hàm Loss đa lớp
         self.targets = self.df['target_label'].clip(0, 5).astype(np.int64).values
