@@ -60,6 +60,10 @@ def process_single_segment(df_segment: pd.DataFrame, peak_hours_only: bool = Tru
     static_cols = ['segment_key', 'default_lane_count', 'static_free_flow', 'time_sin', 'time_cos']
     df[static_cols] = df[static_cols].ffill().bfill()
 
+    # Sau khi interpolate và ffill/bfill các cột
+    df[continuous_cols] = df[continuous_cols].interpolate(method='linear').fillna(0) # Thêm fillna(0)
+    df.fillna(0, inplace=True) # Bảo hiểm cuối cùng cho toàn bộ DataFrame
+
     # Reset index và ép kiểu dữ liệu cho sạch sẽ
     df.reset_index(inplace=True)
     df['segment_key'] = df['segment_key'].astype(np.int64)
