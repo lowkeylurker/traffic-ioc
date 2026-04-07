@@ -97,9 +97,12 @@ def load_segment_data(
         'day_of_week': 'first',
         'shift_code': 'first',
         'weather_severity': 'max',
-        'time_key': 'first'
     }
     df = df.resample('15min').agg(agg_logic)
+
+    # FIX LỖI NULL: Tính toán lại time_key trực tiếp từ Index của DataFrame
+    # Điều này đảm bảo mọi dòng (kể cả dòng được tạo mới do resample) đều có giá trị chính xác
+    df['time_key'] = df.index.hour * 60 + df.index.minute
 
     # 2. Xử lý Lượng giác cho time_key (Cyclical Encoding) 
     # time_key chạy từ 0-1439 đại diện cho phút trong ngày
