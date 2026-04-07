@@ -148,6 +148,8 @@ def prepare_dataloaders(df: pd.DataFrame, train_ratio=0.8, batch_size=64, window
 
 if __name__ == "__main__":
     from src.utils.data_loader import load_bulk_corridor_data
+    from src.ml.traffic_model import TrafficCongestionModel
+
     print("--- BẮT ĐẦU TEST DATASET & DATALOADER ---")
     # Lấy thử 1 corridor nhỏ trong khoảng thời gian ngắn để test nhanh
     corridor_data = load_bulk_corridor_data(corridor_id=646713380690000556, start_date='2026-03-20', end_date='2026-03-25')
@@ -187,4 +189,33 @@ if __name__ == "__main__":
             print(f"Mẫu x_cat (Dòng 1 - Đã mã hóa số): \n{x_cat[0]}")
             print(f"Mẫu Target (Congestion Level): \n{y_target[:5]}")
             
-            break # Chỉ in 1 batch rồi dừng
+          
+            print("\n--- KÍCH THƯỚC TỪ ĐIỂN (VOCAB SIZES) CHO EMBEDDING ---")
+            vocab_sizes = {}
+            for col, encoder in encoders.items():
+                # len(encoder.classes_) chính là số lượng giá trị unique
+                vocab_sizes[col] = len(encoder.classes_)
+                print(f"Cột {col}: {vocab_sizes[col]} unique values")
+                
+            # --- KIỂM TRA MÔ HÌNH MẠNG NƠ-RON (SANITY CHECK) ---
+            print("\n--- KHỞI TẠO VÀ TEST FORWARD PASS MÔ HÌNH ---")
+            # 1. Khởi tạo mô hình với vocab_sizes vừa tìm được
+            
+            model = TrafficCongestionModel(
+                vocab_sizes=vocab_sizes, 
+                embedding_dim=8, 
+                hidden_dim=64, 
+                num_classes=6
+            )
+            
+            print("Khởi tạo mô hình thành công!")
+            
+            # 2. Đưa dữ liệu qua mô hình (Forward Pass)
+            # PyTorch tự động gọi hàm forward() khi ta truyền dữ liệu vào model()
+            logits = model(x_dynamic, x_static, x_cat)
+            
+            print(f"Kích thước đầu ra của Mô hình (Logits shape): {logits.shape} \t(Kỳ vọng: 32, 6)")
+            print(f"Mẫu Logits đầu ra (Dòng 1): \n{logits[0].detach().numpy()}")
+            print("=> MÔ HÌNH ĐÃ SẴN SÀNG 100% CHO VIỆC HUẤN LUYỆN!")
+            
+            break # Kết thúc vòng lặp test batch
