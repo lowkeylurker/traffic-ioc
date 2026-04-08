@@ -18,7 +18,7 @@ def get_class_weights(train_dataset, num_classes=6):
     Tính toán Class Weights an toàn, tự động xử lý trường hợp thiếu nhãn trong tập test.
     """
     print("⏳ Đang phân tích phân phối nhãn để tính toán Class Weights...")
-    y_train = train_dataset.targets[train_dataset.valid_indices]
+    y_train = train_dataset.get_training_targets()
     
     # Lấy danh sách các nhãn thực tế đang có trong dữ liệu (ví dụ: [0, 1, 2, 3])
     present_classes = np.unique(y_train)
@@ -143,8 +143,8 @@ if __name__ == "__main__":
     ]
     
     # Khung thời gian huấn luyện tổng quát
-    START_DATE = '2025-03-20' # Điều chỉnh cho khớp DB của bạn
-    END_DATE = '2026-04-07'   # Điều chỉnh cho khớp DB của bạn
+    START_DATE = '2026-03-20' # Điều chỉnh cho khớp DB của bạn
+    END_DATE = '2026-04-08'   # Điều chỉnh cho khớp DB của bạn
     
     all_segments_data = []
     

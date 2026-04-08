@@ -1,11 +1,13 @@
 import pandas as pd
 import numpy as np
 import torch
+import logging
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from sklearn.preprocessing import MinMaxScaler
-from datetime import timedelta
 from sklearn.preprocessing import LabelEncoder 
+
+logger = logging.getLogger(__name__)
 
 class TrafficDataset(Dataset):
     def __init__(self, df: pd.DataFrame, window_size: int = 12):
@@ -56,6 +58,11 @@ class TrafficDataset(Dataset):
                 
         print(f"Tổng số dòng dữ liệu thô: {total_rows}")
         print(f"Tổng số cửa sổ 12-timesteps hợp lệ thu được: {len(self.valid_indices)}")
+
+    def get_training_targets(self) -> np.ndarray:
+        """Trả về đúng tập nhãn được dùng trong loss (targets tại target_idx)."""
+        target_indices = [start_idx + self.window_size for start_idx in self.valid_indices]
+        return self.targets[target_indices]
 
     def __len__(self):
         # Hệ thống chỉ train trên số lượng cửa sổ hợp lệ
@@ -111,22 +118,39 @@ def prepare_dataloaders(df: pd.DataFrame, train_ratio=0.8, batch_size=64, window
     """
     Hàm tổng hợp: Mã hóa -> Chia tập -> Scale -> Đóng gói DataLoader
     """
-    # 0. MÃ HÓA CÁC BIẾN CHỮ THÀNH SỐ (LABEL ENCODING)
-    # Bổ sung day_of_week vào đây luôn phòng trường hợp nó đang ở dạng chữ ('Monday', 'Tuesday'...)
+    # 0. CHIA TẬP THEO THỜI GIAN TRƯỚC để tránh leakage từ tập validation
     cat_cols = ['osm_highway_type', 'district', 'shift_code', 'day_of_week']
-    df_encoded = df.copy()
-    label_encoders = {} 
-    
+    df_working = df.copy()
+    df_working['timestamp'] = pd.to_datetime(df_working['timestamp'])
+
+    split_time = df_working['timestamp'].quantile(train_ratio)
+    df_train = df_working[df_working['timestamp'] < split_time].copy()
+    df_val = df_working[df_working['timestamp'] >= split_time].copy()
+
+    # 1. MÃ HÓA CÁC BIẾN CHỮ THÀNH SỐ: fit trên train, transform cho cả train/val
+    label_encoders = {}
     for col in cat_cols:
         le = LabelEncoder()
-        # Dòng này sẽ biến 'tertiary' -> 0, 'primary' -> 1...
-        df_encoded[col] = le.fit_transform(df_encoded[col].astype(str))
-        label_encoders[col] = le 
-    
-    # 1. CHIA TẬP THEO THỜI GIAN (Sử dụng df_encoded đã được mã hóa)
-    split_time = df_encoded['timestamp'].quantile(train_ratio)
-    df_train = df_encoded[df_encoded['timestamp'] < split_time].copy()
-    df_val = df_encoded[df_encoded['timestamp'] >= split_time].copy()
+        train_col = df_train[col].astype(str)
+        le.fit(train_col)
+        label_encoders[col] = le
+
+        df_train[col] = le.transform(train_col)
+
+        val_col = df_val[col].astype(str)
+        unseen_mask = ~val_col.isin(le.classes_)
+        if unseen_mask.any():
+            fallback_value = str(le.classes_[0])
+            unseen_examples = val_col[unseen_mask].value_counts().head(5).to_dict()
+            logger.warning(
+                "Validation contains unseen category for '%s': count=%d, examples=%s. Fallback='%s'.",
+                col,
+                int(unseen_mask.sum()),
+                unseen_examples,
+                fallback_value,
+            )
+            val_col.loc[unseen_mask] = fallback_value
+        df_val[col] = le.transform(val_col)
     
     # 2. KHỞI TẠO VÀ FIT SCALER (Chỉ học từ tập Train)
     scaler = TrafficScaler()

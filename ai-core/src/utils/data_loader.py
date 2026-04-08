@@ -9,9 +9,32 @@ Cung cấp functions để fetch data từ PostgreSQL với hiệu năng cao:
 import pandas as pd
 import numpy as np
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
+import time
 from src.core.database import get_engine
 
-def process_single_segment(df_segment: pd.DataFrame, peak_hours_only: bool = True) -> pd.DataFrame:
+
+def _read_sql_with_retry(sql, engine, params: dict, max_retries: int = 3, retry_delay_sec: float = 2.0) -> pd.DataFrame:
+    """Thử lại read_sql khi gặp lỗi kết nối tạm thời (SSL EOF, connection reset)."""
+    last_error = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            return pd.read_sql(sql, engine, params=params)
+        except OperationalError as exc:
+            last_error = exc
+            # Force SQLAlchemy reconnect cleanly on the next attempt.
+            engine.dispose()
+            if attempt >= max_retries:
+                break
+            print(
+                f"⚠️ Lỗi kết nối DB (lần {attempt}/{max_retries}): {exc}. "
+                f"Đang thử lại sau {retry_delay_sec:.1f}s..."
+            )
+            time.sleep(retry_delay_sec)
+
+    raise last_error
+
+def process_single_segment(df_segment: pd.DataFrame, peak_hours_only: bool = True) -> tuple[pd.DataFrame, int]:
     """
     Hàm Helper: Chịu trách nhiệm dọn dẹp, nội suy và Lượng giác hóa 
     cho MỘT segment duy nhất sau khi đã kéo từ Database lên RAM.
@@ -65,8 +88,6 @@ def process_single_segment(df_segment: pd.DataFrame, peak_hours_only: bool = Tru
     rows_before_drop = len(df)
     df = df[df['target_label'].notna()].copy()
     dropped_rows = rows_before_drop - len(df)
-    if dropped_rows > 0:
-        print(f"⚠️ Đã loại bỏ {dropped_rows} dòng thiếu target_label sau resample để tránh nhãn giả.")
 
     # Hoàn tất điền khuyết cho đặc trưng đầu vào, không đụng vào target_label
     df[continuous_cols] = df[continuous_cols].interpolate(method='linear').fillna(0)
@@ -78,17 +99,18 @@ def process_single_segment(df_segment: pd.DataFrame, peak_hours_only: bool = Tru
     df.reset_index(inplace=True)
     df['segment_key'] = df['segment_key'].astype(np.int64)
     
-    return df
+    return df, dropped_rows
 
 def get_segments_in_corridor(corridor_id: int) -> list:
     """Truy vấn danh sách các segment_key thuộc về một corridor_key cụ thể."""
     engine = get_engine()
     query = """
-        SELECT segment_key 
-        FROM bridge_corridor_segment 
-        WHERE corridor_key = :corridor_id
+        SELECT DISTINCT ftf.segment_key 
+        FROM fact_traffic_flow ftf
+        LEFT JOIN bridge_corridor_segment bcs ON ftf.segment_key = bcs.segment_key
+        WHERE bcs.corridor_key = :corridor_id
     """
-    df = pd.read_sql(text(query), engine, params={"corridor_id": corridor_id})
+    df = _read_sql_with_retry(text(query), engine, params={"corridor_id": corridor_id})
     return df['segment_key'].tolist()
 
 def load_bulk_corridor_data(corridor_id: int, start_date: str, end_date: str, peak_hours_only: bool = True) -> dict:
@@ -144,10 +166,10 @@ def load_bulk_corridor_data(corridor_id: int, start_date: str, end_date: str, pe
     
     # Kéo 1 cục DataFrame siêu to khổng lồ về RAM
     # Lưu ý: SQLAlchemy yêu cầu tuple() cho mệnh đề IN
-    df_bulk = pd.read_sql(
+    df_bulk = _read_sql_with_retry(
         text(query),
         engine,
-        params={
+        {
             "segment_ids": tuple(segment_ids),
             "start_date": start_date,
             "end_date": end_date,
@@ -162,14 +184,60 @@ def load_bulk_corridor_data(corridor_id: int, start_date: str, end_date: str, pe
 
     # 3. Phân rã và Xử lý trên RAM bằng Pandas Groupby (Cực nhanh)
     corridor_data = {}
+    total_dropped_target_rows = 0
+    segments_with_dropped_targets = 0
+    empty_after_drop = 0
+    segment_drop_stats = []
     grouped = df_bulk.groupby('segment_key')
     
     for seg_id, group_df in grouped:
         try:
-            processed_df = process_single_segment(group_df.copy(), peak_hours_only)
+            processed_df, dropped_rows = process_single_segment(group_df.copy(), peak_hours_only)
+            if dropped_rows > 0:
+                total_dropped_target_rows += dropped_rows
+                segments_with_dropped_targets += 1
+
+            total_rows_before_drop = len(processed_df) + dropped_rows
+            drop_ratio_pct = (dropped_rows / total_rows_before_drop * 100.0) if total_rows_before_drop > 0 else 0.0
+            segment_drop_stats.append(
+                {
+                    'segment_key': int(seg_id),
+                    'rows_before_drop': int(total_rows_before_drop),
+                    'rows_dropped': int(dropped_rows),
+                    'drop_ratio_pct': float(drop_ratio_pct),
+                }
+            )
+
+            if processed_df.empty:
+                empty_after_drop += 1
+                continue
+
             corridor_data[seg_id] = processed_df
         except Exception as e:
             print(f"⚠️ Bỏ qua Segment {seg_id} do lỗi xử lý dữ liệu: {e}")
+
+    if total_dropped_target_rows > 0:
+        print(
+            "⚠️ Tổng hợp làm sạch target_label: "
+            f"đã loại bỏ {total_dropped_target_rows} dòng ở {segments_with_dropped_targets} segments."
+        )
+
+        top_dropped_segments = sorted(
+            segment_drop_stats,
+            key=lambda x: (x['drop_ratio_pct'], x['rows_dropped']),
+            reverse=True,
+        )[:10]
+        if top_dropped_segments:
+            print("📉 Top segments bị drop target_label cao nhất (theo tỷ lệ):")
+            for item in top_dropped_segments:
+                print(
+                    f"   - Segment {item['segment_key']}: "
+                    f"drop {item['rows_dropped']}/{item['rows_before_drop']} "
+                    f"({item['drop_ratio_pct']:.2f}%)"
+                )
+
+    if empty_after_drop > 0:
+        print(f"⚠️ Có {empty_after_drop} segments rỗng sau khi loại bỏ target_label NaN nên đã được bỏ qua.")
             
     print(f"🚀 Hoàn tất xử lý {len(corridor_data)} segments thành công!")
     return corridor_data
