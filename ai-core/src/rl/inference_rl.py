@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import warnings
+from datetime import time
 
 warnings.filterwarnings('ignore')
 
@@ -12,6 +13,24 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from ml.traffic_model import TrafficCongestionModel
 from utils.data_loader import load_bulk_corridor_data
+
+FORECAST_WINDOW_START = time(9, 15)
+FORECAST_WINDOW_END = time(21, 15)
+
+
+def _is_within_forecast_window(ts: pd.Timestamp) -> bool:
+    """Chỉ cho phép chạy dự báo nếu mốc dự báo nằm trong 09:15 - 21:15."""
+    local_time = pd.to_datetime(ts).time()
+    return FORECAST_WINDOW_START <= local_time <= FORECAST_WINDOW_END
+
+
+def _is_continuous_12_steps(df_window: pd.DataFrame) -> bool:
+    """12 timesteps cách nhau 15 phút sẽ có độ dài tổng là 165 phút."""
+    if len(df_window) != 12:
+        return False
+    start_time = pd.to_datetime(df_window['timestamp']).iloc[0]
+    end_time = pd.to_datetime(df_window['timestamp']).iloc[-1]
+    return (end_time - start_time) == pd.Timedelta(minutes=165)
 
 class RLTrafficPredictor:
     """
@@ -110,6 +129,88 @@ class RLTrafficPredictor:
             'q_values': np.round(q_list, 2)
         }
 
+
+def forecast_for_request(
+    predictor: RLTrafficPredictor,
+    corridor_id: int,
+    request_time,
+    lookback_steps: int = 12,
+    resample_minutes: int = 15,
+) -> pd.DataFrame:
+    """
+    Luồng nghiệp vụ runtime:
+    1) Nhận request_time từ App.
+    2) Tự động lấy 12 timesteps gần nhất (<= request_time) cho từng segment.
+    3) Dự báo cho timestep kế tiếp (+15 phút).
+    4) Chỉ giữ kết quả nếu mốc dự báo nằm trong 09:15 - 21:15.
+    """
+    request_ts = pd.to_datetime(request_time)
+
+    # Lấy rộng hơn 3 giờ để chống thiếu dữ liệu do lệch timestamp/khuyết mẫu.
+    lookback_minutes = max(lookback_steps * resample_minutes + 45, 240)
+    start_ts = request_ts - pd.Timedelta(minutes=lookback_minutes)
+
+    print(f"\n🛰️ Nhận yêu cầu dự báo tại thời điểm: {request_ts}")
+    print("📡 Đang tải dữ liệu lịch sử gần nhất để dựng cửa sổ 12 timestep...")
+
+    corridor_data = load_bulk_corridor_data(
+        corridor_id=corridor_id,
+        start_date=start_ts.strftime('%Y-%m-%d %H:%M:%S'),
+        end_date=request_ts.strftime('%Y-%m-%d %H:%M:%S'),
+    )
+
+    all_predictions = []
+    skipped_not_enough = 0
+    skipped_not_continuous = 0
+    skipped_out_of_window = 0
+
+    for seg_key, df_segment in corridor_data.items():
+        if df_segment.empty:
+            skipped_not_enough += 1
+            continue
+
+        df_segment = df_segment.sort_values('timestamp').reset_index(drop=True)
+        df_segment['timestamp'] = pd.to_datetime(df_segment['timestamp'])
+
+        # Chỉ lấy dữ liệu không vượt quá thời điểm App gọi.
+        df_hist = df_segment[df_segment['timestamp'] <= request_ts]
+        if len(df_hist) < lookback_steps:
+            skipped_not_enough += 1
+            continue
+
+        df_input = df_hist.tail(lookback_steps).copy()
+        if not _is_continuous_12_steps(df_input):
+            skipped_not_continuous += 1
+            continue
+
+        window_end_time = df_input['timestamp'].iloc[-1]
+        forecast_for_time = window_end_time + pd.Timedelta(minutes=resample_minutes)
+
+        if not _is_within_forecast_window(forecast_for_time):
+            skipped_out_of_window += 1
+            continue
+
+        result = predictor.predict(df_input)
+        all_predictions.append(
+            {
+                'Segment_ID': seg_key,
+                'Request_Time': request_ts,
+                'Window_End_Time': window_end_time,
+                'Forecast_For_Time': forecast_for_time,
+                'Dự báo (15p tới)': result['status_description'],
+                'Q-Values (Kỳ vọng)': str(result['q_values']),
+            }
+        )
+
+    print(
+        "📊 Thống kê lọc segment | "
+        f"Thiếu dữ liệu: {skipped_not_enough}, "
+        f"Đứt chuỗi 12 bước: {skipped_not_continuous}, "
+        f"Ngoài khung 09:15-21:15: {skipped_out_of_window}"
+    )
+
+    return pd.DataFrame(all_predictions)
+
 # =====================================================================
 # KHỐI CHẠY THỰC TẾ (BATCH PROCESSING)
 # =====================================================================
@@ -118,51 +219,25 @@ if __name__ == "__main__":
     
     try:
         predictor = RLTrafficPredictor()
-        
-        # Kéo giả lập dữ liệu mới nhất (Ví dụ: sáng ngày 8/4/2026)
-        print("\n📡 Đang kết nối Database để lấy tín hiệu 3 giờ gần nhất...")
-        corridor_data = load_bulk_corridor_data(
-            corridor_id=646713380690000556, 
-            start_date='2026-04-08 17:00:00', 
-            end_date='2026-04-08 21:00:00'
+
+        # Mô phỏng request từ App tại một thời điểm cụ thể.
+        request_time = '2026-04-08 21:00:00'
+        df_results = forecast_for_request(
+            predictor=predictor,
+            corridor_id=646713380690000556,
+            request_time=request_time,
         )
-        
-        if corridor_data:
-            all_predictions = []
-            
-            for seg_key, df_segment in corridor_data.items():
-                if len(df_segment) < 12:
-                    continue
-                    
-                df_input = df_segment.tail(12).copy()
-                
-                # CHẶN LỖI THỜI GIAN QUA ĐÊM (Giữ vững phong độ kỹ sư)
-                start_time = df_input['timestamp'].iloc[0]
-                end_time = df_input['timestamp'].iloc[-1]
-                if (end_time - start_time) != pd.Timedelta(minutes=165):
-                    continue
-                    
-                # Chạy Tác tử RL
-                result = predictor.predict(df_input)
-                
-                all_predictions.append({
-                    "Segment_ID": seg_key,
-                    "Current_Time": end_time,
-                    "Dự báo (15p tới)": result['status_description'],
-                    "Q-Values (Kỳ vọng)": str(result['q_values'])
-                })
-                
-            # Tổng hợp và In kết quả
-            df_results = pd.DataFrame(all_predictions)
-            
-            print("\n" + "="*85)
-            print("🚀 KẾT QUẢ DỰ BÁO TỪ TÁC TỬ HỌC TĂNG CƯỜNG (TOP 5 ĐOẠN ĐƯỜNG)")
-            print("="*85)
+
+        if df_results.empty:
+            print("⚠️ Không có segment nào đủ điều kiện dự báo trong khung 09:15 - 21:15.")
+        else:
+            print("\n" + "=" * 110)
+            print("🚀 KẾT QUẢ DỰ BÁO 15 PHÚT KẾ TIẾP TỪ REQUEST APP (TOP 5 ĐOẠN ĐƯỜNG)")
+            print("=" * 110)
             print(df_results.head().to_string(index=False))
-            print("="*85)
-            
-            print(f"\n✅ Hệ thống đã hoàn tất dự báo an toàn cho {len(df_results)} đoạn đường.")
-            print("💡 Lưu ý: Cột 'Q-Values' thể hiện điểm số nội bộ của AI. Số càng cao ở class nào, AI càng tin rằng chọn class đó sẽ tối đa hóa lợi ích điều phối giao thông.")
+            print("=" * 110)
+            print(f"\n✅ Hoàn tất dự báo cho {len(df_results)} đoạn đường hợp lệ.")
+            print("💡 `Window_End_Time` là mốc cuối của 12 timestep đầu vào; `Forecast_For_Time` là mốc dự báo kế tiếp (+15 phút).")
             
     except Exception as e:
         print(e)
