@@ -133,10 +133,9 @@ if __name__ == "__main__":
     print("--- KHỞI ĐỘNG HUẤN LUYỆN TOÀN TẬP TRÊN 6 CORRIDORS ---")
     
     # 1. CẤU HÌNH DỮ LIỆU
-    # BẠN HÃY THAY THẾ bằng 6 ID thực tế trong database của bạn nhé!
     CORRIDOR_IDS = [
         136550177913819656, 
-        392537437542429252, # Xóa dòng này đi và thay bằng ID thật
+        392537437542429252, 
         646713380690000556, 
         647577676530405923, 
         988709510142577156, 

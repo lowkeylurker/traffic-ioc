@@ -54,15 +54,25 @@ def process_single_segment(df_segment: pd.DataFrame, peak_hours_only: bool = Tru
     continuous_cols = ['current_speed_kmh', 'pcu_volume', 'traffic_index', 'delay_seconds', 'quality_flag']
     df[continuous_cols] = df[continuous_cols].interpolate(method='linear')
     
-    categorical_cols = ['target_label', 'osm_highway_type', 'district', 'day_of_week', 'shift_code', 'weather_severity']
+    categorical_cols = ['osm_highway_type', 'district', 'day_of_week', 'shift_code']
     df[categorical_cols] = df[categorical_cols].ffill().bfill()
+    df['weather_severity'] = df['weather_severity'].ffill().bfill()
     
     static_cols = ['segment_key', 'default_lane_count', 'static_free_flow', 'time_sin', 'time_cos']
     df[static_cols] = df[static_cols].ffill().bfill()
 
-    # Sau khi interpolate và ffill/bfill các cột
-    df[continuous_cols] = df[continuous_cols].interpolate(method='linear').fillna(0) # Thêm fillna(0)
-    df.fillna(0, inplace=True) # Bảo hiểm cuối cùng cho toàn bộ DataFrame
+    # Sau khi xử lý đặc trưng, loại bỏ các mốc không có nhãn mục tiêu để tránh label noise khi train
+    rows_before_drop = len(df)
+    df = df[df['target_label'].notna()].copy()
+    dropped_rows = rows_before_drop - len(df)
+    if dropped_rows > 0:
+        print(f"⚠️ Đã loại bỏ {dropped_rows} dòng thiếu target_label sau resample để tránh nhãn giả.")
+
+    # Hoàn tất điền khuyết cho đặc trưng đầu vào, không đụng vào target_label
+    df[continuous_cols] = df[continuous_cols].interpolate(method='linear').fillna(0)
+    df[categorical_cols] = df[categorical_cols].fillna('unknown')
+    df[static_cols] = df[static_cols].fillna(0)
+    df['weather_severity'] = df['weather_severity'].fillna(0)
 
     # Reset index và ép kiểu dữ liệu cho sạch sẽ
     df.reset_index(inplace=True)

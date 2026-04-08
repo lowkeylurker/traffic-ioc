@@ -3,9 +3,12 @@ import torch.nn.functional as F
 import pandas as pd
 import numpy as np
 import joblib  # Dùng để load Scaler và Encoders đã lưu từ lúc Train
+import logging
 
 # Import chính xác kiến trúc mô hình đã định nghĩa
 from src.ml.traffic_model import TrafficCongestionModel
+
+logger = logging.getLogger(__name__)
 
 class TrafficPredictor:
     def __init__(self, model_path: str, artifacts_path: str, device=None):
@@ -61,10 +64,22 @@ class TrafficPredictor:
         for col in self.cat_cols:
             # Dùng encoder đã fit lúc train. Thêm xử lý lỗi nếu gặp giá trị mới (unseen labels)
             le = self.encoders[col]
-            # Biến các giá trị chưa từng thấy thành giá trị phổ biến nhất (hoặc index 0)
-            known_classes = set(le.classes_)
-            df_encoded[col] = df_encoded[col].apply(lambda x: x if x in known_classes else le.classes_[0])
-            df_encoded[col] = le.transform(df_encoded[col].astype(str))
+            fallback_value = str(le.classes_[0])
+            encoded_col = df_encoded[col].astype(str).copy()
+            unseen_mask = ~encoded_col.isin(le.classes_)
+
+            if unseen_mask.any():
+                unseen_examples = encoded_col[unseen_mask].value_counts().head(5).to_dict()
+                logger.warning(
+                    "Unseen category detected for '%s': count=%d, examples=%s. Fallback='%s'.",
+                    col,
+                    int(unseen_mask.sum()),
+                    unseen_examples,
+                    fallback_value,
+                )
+                encoded_col.loc[unseen_mask] = fallback_value
+
+            df_encoded[col] = le.transform(encoded_col)
             
         # 2. CHUẨN HÓA MIN-MAX SCALING CHO BIẾN LIÊN TỤC
         # Tái sử dụng hàm transform của TrafficScaler từ dataset.py
@@ -108,44 +123,85 @@ class TrafficPredictor:
         }
 
 # ==========================================
-# TEST PIPELINE DỰ BÁO TRỰC TIẾP
+# TEST PIPELINE DỰ BÁO TRỰC TIẾP (CHUẨN NGHIỆP VỤ)
 # ==========================================
 if __name__ == "__main__":
     from src.utils.data_loader import load_bulk_corridor_data
+    import pandas as pd
     
     print("--- KHỞI ĐỘNG HỆ THỐNG DỰ BÁO THỜI GIAN THỰC ---")
     
-    # Giả định file trọng số và artifacts đã được lưu từ quá trình huấn luyện
     MODEL_PATH = "best_traffic_model.pt"
-    ARTIFACTS_PATH = "preprocessing_artifacts.pkl" # Chứa dictionary: {'scaler': scaler_obj, 'encoders': dict_of_encoders}
+    ARTIFACTS_PATH = "preprocessing_artifacts.pkl"
     
     try:
         predictor = TrafficPredictor(model_path=MODEL_PATH, artifacts_path=ARTIFACTS_PATH)
         
-        # Lấy một đoạn dữ liệu lịch sử để test luồng dự báo (Mô phỏng dữ liệu streaming thực tế)
-        print("Đang truy xuất 12 timesteps gần nhất từ Database...")
-        corridor_data = load_bulk_corridor_data(corridor_id=646713380690000556, start_date='2026-04-07 07:00:00', end_date='2026-04-07 10:00:00')
+        # 1. Kéo dữ liệu thời gian thực (Giả lập)
+        print("Đang truy xuất dữ liệu gần nhất từ Database...")
+        corridor_data = load_bulk_corridor_data(
+            corridor_id=646713380690000556, 
+            start_date='2026-04-07 07:00:00', 
+            end_date='2026-04-07 10:00:00'
+        )
         
         if corridor_data:
-            # Lấy đại 1 segment để test
-            sample_seg_key = list(corridor_data.keys())[0]
-            df_segment = corridor_data[sample_seg_key]
+            print(f"\n🛣️ Bắt đầu chạy dự báo cho {len(corridor_data)} segments...")
             
-            # Chỉ lấy 12 dòng cuối cùng làm đầu vào cho mô hình
-            df_input = df_segment.tail(12).copy()
+            # Danh sách lưu trữ toàn bộ kết quả dự báo
+            all_predictions = []
             
-            print(f"\n🛣️  Dự báo cho đoạn đường (Segment KEY): {sample_seg_key}")
-            print(f"🕒  Thời điểm hiện tại (Dữ liệu chốt sổ): {df_input['timestamp'].iloc[-1]}")
+            # 2. VÒNG LẶP NGHIỆP VỤ: Quét qua TẤT CẢ các segment_id
+            for seg_key, df_segment in corridor_data.items():
+                
+                # Bỏ qua các segment bị thiếu dữ liệu (không đủ 12 timesteps)
+                if len(df_segment) < 12:
+                    continue
+                    
+                # Chỉ lấy 12 dòng cuối cùng làm đầu vào
+                df_input = df_segment.tail(12).copy()
+
+                # 12 timesteps liên tục cách nhau 15 phút -> Khoảng cách từ dòng đầu đến dòng cuối phải CHÍNH XÁC là:
+                # 11 khoảng x 15 phút = 165 phút
+                
+                start_time_of_window = df_input['timestamp'].iloc[0]
+                end_time_of_window = df_input['timestamp'].iloc[-1]
+                
+                time_diff = end_time_of_window - start_time_of_window
+                expected_diff = pd.Timedelta(minutes=165)
+                
+                # Nếu khoảng thời gian bị giãn ra (tức là bị dính dữ liệu qua đêm) thì BỎ QUA không dự báo
+                if time_diff != expected_diff:
+                    print(f"⚠️ Bỏ qua Segment {seg_key} lúc {end_time_of_window} do dữ liệu thiếu liên tục (nhảy qua đêm).")
+                    continue
+                # ======================================================
+
+                current_time = df_input['timestamp'].iloc[-1]
+                
+                # Gọi Model dự báo
+                result = predictor.predict_next_15_mins(df_input)
+                
+                # Đóng gói kết quả
+                all_predictions.append({
+                    "segment_key": seg_key,
+                    "current_timestamp": current_time,
+                    "predicted_level": result['predicted_level'],
+                    "status_description": result['status_description'],
+                    "confidence_percentage": result['confidence_percentage']
+                })
             
-            result = predictor.predict_next_15_mins(df_input)
+            # 3. KẾT XUẤT KẾT QUẢ
+            df_results = pd.DataFrame(all_predictions)
             
-            print("\n" + "="*45)
-            print("🚀 KẾT QUẢ DỰ BÁO 15 PHÚT TỚI")
-            print("="*45)
-            print(f"Mức kẹt xe dự kiến : {result['predicted_level']} - {result['status_description']}")
-            print(f"Độ tin cậy (AI tự tin): {result['confidence_percentage']}%")
-            print("="*45)
+            print("\n" + "="*60)
+            print("🚀 TỔNG HỢP KẾT QUẢ DỰ BÁO 15 PHÚT TỚI (TOP 5 SEGMENTS)")
+            print("="*60)
+            # In ra 5 segments đầu tiên để xem thử
+            print(df_results.head().to_string(index=False))
+            print("="*60)
+            
+            print(f"\n✅ Đã hoàn tất dự báo cho {len(df_results)} segments.")
+            print("💡 Trong thực tế, df_results này sẽ được dùng để ghi vào bảng fact_predictions trong Data Warehouse hoặc trả về dạng JSON cho API.")
             
     except FileNotFoundError:
         print("⚠️ LỖI: Chưa tìm thấy file 'best_traffic_model.pt' hoặc 'preprocessing_artifacts.pkl'.")
-        print("Vui lòng chạy lại file train.py và sử dụng thư viện joblib để lưu lại Scaler và Encoders nhé.")

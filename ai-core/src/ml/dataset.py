@@ -71,8 +71,8 @@ class TrafficDataset(Dataset):
         
         # Trích xuất Static & Categorical Input (Chỉ lấy tại timestep dự báo hoặc timestep đầu tiên)
         # Các biến tĩnh không đổi nên lấy ở vị trí start_idx là đủ
-        x_static = self.static_features[start_idx]
-        x_cat = self.cat_features[start_idx]
+        x_static = self.static_features[target_idx - 1]
+        x_cat = self.cat_features[target_idx - 1]
         
         # Trích xuất Target Label (Tại timestep t+12)
         y_target = self.targets[target_idx]
@@ -124,9 +124,9 @@ def prepare_dataloaders(df: pd.DataFrame, train_ratio=0.8, batch_size=64, window
         label_encoders[col] = le 
     
     # 1. CHIA TẬP THEO THỜI GIAN (Sử dụng df_encoded đã được mã hóa)
-    split_idx = int(len(df_encoded) * train_ratio)
-    df_train = df_encoded.iloc[:split_idx].copy()
-    df_val = df_encoded.iloc[split_idx:].copy()
+    split_time = df_encoded['timestamp'].quantile(train_ratio)
+    df_train = df_encoded[df_encoded['timestamp'] < split_time].copy()
+    df_val = df_encoded[df_encoded['timestamp'] >= split_time].copy()
     
     # 2. KHỞI TẠO VÀ FIT SCALER (Chỉ học từ tập Train)
     scaler = TrafficScaler()
