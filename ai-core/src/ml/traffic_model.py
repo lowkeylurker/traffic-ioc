@@ -2,7 +2,14 @@ import torch
 import torch.nn as nn
 
 class TrafficCongestionModel(nn.Module):
-    def __init__(self, vocab_sizes: dict, embedding_dim: int = 8, hidden_dim: int = 64, num_classes: int = 6):
+    def __init__(
+        self,
+        vocab_sizes: dict,
+        embedding_dim: int = 8,
+        hidden_dim: int = 64,
+        num_classes: int = 6,
+        dropout_rate: float = 0.2,
+    ):
         """
         vocab_sizes: Dictionary chứa số lượng unique values của từng biến Categorical
         embedding_dim: Số chiều của không gian vector nhúng (Mặc định: 8)
@@ -31,7 +38,7 @@ class TrafficCongestionModel(nn.Module):
         self.context_fnn = nn.Sequential(
             nn.Linear(context_dim, 32),
             nn.ReLU(),
-            nn.Dropout(0.2)
+            nn.Dropout(dropout_rate)
         )
         
         # ==========================================
@@ -45,7 +52,7 @@ class TrafficCongestionModel(nn.Module):
             hidden_size=hidden_dim,
             num_layers=2,        # Dùng 2 lớp LSTM chồng lên nhau để học sâu hơn
             batch_first=True,    # Tensor đầu vào có dạng (Batch, Seq_len, Features)
-            dropout=0.2
+            dropout=dropout_rate
         )
         
         # ==========================================
@@ -57,7 +64,7 @@ class TrafficCongestionModel(nn.Module):
         self.classifier = nn.Sequential(
             nn.Linear(fusion_dim, 64),
             nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(dropout_rate),
             nn.Linear(64, num_classes) # Phóng ra 6 Logits cho 6 mức kẹt xe
         )
 

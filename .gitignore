@@ -26,7 +26,8 @@ build/
 
 *.pt
 *.pkl
-
+*.log
+*.json
 */cache/
 
 # Sensitive runtime state (contains API key identifiers/usage)

@@ -4,6 +4,7 @@ import torch
 import logging
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from torch.utils.data import WeightedRandomSampler
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import LabelEncoder 
 
@@ -114,7 +115,13 @@ class TrafficScaler:
         df_scaled[self.static_cols] = self.static_scaler.transform(df[self.static_cols])
         return df_scaled
 
-def prepare_dataloaders(df: pd.DataFrame, train_ratio=0.8, batch_size=64, window_size=12):
+def prepare_dataloaders(
+    df: pd.DataFrame,
+    train_ratio=0.8,
+    batch_size=64,
+    window_size=12,
+    use_weighted_sampler: bool = True,
+):
     """
     Hàm tổng hợp: Mã hóa -> Chia tập -> Scale -> Đóng gói DataLoader
     """
@@ -163,9 +170,30 @@ def prepare_dataloaders(df: pd.DataFrame, train_ratio=0.8, batch_size=64, window
     # 4. TẠO PYTORCH DATASET
     train_dataset = TrafficDataset(df_train_scaled, window_size=window_size)
     val_dataset = TrafficDataset(df_val_scaled, window_size=window_size)
-    
+
+    # 4b. Tuỳ chọn cân bằng lại phân phối lớp trong train bằng sampler.
+    train_sampler = None
+    if use_weighted_sampler:
+        train_targets = train_dataset.get_training_targets()
+        class_counts = np.bincount(train_targets, minlength=6)
+        sample_weights = np.array(
+            [1.0 / class_counts[target] if class_counts[target] > 0 else 0.0 for target in train_targets],
+            dtype=np.float64,
+        )
+        train_sampler = WeightedRandomSampler(
+            weights=torch.as_tensor(sample_weights, dtype=torch.double),
+            num_samples=len(sample_weights),
+            replacement=True,
+        )
+
     # 5. TẠO DATALOADER
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        sampler=train_sampler,
+        shuffle=(train_sampler is None),
+        drop_last=True,
+    )
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     
     return train_loader, val_loader, scaler, label_encoders
