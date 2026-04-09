@@ -8,7 +8,13 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.metrics import accuracy_score, f1_score, recall_score
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_recall_fscore_support,
+    recall_score,
+)
 
 from src.ml.training.class_weighting import class_balanced_weights, get_class_weights
 from src.ml.training.losses import focal_loss
@@ -65,13 +71,24 @@ def train_model(
             patience=scheduler_patience,
         )
 
-    history = {"train_loss": [], "val_loss": [], "val_acc": [], "val_f1": [], "epoch_time_sec": []}
+    history = {
+        "train_loss": [],
+        "val_loss": [],
+        "val_acc": [],
+        "val_f1": [],
+        "epoch_time_sec": [],
+        "per_class_recall": [[] for _ in range(6)],
+        "per_class_precision": [[] for _ in range(6)],
+        "per_class_f1": [[] for _ in range(6)],
+    }
     best_f1 = 0.0
     best_epoch = 0
     best_val_loss = float("inf")
     best_val_acc = 0.0
     best_train_loss = float("inf")
     best_minority_recall = 0.0
+    best_epoch_predictions = None
+    best_epoch_targets = None
     epochs_without_improve = 0
 
     for epoch in range(epochs):
@@ -129,22 +146,49 @@ def train_model(
         val_loss = val_loss / len(val_loader.dataset)
         val_acc = accuracy_score(all_targets, all_preds)
         val_f1 = f1_score(all_targets, all_preds, average="macro")
-        per_class_recall = recall_score(all_targets, all_preds, labels=[0, 1, 2, 3, 4, 5], average=None, zero_division=0)
+        
+        # Calculate per-class metrics
+        per_class_precision, per_class_recall, per_class_f1, _ = precision_recall_fscore_support(
+            all_targets, all_preds, labels=[0, 1, 2, 3, 4, 5], average=None, zero_division=0
+        )
         minority_recall = float((per_class_recall[4] + per_class_recall[5]) / 2.0)
 
+        # Track in history
         history["train_loss"].append(train_loss)
         history["val_loss"].append(val_loss)
         history["val_acc"].append(val_acc)
         history["val_f1"].append(val_f1)
+        
+        for cls_idx in range(6):
+            history["per_class_recall"][cls_idx].append(float(per_class_recall[cls_idx]))
+            history["per_class_precision"][cls_idx].append(float(per_class_precision[cls_idx]))
+            history["per_class_f1"][cls_idx].append(float(per_class_f1[cls_idx]))
 
         epoch_time = time.time() - start_time
         history["epoch_time_sec"].append(epoch_time)
 
+        # Enhanced console output
+        class_labels = ["VeryFree", "Stable", "Moderate", "Congested", "HeavyJam", "Severe"]
         print(
+            f"\n{'='*80}\n"
             f"Epoch {epoch + 1:03d}/{epochs} | Time: {epoch_time:.1f}s | "
-            f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | "
-            f"Val Acc: {val_acc:.4f} | Val Macro-F1: {val_f1:.4f}"
+            f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}\n"
+            f"Val Acc: {val_acc:.4f} | Val Macro-F1: {val_f1:.4f}\n"
+            f"{'-'*80}"
         )
+        
+        for cls_idx in range(6):
+            recall_val = per_class_recall[cls_idx]
+            prec_val = per_class_precision[cls_idx]
+            f1_val = per_class_f1[cls_idx]
+            
+            # Highlight minority classes
+            marker = "⚠️ " if cls_idx >= 4 else "  "
+            print(
+                f"{marker}Class {cls_idx} ({class_labels[cls_idx]:12s}) | "
+                f"Recall: {recall_val:.4f} | Prec: {prec_val:.4f} | F1: {f1_val:.4f}"
+            )
+        print(f"{'='*80}")
 
         if val_f1 > best_f1:
             best_f1 = val_f1
@@ -153,6 +197,8 @@ def train_model(
             best_val_acc = val_acc
             best_train_loss = train_loss
             best_minority_recall = minority_recall
+            best_epoch_predictions = np.array(all_preds)
+            best_epoch_targets = np.array(all_targets)
             epochs_without_improve = 0
             print(f"🌟 Kỷ lục mới! Macro-F1 tăng lên {best_f1:.4f}. Đang lưu mô hình...")
             torch.save(model.state_dict(), "best_traffic_model.pt")
@@ -170,6 +216,20 @@ def train_model(
             break
 
     print(f"\n✅ HUẤN LUYỆN HOÀN TẤT. Macro-F1 tốt nhất đạt: {best_f1:.4f}")
+    
+    # Compute confusion matrix from best epoch predictions
+    cm = confusion_matrix(best_epoch_targets, best_epoch_predictions, labels=[0, 1, 2, 3, 4, 5])
+    
+    # Build per-class summary at best epoch
+    best_epoch_idx = best_epoch - 1
+    per_class_summary = {}
+    for cls_idx in range(6):
+        per_class_summary[f"class_{cls_idx}"] = {
+            "recall": float(history["per_class_recall"][cls_idx][best_epoch_idx]) if best_epoch_idx < len(history["per_class_recall"][cls_idx]) else 0.0,
+            "precision": float(history["per_class_precision"][cls_idx][best_epoch_idx]) if best_epoch_idx < len(history["per_class_precision"][cls_idx]) else 0.0,
+            "f1": float(history["per_class_f1"][cls_idx][best_epoch_idx]) if best_epoch_idx < len(history["per_class_f1"][cls_idx]) else 0.0,
+        }
+    
     summary = {
         "best_epoch": int(best_epoch),
         "best_val_f1": float(best_f1),
@@ -179,5 +239,7 @@ def train_model(
         "train_val_gap": float(best_val_loss - best_train_loss),
         "minority_recall_45": float(best_minority_recall),
         "avg_time_per_epoch_sec": float(np.mean(history.get("epoch_time_sec", []))) if history.get("epoch_time_sec") else 0.0,
+        "per_class_metrics": per_class_summary,
+        "confusion_matrix": cm.tolist(),
     }
     return history, summary

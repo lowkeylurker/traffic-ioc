@@ -133,6 +133,30 @@ def main() -> None:
     )
 
     if metrics_out:
+        # Build comprehensive metrics breakdown
+        class_names = {0: "VeryFree", 1: "Stable", 2: "Moderate", 3: "Congested", 4: "HeavyJam", 5: "Severe"}
+        
+        # Per-class history at best epoch
+        best_epoch_idx = summary["best_epoch"] - 1
+        per_class_at_best = {}
+        for cls_idx in range(6):
+            per_class_at_best[f"class_{cls_idx}"] = {
+                "name": class_names[cls_idx],
+                "recall": history["per_class_recall"][cls_idx][best_epoch_idx] if best_epoch_idx < len(history["per_class_recall"][cls_idx]) else 0.0,
+                "precision": history["per_class_precision"][cls_idx][best_epoch_idx] if best_epoch_idx < len(history["per_class_precision"][cls_idx]) else 0.0,
+                "f1": history["per_class_f1"][cls_idx][best_epoch_idx] if best_epoch_idx < len(history["per_class_f1"][cls_idx]) else 0.0,
+            }
+        
+        # Per-class trajectory (all epochs)
+        per_class_trajectory = {}
+        for cls_idx in range(6):
+            per_class_trajectory[f"class_{cls_idx}"] = {
+                "name": class_names[cls_idx],
+                "recall_history": history["per_class_recall"][cls_idx],
+                "precision_history": history["per_class_precision"][cls_idx],
+                "f1_history": history["per_class_f1"][cls_idx],
+            }
+        
         out_payload = {
             "run_id": run_id,
             "config": {
@@ -155,10 +179,26 @@ def main() -> None:
                 "patience": patience,
             },
             "summary": summary,
+            "per_class_at_best_epoch": per_class_at_best,
+            "per_class_trajectory": per_class_trajectory,
+            "confusion_matrix": {
+                "labels": [0, 1, 2, 3, 4, 5],
+                "matrix": summary.get("confusion_matrix", []),
+            },
         }
         with open(metrics_out, "w", encoding="utf-8") as file_handle:
             json.dump(out_payload, file_handle, indent=2)
         print(f"📝 Đã ghi metrics ra {metrics_out}")
+        
+        # Print structured summary to console
+        print("\n" + "="*80)
+        print("📊 PER-CLASS METRICS TẠI BEST EPOCH")
+        print("="*80)
+        for cls_idx in range(6):
+            metrics = per_class_at_best[f"class_{cls_idx}"]
+            marker = "⚠️ " if cls_idx >= 4 else "  "
+            print(f"{marker}Class {cls_idx} ({metrics['name']:12s}): Recall={metrics['recall']:.4f} | Prec={metrics['precision']:.4f} | F1={metrics['f1']:.4f}")
+        print("="*80)
 
 
 if __name__ == "__main__":
