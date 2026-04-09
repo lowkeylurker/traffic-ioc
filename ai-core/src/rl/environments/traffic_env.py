@@ -6,7 +6,7 @@ from gymnasium import spaces
 class TrafficForecastingEnv(gym.Env):
     """Gym environment for congestion-level forecasting decisions."""
 
-    def __init__(self, dataloader, device="cpu"):
+    def __init__(self, dataloader, device="cpu", class_weights=None, reward_scale: float = 1.0, reward_clip: float = 30.0):
         super(TrafficForecastingEnv, self).__init__()
 
         self.dataloader = dataloader
@@ -15,6 +15,16 @@ class TrafficForecastingEnv(gym.Env):
         self.data_iter = iter(self.dataloader)
         self.current_batch = None
         self.batch_idx = 0
+        self.reward_scale = reward_scale
+        self.reward_clip = reward_clip
+
+        if class_weights is None:
+            self.class_weights = np.ones(6, dtype=np.float32)
+        else:
+            arr = np.asarray(class_weights, dtype=np.float32)
+            if arr.shape[0] != 6:
+                raise ValueError("class_weights phải có đúng 6 phần tử")
+            self.class_weights = arr
 
         self.action_space = spaces.Discrete(6)
         self.observation_space = spaces.Dict(
@@ -62,23 +72,30 @@ class TrafficForecastingEnv(gym.Env):
         return self.current_obs, {}
 
     def calculate_reward(self, action, target):
+        target_weight = float(self.class_weights[int(target)])
+
         if action == target:
-            return 10.0
+            reward = 10.0 * target_weight
+            return float(np.clip(self.reward_scale * reward, -self.reward_clip, self.reward_clip))
 
         diff = action - target
 
         if abs(diff) == 1:
-            return -2.0
+            reward = -2.0 * target_weight
+            return float(np.clip(self.reward_scale * reward, -self.reward_clip, self.reward_clip))
 
         if abs(diff) >= 2:
-            base_penalty = -5.0 * abs(diff)
+            base_penalty = -5.0 * abs(diff) * target_weight
 
             if target >= 4 and action <= 2:
-                return base_penalty - 20.0
+                reward = base_penalty - (20.0 * target_weight)
+                return float(np.clip(self.reward_scale * reward, -self.reward_clip, self.reward_clip))
             if target <= 2 and action >= 4:
-                return base_penalty - 5.0
+                reward = base_penalty - 5.0
+                return float(np.clip(self.reward_scale * reward, -self.reward_clip, self.reward_clip))
 
-            return base_penalty
+            reward = base_penalty
+            return float(np.clip(self.reward_scale * reward, -self.reward_clip, self.reward_clip))
 
     def step(self, action):
         target_for_reward = self.current_target

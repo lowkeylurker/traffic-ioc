@@ -9,6 +9,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precisio
 
 def evaluate_policy_net(policy_net, dataloader, device: str = "cpu") -> dict:
     """Evaluate a trained policy network against ground-truth labels from dataloader."""
+    was_training = bool(policy_net.training)
     policy_net.eval()
 
     all_preds: list[int] = []
@@ -22,6 +23,9 @@ def evaluate_policy_net(policy_net, dataloader, device: str = "cpu") -> dict:
 
             all_preds.extend(preds.cpu().numpy().astype(int).tolist())
             all_targets.extend(y_target.cpu().numpy().astype(int).tolist())
+
+    if was_training:
+        policy_net.train()
 
     if not all_targets:
         return {

@@ -1,11 +1,24 @@
+from __future__ import annotations
+
 import time
+from typing import Callable
 
 import numpy as np
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 import torch
 
 
-def train_rl_agent(env, agent, num_episodes=50, max_steps_per_episode=10000):
+def train_rl_agent(
+    env,
+    agent,
+    num_episodes=50,
+    max_steps_per_episode=10000,
+    eval_fn: Callable[[], dict] | None = None,
+    early_stop_patience: int = 0,
+    early_stop_min_delta: float = 0.0,
+    early_stop_eval_interval: int = 1,
+    early_stop_warmup_episodes: int = 0,
+):
     """Main DQN training loop."""
     print("\n" + "=" * 50)
     print("🎮 BẮT ĐẦU TRẬN ĐẤU: ĐÀO TẠO TÁC TỬ GIAO THÔNG")
@@ -16,12 +29,17 @@ def train_rl_agent(env, agent, num_episodes=50, max_steps_per_episode=10000):
         "avg_losses": [],
         "epsilons": [],
         "minority_recall_35": [],
+        "eval_macro_f1": [],
+        "eval_events": [],
         "per_class_precision": [[] for _ in range(6)],
         "per_class_recall": [[] for _ in range(6)],
         "per_class_f1": [[] for _ in range(6)],
     }
 
     best_reward = -float("inf")
+    best_eval_macro_f1 = -float("inf")
+    no_improve_eval_count = 0
+    stopped_early = False
     all_preds = []
     all_targets = []
 
@@ -107,6 +125,48 @@ def train_rl_agent(env, agent, num_episodes=50, max_steps_per_episode=10000):
             print(f"🌟 Tác tử đạt kỷ lục mới về Điểm thưởng ({best_reward:.1f})! Đang lưu bộ não...")
             torch.save(agent.policy_net.state_dict(), agent.checkpoint_path)
 
+        should_eval = (
+            eval_fn is not None
+            and early_stop_patience > 0
+            and (episode + 1) >= early_stop_warmup_episodes
+            and (episode + 1) % max(1, early_stop_eval_interval) == 0
+        )
+        if should_eval:
+            eval_summary = eval_fn() or {}
+            eval_macro_f1 = float(eval_summary.get("macro_f1", 0.0))
+            history["eval_macro_f1"].append(eval_macro_f1)
+            history["eval_events"].append(
+                {
+                    "episode": int(episode + 1),
+                    "macro_f1": eval_macro_f1,
+                    "accuracy": float(eval_summary.get("accuracy", 0.0)),
+                    "minority_recall_35": float(eval_summary.get("minority_recall_35", 0.0)),
+                    "num_samples": int(eval_summary.get("num_samples", 0)),
+                }
+            )
+
+            if eval_macro_f1 > (best_eval_macro_f1 + early_stop_min_delta):
+                best_eval_macro_f1 = eval_macro_f1
+                no_improve_eval_count = 0
+                print(
+                    f"📈 Eval macro_f1 improved to {eval_macro_f1:.4f} "
+                    f"(patience reset to {early_stop_patience})"
+                )
+                torch.save(agent.policy_net.state_dict(), agent.checkpoint_path)
+            else:
+                no_improve_eval_count += 1
+                print(
+                    f"⏳ Eval macro_f1={eval_macro_f1:.4f} did not improve "
+                    f"(best={best_eval_macro_f1:.4f}, no_improve={no_improve_eval_count}/{early_stop_patience})"
+                )
+                if no_improve_eval_count >= early_stop_patience:
+                    stopped_early = True
+                    print(
+                        "🛑 Early stopping triggered by eval_macro_f1: "
+                        f"no improvement for {early_stop_patience} eval checks."
+                    )
+                    break
+
     print("\n✅ HUẤN LUYỆN RL HOÀN TẤT!")
 
     if all_targets:
@@ -131,6 +191,9 @@ def train_rl_agent(env, agent, num_episodes=50, max_steps_per_episode=10000):
             "per_class_metrics": final_per_class,
             "minority_recall_35": float((recall[3] + recall[4] + recall[5]) / 3.0),
             "best_reward": float(best_reward),
+            "best_eval_macro_f1": float(best_eval_macro_f1 if best_eval_macro_f1 > -float("inf") else 0.0),
+            "stopped_early": bool(stopped_early),
+            "early_stop_no_improve_count": int(no_improve_eval_count),
             "num_episodes": int(len(history["episode_rewards"])),
         }
     else:
@@ -139,6 +202,9 @@ def train_rl_agent(env, agent, num_episodes=50, max_steps_per_episode=10000):
             "per_class_metrics": {},
             "minority_recall_35": 0.0,
             "best_reward": float(best_reward),
+            "best_eval_macro_f1": float(best_eval_macro_f1 if best_eval_macro_f1 > -float("inf") else 0.0),
+            "stopped_early": bool(stopped_early),
+            "early_stop_no_improve_count": int(no_improve_eval_count),
             "num_episodes": int(len(history["episode_rewards"])),
         }
 

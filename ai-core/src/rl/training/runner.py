@@ -157,6 +157,61 @@ def _dataset_quality_snapshot(dataset: TrafficDataset) -> dict:
     }
 
 
+def _build_reward_class_weights(train_dataset: TrafficDataset) -> np.ndarray:
+    targets = train_dataset.get_training_targets()
+    counts = np.bincount(targets, minlength=6).astype(np.float64)
+    non_zero = counts[counts > 0]
+    if non_zero.size == 0:
+        return np.ones(6, dtype=np.float32)
+
+    max_count = float(non_zero.max())
+    weights = np.ones(6, dtype=np.float64)
+    for cls in range(6):
+        n = counts[cls]
+        if n > 0:
+            # sqrt re-weighting keeps rewards stable while still boosting minority classes.
+            weights[cls] = np.sqrt(max_count / float(n))
+
+    weights = np.clip(weights, 1.0, 4.0)
+    return weights.astype(np.float32)
+
+
+def _resolve_torch_device(requested_device: str | None) -> torch.device:
+    requested = (requested_device or "auto").strip().lower()
+    if requested in {"auto", ""}:
+        return torch.device(
+            "cuda"
+            if torch.cuda.is_available()
+            else "mps"
+            if torch.backends.mps.is_available()
+            else "cpu"
+        )
+
+    if requested == "cuda":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        print("⚠️ RL_DEVICE=cuda nhưng CUDA không khả dụng. Fallback về CPU.")
+        return torch.device("cpu")
+
+    if requested == "mps":
+        if torch.backends.mps.is_available():
+            return torch.device("mps")
+        print("⚠️ RL_DEVICE=mps nhưng MPS không khả dụng. Fallback về CPU.")
+        return torch.device("cpu")
+
+    if requested == "cpu":
+        return torch.device("cpu")
+
+    print(f"⚠️ RL_DEVICE={requested!r} không hợp lệ. Dùng auto.")
+    return torch.device(
+        "cuda"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.backends.mps.is_available()
+        else "cpu"
+    )
+
+
 def run_rl_training(mode: str) -> None:
     if mode not in {"warmstart", "pure"}:
         raise ValueError(f"mode không hợp lệ: {mode}")
@@ -168,11 +223,36 @@ def run_rl_training(mode: str) -> None:
     peak_hours_only = os.getenv("RL_PEAK_HOURS_ONLY", "1") == "1"
     batch_size = int(os.getenv("RL_BATCH_SIZE", "64"))
     episodes = int(os.getenv("RL_EPISODES", "20"))
+    max_steps_per_episode = int(os.getenv("RL_MAX_STEPS_PER_EPISODE", "10000"))
     window_size = int(os.getenv("RL_WINDOW_SIZE", "12"))
     eval_ratio = float(os.getenv("RL_EVAL_RATIO", "0.2"))
     seed = int(os.getenv("RL_SEED", "42"))
     max_segments_env = os.getenv("RL_MAX_SEGMENTS", "0")
     max_segments = int(max_segments_env) if max_segments_env else 0
+    requested_device = os.getenv("RL_DEVICE", "auto")
+    gamma = float(os.getenv("RL_GAMMA", "0.99"))
+    epsilon_start = float(os.getenv("RL_EPSILON_START", "1.0"))
+    epsilon_min_default = "0.10" if mode == "pure" else "0.05"
+    epsilon_decay_default = "0.995" if mode == "pure" else "0.97"
+    learning_rate_default = "0.0002" if mode == "pure" else "0.00005"
+    warmup_steps_default = "5000" if mode == "pure" else "2000"
+    replay_capacity_default = "200000" if mode == "pure" else "100000"
+    use_class_aware_reward_default = "1" if mode == "pure" else "0"
+
+    epsilon_min = float(os.getenv("RL_EPSILON_MIN", epsilon_min_default))
+    epsilon_decay = float(os.getenv("RL_EPSILON_DECAY", epsilon_decay_default))
+    learning_rate = float(os.getenv("RL_LEARNING_RATE", learning_rate_default))
+    warmup_steps = int(os.getenv("RL_WARMUP_STEPS", warmup_steps_default))
+    replay_capacity = int(os.getenv("RL_REPLAY_CAPACITY", replay_capacity_default))
+    target_update = int(os.getenv("RL_TARGET_UPDATE", "10"))
+    early_stop_patience = int(os.getenv("RL_EARLY_STOP_PATIENCE", "0"))
+    early_stop_min_delta = float(os.getenv("RL_EARLY_STOP_MIN_DELTA", "0.0"))
+    early_stop_eval_interval = int(os.getenv("RL_EARLY_STOP_EVAL_INTERVAL", "1"))
+    early_stop_warmup_episodes = int(os.getenv("RL_EARLY_STOP_WARMUP_EPISODES", "0"))
+    use_double_dqn = os.getenv("RL_USE_DOUBLE_DQN", "1") == "1"
+    use_class_aware_reward = os.getenv("RL_USE_CLASS_AWARE_REWARD", use_class_aware_reward_default) == "1"
+    reward_scale = float(os.getenv("RL_REWARD_SCALE", "1.0"))
+    reward_clip = float(os.getenv("RL_REWARD_CLIP", "30.0"))
     run_id = os.getenv("RL_RUN_ID", f"{mode}_seed{seed}")
     checkpoint_path = os.getenv("RL_CHECKPOINT_PATH", str(get_rl_checkpoint_path(mode=mode, run_id=run_id)))
 
@@ -186,9 +266,15 @@ def run_rl_training(mode: str) -> None:
     print(
         f"📦 Config | corridors={corridor_ids} | start={start_date} | end={end_date} | "
         f"peak_hours_only={peak_hours_only} | episodes={episodes} | batch_size={batch_size} | "
-        f"eval_ratio={eval_ratio} | seed={seed} | max_segments={max_segments} | "
+        f"eval_ratio={eval_ratio} | seed={seed} | max_segments={max_segments} | max_steps={max_steps_per_episode} | "
         f"checkpoint={checkpoint_path}"
     )
+    print(f"🖥️ Requested device: {requested_device}")
+    if early_stop_patience > 0:
+        print(
+            f"🛑 Early-stop enabled | patience={early_stop_patience} | min_delta={early_stop_min_delta} | "
+            f"eval_interval={early_stop_eval_interval} | warmup_episodes={early_stop_warmup_episodes}"
+        )
     if not peak_hours_only:
         print(
             "⚠️ RL_PEAK_HOURS_ONLY=0: đang train full-day, có thể làm giảm continuity/valid windows "
@@ -248,17 +334,22 @@ def run_rl_training(mode: str) -> None:
     else:
         eval_snapshot = {"rows": 0, "valid_windows": 0, "approx_possible_windows": 0, "valid_window_ratio": 0.0}
 
-    device = torch.device(
-        "cuda"
-        if torch.cuda.is_available()
-        else "mps"
-        if torch.backends.mps.is_available()
-        else "cpu"
-    )
+    device = _resolve_torch_device(requested_device)
     print(f"💻 Thiết bị xử lý: {str(device).upper()}")
     print(f"✅ Đã tạo môi trường train với {len(train_dataset)} state hợp lệ")
 
-    env = TrafficForecastingEnv(dataloader=train_loader, device=device)
+    reward_class_weights = None
+    if use_class_aware_reward:
+        reward_class_weights = _build_reward_class_weights(train_dataset)
+        print(f"🎯 Class-aware reward weights: {np.round(reward_class_weights, 3)}")
+
+    env = TrafficForecastingEnv(
+        dataloader=train_loader,
+        device=device,
+        class_weights=reward_class_weights,
+        reward_scale=reward_scale,
+        reward_clip=reward_clip,
+    )
 
     vocab_sizes = {col: len(encoder.classes_) for col, encoder in encoders.items()}
     agent = DQNAgent(
@@ -266,9 +357,40 @@ def run_rl_training(mode: str) -> None:
         model_path=model_path,
         device=device,
         checkpoint_path=checkpoint_path,
+        gamma=gamma,
+        epsilon_start=epsilon_start,
+        epsilon_min=epsilon_min,
+        epsilon_decay=epsilon_decay,
+        batch_size=batch_size,
+        target_update=target_update,
+        replay_capacity=replay_capacity,
+        learning_rate=learning_rate,
+        warmup_steps=warmup_steps,
+        use_double_dqn=use_double_dqn,
     )
 
-    history = train_rl_agent(env=env, agent=agent, num_episodes=episodes)
+    train_eval_fn = None
+    if eval_loader is not None and len(eval_dataset) > 0 and early_stop_patience > 0:
+        print("🧪 Early-stop sẽ theo dõi eval_macro_f1 trên holdout split trong lúc train.")
+
+        def _eval_macro_f1_snapshot() -> dict:
+            return evaluate_policy_net(agent.policy_net, eval_loader, device=device)
+
+        train_eval_fn = _eval_macro_f1_snapshot
+    elif early_stop_patience > 0:
+        print("⚠️ Early-stop bị tắt vì eval split không đủ valid windows để tính macro_f1.")
+
+    history = train_rl_agent(
+        env=env,
+        agent=agent,
+        num_episodes=episodes,
+        max_steps_per_episode=max_steps_per_episode,
+        eval_fn=train_eval_fn,
+        early_stop_patience=early_stop_patience,
+        early_stop_min_delta=early_stop_min_delta,
+        early_stop_eval_interval=early_stop_eval_interval,
+        early_stop_warmup_episodes=early_stop_warmup_episodes,
+    )
 
     eval_summary = {}
     if eval_loader is not None and len(eval_dataset) > 0:
@@ -303,12 +425,20 @@ def run_rl_training(mode: str) -> None:
             "run_id": run_id,
             "max_segments": max_segments,
             "checkpoint_path": checkpoint_path,
+            "requested_device": requested_device,
+            "resolved_device": str(device),
+            "early_stop_patience": early_stop_patience,
+            "early_stop_min_delta": early_stop_min_delta,
+            "early_stop_eval_interval": early_stop_eval_interval,
+            "early_stop_warmup_episodes": early_stop_warmup_episodes,
         },
         "train_history": {
             "episode_rewards": history.get("episode_rewards", []),
             "avg_losses": history.get("avg_losses", []),
             "epsilons": history.get("epsilons", []),
             "minority_recall_35": history.get("minority_recall_35", []),
+            "eval_macro_f1": history.get("eval_macro_f1", []),
+            "eval_events": history.get("eval_events", []),
         },
         "data_quality": {
             "train": train_snapshot,
