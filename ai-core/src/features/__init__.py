@@ -1,19 +1,19 @@
-"""
-TẦNG 3: FEATURE ENGINEERING - Extract & Transform Features
+"""Feature engineering helpers used across AI-core."""
 
-Chuyên môn:
-- Extract features từ fact_traffic_flow (từ DB)
-- Tạo temporal features (hour, day, season, ...)
-- Tạo sliding window từ time series data
-
-Tất cả hàm phải là PURE FUNCTIONS:
-- Input: List/Dict/primitive types
-- Output: ndarray or list
-- NO side effects, NO database queries
-"""
+from src.features.sliding_window import find_valid_window_starts
+from src.features.temporal_features import create_temporal_features
+from src.features.traffic_features import (
+    calculate_traffic_index,
+    classify_congestion_level,
+    classify_los,
+    extract_traffic_features,
+)
 
 __all__ = [
-    "extract_traffic_features",
+    "calculate_traffic_index",
+    "classify_congestion_level",
+    "classify_los",
     "create_temporal_features",
-    "create_sliding_windows",
+    "extract_traffic_features",
+    "find_valid_window_starts",
 ]

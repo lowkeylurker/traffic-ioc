@@ -5,6 +5,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from src.features.temporal_features import create_temporal_features
+from src.features.traffic_features import extract_traffic_features
+
 
 def process_single_segment(df_segment: pd.DataFrame, peak_hours_only: bool = True) -> tuple[pd.DataFrame, int]:
     """
@@ -31,9 +34,14 @@ def process_single_segment(df_segment: pd.DataFrame, peak_hours_only: bool = Tru
     }
 
     df = df_segment.resample('15min').agg(agg_logic)
-    df['time_key'] = df.index.hour * 60 + df.index.minute
-    df['time_sin'] = np.sin(2 * np.pi * df['time_key'] / 1440)
-    df['time_cos'] = np.cos(2 * np.pi * df['time_key'] / 1440)
+    temporal_features = create_temporal_features(df.index)
+    df['time_key'] = temporal_features['time_key'].to_numpy()
+    df['time_sin'] = temporal_features['time_sin'].to_numpy()
+    df['time_cos'] = temporal_features['time_cos'].to_numpy()
+    if 'day_of_week' not in df.columns:
+        df['day_of_week'] = temporal_features['day_of_week'].astype(str).to_numpy()
+
+    df = extract_traffic_features(df)
 
     if peak_hours_only:
         df = df.between_time('06:00', '21:00')

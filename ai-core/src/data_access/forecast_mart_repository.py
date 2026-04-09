@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import os
 import time
 from datetime import timedelta
 
 import pandas as pd
 from sqlalchemy import text
 
+from src.core.config import settings
 from src.core.database import get_engine
 
 _LAST_MART_REFRESH_AT: dict[str, float] = {}
@@ -44,8 +44,7 @@ _MART_DDL = text(
 
 
 def _use_forecast_mart() -> bool:
-    raw = os.getenv("AI_USE_FORECAST_MART", "1").strip().lower()
-    return raw not in {"0", "false", "no", "off"}
+    return settings.mart.use_forecast_mart
 
 
 def is_forecast_mart_enabled() -> bool:
@@ -54,29 +53,19 @@ def is_forecast_mart_enabled() -> bool:
 
 
 def _enable_mart_self_refresh() -> bool:
-    raw = os.getenv("AI_FORECAST_MART_SELF_REFRESH", "1").strip().lower()
-    return raw not in {"0", "false", "no", "off"}
+    return settings.mart.self_refresh
 
 
 def _mart_stale_minutes() -> int:
-    try:
-        return max(1, int(os.getenv("AI_FORECAST_MART_STALE_MINUTES", "15")))
-    except ValueError:
-        return 15
+    return max(1, settings.mart.stale_minutes)
 
 
 def _mart_refresh_cooldown_seconds() -> int:
-    try:
-        return max(0, int(os.getenv("AI_FORECAST_MART_REFRESH_COOLDOWN_SEC", "180")))
-    except ValueError:
-        return 180
+    return max(0, settings.mart.refresh_cooldown_sec)
 
 
 def _mart_refresh_lookback_days() -> int:
-    try:
-        return max(0, int(os.getenv("AI_FORECAST_MART_REFRESH_LOOKBACK_DAYS", "1")))
-    except ValueError:
-        return 1
+    return max(0, settings.mart.refresh_lookback_days)
 
 
 def _segment_refresh_key(segment_ids: list[int]) -> str:
