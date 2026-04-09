@@ -1,6 +1,12 @@
 import torch
 import torch.nn as nn
 
+from src.ml.feature_contract import (
+    CATEGORICAL_FEATURE_COLS,
+    NUM_CLASSES,
+    STATIC_MODEL_FEATURE_COLS,
+)
+
 class TrafficCongestionModel(nn.Module):
     def __init__(
         self,
@@ -27,9 +33,8 @@ class TrafficCongestionModel(nn.Module):
             for col, size in vocab_sizes.items()
         })
         
-        # Số lượng biến tĩnh = 5 (default_lane_count, free_flow_speed, time_sin, time_cos, weather_severity)
-        num_static_features = 5
-        num_cat_features = len(vocab_sizes)
+        num_static_features = len(STATIC_MODEL_FEATURE_COLS)
+        num_cat_features = len(CATEGORICAL_FEATURE_COLS)
         
         # Tổng số chiều của vector ngữ cảnh sau khi nối (Static + Các vector Embedding)
         context_dim = num_static_features + (num_cat_features * embedding_dim)
@@ -71,11 +76,7 @@ class TrafficCongestionModel(nn.Module):
     def forward(self, x_dynamic, x_static, x_cat):
         # --- Xử lý Nhóm Categorical (Nhúng vector) ---
         embedded_features = []
-        # Chú ý: Thứ tự các cột trong x_cat (từ dataset.py) là: 'osm_highway_type', 'district', 'shift_code', 'day_of_week'
-        cat_cols = ['osm_highway_type', 'district', 'shift_code', 'day_of_week']
-        
-        for i, col in enumerate(cat_cols):
-            # Cắt cột tương ứng và đưa qua lớp nhúng
+        for i, col in enumerate(CATEGORICAL_FEATURE_COLS):
             col_data = x_cat[:, i]
             emb = self.embeddings[col](col_data)
             embedded_features.append(emb)

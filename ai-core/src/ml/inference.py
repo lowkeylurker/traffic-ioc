@@ -7,6 +7,12 @@ import logging
 
 # Import chính xác kiến trúc mô hình đã định nghĩa
 from src.ml.traffic_model import TrafficCongestionModel
+from src.ml.feature_contract import (
+    CATEGORICAL_FEATURE_COLS,
+    CLASS_MAPPING,
+    DYNAMIC_FEATURE_COLS,
+    STATIC_MODEL_FEATURE_COLS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,18 +44,10 @@ class TrafficPredictor:
         self.model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.model.eval() # Bắt buộc: Tắt Dropout và cố định BatchNorm
         
-        # Cấu hình các cột đầu vào bám sát logic của dataset.py & traffic_model.py
-        self.dynamic_cols = ['current_speed_kmh', 'pcu_volume', 'traffic_index', 'delay_seconds', 'quality_flag']
-        self.static_cols = ['default_lane_count', 'static_free_flow', 'time_sin', 'time_cos', 'weather_severity']
-        
-        # Thứ tự BẮT BUỘC phải khớp với biến cat_cols trong hàm forward() của traffic_model.py
-        self.cat_cols = ['osm_highway_type', 'district', 'shift_code', 'day_of_week']
-        
-        self.class_mapping = {
-            0: "Thông thoáng tuyệt đối", 1: "Lưu thông ổn định", 
-            2: "Mật độ hơi cao", 3: "Đông đúc - Di chuyển chậm", 
-            4: "Ùn ứ - Có rủi ro kẹt xe", 5: "Kẹt xe nghiêm trọng"
-        }
+        self.dynamic_cols = DYNAMIC_FEATURE_COLS
+        self.static_cols = STATIC_MODEL_FEATURE_COLS
+        self.cat_cols = CATEGORICAL_FEATURE_COLS
+        self.class_mapping = CLASS_MAPPING
 
     def preprocess_streaming_data(self, df_recent: pd.DataFrame) -> tuple:
         """
@@ -121,87 +119,3 @@ class TrafficPredictor:
             "status_description": self.class_mapping[predicted_idx],
             "confidence_percentage": round(confidence, 2)
         }
-
-# ==========================================
-# TEST PIPELINE DỰ BÁO TRỰC TIẾP (CHUẨN NGHIỆP VỤ)
-# ==========================================
-if __name__ == "__main__":
-    from src.utils.data_loader import load_bulk_corridor_data
-    import pandas as pd
-    
-    print("--- KHỞI ĐỘNG HỆ THỐNG DỰ BÁO THỜI GIAN THỰC ---")
-    
-    MODEL_PATH = "best_traffic_model.pt"
-    ARTIFACTS_PATH = "preprocessing_artifacts.pkl"
-    
-    try:
-        predictor = TrafficPredictor(model_path=MODEL_PATH, artifacts_path=ARTIFACTS_PATH)
-        
-        # 1. Kéo dữ liệu thời gian thực (Giả lập)
-        print("Đang truy xuất dữ liệu gần nhất từ Database...")
-        corridor_data = load_bulk_corridor_data(
-            corridor_id=646713380690000556, 
-            start_date='2026-04-07 07:00:00', 
-            end_date='2026-04-07 10:00:00'
-        )
-        
-        if corridor_data:
-            print(f"\n🛣️ Bắt đầu chạy dự báo cho {len(corridor_data)} segments...")
-            
-            # Danh sách lưu trữ toàn bộ kết quả dự báo
-            all_predictions = []
-            
-            # 2. VÒNG LẶP NGHIỆP VỤ: Quét qua TẤT CẢ các segment_id
-            for seg_key, df_segment in corridor_data.items():
-                
-                # Bỏ qua các segment bị thiếu dữ liệu (không đủ 12 timesteps)
-                if len(df_segment) < 12:
-                    continue
-                    
-                # Chỉ lấy 12 dòng cuối cùng làm đầu vào
-                df_input = df_segment.tail(12).copy()
-
-                # 12 timesteps liên tục cách nhau 15 phút -> Khoảng cách từ dòng đầu đến dòng cuối phải CHÍNH XÁC là:
-                # 11 khoảng x 15 phút = 165 phút
-                
-                start_time_of_window = df_input['timestamp'].iloc[0]
-                end_time_of_window = df_input['timestamp'].iloc[-1]
-                
-                time_diff = end_time_of_window - start_time_of_window
-                expected_diff = pd.Timedelta(minutes=165)
-                
-                # Nếu khoảng thời gian bị giãn ra (tức là bị dính dữ liệu qua đêm) thì BỎ QUA không dự báo
-                if time_diff != expected_diff:
-                    print(f"⚠️ Bỏ qua Segment {seg_key} lúc {end_time_of_window} do dữ liệu thiếu liên tục (nhảy qua đêm).")
-                    continue
-                # ======================================================
-
-                current_time = df_input['timestamp'].iloc[-1]
-                
-                # Gọi Model dự báo
-                result = predictor.predict_next_15_mins(df_input)
-                
-                # Đóng gói kết quả
-                all_predictions.append({
-                    "segment_key": seg_key,
-                    "current_timestamp": current_time,
-                    "predicted_level": result['predicted_level'],
-                    "status_description": result['status_description'],
-                    "confidence_percentage": result['confidence_percentage']
-                })
-            
-            # 3. KẾT XUẤT KẾT QUẢ
-            df_results = pd.DataFrame(all_predictions)
-            
-            print("\n" + "="*60)
-            print("🚀 TỔNG HỢP KẾT QUẢ DỰ BÁO 15 PHÚT TỚI (TOP 5 SEGMENTS)")
-            print("="*60)
-            # In ra 5 segments đầu tiên để xem thử
-            print(df_results.head().to_string(index=False))
-            print("="*60)
-            
-            print(f"\n✅ Đã hoàn tất dự báo cho {len(df_results)} segments.")
-            print("💡 Trong thực tế, df_results này sẽ được dùng để ghi vào bảng fact_predictions trong Data Warehouse hoặc trả về dạng JSON cho API.")
-            
-    except FileNotFoundError:
-        print("⚠️ LỖI: Chưa tìm thấy file 'best_traffic_model.pt' hoặc 'preprocessing_artifacts.pkl'.")

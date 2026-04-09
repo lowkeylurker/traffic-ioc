@@ -65,13 +65,3 @@ def load_bulk_segment_data(segment_ids: list, start_date: str, end_date: str, pe
         df_bulk = load_warehouse_rows_by_segments(segment_ids, start_date, end_date)
 
     return process_bulk_dataframe(df_bulk, peak_hours_only=peak_hours_only, source_label="DataMart/Warehouse")
-
-if __name__ == "__main__":
-    # Test thử kéo toàn bộ 1 Corridor thay vì 1 Segment
-    # Bạn hãy thay số 1 bằng corridor_id có thật trong DB của bạn
-    test_corridor = load_bulk_corridor_data(corridor_id=646713380690000556, start_date='2026-03-20', end_date='2026-04-07')
-    
-    if test_corridor:
-        sample_seg_id = list(test_corridor.keys())[0]
-        print(f"\nKích thước dữ liệu của Segment mẫu ({sample_seg_id}):", test_corridor[sample_seg_id].shape)
-        print("Kiểm tra null:\n", test_corridor[sample_seg_id].isnull().sum())
