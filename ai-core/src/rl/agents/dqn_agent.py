@@ -26,8 +26,9 @@ class ReplayBuffer:
 
 
 class DQNAgent:
-    def __init__(self, vocab_sizes, model_path=None, device="cpu"):
+    def __init__(self, vocab_sizes, model_path=None, device="cpu", checkpoint_path="best_rl_agent.pt"):
         self.device = device
+        self.checkpoint_path = checkpoint_path
 
         self.gamma = 0.99
         self.epsilon = 1.0

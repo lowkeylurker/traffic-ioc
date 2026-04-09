@@ -5,5 +5,6 @@ from src.rl.inference.predictor import (
     forecast_for_request,
     is_continuous_12_steps,
 )
+from src.rl.inference.evaluator import evaluate_policy_net
 
-__all__ = ["RLTrafficPredictor", "forecast_for_request", "is_continuous_12_steps"]
+__all__ = ["RLTrafficPredictor", "forecast_for_request", "is_continuous_12_steps", "evaluate_policy_net"]

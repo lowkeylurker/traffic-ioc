@@ -40,6 +40,7 @@ def train_model(
     use_lr_scheduler: bool = False,
     scheduler_patience: int = 2,
     scheduler_factor: float = 0.5,
+    checkpoint_path: str = "best_traffic_model.pt",
 ):
     print(f"\n🚀 BẮT ĐẦU HUẤN LUYỆN TRÊN THIẾT BỊ: {str(device).upper()}")
     model.to(device)
@@ -201,7 +202,7 @@ def train_model(
             best_epoch_targets = np.array(all_targets)
             epochs_without_improve = 0
             print(f"🌟 Kỷ lục mới! Macro-F1 tăng lên {best_f1:.4f}. Đang lưu mô hình...")
-            torch.save(model.state_dict(), "best_traffic_model.pt")
+            torch.save(model.state_dict(), checkpoint_path)
         else:
             epochs_without_improve += 1
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import os
 
 import pandas as pd
 
@@ -12,14 +13,16 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from src.ml.inference.predictor import TrafficPredictor
+from src.ml.artifacts import get_ml_checkpoint_path, get_ml_preprocessing_path
 from src.utils.data_loader import load_bulk_corridor_data
 
 
 def main() -> None:
     print("--- KHỞI ĐỘNG HỆ THỐNG DỰ BÁO THỜI GIAN THỰC ---")
 
-    model_path = "best_traffic_model.pt"
-    artifacts_path = "preprocessing_artifacts.pkl"
+    run_id = os.getenv("RUN_ID", "").strip()
+    model_path = os.getenv("ML_MODEL_PATH", str(get_ml_checkpoint_path(run_id=run_id or None)))
+    artifacts_path = os.getenv("ML_ARTIFACTS_PATH", str(get_ml_preprocessing_path(run_id=run_id or None)))
 
     try:
         predictor = TrafficPredictor(model_path=model_path, artifacts_path=artifacts_path)

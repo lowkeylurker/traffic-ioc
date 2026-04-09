@@ -16,6 +16,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from src.ml.data.dataset import prepare_dataloaders
+from src.ml.artifacts import get_ml_checkpoint_path, get_ml_metrics_path, get_ml_preprocessing_path
 from src.ml.models.traffic_model import TrafficCongestionModel
 from src.ml.training.loop import train_model
 from src.utils.data_loader import load_bulk_corridor_data
@@ -25,6 +26,8 @@ def main() -> None:
     print("--- KHỞI ĐỘNG HUẤN LUYỆN TOÀN TẬP TRÊN 6 CORRIDORS ---")
 
     run_id = os.getenv("RUN_ID", "manual")
+    checkpoint_path = os.getenv("ML_CHECKPOINT_PATH", str(get_ml_checkpoint_path(run_id=run_id)))
+    preprocessing_out = os.getenv("ML_PREPROCESSING_OUT", str(get_ml_preprocessing_path(run_id=run_id)))
     use_weighted_sampler = os.getenv("USE_WEIGHTED_SAMPLER", "1") == "1"
     use_class_weights = os.getenv("USE_CLASS_WEIGHTS", "1") == "1"
     class_weight_clip_min = float(os.getenv("CLASS_WEIGHT_CLIP_MIN", "0.5"))
@@ -42,14 +45,15 @@ def main() -> None:
     scheduler_patience = int(os.getenv("SCHEDULER_PATIENCE", "2"))
     scheduler_factor = float(os.getenv("SCHEDULER_FACTOR", "0.5"))
     dropout_rate = float(os.getenv("DROPOUT_RATE", "0.2"))
-    metrics_out = os.getenv("METRICS_OUT", "")
+    metrics_out = os.getenv("METRICS_OUT", str(get_ml_metrics_path(run_id=run_id)))
 
     print(
         f"🧪 Run={run_id} | weighted_sampler={use_weighted_sampler} | "
         f"class_weights={use_class_weights} | clip=[{class_weight_clip_min}, {class_weight_clip_max}] | "
         f"epochs={train_epochs} | lr={learning_rate} | batch_size={batch_size} | patience={patience} | "
         f"loss={loss_type} | dropout={dropout_rate} | weight_decay={weight_decay} | "
-        f"label_smoothing={label_smoothing} | lr_scheduler={use_lr_scheduler}"
+        f"label_smoothing={label_smoothing} | lr_scheduler={use_lr_scheduler} | "
+        f"ckpt={checkpoint_path}"
     )
 
     corridor_ids = [
@@ -102,8 +106,8 @@ def main() -> None:
         "scaler": scaler,
         "encoders": encoders,
     }
-    joblib.dump(artifacts, "preprocessing_artifacts.pkl")
-    print("✅ Đã xuất file 'preprocessing_artifacts.pkl' thành công!")
+    joblib.dump(artifacts, preprocessing_out)
+    print(f"✅ Đã xuất preprocessing artifacts: {preprocessing_out}")
 
     vocab_sizes = {col: len(enc.classes_) for col, enc in encoders.items()}
     model = TrafficCongestionModel(vocab_sizes=vocab_sizes, dropout_rate=dropout_rate)
@@ -130,6 +134,7 @@ def main() -> None:
         use_lr_scheduler=use_lr_scheduler,
         scheduler_patience=scheduler_patience,
         scheduler_factor=scheduler_factor,
+        checkpoint_path=checkpoint_path,
     )
 
     if metrics_out:

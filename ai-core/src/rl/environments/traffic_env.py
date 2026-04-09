@@ -81,7 +81,8 @@ class TrafficForecastingEnv(gym.Env):
             return base_penalty
 
     def step(self, action):
-        reward = self.calculate_reward(action, self.current_target)
+        target_for_reward = self.current_target
+        reward = self.calculate_reward(action, target_for_reward)
 
         sample = self._get_next_sample()
 
@@ -96,4 +97,4 @@ class TrafficForecastingEnv(gym.Env):
             self.current_obs = obs
             self.current_target = target
 
-        return obs, reward, terminated, truncated, {"actual_label": self.current_target}
+        return obs, reward, terminated, truncated, {"actual_label": target_for_reward}
