@@ -203,6 +203,27 @@ pytest src/tests/test_forecast.py -v
 pytest src/tests/ --cov=src --cov-report=html
 ```
 
+### 4) Benchmark DataMart (trước/sau)
+
+Đo 2 nhóm chỉ số:
+- Query latency: Warehouse join path vs Forecast DataMart path
+- Inference latency: thời gian suy luận trên các cửa sổ 12 bước từ mỗi path
+
+```bash
+python scripts/benchmark_datamart.py \
+  --corridor-id 646713380690000556 \
+  --start-date "2026-04-07 06:00:00" \
+  --end-date "2026-04-07 10:00:00" \
+  --query-runs 3 \
+  --infer-runs 3 \
+  --max-segments 200 \
+  --output-json reports/datamart_benchmark.json
+```
+
+Lưu ý:
+- Nếu thiếu `best_traffic_model.pt` hoặc `preprocessing_artifacts.pkl`, script sẽ tự bỏ qua phần inference benchmark và vẫn báo query latency.
+- Biến môi trường `AI_USE_FORECAST_MART` được script tự set nội bộ cho từng lượt benchmark.
+
 ---
 
 ## 🔧 Biến môi trường (Environment Variables)
@@ -251,6 +272,15 @@ RL_CONGESTION_THRESHOLD=0.6      # Ngưỡng TI để xác định tắc nghẽn
 RL_HISTORY_WINDOW=180            # Số phút dữ liệu lịch sử cho RL input (3 giờ)
 RL_PREDICTION_HORIZON=15         # Dự báo tắc nghẽn sau N phút nữa (15 phút)
 RL_EPSILON=0.1                   # Exploration rate (epsilon-greedy)
+
+# ═══════════════════════════════════════════════════
+# DATAMART (Hybrid mode: batch + self-refresh fallback)
+# ═══════════════════════════════════════════════════
+AI_USE_FORECAST_MART=1
+AI_FORECAST_MART_SELF_REFRESH=1
+AI_FORECAST_MART_STALE_MINUTES=15
+AI_FORECAST_MART_REFRESH_COOLDOWN_SEC=180
+AI_FORECAST_MART_REFRESH_LOOKBACK_DAYS=1
 
 # ═══════════════════════════════════════════════════
 # CLUSTERING & IMPUTATION CONFIG

@@ -12,7 +12,7 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from ml.traffic_model import TrafficCongestionModel
-from utils.data_loader import load_bulk_corridor_data
+from utils.data_loader import load_bulk_segment_data
 
 FORECAST_WINDOW_START = time(9, 15)
 FORECAST_WINDOW_END = time(21, 15)
@@ -132,7 +132,7 @@ class RLTrafficPredictor:
 
 def forecast_for_request(
     predictor: RLTrafficPredictor,
-    corridor_id: int,
+    segment_ids: list,
     request_time,
     lookback_steps: int = 12,
     resample_minutes: int = 15,
@@ -140,9 +140,10 @@ def forecast_for_request(
     """
     Luồng nghiệp vụ runtime:
     1) Nhận request_time từ App.
-    2) Tự động lấy 12 timesteps gần nhất (<= request_time) cho từng segment.
-    3) Dự báo cho timestep kế tiếp (+15 phút).
-    4) Chỉ giữ kết quả nếu mốc dự báo nằm trong 09:15 - 21:15.
+    2) Nhận danh sách segment_ids cần dự báo.
+    3) Tự động lấy 12 timesteps gần nhất (<= request_time) cho từng segment.
+    4) Dự báo cho timestep kế tiếp (+15 phút).
+    5) Chỉ giữ kết quả nếu mốc dự báo nằm trong 09:15 - 21:15.
     """
     request_ts = pd.to_datetime(request_time)
 
@@ -150,11 +151,15 @@ def forecast_for_request(
     lookback_minutes = max(lookback_steps * resample_minutes + 45, 240)
     start_ts = request_ts - pd.Timedelta(minutes=lookback_minutes)
 
+    if not segment_ids:
+        raise ValueError("Danh sách segment_ids không được rỗng")
+
     print(f"\n🛰️ Nhận yêu cầu dự báo tại thời điểm: {request_ts}")
+    print(f"📍 Danh sách segments cần dự báo: {segment_ids}")
     print("📡 Đang tải dữ liệu lịch sử gần nhất để dựng cửa sổ 12 timestep...")
 
-    corridor_data = load_bulk_corridor_data(
-        corridor_id=corridor_id,
+    segment_data = load_bulk_segment_data(
+        segment_ids=segment_ids,
         start_date=start_ts.strftime('%Y-%m-%d %H:%M:%S'),
         end_date=request_ts.strftime('%Y-%m-%d %H:%M:%S'),
     )
@@ -164,7 +169,7 @@ def forecast_for_request(
     skipped_not_continuous = 0
     skipped_out_of_window = 0
 
-    for seg_key, df_segment in corridor_data.items():
+    for seg_key, df_segment in segment_data.items():
         if df_segment.empty:
             skipped_not_enough += 1
             continue
@@ -220,11 +225,15 @@ if __name__ == "__main__":
     try:
         predictor = RLTrafficPredictor()
 
-        # Mô phỏng request từ App tại một thời điểm cụ thể.
-        request_time = '2026-04-08 21:00:00'
+        # Mô phỏng request từ App tại một thời điểm cụ thể với danh sách segment_ids.
+        request_time = '2026-04-07 18:00:00'
+        segment_ids = [
+            857844920435081278
+        ]
+        
         df_results = forecast_for_request(
             predictor=predictor,
-            corridor_id=646713380690000556,
+            segment_ids=segment_ids,
             request_time=request_time,
         )
 
@@ -232,9 +241,9 @@ if __name__ == "__main__":
             print("⚠️ Không có segment nào đủ điều kiện dự báo trong khung 09:15 - 21:15.")
         else:
             print("\n" + "=" * 110)
-            print("🚀 KẾT QUẢ DỰ BÁO 15 PHÚT KẾ TIẾP TỪ REQUEST APP (TOP 5 ĐOẠN ĐƯỜNG)")
+            print("🚀 KẾT QUẢ DỰ BÁO 15 PHÚT KẾ TIẾP TỪ REQUEST APP")
             print("=" * 110)
-            print(df_results.head().to_string(index=False))
+            print(df_results.to_string(index=False))
             print("=" * 110)
             print(f"\n✅ Hoàn tất dự báo cho {len(df_results)} đoạn đường hợp lệ.")
             print("💡 `Window_End_Time` là mốc cuối của 12 timestep đầu vào; `Forecast_For_Time` là mốc dự báo kế tiếp (+15 phút).")

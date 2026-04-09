@@ -63,7 +63,7 @@ services:
     # Keep container alive for scheduler to exec commands
     command: ["tail", "-f", "/dev/null"]
     environment:
-      - DB_CONNECTION_STRING=postgresql://${DB_USER:-traffic_user}:${DB_PASSWORD:-traffic_password}@postgres:5432/${DB_NAME:-traffic_ioc}
+      - DB_CONNECTION_STRING=postgresql://traffic_admin:dsCZ2yeV5LuW3dN@psql-smart-traffic-dev.postgres.database.azure.com:5432/traffic_ioc_db?sslmode=require
       - LOG_LEVEL=INFO
       - TZ=Asia/Ho_Chi_Minh
       - OWM_GRID_SIZE_M=${OWM_GRID_SIZE_M:-500}
@@ -73,9 +73,6 @@ services:
       - PCU_MAX_VC_RATIO=${PCU_MAX_VC_RATIO:-1.0}
     env_file:
       - ./data-pipeline/.env
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - traffic-network
     restart: always  # 🔄 Auto-restart when Docker Desktop starts
@@ -89,15 +86,13 @@ services:
     env_file:
       - ./data-pipeline/.env
     environment:
-      - DB_CONNECTION_STRING=postgresql://${DB_USER:-traffic_user}:${DB_PASSWORD:-traffic_password}@postgres:5432/${DB_NAME:-traffic_ioc}
+      - DB_CONNECTION_STRING=postgresql://traffic_admin:dsCZ2yeV5LuW3dN@psql-smart-traffic-dev.postgres.database.azure.com:5432/traffic_ioc_db?sslmode=require
       - LOG_LEVEL=INFO
       - TZ=Asia/Ho_Chi_Minh
     volumes:
       - pipeline_logs:/app/logs
       - /var/run/docker.sock:/var/run/docker.sock  # Access Docker to exec into data-pipeline
     depends_on:
-      postgres:
-        condition: service_healthy
       data-pipeline:
         condition: service_started
     networks:
@@ -130,9 +125,6 @@ services:
       - ./ai-core/.env
     ports:
       - "${AI_SERVICE_PORT:-5000}:5000"
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - traffic-network
     restart: unless-stopped
