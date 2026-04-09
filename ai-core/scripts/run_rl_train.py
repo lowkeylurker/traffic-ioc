@@ -16,10 +16,9 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from src.ml.data.dataset import TrafficDataset
-from src.rl.agent import DQNAgent
-from src.rl.inference_rl import _is_continuous_12_steps
-from src.rl.main_rl import train_rl_agent
-from src.rl.traffic_env import TrafficForecastingEnv
+from src.rl.agents.dqn_agent import DQNAgent
+from src.rl.environments.traffic_env import TrafficForecastingEnv
+from src.rl.training.loop import train_rl_agent
 from src.utils.data_loader import load_bulk_corridor_data
 
 
