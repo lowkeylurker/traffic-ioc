@@ -6,7 +6,7 @@ import random
 from collections import deque
 
 # Import trực tiếp kiến trúc "bộ não" bạn đã xây dựng ở Giai đoạn 1
-from src.ml.traffic_model import TrafficCongestionModel
+from src.ml.models.traffic_model import TrafficCongestionModel
 
 class ReplayBuffer:
     """

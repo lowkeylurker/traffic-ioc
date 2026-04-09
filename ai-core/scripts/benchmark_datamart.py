@@ -179,7 +179,7 @@ def main() -> None:
     if infer_available:
         print("[3/4] Load predictor and benchmark inference latency...")
         try:
-            from src.ml.inference import TrafficPredictor
+            from src.ml.inference.predictor import TrafficPredictor
 
             predictor = TrafficPredictor(
                 model_path=args.model_path,

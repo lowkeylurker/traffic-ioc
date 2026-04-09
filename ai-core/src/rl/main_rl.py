@@ -3,18 +3,11 @@ import numpy as np
 import time
 import joblib
 import pandas as pd
-from collections import deque
 
 # Import các module bạn đã xây dựng
 from src.rl.traffic_env import TrafficForecastingEnv
 from src.rl.agent import DQNAgent
-
-# Đảm bảo import đúng đường dẫn từ thư mục ml của bạn
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from ml.dataset import prepare_dataloaders
-from utils.data_loader import load_bulk_corridor_data
+from src.utils.data_loader import load_bulk_corridor_data
 
 def train_rl_agent(env, agent, num_episodes=50, max_steps_per_episode=10000):
     """

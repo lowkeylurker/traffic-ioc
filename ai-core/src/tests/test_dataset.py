@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from src.ml.dataset import TrafficDataset, prepare_dataloaders
+from src.ml.data.dataset import TrafficDataset, prepare_dataloaders
 from src.ml.feature_contract import (
     CATEGORICAL_FEATURE_COLS,
     DYNAMIC_FEATURE_COLS,

@@ -7,12 +7,8 @@ from datetime import time
 
 warnings.filterwarnings('ignore')
 
-# Import kiến trúc mạng nơ-ron gốc (Vì Agent RL dùng chung não với SL)
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from ml.traffic_model import TrafficCongestionModel
-from utils.data_loader import load_bulk_segment_data
+from src.ml.models.traffic_model import TrafficCongestionModel
+from src.utils.data_loader import load_bulk_segment_data
 
 FORECAST_WINDOW_START = time(9, 15)
 FORECAST_WINDOW_END = time(21, 15)

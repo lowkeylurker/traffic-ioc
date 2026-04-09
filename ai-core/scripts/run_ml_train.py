@@ -15,9 +15,9 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.ml.dataset import prepare_dataloaders
-from src.ml.traffic_model import TrafficCongestionModel
-from src.ml.train import train_model
+from src.ml.data.dataset import prepare_dataloaders
+from src.ml.models.traffic_model import TrafficCongestionModel
+from src.ml.training.loop import train_model
 from src.utils.data_loader import load_bulk_corridor_data
 
 

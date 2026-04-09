@@ -11,7 +11,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.ml.inference import TrafficPredictor
+from src.ml.inference.predictor import TrafficPredictor
 from src.utils.data_loader import load_bulk_corridor_data
 
 

@@ -1,12 +1,12 @@
-import pandas as pd
-import numpy as np
-import torch
 import logging
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-from torch.utils.data import WeightedRandomSampler
-from sklearn.preprocessing import LabelEncoder 
 
+import numpy as np
+import pandas as pd
+import torch
+from sklearn.preprocessing import LabelEncoder
+from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
+
+from src.features.sliding_window import find_valid_window_starts
 from src.ml.feature_contract import (
     CATEGORICAL_FEATURE_COLS,
     DYNAMIC_FEATURE_COLS,
@@ -14,36 +14,27 @@ from src.ml.feature_contract import (
     TARGET_COL,
     WINDOW_SIZE_DEFAULT,
 )
-from src.features.sliding_window import find_valid_window_starts
 from src.utils.preprocessing import TrafficScaler
 
 logger = logging.getLogger(__name__)
 
+
 class TrafficDataset(Dataset):
     def __init__(self, df: pd.DataFrame, window_size: int = 12):
-        """
-        df: DataFrame gốc đã được GlobalScaler chuẩn hóa về 0-1
-        window_size: Số lượng timesteps quá khứ (12 = 3 tiếng)
-        """
         self.df = df
         self.window_size = window_size
         self.dynamic_cols = DYNAMIC_FEATURE_COLS
         self.static_cols = STATIC_MODEL_FEATURE_COLS
         self.cat_cols = CATEGORICAL_FEATURE_COLS
-        
-        # Chuyển đổi các cột dữ liệu sang Numpy Arrays để truy xuất siêu tốc
-        self.timestamps = pd.to_datetime(self.df['timestamp']).values
-        self.segment_keys = self.df['segment_key'].values
-        
-        # Tách riêng 3 nhóm dữ liệu
+
+        self.timestamps = pd.to_datetime(self.df["timestamp"]).values
+        self.segment_keys = self.df["segment_key"].values
+
         self.dynamic_features = self.df[self.dynamic_cols].astype(np.float32).values
-                                         
         self.static_features = self.df[self.static_cols].astype(np.float32).values
-                                        
         self.cat_features = self.df[self.cat_cols].astype(np.int64).values
-        
         self.targets = self.df[TARGET_COL].clip(0, 5).astype(np.int64).values
-        
+
         self.valid_indices = find_valid_window_starts(
             timestamps=self.timestamps,
             segment_keys=self.segment_keys,
@@ -55,37 +46,28 @@ class TrafficDataset(Dataset):
         print(f"Tổng số cửa sổ 12-timesteps hợp lệ thu được: {len(self.valid_indices)}")
 
     def get_training_targets(self) -> np.ndarray:
-        """Trả về đúng tập nhãn được dùng trong loss (targets tại target_idx)."""
         target_indices = [start_idx + self.window_size for start_idx in self.valid_indices]
         return self.targets[target_indices]
 
     def __len__(self):
-        # Hệ thống chỉ train trên số lượng cửa sổ hợp lệ
         return len(self.valid_indices)
 
     def __getitem__(self, idx):
-        # PyTorch sẽ truyền vào idx từ 0 đến len(valid_indices)
         start_idx = self.valid_indices[idx]
         target_idx = start_idx + self.window_size
-        
-        # Trích xuất Dynamic Input (12 timesteps)
-        x_dynamic = self.dynamic_features[start_idx : target_idx]
-        
-        # Trích xuất Static & Categorical Input (Chỉ lấy tại timestep dự báo hoặc timestep đầu tiên)
-        # Các biến tĩnh không đổi nên lấy ở vị trí start_idx là đủ
+
+        x_dynamic = self.dynamic_features[start_idx:target_idx]
         x_static = self.static_features[target_idx - 1]
         x_cat = self.cat_features[target_idx - 1]
-        
-        # Trích xuất Target Label (Tại timestep t+12)
         y_target = self.targets[target_idx]
-        
-        # Trả về các khối Tensor
+
         return (
             torch.tensor(x_dynamic, dtype=torch.float32),
             torch.tensor(x_static, dtype=torch.float32),
-            torch.tensor(x_cat, dtype=torch.long), # Categorical dùng long cho Embedding
-            torch.tensor(y_target, dtype=torch.long) # CrossEntropyLoss yêu cầu label dạng long
+            torch.tensor(x_cat, dtype=torch.long),
+            torch.tensor(y_target, dtype=torch.long),
         )
+
 
 def prepare_dataloaders(
     df: pd.DataFrame,
@@ -94,18 +76,13 @@ def prepare_dataloaders(
     window_size=WINDOW_SIZE_DEFAULT,
     use_weighted_sampler: bool = True,
 ):
-    """
-    Hàm tổng hợp: Mã hóa -> Chia tập -> Scale -> Đóng gói DataLoader
-    """
-    # 0. CHIA TẬP THEO THỜI GIAN TRƯỚC để tránh leakage từ tập validation
     df_working = df.copy()
-    df_working['timestamp'] = pd.to_datetime(df_working['timestamp'])
+    df_working["timestamp"] = pd.to_datetime(df_working["timestamp"])
 
-    split_time = df_working['timestamp'].quantile(train_ratio)
-    df_train = df_working[df_working['timestamp'] < split_time].copy()
-    df_val = df_working[df_working['timestamp'] >= split_time].copy()
+    split_time = df_working["timestamp"].quantile(train_ratio)
+    df_train = df_working[df_working["timestamp"] < split_time].copy()
+    df_val = df_working[df_working["timestamp"] >= split_time].copy()
 
-    # 1. MÃ HÓA CÁC BIẾN CHỮ THÀNH SỐ: fit trên train, transform cho cả train/val
     label_encoders = {}
     for col in CATEGORICAL_FEATURE_COLS:
         le = LabelEncoder()
@@ -129,20 +106,16 @@ def prepare_dataloaders(
             )
             val_col.loc[unseen_mask] = fallback_value
         df_val[col] = le.transform(val_col)
-    
-    # 2. KHỞI TẠO VÀ FIT SCALER (Chỉ học từ tập Train)
+
     scaler = TrafficScaler()
     scaler.fit(df_train)
-    
-    # 3. TRANSFORM DỮ LIỆU SỐ THỰC
+
     df_train_scaled = scaler.transform(df_train)
     df_val_scaled = scaler.transform(df_val)
-    
-    # 4. TẠO PYTORCH DATASET
+
     train_dataset = TrafficDataset(df_train_scaled, window_size=window_size)
     val_dataset = TrafficDataset(df_val_scaled, window_size=window_size)
 
-    # 4b. Tuỳ chọn cân bằng lại phân phối lớp trong train bằng sampler.
     train_sampler = None
     if use_weighted_sampler:
         train_targets = train_dataset.get_training_targets()
@@ -157,7 +130,6 @@ def prepare_dataloaders(
             replacement=True,
         )
 
-    # 5. TẠO DATALOADER
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
@@ -166,5 +138,5 @@ def prepare_dataloaders(
         drop_last=True,
     )
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    
+
     return train_loader, val_loader, scaler, label_encoders

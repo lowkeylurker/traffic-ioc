@@ -15,7 +15,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.ml.dataset import TrafficDataset
+from src.ml.data.dataset import TrafficDataset
 from src.rl.agent import DQNAgent
 from src.rl.inference_rl import _is_continuous_12_steps
 from src.rl.main_rl import train_rl_agent
