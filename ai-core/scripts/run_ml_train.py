@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 import sys
 
 import joblib
+import numpy as np
 import pandas as pd
 import torch
 
@@ -19,63 +19,146 @@ from src.ml.data.dataset import prepare_dataloaders
 from src.ml.artifacts import get_ml_checkpoint_path, get_ml_metrics_path, get_ml_preprocessing_path
 from src.ml.models.traffic_model import TrafficCongestionModel
 from src.ml.training.loop import train_model
+from src.ml.feature_contract import TARGET_COL, WINDOW_STEP_MINUTES
+from src.features.sliding_window import find_valid_window_starts
 from src.utils.data_loader import load_bulk_corridor_data
+
+
+RUN_ID = "manual"
+CHECKPOINT_PATH = str(get_ml_checkpoint_path(run_id=RUN_ID))
+PREPROCESSING_OUT = str(get_ml_preprocessing_path(run_id=RUN_ID))
+METRICS_OUT = str(get_ml_metrics_path(run_id=RUN_ID))
+
+USE_WEIGHTED_SAMPLER = True
+USE_CLASS_WEIGHTS = True
+CLASS_WEIGHT_CLIP_MIN = 0.5
+CLASS_WEIGHT_CLIP_MAX = 25.0
+TRAIN_EPOCHS = 30
+LEARNING_RATE = 0.001
+PATIENCE = 5
+BATCH_SIZE = 256
+LOSS_TYPE = "ce"
+FOCAL_GAMMA = 2.0
+CLASS_BALANCED_BETA = 0.9999
+LABEL_SMOOTHING = 0.0
+WEIGHT_DECAY = 0.0001
+USE_LR_SCHEDULER = False
+SCHEDULER_PATIENCE = 2
+SCHEDULER_FACTOR = 0.5
+DROPOUT_RATE = 0.2
+# Toggle trực tiếp trong code: True = bật, False = tắt
+USE_WINDOW_BALANCING = False
+
+CORRIDOR_IDS = [
+    136550177913819656,
+    392537437542429252,
+    646713380690000556,
+    647577676530405923,
+    988709510142577156,
+    1100735735503891924,
+]
+START_DATE = "2026-03-25"
+END_DATE = "2026-04-08"
+
+
+def _balance_majority_windows(df: pd.DataFrame, window_size: int = 12, seed: int = 42) -> tuple[pd.DataFrame, dict]:
+    if df.empty:
+        return df, {"applied": False, "reason": "empty_df"}
+
+    ordered = df.sort_values(by=["segment_key", "timestamp"]).reset_index(drop=True)
+    timestamps = pd.to_datetime(ordered["timestamp"]).to_numpy()
+    segment_keys = ordered["segment_key"].to_numpy()
+    targets = ordered[TARGET_COL].clip(0, 5).astype(np.int64).to_numpy()
+
+    valid_starts = find_valid_window_starts(
+        timestamps=timestamps,
+        segment_keys=segment_keys,
+        window_size=window_size,
+        step_minutes=WINDOW_STEP_MINUTES,
+    )
+    if not valid_starts:
+        return ordered, {"applied": False, "reason": "no_valid_windows"}
+
+    starts = np.asarray(valid_starts, dtype=np.int64)
+    target_indices = starts + window_size
+    labels = targets[target_indices]
+    counts = np.bincount(labels, minlength=6).astype(np.int64)
+
+    minority_total = int(counts[3] + counts[4] + counts[5])
+    if minority_total <= 0:
+        return ordered, {"applied": False, "reason": "no_minority_windows", "before_window_counts": counts.tolist()}
+
+    target_counts = counts.astype(np.float64)
+    target_counts[0] = min(float(counts[0]), float(2 * minority_total))
+    target_counts[1] = min(float(counts[1]), float(3 * minority_total))
+    target_counts[2] = min(float(counts[2]), float(4 * minority_total))
+
+    keep_probs = np.ones(6, dtype=np.float64)
+    for cls in (0, 1, 2):
+        if counts[cls] > 0:
+            keep_probs[cls] = min(1.0, float(target_counts[cls]) / float(counts[cls]))
+
+    rng = np.random.default_rng(seed)
+    kept_starts: list[int] = []
+    for idx, start_idx in enumerate(starts):
+        label = int(labels[idx])
+        if label >= 3 or rng.random() <= float(keep_probs[label]):
+            kept_starts.append(int(start_idx))
+
+    if not kept_starts:
+        return ordered, {"applied": False, "reason": "all_windows_dropped", "before_window_counts": counts.tolist()}
+
+    row_keep_mask = np.zeros(len(ordered), dtype=bool)
+    for start_idx in kept_starts:
+        row_keep_mask[start_idx : start_idx + window_size + 1] = True
+
+    balanced = ordered.loc[row_keep_mask].copy().reset_index(drop=True)
+    balanced_starts = find_valid_window_starts(
+        timestamps=pd.to_datetime(balanced["timestamp"]).to_numpy(),
+        segment_keys=balanced["segment_key"].to_numpy(),
+        window_size=window_size,
+        step_minutes=WINDOW_STEP_MINUTES,
+    )
+    after_counts = np.zeros(6, dtype=np.int64)
+    if balanced_starts:
+        b_targets = balanced[TARGET_COL].clip(0, 5).astype(np.int64).to_numpy()
+        b_target_indices = np.asarray(balanced_starts, dtype=np.int64) + window_size
+        after_counts = np.bincount(b_targets[b_target_indices], minlength=6).astype(np.int64)
+
+    stats = {
+        "applied": True,
+        "rule": "T0=2M, T1=3M, T2=4M, keep all labels 3-5",
+        "before_window_counts": counts.tolist(),
+        "after_window_counts": after_counts.tolist(),
+        "keep_probs": [float(round(v, 4)) for v in keep_probs.tolist()],
+        "rows_before": int(len(ordered)),
+        "rows_after": int(len(balanced)),
+    }
+    return balanced, stats
 
 
 def main() -> None:
     print("--- KHỞI ĐỘNG HUẤN LUYỆN TOÀN TẬP TRÊN 6 CORRIDORS ---")
 
-    run_id = os.getenv("RUN_ID", "manual")
-    checkpoint_path = os.getenv("ML_CHECKPOINT_PATH", str(get_ml_checkpoint_path(run_id=run_id)))
-    preprocessing_out = os.getenv("ML_PREPROCESSING_OUT", str(get_ml_preprocessing_path(run_id=run_id)))
-    use_weighted_sampler = os.getenv("USE_WEIGHTED_SAMPLER", "1") == "1"
-    use_class_weights = os.getenv("USE_CLASS_WEIGHTS", "1") == "1"
-    class_weight_clip_min = float(os.getenv("CLASS_WEIGHT_CLIP_MIN", "0.5"))
-    class_weight_clip_max = float(os.getenv("CLASS_WEIGHT_CLIP_MAX", "25.0"))
-    train_epochs = int(os.getenv("TRAIN_EPOCHS", "30"))
-    learning_rate = float(os.getenv("LEARNING_RATE", "0.001"))
-    patience = int(os.getenv("PATIENCE", "5"))
-    batch_size = int(os.getenv("BATCH_SIZE", "256"))
-    loss_type = os.getenv("LOSS_TYPE", "ce")
-    focal_gamma = float(os.getenv("FOCAL_GAMMA", "2.0"))
-    class_balanced_beta = float(os.getenv("CB_BETA", "0.9999"))
-    label_smoothing = float(os.getenv("LABEL_SMOOTHING", "0.0"))
-    weight_decay = float(os.getenv("WEIGHT_DECAY", "0.0001"))
-    use_lr_scheduler = os.getenv("USE_LR_SCHEDULER", "0") == "1"
-    scheduler_patience = int(os.getenv("SCHEDULER_PATIENCE", "2"))
-    scheduler_factor = float(os.getenv("SCHEDULER_FACTOR", "0.5"))
-    dropout_rate = float(os.getenv("DROPOUT_RATE", "0.2"))
-    metrics_out = os.getenv("METRICS_OUT", str(get_ml_metrics_path(run_id=run_id)))
-
     print(
-        f"🧪 Run={run_id} | weighted_sampler={use_weighted_sampler} | "
-        f"class_weights={use_class_weights} | clip=[{class_weight_clip_min}, {class_weight_clip_max}] | "
-        f"epochs={train_epochs} | lr={learning_rate} | batch_size={batch_size} | patience={patience} | "
-        f"loss={loss_type} | dropout={dropout_rate} | weight_decay={weight_decay} | "
-        f"label_smoothing={label_smoothing} | lr_scheduler={use_lr_scheduler} | "
-        f"ckpt={checkpoint_path}"
+        f"🧪 Run={RUN_ID} | weighted_sampler={USE_WEIGHTED_SAMPLER} | "
+        f"class_weights={USE_CLASS_WEIGHTS} | clip=[{CLASS_WEIGHT_CLIP_MIN}, {CLASS_WEIGHT_CLIP_MAX}] | "
+        f"epochs={TRAIN_EPOCHS} | lr={LEARNING_RATE} | batch_size={BATCH_SIZE} | patience={PATIENCE} | "
+        f"loss={LOSS_TYPE} | dropout={DROPOUT_RATE} | weight_decay={WEIGHT_DECAY} | "
+        f"label_smoothing={LABEL_SMOOTHING} | lr_scheduler={USE_LR_SCHEDULER} | "
+        f"window_balancing={USE_WINDOW_BALANCING} | "
+        f"ckpt={CHECKPOINT_PATH}"
     )
-
-    corridor_ids = [
-        136550177913819656,
-        392537437542429252,
-        646713380690000556,
-        647577676530405923,
-        988709510142577156,
-        1100735735503891924,
-    ]
-    start_date = "2026-03-20"
-    end_date = "2026-04-08"
 
     all_segments_data = []
 
-    print(f"🌍 BẮT ĐẦU KÉO DỮ LIỆU TỪ {len(corridor_ids)} CORRIDORS...")
-    for corridor_id in corridor_ids:
+    print(f"🌍 BẮT ĐẦU KÉO DỮ LIỆU TỪ {len(CORRIDOR_IDS)} CORRIDORS...")
+    for corridor_id in CORRIDOR_IDS:
         print(f"\n👉 Đang truy xuất Corridor ID: {corridor_id}")
         corridor_data = load_bulk_corridor_data(
             corridor_id=corridor_id,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=START_DATE,
+            end_date=END_DATE,
             peak_hours_only=True,
         )
 
@@ -90,15 +173,31 @@ def main() -> None:
     df_master = pd.concat(all_segments_data, ignore_index=True)
     df_master = df_master.sort_values(by=["segment_key", "timestamp"]).reset_index(drop=True)
 
+    balancing_stats = {"applied": False, "reason": "disabled"}
+    if USE_WINDOW_BALANCING:
+        print("⚖️ Applying window-level majority undersampling on supervised dataset...")
+        df_master, balancing_stats = _balance_majority_windows(df_master, window_size=12, seed=42)
+        if balancing_stats.get("applied"):
+            print(
+                "✅ Window balancing applied | "
+                f"rows: {balancing_stats.get('rows_before')} -> {balancing_stats.get('rows_after')} | "
+                f"windows: {sum(balancing_stats.get('before_window_counts', []))} -> {sum(balancing_stats.get('after_window_counts', []))}"
+            )
+            print(f"📉 Window class counts before: {balancing_stats.get('before_window_counts')}")
+            print(f"📈 Window class counts after : {balancing_stats.get('after_window_counts')}")
+            print(f"🎛️ Keep probs [0..5]: {balancing_stats.get('keep_probs')}")
+        else:
+            print(f"⚠️ Window balancing skipped: {balancing_stats.get('reason')}")
+
     print(f"\n✅ ĐÃ TẢI THÀNH CÔNG SIÊU TẬP DỮ LIỆU: {df_master.shape[0]} dòng.")
     print("⏳ Đang tính toán DataLoaders (Quá trình mã hóa và scale có thể mất vài phút)...")
 
     train_loader, val_loader, scaler, encoders = prepare_dataloaders(
         df_master,
         train_ratio=0.8,
-        batch_size=batch_size,
+        batch_size=BATCH_SIZE,
         window_size=12,
-        use_weighted_sampler=use_weighted_sampler,
+        use_weighted_sampler=USE_WEIGHTED_SAMPLER,
     )
 
     print("\n💾 Đang xuất các bộ biến đổi (Scaler & Encoders)...")
@@ -106,11 +205,11 @@ def main() -> None:
         "scaler": scaler,
         "encoders": encoders,
     }
-    joblib.dump(artifacts, preprocessing_out)
-    print(f"✅ Đã xuất preprocessing artifacts: {preprocessing_out}")
+    joblib.dump(artifacts, PREPROCESSING_OUT)
+    print(f"✅ Đã xuất preprocessing artifacts: {PREPROCESSING_OUT}")
 
     vocab_sizes = {col: len(enc.classes_) for col, enc in encoders.items()}
-    model = TrafficCongestionModel(vocab_sizes=vocab_sizes, dropout_rate=dropout_rate)
+    model = TrafficCongestionModel(vocab_sizes=vocab_sizes, dropout_rate=DROPOUT_RATE)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
@@ -119,25 +218,25 @@ def main() -> None:
         train_loader=train_loader,
         val_loader=val_loader,
         train_dataset=train_loader.dataset,
-        epochs=train_epochs,
-        learning_rate=learning_rate,
+        epochs=TRAIN_EPOCHS,
+        learning_rate=LEARNING_RATE,
         device=device,
-        patience=patience,
-        use_class_weights=use_class_weights,
-        class_weight_clip_min=class_weight_clip_min,
-        class_weight_clip_max=class_weight_clip_max,
-        loss_type=loss_type,
-        focal_gamma=focal_gamma,
-        class_balanced_beta=class_balanced_beta,
-        label_smoothing=label_smoothing,
-        weight_decay=weight_decay,
-        use_lr_scheduler=use_lr_scheduler,
-        scheduler_patience=scheduler_patience,
-        scheduler_factor=scheduler_factor,
-        checkpoint_path=checkpoint_path,
+        patience=PATIENCE,
+        use_class_weights=USE_CLASS_WEIGHTS,
+        class_weight_clip_min=CLASS_WEIGHT_CLIP_MIN,
+        class_weight_clip_max=CLASS_WEIGHT_CLIP_MAX,
+        loss_type=LOSS_TYPE,
+        focal_gamma=FOCAL_GAMMA,
+        class_balanced_beta=CLASS_BALANCED_BETA,
+        label_smoothing=LABEL_SMOOTHING,
+        weight_decay=WEIGHT_DECAY,
+        use_lr_scheduler=USE_LR_SCHEDULER,
+        scheduler_patience=SCHEDULER_PATIENCE,
+        scheduler_factor=SCHEDULER_FACTOR,
+        checkpoint_path=CHECKPOINT_PATH,
     )
 
-    if metrics_out:
+    if METRICS_OUT:
         # Build comprehensive metrics breakdown
         class_names = {0: "VeryFree", 1: "Stable", 2: "Moderate", 3: "Congested", 4: "HeavyJam", 5: "Severe"}
         
@@ -163,27 +262,29 @@ def main() -> None:
             }
         
         out_payload = {
-            "run_id": run_id,
+            "run_id": RUN_ID,
             "config": {
-                "use_weighted_sampler": use_weighted_sampler,
-                "use_class_weights": use_class_weights,
-                "class_weight_clip_min": class_weight_clip_min,
-                "class_weight_clip_max": class_weight_clip_max,
-                "loss_type": loss_type,
-                "focal_gamma": focal_gamma,
-                "class_balanced_beta": class_balanced_beta,
-                "label_smoothing": label_smoothing,
-                "weight_decay": weight_decay,
-                "use_lr_scheduler": use_lr_scheduler,
-                "scheduler_patience": scheduler_patience,
-                "scheduler_factor": scheduler_factor,
-                "dropout_rate": dropout_rate,
-                "epochs": train_epochs,
-                "learning_rate": learning_rate,
-                "batch_size": batch_size,
-                "patience": patience,
+                "use_weighted_sampler": USE_WEIGHTED_SAMPLER,
+                "use_class_weights": USE_CLASS_WEIGHTS,
+                "class_weight_clip_min": CLASS_WEIGHT_CLIP_MIN,
+                "class_weight_clip_max": CLASS_WEIGHT_CLIP_MAX,
+                "loss_type": LOSS_TYPE,
+                "focal_gamma": FOCAL_GAMMA,
+                "class_balanced_beta": CLASS_BALANCED_BETA,
+                "label_smoothing": LABEL_SMOOTHING,
+                "weight_decay": WEIGHT_DECAY,
+                "use_lr_scheduler": USE_LR_SCHEDULER,
+                "scheduler_patience": SCHEDULER_PATIENCE,
+                "scheduler_factor": SCHEDULER_FACTOR,
+                "dropout_rate": DROPOUT_RATE,
+                "epochs": TRAIN_EPOCHS,
+                "learning_rate": LEARNING_RATE,
+                "batch_size": BATCH_SIZE,
+                "patience": PATIENCE,
+                "use_window_balancing": USE_WINDOW_BALANCING,
             },
             "summary": summary,
+            "window_balancing": balancing_stats,
             "per_class_at_best_epoch": per_class_at_best,
             "per_class_trajectory": per_class_trajectory,
             "confusion_matrix": {
@@ -191,9 +292,9 @@ def main() -> None:
                 "matrix": summary.get("confusion_matrix", []),
             },
         }
-        with open(metrics_out, "w", encoding="utf-8") as file_handle:
+        with open(METRICS_OUT, "w", encoding="utf-8") as file_handle:
             json.dump(out_payload, file_handle, indent=2)
-        print(f"📝 Đã ghi metrics ra {metrics_out}")
+        print(f"📝 Đã ghi metrics ra {METRICS_OUT}")
         
         # Print structured summary to console
         print("\n" + "="*80)

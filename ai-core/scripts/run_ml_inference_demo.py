@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
-import os
 
 import pandas as pd
 
@@ -17,21 +16,25 @@ from src.ml.artifacts import get_ml_checkpoint_path, get_ml_preprocessing_path
 from src.utils.data_loader import load_bulk_corridor_data
 
 
+RUN_ID = "manual"
+MODEL_PATH = str(get_ml_checkpoint_path(run_id=RUN_ID))
+ARTIFACTS_PATH = str(get_ml_preprocessing_path(run_id=RUN_ID))
+CORRIDOR_ID = 646713380690000556
+START_DATE = "2026-04-07 07:00:00"
+END_DATE = "2026-04-07 10:00:00"
+
+
 def main() -> None:
     print("--- KHỞI ĐỘNG HỆ THỐNG DỰ BÁO THỜI GIAN THỰC ---")
 
-    run_id = os.getenv("RUN_ID", "").strip()
-    model_path = os.getenv("ML_MODEL_PATH", str(get_ml_checkpoint_path(run_id=run_id or None)))
-    artifacts_path = os.getenv("ML_ARTIFACTS_PATH", str(get_ml_preprocessing_path(run_id=run_id or None)))
-
     try:
-        predictor = TrafficPredictor(model_path=model_path, artifacts_path=artifacts_path)
+        predictor = TrafficPredictor(model_path=MODEL_PATH, artifacts_path=ARTIFACTS_PATH)
 
         print("Đang truy xuất dữ liệu gần nhất từ Database...")
         corridor_data = load_bulk_corridor_data(
-            corridor_id=646713380690000556,
-            start_date="2026-04-07 07:00:00",
-            end_date="2026-04-07 10:00:00",
+            corridor_id=CORRIDOR_ID,
+            start_date=START_DATE,
+            end_date=END_DATE,
         )
 
         if corridor_data:

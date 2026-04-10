@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import argparse
 import json
-import os
-import subprocess
 import sys
 from pathlib import Path
 from statistics import mean, pstdev
@@ -17,7 +14,20 @@ from src.rl.artifacts import (
     get_rl_checkpoint_path,
     get_rl_history_path,
     get_rl_metrics_path,
+    get_rl_preprocessing_artifacts_path,
 )
+from src.ml.artifacts import get_ml_checkpoint_path, get_ml_preprocessing_path
+from src.rl.training.runner import RLTrainingConfig, run_rl_training
+
+
+SEEDS = [42]
+EPISODES = 10
+BATCH_SIZE = 64
+EVAL_RATIO = 0.2
+PEAK_HOURS_ONLY = True
+START_DATE = "2026-03-20"
+END_DATE = "2026-03-24"
+MAX_SEGMENTS = 20
 
 
 def _parse_seeds(raw_value: str | None) -> list[int]:
@@ -32,11 +42,6 @@ def _parse_seeds(raw_value: str | None) -> list[int]:
     if not seeds:
         raise ValueError("RL_BENCHMARK_SEEDS không hợp lệ")
     return seeds
-
-
-def _run_module(module_name: str, env: dict[str, str]) -> None:
-    command = [sys.executable, "-m", module_name]
-    subprocess.run(command, cwd=ROOT_DIR, env=env, check=True)
 
 
 def _load_json(path: Path) -> dict:
@@ -61,19 +66,7 @@ def _extract_metrics(payload: dict) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run a pilot benchmark for pure RL vs warmstart RL")
-    parser.add_argument("--seeds", type=str, default=os.getenv("RL_BENCHMARK_SEEDS", "42"), help="Comma-separated seeds")
-    parser.add_argument("--episodes", type=int, default=int(os.getenv("RL_BENCHMARK_EPISODES", "10")), help="Episodes per run")
-    parser.add_argument("--batch-size", type=int, default=int(os.getenv("RL_BENCHMARK_BATCH_SIZE", "64")), help="Batch size")
-    parser.add_argument("--eval-ratio", type=float, default=float(os.getenv("RL_BENCHMARK_EVAL_RATIO", "0.2")), help="Eval split ratio")
-    parser.add_argument("--peak-hours-only", type=str, default=os.getenv("RL_PEAK_HOURS_ONLY", "1"), help="1 or 0")
-    parser.add_argument("--start-date", type=str, default=os.getenv("RL_BENCHMARK_START_DATE", "2026-03-20"), help="Benchmark start date")
-    parser.add_argument("--end-date", type=str, default=os.getenv("RL_BENCHMARK_END_DATE", "2026-03-24"), help="Benchmark end date")
-    parser.add_argument("--max-segments", type=int, default=int(os.getenv("RL_BENCHMARK_MAX_SEGMENTS", "20")), help="Max segments per corridor for smoke mode")
-    parser.add_argument("--output", type=Path, default=Path("rl_benchmark_pilot_summary.json"), help="Output summary JSON")
-    args = parser.parse_args()
-
-    seeds = _parse_seeds(args.seeds)
+    seeds = SEEDS
     modes = ["pure", "warmstart"]
     benchmark_rows: list[dict] = []
 
@@ -83,29 +76,82 @@ def main() -> None:
             metrics_path = get_rl_metrics_path(mode=mode, run_id=run_id)
             history_path = get_rl_history_path(mode=mode, run_id=run_id)
             checkpoint_path = get_rl_checkpoint_path(mode=mode, run_id=run_id)
+            if mode == "pure":
+                config = RLTrainingConfig(
+                    start_date=START_DATE,
+                    end_date=END_DATE,
+                    corridor_ids=[646713380690000556],
+                    peak_hours_only=PEAK_HOURS_ONLY,
+                    batch_size=BATCH_SIZE,
+                    episodes=EPISODES,
+                    max_steps_per_episode=10000,
+                    window_size=12,
+                    eval_ratio=EVAL_RATIO,
+                    seed=seed,
+                    max_segments=MAX_SEGMENTS,
+                    requested_device="auto",
+                    gamma=0.99,
+                    epsilon_start=1.0,
+                    epsilon_min=0.10,
+                    epsilon_decay=0.995,
+                    learning_rate=0.0002,
+                    warmup_steps=5000,
+                    replay_capacity=200000,
+                    target_update=10,
+                    early_stop_patience=0,
+                    early_stop_min_delta=0.0,
+                    early_stop_eval_interval=1,
+                    early_stop_warmup_episodes=0,
+                    use_double_dqn=True,
+                    use_class_aware_reward=True,
+                    reward_scale=1.0,
+                    reward_clip=30.0,
+                    run_id=run_id,
+                    checkpoint_path=str(checkpoint_path),
+                    pure_artifacts_path=str(get_rl_preprocessing_artifacts_path(mode=mode, run_id=run_id)),
+                    history_path=str(history_path),
+                    metrics_out=str(metrics_path),
+                )
+            else:
+                config = RLTrainingConfig(
+                    start_date=START_DATE,
+                    end_date=END_DATE,
+                    corridor_ids=[646713380690000556],
+                    peak_hours_only=PEAK_HOURS_ONLY,
+                    batch_size=BATCH_SIZE,
+                    episodes=EPISODES,
+                    max_steps_per_episode=10000,
+                    window_size=12,
+                    eval_ratio=EVAL_RATIO,
+                    seed=seed,
+                    max_segments=MAX_SEGMENTS,
+                    requested_device="auto",
+                    gamma=0.99,
+                    epsilon_start=1.0,
+                    epsilon_min=0.05,
+                    epsilon_decay=0.97,
+                    learning_rate=0.00005,
+                    warmup_steps=2000,
+                    replay_capacity=100000,
+                    target_update=10,
+                    early_stop_patience=0,
+                    early_stop_min_delta=0.0,
+                    early_stop_eval_interval=1,
+                    early_stop_warmup_episodes=0,
+                    use_double_dqn=True,
+                    use_class_aware_reward=False,
+                    reward_scale=1.0,
+                    reward_clip=30.0,
+                    run_id=run_id,
+                    checkpoint_path=str(checkpoint_path),
+                    pretrained_model_path=str(get_ml_checkpoint_path()),
+                    artifacts_path=str(get_ml_preprocessing_path()),
+                    history_path=str(history_path),
+                    metrics_out=str(metrics_path),
+                )
 
-            env = os.environ.copy()
-            env.update(
-                {
-                    "RL_MODE": mode,
-                    "RL_SEED": str(seed),
-                    "RL_RUN_ID": run_id,
-                    "RL_EPISODES": str(args.episodes),
-                    "RL_BATCH_SIZE": str(args.batch_size),
-                    "RL_EVAL_RATIO": str(args.eval_ratio),
-                    "RL_PEAK_HOURS_ONLY": str(args.peak_hours_only),
-                    "RL_START_DATE": str(args.start_date),
-                    "RL_END_DATE": str(args.end_date),
-                    "RL_MAX_SEGMENTS": str(args.max_segments),
-                    "RL_METRICS_OUT": str(metrics_path),
-                    "RL_HISTORY_OUT": str(history_path),
-                    "RL_CHECKPOINT_PATH": str(checkpoint_path),
-                }
-            )
-
-            module_name = "scripts.run_rl_train_pure" if mode == "pure" else "scripts.run_rl_train_warmstart"
             print(f"\n=== RUN {mode.upper()} | seed={seed} ===")
-            _run_module(module_name, env)
+            run_rl_training(mode=mode, config=config)
 
             payload = _load_json(metrics_path)
             row = {
@@ -130,13 +176,13 @@ def main() -> None:
     summary = {
         "config": {
             "seeds": seeds,
-            "episodes": args.episodes,
-            "batch_size": args.batch_size,
-            "eval_ratio": args.eval_ratio,
-            "peak_hours_only": args.peak_hours_only == "1",
-            "start_date": args.start_date,
-            "end_date": args.end_date,
-            "max_segments": args.max_segments,
+            "episodes": EPISODES,
+            "batch_size": BATCH_SIZE,
+            "eval_ratio": EVAL_RATIO,
+            "peak_hours_only": PEAK_HOURS_ONLY,
+            "start_date": START_DATE,
+            "end_date": END_DATE,
+            "max_segments": MAX_SEGMENTS,
         },
         "runs": benchmark_rows,
         "aggregate": {
@@ -148,7 +194,7 @@ def main() -> None:
         },
     }
 
-    output_path = args.output if args.output.is_absolute() else get_rl_benchmark_summary_path(args.output.name)
+    output_path = get_rl_benchmark_summary_path("rl_benchmark_pilot_summary.json")
     with output_path.open("w", encoding="utf-8") as handle:
         json.dump(summary, handle, indent=2, ensure_ascii=False)
 

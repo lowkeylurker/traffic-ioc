@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import sys
 
@@ -10,8 +9,38 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from src.ml.artifacts import get_ml_preprocessing_path
 from src.rl.artifacts import get_rl_checkpoint_path, get_rl_preprocessing_artifacts_path
 from src.rl.inference.predictor import RLTrafficPredictor, forecast_for_request
+
+
+# ===== DEFAULT INFERENCE PROFILE =====
+# Chuyển nhanh giữa 2 cấu hình bằng cách đổi INFERENCE_PROFILE.
+# - "warmstart": SL -> RL (mặc định)
+# - "pure": RL thuần túy
+INFERENCE_PROFILE = "warmstart"  # "warmstart" hoặc "pure"
+
+# ===== SL -> RL (warmstart) =====
+WARMSTART_RUN_ID: str | None = None
+WARMSTART_MODEL_PATH = str(get_rl_checkpoint_path(mode="warmstart", run_id=WARMSTART_RUN_ID))
+WARMSTART_ARTIFACTS_PATH = str(get_ml_preprocessing_path())
+
+# ===== Pure RL =====
+PURE_RUN_ID: str | None = "pure_full_gpu"
+PURE_MODEL_PATH = str(get_rl_checkpoint_path(mode="pure", run_id=PURE_RUN_ID))
+PURE_ARTIFACTS_PATH = str(get_rl_preprocessing_artifacts_path(mode="pure", run_id=PURE_RUN_ID))
+
+if INFERENCE_PROFILE == "warmstart":
+    RUN_ID = WARMSTART_RUN_ID or ""
+    MODEL_PATH = WARMSTART_MODEL_PATH
+    ARTIFACTS_PATH = WARMSTART_ARTIFACTS_PATH
+else:
+    RUN_ID = PURE_RUN_ID or ""
+    MODEL_PATH = PURE_MODEL_PATH
+    ARTIFACTS_PATH = PURE_ARTIFACTS_PATH
+
+REQUEST_TIME = "2026-04-09 09:30:00"
+SEGMENT_IDS = [857844920435081278]
 
 
 def _parse_segment_ids(raw_value: str | None) -> list[int]:
@@ -32,13 +61,14 @@ def main() -> None:
     print("--- 🚦 HỆ THỐNG DỰ BÁO ĐIỀU PHỐI GIAO THÔNG THÔNG MINH (RL-AGENT) ---")
 
     try:
-        run_id = os.getenv("RL_RUN_ID", "pure_full")
-        model_path = os.getenv("RL_MODEL_PATH", str(get_rl_checkpoint_path(mode="pure", run_id=run_id)))
-        artifacts_path = os.getenv("RL_ARTIFACTS_PATH", str(get_rl_preprocessing_artifacts_path(mode="pure", run_id=run_id)))
-        request_time = os.getenv("RL_REQUEST_TIME", "2026-04-07 18:00:00")
-        segment_ids = _parse_segment_ids(os.getenv("RL_SEGMENT_IDS"))
+        run_id = RUN_ID
+        model_path = MODEL_PATH
+        artifacts_path = ARTIFACTS_PATH
+        request_time = REQUEST_TIME
+        segment_ids = SEGMENT_IDS
 
         print(f"🏷️ Run ID: {run_id}")
+        print(f"🧪 Inference profile: {INFERENCE_PROFILE}")
         print(f"📥 Model path: {model_path}")
         print(f"📦 Artifacts path: {artifacts_path}")
         print(f"🕒 Request time: {request_time}")
