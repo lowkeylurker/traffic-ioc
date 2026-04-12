@@ -9,27 +9,52 @@ import {
   ComparisonScopeType,
   CorridorAnalyticsOption,
   CorridorDashboardData,
+  GeoJSONFeature,
   RoadOption,
   SegmentResponse,
   TrafficStatus,
   WeatherData,
-  GeoJSONFeature,
 } from '@/types'
+import {
+  getCachedSegments,
+  getCachedTrafficStatusWithMeta,
+  setCachedSegments,
+  setCachedTrafficStatus,
+} from '@/utils/segmentCache'
 import { useCallback, useEffect, useRef, useState } from 'react'
+
+const TRAFFIC_STATUS_CACHE_MAX_AGE_MS = 2 * 60 * 1000
 
 // Fetch segments hook (danh sách đoạn đường tĩnh ban đầu - deprecated for map rendering, use useTrafficMap instead)
 export const useSegments = () => {
   const { segmentData, setSegmentData, setError } = useAppStore()
 
   useEffect(() => {
+    if (segmentData) {
+      return
+    }
+
+    let mounted = true
+
     const fetchSegments = async () => {
       try {
+        const cachedSegments = await getCachedSegments()
+        if (mounted && cachedSegments) {
+          setSegmentData(cachedSegments)
+          return
+        }
+
         const response = await mapApi.getSegments()
-        if (response.success && response.data) {
+        if (response.success && response.data && mounted) {
           setSegmentData(response.data)
+          await setCachedSegments(response.data)
         }
       } catch (error) {
         console.error('Error fetching segments:', error)
+        if (!mounted) {
+          return
+        }
+
         setError(
           error instanceof Error ? error.message : 'Failed to fetch segments'
         )
@@ -37,7 +62,11 @@ export const useSegments = () => {
     }
 
     fetchSegments()
-  }, [setSegmentData, setError])
+
+    return () => {
+      mounted = false
+    }
+  }, [segmentData, setSegmentData, setError])
 
   return segmentData
 }
@@ -75,6 +104,7 @@ export const useTrafficMap = () => {
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>
+    let mounted = true
 
     const fetchTrafficStatus = async () => {
       if (
@@ -86,17 +116,12 @@ export const useTrafficMap = () => {
       }
 
       try {
-        const response = await mapApi.getStatus()
-        if (response.success && response.data) {
-          const statuses = response.data as TrafficStatus[]
-
-          // Create lookup map for O(1)
+        const mergeAndSetTrafficMap = (statuses: TrafficStatus[]) => {
           const statusMap = new Map()
           for (const s of statuses) {
             statusMap.set(String(s.segmentId), s)
           }
 
-          // Merge static properties with dynamic status
           const newFeatures = segmentData.features.map(
             (feature: GeoJSONFeature) => {
               const stat = statusMap.get(String(feature.properties.segmentId))
@@ -118,10 +143,31 @@ export const useTrafficMap = () => {
             }
           )
 
-          setTrafficMap({
-            type: 'FeatureCollection',
-            features: newFeatures,
-          })
+          if (mounted) {
+            setTrafficMap({
+              type: 'FeatureCollection',
+              features: newFeatures,
+            })
+          }
+        }
+
+        const cachedStatuses = await getCachedTrafficStatusWithMeta(
+          TRAFFIC_STATUS_CACHE_MAX_AGE_MS
+        )
+
+        if (cachedStatuses) {
+          // Always keep existing render using cache; revalidate only when stale.
+          mergeAndSetTrafficMap(cachedStatuses.data)
+          if (cachedStatuses.isFresh) {
+            return
+          }
+        }
+
+        const response = await mapApi.getStatus()
+        if (response.success && response.data) {
+          const statuses = response.data as TrafficStatus[]
+          await setCachedTrafficStatus(statuses)
+          mergeAndSetTrafficMap(statuses)
         }
       } catch (error) {
         console.error('Error fetching traffic status for map merging:', error)
@@ -131,13 +177,19 @@ export const useTrafficMap = () => {
     // Fetch immediately if segmentData is ready
     fetchTrafficStatus()
 
-    // Polling 15 seconds interval
-    interval = setInterval(fetchTrafficStatus, 15000)
+    // Poll status every 5 minutes to reduce unnecessary network load.
+    interval = setInterval(
+      fetchTrafficStatus,
+      POLLING_INTERVALS.TRAFFIC_MAP_STATUS
+    )
 
-    return () => clearInterval(interval)
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
   }, [segmentData])
 
-  return trafficMap
+  return trafficMap ?? segmentData
 }
 
 // Fetch traffic status hook
@@ -147,9 +199,23 @@ export const useTrafficStatus = () => {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
+        const cachedStatus = await getCachedTrafficStatusWithMeta(
+          TRAFFIC_STATUS_CACHE_MAX_AGE_MS
+        )
+
+        if (cachedStatus) {
+          // Keep old data while revalidating in background when stale.
+          setTrafficStatus(cachedStatus.data)
+          if (cachedStatus.isFresh) {
+            return
+          }
+        }
+
         const response = await mapApi.getStatus()
         if (response.success && response.data) {
-          setTrafficStatus(response.data as TrafficStatus[])
+          const statuses = response.data as TrafficStatus[]
+          setTrafficStatus(statuses)
+          await setCachedTrafficStatus(statuses)
         }
       } catch (error) {
         console.error('Error fetching traffic status:', error)
@@ -162,7 +228,7 @@ export const useTrafficStatus = () => {
     }
 
     fetchStatus()
-    // Polling every 10 seconds
+    // Polling every 2 minutes
     const interval = setInterval(fetchStatus, 120000)
 
     return () => clearInterval(interval)
