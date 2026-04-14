@@ -210,3 +210,80 @@ def predict_congestion_batch(
 		no_data_count=no_data_count,
 		items=items,
 	)
+
+
+@router.get("/congestion-prediction/debug-fallback")
+def debug_fallback_candidates(
+	segment_id: int,
+	request_time: Optional[datetime] = None,
+	prediction_horizon_minutes: int = 15,
+	limit: int = 8,
+	predictor: RLTrafficPredictor = Depends(get_warmstart_rl_predictor),
+) -> dict:
+	if segment_id <= 0:
+		raise HTTPException(status_code=400, detail="segment_id must be a positive integer")
+	if prediction_horizon_minutes != 15:
+		raise HTTPException(status_code=400, detail="prediction_horizon_minutes must be 15")
+	if limit <= 0 or limit > 30:
+		raise HTTPException(status_code=400, detail="limit must be between 1 and 30")
+
+	request_dt = request_time or datetime.utcnow()
+	request_time_str = request_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+	direct_item = _try_predict_single_segment(
+		predictor=predictor,
+		segment_id=segment_id,
+		request_time_str=request_time_str,
+		horizon_minutes=prediction_horizon_minutes,
+	)
+
+	corridor_ids = get_corridors_by_segment(segment_id)
+	candidate_debug_rows: list[dict] = []
+
+	for corridor_id in corridor_ids:
+		candidates = get_nearest_segments_in_corridor(segment_id=segment_id, corridor_id=corridor_id, limit=limit)
+		for candidate_segment_id, distance_m in candidates:
+			within_distance = distance_m <= FALLBACK_MAX_DISTANCE_M
+			candidate_item = None
+			candidate_reason = REASON_FALLBACK_DISTANCE_EXCEEDED
+			if within_distance:
+				candidate_item = _try_predict_single_segment(
+					predictor=predictor,
+					segment_id=candidate_segment_id,
+					request_time_str=request_time_str,
+					horizon_minutes=prediction_horizon_minutes,
+				)
+				candidate_reason = REASON_FALLBACK_NEAREST if candidate_item else REASON_FALLBACK_NO_VALID_WINDOW
+
+			candidate_debug_rows.append(
+				{
+					"corridor_id": corridor_id,
+					"candidate_segment_id": candidate_segment_id,
+					"distance_m": round(float(distance_m), 2),
+					"within_distance_threshold": bool(within_distance),
+					"probe_status": "ok" if candidate_item else "no_data",
+					"probe_reason": candidate_reason,
+				}
+			)
+
+	if direct_item is not None:
+		overall_reason = REASON_DIRECT
+	elif not corridor_ids:
+		overall_reason = REASON_NO_CORRIDOR_MAPPING
+	elif not candidate_debug_rows:
+		overall_reason = REASON_FALLBACK_NO_CANDIDATE
+	elif all(not row["within_distance_threshold"] for row in candidate_debug_rows):
+		overall_reason = REASON_FALLBACK_DISTANCE_EXCEEDED
+	else:
+		overall_reason = REASON_FALLBACK_NO_VALID_WINDOW
+
+	return {
+		"segment_id": segment_id,
+		"request_time": request_dt,
+		"prediction_horizon_minutes": prediction_horizon_minutes,
+		"direct_prediction_available": bool(direct_item is not None),
+		"overall_reason": overall_reason,
+		"corridor_ids": corridor_ids,
+		"fallback_distance_threshold_m": FALLBACK_MAX_DISTANCE_M,
+		"candidates": candidate_debug_rows,
+	}
