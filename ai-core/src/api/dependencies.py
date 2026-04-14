@@ -1,15 +1,25 @@
-"""
-dependencies.py - Shared Dependencies for API Endpoints
+"""Shared API dependencies for FastAPI routes."""
 
-Provides:
-- get_db(): Database session (dependency injection)
-- get_forecast_model(): Lazy-load forecasting models
-- get_rl_agent(): Lazy-load RL agent
-- get_clusterer(): Lazy-load clustering model
+from __future__ import annotations
 
-Sử dụng FastAPI dependency injection.
-"""
+from functools import lru_cache
 
-from fastapi import Depends
+from fastapi import HTTPException
 
-# TODO: Triển khải các hàm dependency injection
+from src.ml.artifacts import get_ml_preprocessing_path
+from src.rl.artifacts import get_rl_checkpoint_path
+from src.rl.inference.predictor import RLTrafficPredictor
+
+
+@lru_cache(maxsize=1)
+def _build_warmstart_predictor() -> RLTrafficPredictor:
+	model_path = str(get_rl_checkpoint_path(mode="warmstart", run_id=None))
+	artifacts_path = str(get_ml_preprocessing_path(run_id=None))
+	return RLTrafficPredictor(model_path=model_path, artifacts_path=artifacts_path)
+
+
+def get_warmstart_rl_predictor() -> RLTrafficPredictor:
+	try:
+		return _build_warmstart_predictor()
+	except Exception as exc:
+		raise HTTPException(status_code=503, detail=f"Warmstart RL model is unavailable: {exc}") from exc
