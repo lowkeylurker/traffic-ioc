@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from typing import Optional, Tuple
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,6 +23,14 @@ router = APIRouter(prefix="/api/v1", tags=["congestion-rl"])
 FALLBACK_NEAREST_LIMIT = 8
 FALLBACK_MAX_DISTANCE_M = 2000.0
 
+REASON_DIRECT = "DIRECT"
+REASON_FALLBACK_NEAREST = "FALLBACK_NEAREST"
+REASON_NO_VALID_WINDOW = "NO_VALID_WINDOW"
+REASON_NO_CORRIDOR_MAPPING = "NO_CORRIDOR_MAPPING"
+REASON_FALLBACK_NO_CANDIDATE = "FALLBACK_NO_CANDIDATE"
+REASON_FALLBACK_DISTANCE_EXCEEDED = "FALLBACK_DISTANCE_EXCEEDED"
+REASON_FALLBACK_NO_VALID_WINDOW = "FALLBACK_NO_VALID_WINDOW"
+
 
 def _extract_level(status_description: str | None) -> int | None:
 	if not status_description:
@@ -37,7 +46,7 @@ def _try_predict_single_segment(
 	segment_id: int,
 	request_time_str: str,
 	horizon_minutes: int,
-) -> CongestionPredictionItem | None:
+) -> Optional[CongestionPredictionItem]:
 	df_segment_result = forecast_for_request(
 		predictor=predictor,
 		segment_ids=[segment_id],
@@ -58,7 +67,7 @@ def _try_predict_single_segment(
 		status="ok",
 		status_description=status_description,
 		forecast_for_time=forecast_for_time,
-		reason_code="DIRECT",
+		reason_code=REASON_DIRECT,
 		model_profile="warmstart",
 	)
 
@@ -68,17 +77,26 @@ def _fallback_predict_in_same_corridor(
 	target_segment_id: int,
 	request_time_str: str,
 	horizon_minutes: int,
-) -> CongestionPredictionItem | None:
+) -> Tuple[Optional[CongestionPredictionItem], str]:
 	corridor_ids = get_corridors_by_segment(target_segment_id)
+	if not corridor_ids:
+		return None, REASON_NO_CORRIDOR_MAPPING
+
+	found_any_candidate = False
+	found_candidate_within_distance = False
 	for corridor_id in corridor_ids:
 		candidates = get_nearest_segments_in_corridor(
 			segment_id=target_segment_id,
 			corridor_id=corridor_id,
 			limit=FALLBACK_NEAREST_LIMIT,
 		)
+		if candidates:
+			found_any_candidate = True
 		for candidate_segment_id, distance_m in candidates:
 			if distance_m > FALLBACK_MAX_DISTANCE_M:
 				continue
+
+			found_candidate_within_distance = True
 
 			candidate_item = _try_predict_single_segment(
 				predictor=predictor,
@@ -93,10 +111,14 @@ def _fallback_predict_in_same_corridor(
 			candidate_item.used_fallback = True
 			candidate_item.source_segment_id = candidate_segment_id
 			candidate_item.fallback_distance_m = round(float(distance_m), 2)
-			candidate_item.reason_code = "FALLBACK_NEAREST"
-			return candidate_item
+			candidate_item.reason_code = REASON_FALLBACK_NEAREST
+			return candidate_item, REASON_FALLBACK_NEAREST
 
-	return None
+	if found_any_candidate and not found_candidate_within_distance:
+		return None, REASON_FALLBACK_DISTANCE_EXCEEDED
+	if found_candidate_within_distance:
+		return None, REASON_FALLBACK_NO_VALID_WINDOW
+	return None, REASON_FALLBACK_NO_CANDIDATE
 
 
 @router.post("/congestion-prediction/batch", response_model=CongestionBatchPredictionResponse)
@@ -139,7 +161,7 @@ def predict_congestion_batch(
 				status="ok",
 				status_description=status_description,
 				forecast_for_time=forecast_for_time,
-				reason_code="DIRECT",
+				reason_code=REASON_DIRECT,
 				model_profile="warmstart",
 				used_fallback=False,
 				source_segment_id=sid,
@@ -151,7 +173,7 @@ def predict_congestion_batch(
 		if sid in by_segment:
 			items.append(by_segment[sid])
 		else:
-			fallback_item = _fallback_predict_in_same_corridor(
+			fallback_item, fallback_reason = _fallback_predict_in_same_corridor(
 				predictor=predictor,
 				target_segment_id=sid,
 				request_time_str=request_time_str,
@@ -168,7 +190,7 @@ def predict_congestion_batch(
 					status="no_data",
 					status_description=None,
 					forecast_for_time=None,
-					reason_code="NO_VALID_WINDOW_OR_FALLBACK",
+					reason_code=fallback_reason or REASON_NO_VALID_WINDOW,
 					model_profile="warmstart",
 					used_fallback=False,
 					source_segment_id=None,
