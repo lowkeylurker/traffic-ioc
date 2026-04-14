@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CongestionPredictionRequest(BaseModel):
@@ -17,6 +17,8 @@ class CongestionPredictionRequest(BaseModel):
 
 
 class CongestionPredictionItem(BaseModel):
+	model_config = ConfigDict(protected_namespaces=())
+
 	segment_id: int
 	congestion_level: Optional[int] = Field(default=None, ge=0, le=5)
 	status: str = Field(default="ok", description="ok | no_data | error")
@@ -42,6 +44,8 @@ class CongestionBatchPredictionRequest(BaseModel):
 
 
 class CongestionBatchPredictionResponse(BaseModel):
+	model_config = ConfigDict(protected_namespaces=())
+
 	request_time: datetime
 	prediction_horizon_minutes: int = 15
 	model_profile: str = "warmstart"
