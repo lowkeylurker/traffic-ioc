@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import random
 import re
+import statistics
+import time
 from datetime import datetime
 from typing import Optional, Tuple
 
@@ -13,6 +16,8 @@ from src.api.dependencies import get_warmstart_rl_predictor
 from src.data_access import get_corridors_by_segment, get_nearest_segments_in_corridor
 from src.rl.inference.predictor import RLTrafficPredictor, forecast_for_request
 from src.schemas.congestion_rl_schema import (
+	BenchmarkBatchRequest,
+	BenchmarkBatchResponse,
 	CongestionBatchPredictionRequest,
 	CongestionBatchPredictionResponse,
 	CongestionPredictionItem,
@@ -287,3 +292,87 @@ def debug_fallback_candidates(
 		"fallback_distance_threshold_m": FALLBACK_MAX_DISTANCE_M,
 		"candidates": candidate_debug_rows,
 	}
+
+
+@router.post("/congestion-prediction/benchmark", response_model=BenchmarkBatchResponse)
+def benchmark_batch_prediction(
+	payload: BenchmarkBatchRequest,
+	predictor: RLTrafficPredictor = Depends(get_warmstart_rl_predictor),
+) -> BenchmarkBatchResponse:
+	"""Benchmark batch prediction performance.
+	
+	Generates random segment IDs and runs multiple batch predictions to measure latency metrics.
+	"""
+	if payload.batch_size <= 0 or payload.batch_size > 500:
+		raise HTTPException(status_code=400, detail="batch_size must be between 1 and 500")
+	if payload.num_runs <= 0 or payload.num_runs > 20:
+		raise HTTPException(status_code=400, detail="num_runs must be between 1 and 20")
+
+	# Generate random but reproducible segment IDs
+	random.seed(payload.seed)
+	segment_ids = [random.randint(1, 10**15) for _ in range(payload.batch_size)]
+	
+	request_time = datetime.utcnow()
+	request_time_str = request_time.strftime("%Y-%m-%d %H:%M:%S")
+
+	latencies_ms: list[float] = []
+	success_count = 0
+	total_runs = 0
+
+	start_total = time.time()
+	for run_idx in range(payload.num_runs):
+		try:
+			start_run = time.time()
+			
+			response = predict_congestion_batch(
+				payload=CongestionBatchPredictionRequest(
+					segment_ids=segment_ids,
+					request_time=request_time,
+					prediction_horizon_minutes=payload.prediction_horizon_minutes,
+				),
+				predictor=predictor,
+			)
+			
+			end_run = time.time()
+			latency_ms = (end_run - start_run) * 1000.0
+			latencies_ms.append(latency_ms)
+			success_count += response.success_count
+			total_runs += 1
+
+		except Exception:
+			# Run failed, but continue with other runs
+			continue
+
+	end_total = time.time()
+	total_time_ms = (end_total - start_total) * 1000.0
+
+	if not latencies_ms:
+		raise HTTPException(status_code=500, detail="All benchmark runs failed")
+
+	# Calculate statistics
+	p50_latency = statistics.median(latencies_ms)
+	if len(latencies_ms) >= 2:
+		p95_latency = statistics.quantiles(latencies_ms, n=20)[18]  # 95th percentile
+	else:
+		p95_latency = latencies_ms[0]
+	
+	avg_latency = statistics.mean(latencies_ms)
+	throughput = (payload.batch_size * total_runs) / (total_time_ms / 1000.0)
+	success_rate = (success_count / (payload.batch_size * total_runs)) * 100.0 if total_runs > 0 else 0.0
+
+	note = None
+	if total_runs < payload.num_runs:
+		note = f"Completed {total_runs}/{payload.num_runs} runs due to errors"
+
+	return BenchmarkBatchResponse(
+		batch_size=payload.batch_size,
+		num_runs=total_runs,
+		total_time_ms=round(total_time_ms, 2),
+		p50_latency_ms=round(p50_latency, 2),
+		p95_latency_ms=round(p95_latency, 2),
+		avg_latency_ms=round(avg_latency, 2),
+		throughput_per_second=round(throughput, 2),
+		success_rate_pct=round(success_rate, 2),
+		model_profile="warmstart",
+		note=note,
+	)

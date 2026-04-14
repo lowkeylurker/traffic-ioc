@@ -10,6 +10,8 @@ Export các schemas từ tất cả sub-modules.
 """
 
 from src.schemas.congestion_rl_schema import (
+    BenchmarkBatchRequest,
+    BenchmarkBatchResponse,
     CongestionBatchPredictionRequest,
     CongestionBatchPredictionResponse,
     CongestionPredictionRequest,
@@ -23,6 +25,8 @@ __all__ = [
     "CongestionPredictionResponse",
     "CongestionBatchPredictionRequest",
     "CongestionBatchPredictionResponse",
+    "BenchmarkBatchRequest",
+    "BenchmarkBatchResponse",
     "ImputationRequest",
     "ImputationResponse",
 ]

@@ -53,3 +53,26 @@ class CongestionBatchPredictionResponse(BaseModel):
 	success_count: int
 	no_data_count: int
 	items: list[CongestionPredictionItem]
+
+
+class BenchmarkBatchRequest(BaseModel):
+	"""Request for batch prediction performance benchmark."""
+	batch_size: int = Field(default=100, ge=1, le=500, description="Segment count to benchmark")
+	num_runs: int = Field(default=5, ge=1, le=20, description="Number of benchmark runs")
+	seed: int = Field(default=42, description="Random seed for reproducible segment selection")
+	prediction_horizon_minutes: int = Field(default=15, ge=15, le=15)
+
+
+class BenchmarkBatchResponse(BaseModel):
+	model_config = ConfigDict(protected_namespaces=())
+
+	batch_size: int
+	num_runs: int
+	total_time_ms: float
+	p50_latency_ms: float
+	p95_latency_ms: float
+	avg_latency_ms: float
+	throughput_per_second: float
+	success_rate_pct: float
+	model_profile: str = "warmstart"
+	note: Optional[str] = None

@@ -108,3 +108,57 @@ def test_batch_fallback_distance_exceeded_reason_code(monkeypatch):
         assert item["used_fallback"] is False
     finally:
         app.dependency_overrides.clear()
+
+
+def test_benchmark_endpoint(monkeypatch):
+    """Test that benchmark endpoint returns valid structure and metrics."""
+    from src.api.routes import congestion as route
+
+    def _forecast_for_request(**kwargs):
+        # Return some segments with data, some without
+        segment_ids = kwargs["segment_ids"]
+        rows = []
+        for i, sid in enumerate(segment_ids):
+            if i % 2 == 0:  # Every other segment has data
+                rows.append({
+                    "Segment_ID": sid,
+                    "Forecast_For_Time": "2026-04-09 09:30:00",
+                    "Dự báo (15p tới)": "Mức 3 (Kẹt)",
+                })
+        return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+    monkeypatch.setattr(route, "forecast_for_request", _forecast_for_request)
+    app.dependency_overrides[get_warmstart_rl_predictor] = lambda: _DummyPredictor()
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/v1/congestion-prediction/benchmark",
+            json={"batch_size": 10, "num_runs": 2, "seed": 42},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        
+        # Validate response structure
+        assert "batch_size" in payload
+        assert "num_runs" in payload
+        assert "total_time_ms" in payload
+        assert "p50_latency_ms" in payload
+        assert "p95_latency_ms" in payload
+        assert "avg_latency_ms" in payload
+        assert "throughput_per_second" in payload
+        assert "success_rate_pct" in payload
+        assert "model_profile" in payload
+        
+        # Validate values
+        assert payload["batch_size"] == 10
+        assert payload["num_runs"] == 2
+        assert payload["total_time_ms"] > 0
+        assert payload["p50_latency_ms"] > 0
+        assert payload["p95_latency_ms"] > 0
+        assert payload["avg_latency_ms"] > 0
+        assert payload["throughput_per_second"] > 0
+        assert 0 <= payload["success_rate_pct"] <= 100
+        assert payload["model_profile"] == "warmstart"
+    finally:
+        app.dependency_overrides.clear()
