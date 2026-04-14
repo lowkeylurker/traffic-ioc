@@ -24,6 +24,9 @@ class CongestionPredictionItem(BaseModel):
 	forecast_for_time: Optional[datetime] = None
 	reason_code: str = Field(default="DIRECT")
 	model_profile: str = Field(default="warmstart")
+	used_fallback: bool = False
+	source_segment_id: Optional[int] = None
+	fallback_distance_m: Optional[float] = None
 
 
 class CongestionPredictionResponse(BaseModel):

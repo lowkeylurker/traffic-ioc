@@ -24,6 +24,69 @@ def get_segments_in_corridor(corridor_id: int) -> list[int]:
     return [int(segment_key) for segment_key in df["segment_key"].tolist()]
 
 
+def get_corridors_by_segment(segment_id: int) -> list[int]:
+    """Return corridor ids mapped to a segment."""
+    engine = get_engine()
+    query = text(
+        """
+        SELECT DISTINCT bcs.corridor_key
+        FROM bridge_corridor_segment bcs
+        WHERE bcs.segment_key = :segment_id
+        ORDER BY bcs.corridor_key
+        """
+    )
+    df = pd.read_sql_query(query, engine, params={"segment_id": int(segment_id)})
+    if df.empty:
+        return []
+    return [int(corridor_key) for corridor_key in df["corridor_key"].tolist()]
+
+
+def get_nearest_segments_in_corridor(
+    segment_id: int,
+    corridor_id: int,
+    limit: int = 8,
+) -> list[tuple[int, float]]:
+    """Return nearest candidate segments in the same corridor with available traffic facts."""
+    engine = get_engine()
+    query = text(
+        """
+        SELECT
+            cand.segment_key AS candidate_segment_id,
+            ST_Distance(src.geometry_center::geography, cand.geometry_center::geography) AS distance_m
+        FROM bridge_corridor_segment bcs
+        JOIN dim_segment cand ON cand.segment_key = bcs.segment_key
+        JOIN dim_segment src ON src.segment_key = :segment_id
+        WHERE bcs.corridor_key = :corridor_id
+          AND bcs.segment_key <> :segment_id
+          AND src.geometry_center IS NOT NULL
+          AND cand.geometry_center IS NOT NULL
+          AND EXISTS (
+              SELECT 1
+              FROM fact_traffic_flow f
+              WHERE f.segment_key = bcs.segment_key
+              LIMIT 1
+          )
+        ORDER BY distance_m ASC
+        LIMIT :limit
+        """
+    )
+    df = pd.read_sql_query(
+        query,
+        engine,
+        params={
+            "segment_id": int(segment_id),
+            "corridor_id": int(corridor_id),
+            "limit": int(limit),
+        },
+    )
+    if df.empty:
+        return []
+    return [
+        (int(row["candidate_segment_id"]), float(row["distance_m"]))
+        for _, row in df.iterrows()
+    ]
+
+
 def load_warehouse_rows_by_segments(
     segment_ids: list[int],
     start_date: str,
