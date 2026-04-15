@@ -383,44 +383,44 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
               case 'A':
                 return {
                   los,
-                  status: 'Rất thông thoáng',
-                  statusColor: TRAFFIC_COLORS.FAST,
-                  dotColor: TRAFFIC_COLORS.FAST,
+                  status: 'Thông thoáng',
+                  statusColor: TRAFFIC_COLORS.MINIMAL,
+                  dotColor: TRAFFIC_COLORS.MINIMAL,
                 }
               case 'B':
                 return {
                   los,
-                  status: 'Thông thoáng',
-                  statusColor: TRAFFIC_COLORS.FAST,
-                  dotColor: TRAFFIC_COLORS.FAST,
+                  status: 'Khá thông thoáng',
+                  statusColor: TRAFFIC_COLORS.VERY_LOW,
+                  dotColor: TRAFFIC_COLORS.VERY_LOW,
                 }
               case 'C':
                 return {
                   los,
-                  status: 'Khá lưu thông',
-                  statusColor: TRAFFIC_COLORS.FAST,
-                  dotColor: TRAFFIC_COLORS.FAST,
+                  status: 'Trung bình',
+                  statusColor: TRAFFIC_COLORS.MODERATE,
+                  dotColor: TRAFFIC_COLORS.MODERATE,
                 }
               case 'D':
                 return {
                   los,
-                  status: 'Gần tắc',
-                  statusColor: TRAFFIC_COLORS.MODERATE,
-                  dotColor: TRAFFIC_COLORS.MODERATE,
+                  status: 'Mật độ cao',
+                  statusColor: TRAFFIC_COLORS.HIGH,
+                  dotColor: TRAFFIC_COLORS.HIGH,
                 }
               case 'E':
                 return {
                   los,
                   status: 'Đông xe',
-                  statusColor: '#FF6B35',
-                  dotColor: '#FF6B35',
+                  statusColor: TRAFFIC_COLORS.VERY_HIGH,
+                  dotColor: TRAFFIC_COLORS.VERY_HIGH,
                 }
               case 'F':
                 return {
                   los,
-                  status: 'Ùn tắc',
-                  statusColor: TRAFFIC_COLORS.SLOW,
-                  dotColor: TRAFFIC_COLORS.SLOW,
+                  status: 'Ùn tắc nghiêm trọng',
+                  statusColor: TRAFFIC_COLORS.EXTREME,
+                  dotColor: TRAFFIC_COLORS.EXTREME,
                 }
               default:
                 return {

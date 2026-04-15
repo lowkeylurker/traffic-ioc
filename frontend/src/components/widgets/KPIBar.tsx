@@ -343,7 +343,7 @@ export const KPIBar: React.FC<KPIBarProps> = ({
       </div>
 
       <Modal
-        title="Các đoạn tắc nghẽn (LOS E/F)"
+        title="Các đoạn ùn tắc & đông xe (LOS E/F)"
         open={jamsModalOpen}
         onCancel={() => setJamsModalOpen(false)}
         footer={null}

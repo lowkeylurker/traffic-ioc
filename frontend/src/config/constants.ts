@@ -9,23 +9,25 @@ export const MAP_ZOOM_BOUNDS = { min: 8, max: 18 }
 
 // Colors for LOS grades (Design System)
 export const LOS_COLORS: Record<string, string> = {
-  A: '#52c41a', // Traffic Fast (Leaf Green)
-  B: '#52c41a', // Traffic Fast
-  C: '#52c41a', // Traffic Fast
-  D: '#faad14', // Traffic Moderate (Golden Yellow)
-  E: '#FF6B35', // Traffic Heavy (Red-Orange)
-  F: '#ff4d4f', // Traffic Slow (Red)
+  A: '#52C41A', // Minimal (Green)
+  B: '#B7EB8F', // Very Low (Light Green)
+  C: '#FADB14', // Moderate (Yellow)
+  D: '#FA8C16', // High (Orange)
+  E: '#F5222D', // Very High (Red)
+  F: '#820014', // Extreme (Dark Red)
 }
 
 // Traffic Semantic Colors (Design System)
 export const TRAFFIC_COLORS = {
-  FAST: '#52c41a', // Thông thoáng - LOS A,B,C (>30 km/h)
-  MODERATE: '#faad14', // Đông xe vừa phải - LOS D (15-30 km/h)
-  HEAVY: '#FF6B35', // Đông xe nặng - LOS E
-  SLOW: '#ff4d4f', // Ùn tắc - LOS F (<15 km/h)
-  JAM: '#cf1322', // Tê liệt
-  INCIDENT: '#722ed1', // Sự cố (Purple)
-  NO_DATA: '#d9d9d9', // Không có dữ liệu
+  MINIMAL: '#52C41A',   // Thông thoáng - LOS A
+  VERY_LOW: '#B7EB8F',  // Khá thông thoáng - LOS B
+  MODERATE: '#FADB14',  // Trung bình - LOS C
+  HIGH: '#FA8C16',      // Mật độ cao - LOS D
+  VERY_HIGH: '#F5222D', // Đông xe - LOS E
+  EXTREME: '#820014',   // Ùn tắc nghiêm trọng - LOS F
+  JAM: '#cf1322',       // Tê liệt
+  INCIDENT: '#722ed1',  // Sự cố (Purple)
+  NO_DATA: '#d9d9d9',   // Không có dữ liệu
 }
 
 // API Endpoints
