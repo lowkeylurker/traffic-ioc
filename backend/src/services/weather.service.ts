@@ -170,7 +170,7 @@ export class WeatherService {
             weather_key,
             timestamp
           FROM fact_traffic_flow
-          WHERE timestamp IS NOT NULL
+          WHERE timestamp >= NOW() - INTERVAL '15 minutes'
           ORDER BY segment_key, timestamp DESC
         )
         SELECT
@@ -225,7 +225,7 @@ export class WeatherService {
             ftf.weather_key,
             ftf.timestamp
           FROM fact_traffic_flow ftf
-          WHERE ftf.timestamp IS NOT NULL
+          WHERE ftf.timestamp >= NOW() - INTERVAL '15 minutes'
             AND ftf.weather_key IS NOT NULL
           ORDER BY ftf.segment_key, ftf.timestamp DESC
         ),
