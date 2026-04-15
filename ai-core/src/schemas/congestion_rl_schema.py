@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -30,7 +30,7 @@ class CongestionPredictionRequest(BaseModel):
 
 	segment_id: int = Field(..., description="Segment cần dự báo")
 	request_time: Optional[datetime] = Field(default=None, description="Thời điểm request (ISO 8601)")
-	prediction_horizon_minutes: int = Field(default=15, ge=15, le=15)
+	prediction_horizon_minutes: Literal[15, 30] = Field(default=15, description="Only 15 or 30 minutes are allowed")
 
 
 class CongestionPredictionItem(BaseModel):
@@ -57,7 +57,7 @@ class CongestionPredictionResponse(BaseModel):
 class CongestionBatchPredictionRequest(BaseModel):
 	segment_ids: list[int] = Field(..., min_length=1, max_length=500)
 	request_time: Optional[datetime] = None
-	prediction_horizon_minutes: int = Field(default=15, ge=15, le=15)
+	prediction_horizon_minutes: Literal[15, 30] = Field(default=15, description="Only 15 or 30 minutes are allowed")
 
 
 class CongestionBatchPredictionResponse(BaseModel):
@@ -77,7 +77,7 @@ class BenchmarkBatchRequest(BaseModel):
 	batch_size: int = Field(default=100, ge=1, le=500, description="Segment count to benchmark")
 	num_runs: int = Field(default=5, ge=1, le=20, description="Number of benchmark runs")
 	seed: int = Field(default=42, description="Random seed for reproducible segment selection")
-	prediction_horizon_minutes: int = Field(default=15, ge=15, le=15)
+	prediction_horizon_minutes: Literal[15, 30] = Field(default=15, description="Only 15 or 30 minutes are allowed")
 
 
 class BenchmarkBatchResponse(BaseModel):

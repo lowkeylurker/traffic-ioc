@@ -7,7 +7,7 @@ import re
 import statistics
 import time
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -395,14 +395,14 @@ def predict_congestion_batch(
 def debug_fallback_candidates(
 	segment_id: int = Query(..., description="Target segment id to inspect", gt=0),
 	request_time: Optional[datetime] = None,
-	prediction_horizon_minutes: int = Query(15, description="Only value 15 is currently supported"),
+	prediction_horizon_minutes: Literal[15, 30] = Query(15, description="Allowed values: 15 or 30 minutes"),
 	limit: int = Query(8, description="Maximum candidates per corridor to inspect", ge=1, le=30),
 	predictor: RLTrafficPredictor = Depends(get_warmstart_rl_predictor),
 ) -> dict:
 	if segment_id <= 0:
 		raise HTTPException(status_code=400, detail="segment_id must be a positive integer")
-	if prediction_horizon_minutes != 15:
-		raise HTTPException(status_code=400, detail="prediction_horizon_minutes must be 15")
+	if prediction_horizon_minutes not in (15, 30):
+		raise HTTPException(status_code=400, detail="prediction_horizon_minutes must be 15 or 30")
 	if limit <= 0 or limit > 30:
 		raise HTTPException(status_code=400, detail="limit must be between 1 and 30")
 
