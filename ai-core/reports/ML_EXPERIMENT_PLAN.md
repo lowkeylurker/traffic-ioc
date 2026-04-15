@@ -88,6 +88,6 @@
 - Chỉ tốt cho lớp chính, không suitable production
 
 ### Production Config:
-- Xem chi tiết: `ai-core/A2_PRODUCTION_CONFIG.md`
+- Xem chi tiết: `ai-core/docs/A2_PRODUCTION_CONFIG.md`
 - Checkpoint: `best_traffic_model.pt`
 - Metrics: `ai-core/reports/runs/A2.metrics.json`
