@@ -170,18 +170,20 @@ export class WeatherService {
             weather_key,
             timestamp
           FROM fact_traffic_flow
-          WHERE timestamp IS NOT NULL
+          WHERE timestamp >= NOW() - INTERVAL '15 minutes'
           ORDER BY segment_key, timestamp DESC
         )
         SELECT
           s.segment_key::text as "segmentId",
-          s.segment_id_source::text as "segmentName",
+          COALESCE(r.name, s.segment_id_source::text) as "segmentName",
           ST_AsGeoJSON(s.geometry_linestring)::json as geometry,
           dw.weather_id as "weatherId",
           dw.main_category as "weatherCategory",
           dw.severity_level as "severityLevel",
           lf.timestamp as "timestamp"
         FROM dim_segment s
+        LEFT JOIN dim_way w ON w.way_key = s.way_key
+        LEFT JOIN dim_road r ON r.road_key = w.road_key
         LEFT JOIN latest_flow lf ON lf.segment_key = s.segment_key
         LEFT JOIN dim_weather dw ON dw.weather_key = lf.weather_key
         ORDER BY s.segment_key
@@ -225,7 +227,7 @@ export class WeatherService {
             ftf.weather_key,
             ftf.timestamp
           FROM fact_traffic_flow ftf
-          WHERE ftf.timestamp IS NOT NULL
+          WHERE ftf.timestamp >= NOW() - INTERVAL '15 minutes'
             AND ftf.weather_key IS NOT NULL
           ORDER BY ftf.segment_key, ftf.timestamp DESC
         ),

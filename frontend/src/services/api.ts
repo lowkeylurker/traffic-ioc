@@ -2,14 +2,14 @@
 
 import {
   ApiResponse,
+  CitizenReportListResponse,
   ComparisonDataPoint,
   ComparisonQueryParams,
-  CorridorReliabilityData,
-  CorridorReliabilityQueryParams,
   CorridorAnalyticsOption,
   CorridorDashboardData,
   CorridorDashboardQueryParams,
-  CitizenReportListResponse,
+  CorridorReliabilityData,
+  CorridorReliabilityQueryParams,
   ForecastData,
   IncidentCollection,
   IncidentImpactResponse,
@@ -39,7 +39,7 @@ export const setAccessTokenGetter = (getter: AccessTokenGetter | null) => {
 
 const axiosInstance: AxiosInstance = axios.create({
   baseURL,
-  timeout: 180000,
+  timeout: 30 * 60 * 1000, // 30 minutes
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',

@@ -1,6 +1,6 @@
 // Custom Hooks
 
-import { POLLING_INTERVALS } from '@/config/constants'
+import { LOS_COLORS, POLLING_INTERVALS } from '@/config/constants'
 import { analyticsApi, mapApi, weatherApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
 import {
@@ -23,7 +23,7 @@ import {
 } from '@/utils/segmentCache'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-const TRAFFIC_STATUS_CACHE_MAX_AGE_MS = 2 * 60 * 1000
+const TRAFFIC_STATUS_CACHE_MAX_AGE_MS = 15 * 60 * 1000
 
 // Fetch segments hook (danh sách đoạn đường tĩnh ban đầu - deprecated for map rendering, use useTrafficMap instead)
 export const useSegments = () => {
@@ -126,13 +126,17 @@ export const useTrafficMap = () => {
             (feature: GeoJSONFeature) => {
               const stat = statusMap.get(String(feature.properties.segmentId))
               if (stat) {
+                const backendColor = (stat as unknown as { color?: string })
+                  .color
+                const derivedColor =
+                  backendColor ?? LOS_COLORS[String(stat.losGrade)] ?? null
                 return {
                   ...feature,
                   properties: {
                     ...feature.properties,
                     avgSpeed: stat.avgSpeed,
                     losIndex: stat.losGrade,
-                    color: stat.color || null,
+                    color: derivedColor,
                     isCorridor:
                       stat.isCorridor ?? feature.properties.isCorridor,
                     lastUpdated: stat.timestamp,

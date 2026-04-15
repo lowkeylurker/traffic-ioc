@@ -204,30 +204,30 @@ function generateRealisticRoadsData(count: number = 5000): any {
       let losIndex = 'A';
       let color: string = COLOR_RULES.GREEN;
 
-      if (speed > 50) {
+      if (speed > 55) {
         losGrade = 'A';
         losIndex = 'A';
         color = COLOR_RULES.GREEN;
-      } else if (speed > 40) {
+      } else if (speed > 45) {
         losGrade = 'B';
         losIndex = 'B';
-        color = COLOR_RULES.GREEN;
-      } else if (speed > 30) {
+        color = COLOR_RULES.LIGHT_GREEN;
+      } else if (speed > 35) {
         losGrade = 'C';
         losIndex = 'C';
-        color = COLOR_RULES.GREEN;
-      } else if (speed > 20) {
+        color = COLOR_RULES.YELLOW;
+      } else if (speed > 25) {
         losGrade = 'D';
         losIndex = 'D';
         color = COLOR_RULES.ORANGE;
-      } else if (speed > 10) {
+      } else if (speed > 15) {
         losGrade = 'E';
         losIndex = 'E';
-        color = COLOR_RULES.ORANGE;
+        color = COLOR_RULES.RED;
       } else {
         losGrade = 'F';
         losIndex = 'F';
-        color = COLOR_RULES.RED;
+        color = COLOR_RULES.DARK_RED;
       }
 
       const now = new Date().toISOString();
@@ -286,15 +286,17 @@ export class MapService {
 
     switch (losLevel.toUpperCase()) {
       case 'A':
-      case 'B':
-      case 'C':
         return COLOR_RULES.GREEN;
+      case 'B':
+        return COLOR_RULES.LIGHT_GREEN;
+      case 'C':
+        return COLOR_RULES.YELLOW;
       case 'D':
         return COLOR_RULES.ORANGE;
       case 'E':
-        return COLOR_RULES.RED_ORANGE;
-      case 'F':
         return COLOR_RULES.RED;
+      case 'F':
+        return COLOR_RULES.DARK_RED;
       default:
         return null;
     }
@@ -318,7 +320,7 @@ export class MapService {
         rows = await prisma.$queryRaw<any[]>`
           SELECT
             s.segment_key::text as "segmentId",
-            s.segment_id_source::text as "segmentName",
+            COALESCE(r.name, s.segment_id_source::text) as "segmentName",
             w.road_key::text as "roadKey",
             r.name as "roadName",
             EXISTS (
@@ -339,7 +341,7 @@ export class MapService {
         rows = await prisma.$queryRaw<any[]>`
           SELECT
             s.segment_key::text as "segmentId",
-            s.segment_id_source::text as "segmentName",
+            COALESCE(r.name, s.segment_id_source::text) as "segmentName",
             w.road_key::text as "roadKey",
             r.name as "roadName",
             false as "isCorridor",
@@ -440,11 +442,12 @@ export class MapService {
           SELECT DISTINCT ON (segment_key)
             segment_key, current_speed_kmh, los_level, traffic_index, pcu_volume, timestamp
           FROM fact_traffic_flow
+          WHERE timestamp >= NOW() - INTERVAL '15 minutes'
           ORDER BY segment_key, timestamp DESC
         )
         SELECT
           f.segment_key          AS "segmentId",
-          s.segment_id_source::text AS "segmentName",
+          COALESCE(r.name, s.segment_id_source::text) AS "segmentName",
           f.current_speed_kmh    AS "currentSpeed",
           f.current_speed_kmh    AS "avgSpeed",
           f.los_level            AS "losGrade",
@@ -459,6 +462,8 @@ export class MapService {
           f.timestamp            AS timestamp
         FROM latest_flow f
         LEFT JOIN dim_segment s ON f.segment_key = s.segment_key
+        LEFT JOIN dim_way w ON w.way_key = s.way_key
+        LEFT JOIN dim_road r ON r.road_key = w.road_key
         WHERE s.geometry_linestring IS NOT NULL
       `);
 
@@ -486,7 +491,7 @@ export class MapService {
         `
         SELECT
           s.segment_key          AS "segmentId",
-          s.segment_id_source::text AS "segmentName",
+          COALESCE(r.name, s.segment_id_source::text) AS "segmentName",
           f.current_speed_kmh    AS "currentSpeed",
           f.current_speed_kmh    AS "avgSpeed",
           f.los_level            AS "losGrade",
@@ -495,10 +500,13 @@ export class MapService {
           NULL::float            AS "occupancyRate",
           f.timestamp            AS timestamp
         FROM dim_segment s
+        LEFT JOIN dim_way w ON w.way_key = s.way_key
+        LEFT JOIN dim_road r ON r.road_key = w.road_key
         LEFT JOIN LATERAL (
           SELECT *
           FROM fact_traffic_flow ftf
           WHERE ftf.segment_key = s.segment_key
+            AND ftf.timestamp >= NOW() - INTERVAL '15 minutes'
           ORDER BY ftf.timestamp DESC
           LIMIT 1
         ) f ON TRUE

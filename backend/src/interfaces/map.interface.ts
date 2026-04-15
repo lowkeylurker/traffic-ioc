@@ -26,11 +26,13 @@ export interface TrafficMapResponse {
 
 // Color Rules
 export const COLOR_RULES = {
-  RED: '#FF4D4F', // LOS F - Ùn tắc
-  RED_ORANGE: '#FF6B35', // LOS E - Đông xe
-  ORANGE: '#FAAD14', // LOS D - Gần tắc
-  GREEN: '#52C41A', // LOS A,B,C - Thông thoáng
-  GREY: '#D9D9D9', // Không có dữ liệu
+  GREEN: '#52C41A',      // LOS A - Thông thoáng
+  LIGHT_GREEN: '#B7EB8F', // LOS B - Khá thông thoáng
+  YELLOW: '#FADB14',     // LOS C - Trung bình
+  ORANGE: '#FA8C16',     // LOS D - Mật độ cao
+  RED: '#F5222D',        // LOS E - Đông xe
+  DARK_RED: '#820014',   // LOS F - Ùn tắc nghiêm trọng
+  GREY: '#D9D9D9',       // Không có dữ liệu
 } as const;
 
 export type ColorCode = (typeof COLOR_RULES)[keyof typeof COLOR_RULES];

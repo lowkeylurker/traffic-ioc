@@ -31,7 +31,6 @@ interface TrafficMapProps {
   autoRefreshInterval?: number
   mapRef?: React.RefObject<any>
   segmentStatusLayerEnabled?: boolean
-  heatmapEnabled?: boolean
   children?: React.ReactNode
 }
 
@@ -41,7 +40,6 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   style,
   mapRef: externalMapRef,
   segmentStatusLayerEnabled = true,
-  heatmapEnabled = false,
   children,
 }) => {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
@@ -238,54 +236,30 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     []
   )
 
-  // Create heatmap layer style
-  const heatmapLayerStyle = useMemo(
+  // Outline/Casing layer to increase contrast on street-v12 style
+  const trafficOutlineLayerStyle = useMemo(
     () =>
       ({
-        id: 'traffic-heatmap-layer',
-        type: 'heatmap',
+        id: 'traffic-flow-outline-layer',
+        type: 'line',
         paint: {
-          'heatmap-weight': [
-            'interpolate',
-            ['linear'],
-            ['get', 'avgSpeed'],
-            0,
-            0,
-            70,
-            1,
-          ],
-          'heatmap-intensity': [
+          'line-width': [
             'interpolate',
             ['linear'],
             ['zoom'],
-            0,
-            1,
-            18,
-            3,
+
+            10,
+            ['case', ['==', ['get', 'isCorridor'], true], 3.2, 1.8],
+
+            14,
+            ['case', ['==', ['get', 'isCorridor'], true], 5.2, 3.0],
           ],
-          'heatmap-color': [
-            'interpolate',
-            ['linear'],
-            ['heatmap-density'],
-            0,
-            '#008000',
-            0.33,
-            '#ffff00',
-            0.66,
-            '#ff7f00',
-            1,
-            '#ff0000',
-          ],
-          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 2, 18, 20],
-          'heatmap-opacity': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            0,
-            0.8,
-            18,
-            0.3,
-          ],
+          'line-color': 'rgba(0, 0, 0, 0.35)',
+          'line-opacity': ['case', ['==', ['get', 'losIndex'], 'N/A'], 0, 0.5],
+        },
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
         },
       }) as LayerProps,
     []
@@ -364,7 +338,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
               type="geojson"
               data={renderedSegmentData}
             >
-              {heatmapEnabled && <Layer {...heatmapLayerStyle} />}
+              <Layer {...trafficOutlineLayerStyle} />
               <Layer {...trafficLayerStyle} />
             </Source>
           )}
@@ -383,44 +357,44 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
               case 'A':
                 return {
                   los,
-                  status: 'Rất thông thoáng',
-                  statusColor: TRAFFIC_COLORS.FAST,
-                  dotColor: TRAFFIC_COLORS.FAST,
+                  status: 'Thông thoáng',
+                  statusColor: TRAFFIC_COLORS.MINIMAL,
+                  dotColor: TRAFFIC_COLORS.MINIMAL,
                 }
               case 'B':
                 return {
                   los,
-                  status: 'Thông thoáng',
-                  statusColor: TRAFFIC_COLORS.FAST,
-                  dotColor: TRAFFIC_COLORS.FAST,
+                  status: 'Khá thông thoáng',
+                  statusColor: TRAFFIC_COLORS.VERY_LOW,
+                  dotColor: TRAFFIC_COLORS.VERY_LOW,
                 }
               case 'C':
                 return {
                   los,
-                  status: 'Khá lưu thông',
-                  statusColor: TRAFFIC_COLORS.FAST,
-                  dotColor: TRAFFIC_COLORS.FAST,
+                  status: 'Trung bình',
+                  statusColor: TRAFFIC_COLORS.MODERATE,
+                  dotColor: TRAFFIC_COLORS.MODERATE,
                 }
               case 'D':
                 return {
                   los,
-                  status: 'Gần tắc',
-                  statusColor: TRAFFIC_COLORS.MODERATE,
-                  dotColor: TRAFFIC_COLORS.MODERATE,
+                  status: 'Mật độ cao',
+                  statusColor: TRAFFIC_COLORS.HIGH,
+                  dotColor: TRAFFIC_COLORS.HIGH,
                 }
               case 'E':
                 return {
                   los,
                   status: 'Đông xe',
-                  statusColor: '#FF6B35',
-                  dotColor: '#FF6B35',
+                  statusColor: TRAFFIC_COLORS.VERY_HIGH,
+                  dotColor: TRAFFIC_COLORS.VERY_HIGH,
                 }
               case 'F':
                 return {
                   los,
-                  status: 'Ùn tắc',
-                  statusColor: TRAFFIC_COLORS.SLOW,
-                  dotColor: TRAFFIC_COLORS.SLOW,
+                  status: 'Ùn tắc nghiêm trọng',
+                  statusColor: TRAFFIC_COLORS.EXTREME,
+                  dotColor: TRAFFIC_COLORS.EXTREME,
                 }
               default:
                 return {

@@ -10,9 +10,12 @@ interface LegendItem {
 
 export const MapLegend: React.FC = () => {
   const items: LegendItem[] = [
-    { label: 'Thông thoáng', color: '#52c41a', range: '> 30 km/h' },
-    { label: 'Đông xe', color: '#faad14', range: '15 - 30 km/h' },
-    { label: 'Ùn tắc', color: '#ff4d4f', range: '< 15 km/h' },
+    { label: 'Thông thoáng', color: '#52C41A', range: 'LOS A' },
+    { label: 'Khá thông thoáng', color: '#73D13D', range: 'LOS B' },
+    { label: 'Trung bình', color: '#FAAD14', range: 'LOS C' },
+    { label: 'Mật độ cao', color: '#D46B08', range: 'LOS D' },
+    { label: 'Đông xe', color: '#CF1322', range: 'LOS E' },
+    { label: 'Ùn tắc nghiêm trọng', color: '#820014', range: 'LOS F' },
   ]
 
   return (
@@ -22,70 +25,66 @@ export const MapLegend: React.FC = () => {
         bottom: 24,
         right: 44,
         zIndex: 10,
-        background: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(10px)',
+        background: 'rgba(255, 255, 255, 0.96)',
+        backdropFilter: 'blur(8px)',
         borderRadius: 8,
-        padding: '4px',
-        boxShadow:
-          '0 8px 32px 0 rgba(0, 0, 0, 0.08), 0 2px 8px 0 rgba(0, 0, 0, 0.04)',
-        border: '1px solid rgba(255, 255, 255, 0.8)',
-        transition: 'all 0.3s ease',
+        padding: '6px 8px',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.10)',
+        border: '1px solid rgba(0, 0, 0, 0.06)',
         display: 'flex',
-        gap: 12,
+        flexDirection: 'column',
+        gap: 6,
         alignItems: 'center',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow =
-          '0 12px 48px 0 rgba(0, 0, 0, 0.12), 0 4px 12px 0 rgba(0, 0, 0, 0.06)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow =
-          '0 8px 32px 0 rgba(0, 0, 0, 0.08), 0 2px 8px 0 rgba(0, 0, 0, 0.04)'
       }}
     >
       <div
-        style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0, 0, 0, 0.65)' }}
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: 'rgba(0, 0, 0, 0.65)',
+          alignSelf: 'flex-start',
+        }}
       >
-        📏
+        LOS
       </div>
-      {items.map((item, index) => (
-        <div
-          key={index}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            paddingRight: index < items.length - 1 ? 8 : 0,
-            borderRight:
-              index < items.length - 1
-                ? '1px solid rgba(0, 0, 0, 0.06)'
-                : 'none',
-          }}
-        >
+      <div
+        style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: 6 }}
+      >
+        {items.map((item) => (
           <div
+            key={item.range}
             style={{
-              width: 16,
-              height: 3,
-              borderRadius: 1.5,
-              backgroundColor: item.color,
-              flexShrink: 0,
-              boxShadow: `0 1px 2px ${item.color}40`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              minWidth: 160,
             }}
-          />
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 500,
-              color: '#001529',
-              whiteSpace: 'nowrap',
-            }}
+            title={item.range}
           >
-            {item.label}
+            <div
+              style={{
+                width: 14,
+                height: 3,
+                borderRadius: 2,
+                backgroundColor: item.color,
+                flexShrink: 0,
+              }}
+            />
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#001529',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {item.range}: {item.label}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }

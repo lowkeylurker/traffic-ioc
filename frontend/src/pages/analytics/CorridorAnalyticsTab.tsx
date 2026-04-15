@@ -1,33 +1,99 @@
+// Corridor Analytics Tab — Tổng quan & Phân tích Hành lang
+// Redesigned for government traffic operations officers
+
 import { LineChart } from '@/components/charts/ChartComponents'
-import { ErrorState, Loading } from '@/components/common'
+import { EmptyState, ErrorState, Loading } from '@/components/common'
 import { useCorridorDashboard, useCorridorOptions } from '@/hooks/useTraffic'
-import { ApartmentOutlined } from '@ant-design/icons'
-import { Card, Col, Row, Select, Space, Statistic, Tag, Typography } from 'antd'
+import {
+  AlertOutlined,
+  ApartmentOutlined,
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  BarChartOutlined,
+  CalendarOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  DashboardOutlined,
+  ExclamationCircleOutlined,
+  FilterOutlined,
+  FireOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons'
+import {
+  Alert,
+  Badge,
+  Card,
+  Col,
+  DatePicker,
+  Row,
+  Select,
+  Space,
+  Statistic,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd'
 import { Bar } from 'react-chartjs-2'
-import { useEffect, useMemo, useState } from 'react'
 import dayjs, { Dayjs } from 'dayjs'
 import CountUp from 'react-countup'
+import { useEffect, useMemo, useState } from 'react'
 
-const { Text } = Typography
+const { Text, Title } = Typography
 
 const createCountUpFormatter = (decimals = 0) => {
   // eslint-disable-next-line react/display-name
   return (value: string | number | undefined) => {
     const numericValue = Number(value)
-
-    if (!Number.isFinite(numericValue)) {
-      return value ?? 'N/A'
-    }
-
+    if (!Number.isFinite(numericValue)) return value ?? 'N/A'
     return (
-      <CountUp
-        end={numericValue}
-        duration={0.9}
-        separator=","
-        decimals={decimals}
-      />
+      <CountUp end={numericValue} duration={0.9} separator="," decimals={decimals} />
     )
   }
+}
+
+const formatSeconds = (seconds: number | null | undefined): string => {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return '--'
+  if (seconds < 60) return `${Math.round(seconds)} giây`
+  const minutes = Math.floor(seconds / 60)
+  const remaining = Math.round(seconds % 60)
+  return `${minutes} phút${remaining > 0 ? ` ${remaining} giây` : ''}`
+}
+
+// Determine operational status based on KPIs
+const getOperationalStatus = (
+  isBelowTargetSpeed: boolean,
+  isHighTti: boolean,
+  isHighIncidentCount: boolean
+): { level: 'success' | 'warning' | 'error'; label: string; description: string } => {
+  const alertCount = [isBelowTargetSpeed, isHighTti, isHighIncidentCount].filter(Boolean).length
+  if (alertCount === 0) return { level: 'success', label: 'Vận hành bình thường', description: 'Tất cả chỉ số trong ngưỡng cho phép' }
+  if (alertCount === 1) return { level: 'warning', label: 'Cần theo dõi', description: 'Phát hiện 1 chỉ số cần chú ý' }
+  return { level: 'error', label: 'Cần can thiệp', description: `Phát hiện ${alertCount} chỉ số vượt ngưỡng` }
+}
+
+const getTtiLabel = (tti: number | null): string => {
+  if (tti === null) return 'N/A'
+  if (tti < 1.1) return 'Lưu thông tốt'
+  if (tti < 1.3) return 'Tương đối chậm'
+  if (tti < 1.5) return 'Chậm đáng kể'
+  return 'Ùn tắc'
+}
+
+const getTtiColor = (tti: number | null): string => {
+  if (tti === null) return '#d9d9d9'
+  if (tti < 1.1) return '#52C41A'
+  if (tti < 1.3) return '#FADB14'
+  if (tti < 1.5) return '#FA8C16'
+  return '#F5222D'
+}
+
+const getEfficiencyLabel = (efficiency: number | null): string => {
+  if (efficiency === null) return 'N/A'
+  const pct = efficiency * 100
+  if (pct >= 90) return 'Rất tốt'
+  if (pct >= 75) return 'Tốt'
+  if (pct >= 60) return 'Trung bình'
+  return 'Yếu'
 }
 
 interface CorridorAnalyticsTabProps {
@@ -35,15 +101,14 @@ interface CorridorAnalyticsTabProps {
 }
 
 export const CorridorAnalyticsTab: React.FC<CorridorAnalyticsTabProps> = ({
-  selectedDate = dayjs(),
+  selectedDate: externalDate,
 }) => {
-  const [selectedCorridorKey, setSelectedCorridorKey] = useState<
-    string | undefined
-  >(undefined)
+  const [selectedCorridorKey, setSelectedCorridorKey] = useState<string | undefined>(undefined)
+  const [selectedDate, setSelectedDate] = useState<Dayjs>(externalDate ?? dayjs())
 
   const { corridors, loading: corridorsLoading } = useCorridorOptions()
   const {
-    data: corridorDashboard,
+    data: dash,
     loading: corridorLoading,
     error: corridorError,
   } = useCorridorDashboard({
@@ -52,14 +117,9 @@ export const CorridorAnalyticsTab: React.FC<CorridorAnalyticsTabProps> = ({
   })
 
   const corridorOptions = useMemo(
-    () =>
-      corridors.map((item) => ({
-        value: item.corridorKey,
-        label: item.corridorName,
-      })),
+    () => corridors.map((c) => ({ value: c.corridorKey, label: c.corridorName })),
     [corridors]
   )
-
   const effectiveCorridor = selectedCorridorKey ?? corridorOptions[0]?.value
 
   useEffect(() => {
@@ -68,326 +128,514 @@ export const CorridorAnalyticsTab: React.FC<CorridorAnalyticsTabProps> = ({
     }
   }, [corridorOptions, selectedCorridorKey])
 
-  const speedVsTargetData = {
-    labels: corridorDashboard.speedVsTarget.map(
-      (item) => `${item.hour.toString().padStart(2, '0')}:00`
+  const selectedCorridorName = corridorOptions.find((c) => c.value === effectiveCorridor)?.label ?? 'Hành lang'
+
+  const twoDecFmt = useMemo(() => createCountUpFormatter(2), [])
+  const zeroDecFmt = useMemo(() => createCountUpFormatter(0), [])
+
+  const opStatus = useMemo(
+    () => getOperationalStatus(
+      dash.alerts.isBelowTargetSpeed,
+      dash.alerts.isHighTti,
+      dash.alerts.isHighIncidentCount,
     ),
+    [dash.alerts]
+  )
+
+  const speedVsTargetChartData = {
+    labels: dash.speedVsTarget.map((item) => `${item.hour.toString().padStart(2, '0')}:00`),
     datasets: [
       {
-        label: 'Tốc độ hành lang',
-        data: corridorDashboard.speedVsTarget.map(
-          (item) => item.avgCorridorSpeed
-        ),
-        borderColor: '#13c2c2',
-        backgroundColor: 'rgba(19, 194, 194, 0.2)',
-        borderWidth: 2,
-        tension: 0.25,
+        label: 'Tốc độ thực tế (km/h)',
+        data: dash.speedVsTarget.map((item) => item.avgCorridorSpeed),
+        borderColor: dash.alerts.isBelowTargetSpeed ? '#F5222D' : '#52C41A',
+        backgroundColor: dash.alerts.isBelowTargetSpeed
+          ? 'rgba(245,34,45,0.12)'
+          : 'rgba(82,196,26,0.12)',
+        borderWidth: 2.5,
+        tension: 0.3,
+        pointRadius: 3,
       },
       {
-        label: 'Tốc độ mục tiêu',
-        data: corridorDashboard.speedVsTarget.map(
-          (item) => item.targetAvgSpeed
-        ),
+        label: 'Mục tiêu vận hành (km/h)',
+        data: dash.speedVsTarget.map((item) => item.targetAvgSpeed),
         borderColor: '#1677ff',
-        backgroundColor: 'rgba(22, 119, 255, 0.16)',
+        backgroundColor: 'rgba(22,119,255,0.08)',
         borderWidth: 2,
+        borderDash: [6, 3],
         tension: 0.25,
+        pointRadius: 1,
       },
     ],
   }
 
-  const ttiHourlyData = {
-    labels: corridorDashboard.ttiHourly.map(
-      (item) => `${item.hour.toString().padStart(2, '0')}:00`
-    ),
+  const ttiChartData = {
+    labels: dash.ttiHourly.map((item) => `${item.hour.toString().padStart(2, '0')}:00`),
     datasets: [
       {
-        label: 'TTI theo giờ',
-        data: corridorDashboard.ttiHourly.map((item) => item.travelTimeIndex),
-        borderColor: '#fa8c16',
-        backgroundColor: 'rgba(250, 140, 22, 0.2)',
-        borderWidth: 2,
-        tension: 0.25,
+        label: 'Chỉ số kéo dài hành trình (TTI)',
+        data: dash.ttiHourly.map((item) => item.travelTimeIndex),
+        borderColor: '#FA8C16',
+        backgroundColor: 'rgba(250,140,22,0.15)',
+        borderWidth: 2.5,
+        tension: 0.3,
+        fill: true,
+        pointRadius: (context: { dataIndex: number }) => {
+          const val = dash.ttiHourly[context.dataIndex]?.travelTimeIndex ?? 1
+          return val >= 1.5 ? 5 : 2
+        },
+        pointBackgroundColor: (context: { dataIndex: number }) => {
+          const val = dash.ttiHourly[context.dataIndex]?.travelTimeIndex ?? 1
+          return val >= 1.5 ? '#F5222D' : '#FA8C16'
+        },
+      },
+      {
+        label: 'Ngưỡng cảnh báo (1.3)',
+        data: dash.ttiHourly.map(() => 1.3),
+        borderColor: 'rgba(255,77,79,0.45)',
+        borderDash: [4, 4],
+        borderWidth: 1.5,
+        pointRadius: 0,
       },
     ],
   }
 
-  const rankingData = {
-    labels: corridorDashboard.topDelayCorridors.map(
-      (item) => item.corridorName
-    ),
+  const rankingChartData = {
+    labels: dash.topDelayCorridors.map((item) => item.corridorName),
     datasets: [
       {
-        label: 'Tổng trễ (giây)',
-        data: corridorDashboard.topDelayCorridors.map(
-          (item) => item.totalDelaySeconds
+        label: 'Tổng thời gian trễ (giây)',
+        data: dash.topDelayCorridors.map((item) => item.totalDelaySeconds),
+        backgroundColor: dash.topDelayCorridors.map((_, idx) =>
+          idx === 0 ? 'rgba(245,34,45,0.75)' : idx === 1 ? 'rgba(250,140,22,0.7)' : 'rgba(255,77,79,0.55)'
         ),
-        backgroundColor: 'rgba(255, 77, 79, 0.65)',
-        borderColor: '#ff4d4f',
+        borderColor: dash.topDelayCorridors.map((_, idx) =>
+          idx === 0 ? '#F5222D' : idx === 1 ? '#FA8C16' : '#ff4d4f'
+        ),
         borderWidth: 1,
+        borderRadius: 4,
       },
     ],
   }
 
-  const bottleneckData = {
-    labels: corridorDashboard.topBottlenecks.map(
-      (item) => `Seg ${item.segmentKey}`
-    ),
+  const bottleneckChartData = {
+    labels: dash.topBottlenecks.map((item) => `Seg ${item.segmentKey}`),
     datasets: [
       {
-        label: 'Số lần xuất hiện bottleneck',
-        data: corridorDashboard.topBottlenecks.map((item) => item.count),
-        backgroundColor: 'rgba(114, 46, 209, 0.65)',
+        label: 'Số lần trở thành điểm nghẽn',
+        data: dash.topBottlenecks.map((item) => item.count),
+        backgroundColor: 'rgba(114,46,209,0.65)',
         borderColor: '#722ed1',
         borderWidth: 1,
+        borderRadius: 4,
       },
     ],
   }
 
-  const heatmapHours = Array.from({ length: 24 }, (_, idx) => idx)
+  // Heatmap data
+  const heatmapHours = Array.from({ length: 24 }, (_, i) => i)
   const heatmapRows = useMemo(() => {
-    const grouped = new Map<
-      string,
-      { corridorName: string; values: Map<number, number | null> }
-    >()
-
-    corridorDashboard.heatmap.forEach((cell) => {
+    const grouped = new Map<string, { corridorName: string; values: Map<number, number | null> }>()
+    dash.heatmap.forEach((cell) => {
       if (!grouped.has(cell.corridorKey)) {
-        grouped.set(cell.corridorKey, {
-          corridorName: cell.corridorName,
-          values: new Map<number, number | null>(),
-        })
+        grouped.set(cell.corridorKey, { corridorName: cell.corridorName, values: new Map() })
       }
       grouped.get(cell.corridorKey)?.values.set(cell.hour, cell.travelTimeIndex)
     })
-
-    return Array.from(grouped.entries()).map(([corridorKey, row]) => ({
-      corridorKey,
+    return Array.from(grouped.entries()).map(([key, row]) => ({
+      corridorKey: key,
       corridorName: row.corridorName,
-      cells: heatmapHours.map((hour) => row.values.get(hour) ?? null),
+      cells: heatmapHours.map((h) => row.values.get(h) ?? null),
     }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [corridorDashboard.heatmap])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dash.heatmap])
 
-  const getHeatCellStyle = (value: number | null) => {
-    if (value === null) {
-      return 'rgba(217, 217, 217, 0.2)'
-    }
-    if (value < 1.2) {
-      return 'rgba(82, 196, 26, 0.5)'
-    }
-    if (value < 1.5) {
-      return 'rgba(250, 173, 20, 0.55)'
-    }
-    return 'rgba(255, 77, 79, 0.6)'
+  const getHeatColor = (value: number | null): string => {
+    if (value === null) return 'rgba(200,200,200,0.15)'
+    if (value < 1.1) return 'rgba(82,196,26,0.55)'
+    if (value < 1.3) return 'rgba(250,219,20,0.6)'
+    if (value < 1.5) return 'rgba(250,140,22,0.65)'
+    return 'rgba(245,34,45,0.7)'
   }
 
-  const integerCountFormatter = useMemo(() => createCountUpFormatter(0), [])
-  const twoDecimalCountFormatter = useMemo(() => createCountUpFormatter(2), [])
+  const chartBaseOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top' as const, labels: { font: { size: 12 }, boxWidth: 14 } },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+      y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 11 } } },
+    },
+  }
 
   if (corridorsLoading || corridors.length === 0) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '60vh',
-        }}
-      >
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
         <Loading />
       </div>
     )
   }
 
   return (
-    <Card
-      title={
-        <Space size={8}>
-          <ApartmentOutlined />
-          <span>Phân tích Hành lang</span>
-        </Space>
-      }
-      extra={
-        <Select
-          style={{ minWidth: 320 }}
-          value={effectiveCorridor}
-          options={corridorOptions}
-          onChange={(value) => setSelectedCorridorKey(value)}
-          placeholder="Chọn hành lang"
-          showSearch
-          optionFilterProp="label"
-        />
-      }
-    >
-      <Text type="secondary" style={{ display: 'block', marginBottom: 14 }}>
-        Theo dõi hiệu năng hành lang, TTI, bottleneck và cảnh báo vận hành theo
-        corridor đã chọn.
-      </Text>
+    <div style={{ paddingBottom: 24 }}>
+      {/* ─── PHẦN A: BỘ LỌC + KPI ─── */}
+      <Card
+        style={{ marginBottom: 16, background: 'linear-gradient(135deg,#f8f9fe 0%,#eef2fb 100%)', border: '1px solid #e8ecf5' }}
+        bodyStyle={{ padding: '16px 20px' }}
+      >
+        <Row gutter={[16, 12]} align="middle">
+          <Col xs={24} md={12} lg={8}>
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                <FilterOutlined style={{ marginRight: 4 }} />Chọn hành lang
+              </Text>
+              <Select
+                style={{ width: '100%' }}
+                value={effectiveCorridor}
+                options={corridorOptions}
+                onChange={(value) => setSelectedCorridorKey(value)}
+                placeholder="Chọn hành lang"
+                showSearch
+                optionFilterProp="label"
+                size="large"
+              />
+            </Space>
+          </Col>
+          <Col xs={24} md={12} lg={6}>
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                <CalendarOutlined style={{ marginRight: 4 }} />Chọn ngày phân tích
+              </Text>
+              <DatePicker
+                value={selectedDate}
+                format="DD/MM/YYYY"
+                onChange={(val) => { if (val) setSelectedDate(val) }}
+                style={{ width: '100%' }}
+                size="large"
+                allowClear={false}
+              />
+            </Space>
+          </Col>
+          <Col xs={24} lg={10}>
+            <div style={{ textAlign: 'right' }}>
+              <Tag
+                icon={
+                  opStatus.level === 'success' ? <CheckCircleOutlined /> :
+                  opStatus.level === 'warning' ? <ExclamationCircleOutlined /> :
+                  <AlertOutlined />
+                }
+                color={opStatus.level === 'success' ? 'success' : opStatus.level === 'warning' ? 'warning' : 'error'}
+                style={{ fontSize: 13, padding: '6px 14px', borderRadius: 20 }}
+              >
+                {opStatus.label}
+              </Tag>
+              <div style={{ marginTop: 4 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>{opStatus.description}</Text>
+              </div>
+            </div>
+          </Col>
+        </Row>
+      </Card>
+
       {corridorLoading ? (
         <Loading />
       ) : corridorError ? (
         <ErrorState message={corridorError} />
       ) : (
-        <Row gutter={[16, 20]}>
-          <Col xs={24} sm={12} lg={8} xl={4}>
-            <Card size="small">
-              <Statistic
-                title="Tốc độ TB"
-                value={corridorDashboard.kpis.avgCorridorSpeed ?? 0}
-                precision={2}
-                suffix="km/h"
-                formatter={twoDecimalCountFormatter}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={8} xl={4}>
-            <Card size="small">
-              <Statistic
-                title="Tốc độ mục tiêu"
-                value={corridorDashboard.kpis.targetAvgSpeed ?? 0}
-                precision={2}
-                suffix="km/h"
-                formatter={twoDecimalCountFormatter}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={8} xl={4}>
-            <Card size="small">
-              <Statistic
-                title="Tổng trễ"
-                value={corridorDashboard.kpis.totalDelaySeconds ?? 0}
-                precision={0}
-                suffix="giây"
-                formatter={integerCountFormatter}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={8} xl={4}>
-            <Card size="small">
-              <Statistic
-                title="TTI"
-                value={corridorDashboard.kpis.travelTimeIndex ?? 0}
-                precision={2}
-                formatter={twoDecimalCountFormatter}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={8} xl={4}>
-            <Card size="small">
-              <Statistic
-                title="Hiệu quả"
-                value={corridorDashboard.kpis.corridorEfficiency ?? 0}
-                precision={2}
-                formatter={twoDecimalCountFormatter}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={8} xl={4}>
-            <Card size="small">
-              <Statistic
-                title="Số sự cố"
-                value={corridorDashboard.kpis.activeIncidentCount ?? 0}
-                precision={0}
-                formatter={integerCountFormatter}
-              />
-            </Card>
-          </Col>
-
-          <Col xs={24} lg={12}>
-            <Card title="Tốc độ thực tế vs mục tiêu theo giờ">
-              <Text
-                type="secondary"
-                style={{ display: 'block', marginBottom: 12 }}
-              >
-                So sánh tốc độ thực tế với tốc độ mục tiêu để phát hiện khung
-                giờ hụt hiệu năng.
-              </Text>
-              <div style={{ height: 300 }}>
-                <LineChart
-                  data={speedVsTargetData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'top' as const } },
-                  }}
+        <>
+          {/* KPI Cards */}
+          <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+            <Col xs={12} sm={8} md={8} lg={4}>
+              <Card size="small" style={{ textAlign: 'center', height: '100%' }} hoverable>
+                <Statistic
+                  title={
+                    <Tooltip title="Tốc độ trung bình thực tế của toàn hành lang trong ngày">
+                      <span><DashboardOutlined style={{ color: '#1677ff', marginRight: 4 }} />Tốc độ TB</span>
+                    </Tooltip>
+                  }
+                  value={dash.kpis.avgCorridorSpeed ?? 0}
+                  precision={1}
+                  suffix="km/h"
+                  formatter={twoDecFmt}
+                  valueStyle={{ color: dash.alerts.isBelowTargetSpeed ? '#F5222D' : '#52C41A', fontSize: 22, fontWeight: 700 }}
                 />
-              </div>
-            </Card>
-          </Col>
-
-          <Col xs={24} lg={12}>
-            <Card title="TTI theo giờ">
-              <Text
-                type="secondary"
-                style={{ display: 'block', marginBottom: 12 }}
-              >
-                Chỉ số TTI theo giờ cho biết mức kéo dài thời gian di chuyển.
-              </Text>
-              <div style={{ height: 300 }}>
-                <LineChart
-                  data={ttiHourlyData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'top' as const } },
-                  }}
+                {dash.kpis.targetAvgSpeed !== null && (
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    Mục tiêu: {dash.kpis.targetAvgSpeed.toFixed(1)} km/h
+                  </Text>
+                )}
+              </Card>
+            </Col>
+            <Col xs={12} sm={8} md={8} lg={4}>
+              <Card size="small" style={{ textAlign: 'center', height: '100%' }} hoverable>
+                <Statistic
+                  title={
+                    <Tooltip title="Chỉ số TTI > 1.3 = hành trình kéo dài đáng kể; > 1.5 = ùn tắc">
+                      <span><ClockCircleOutlined style={{ color: '#FA8C16', marginRight: 4 }} />Chỉ số TTI</span>
+                    </Tooltip>
+                  }
+                  value={dash.kpis.travelTimeIndex ?? 0}
+                  precision={2}
+                  formatter={twoDecFmt}
+                  valueStyle={{ color: getTtiColor(dash.kpis.travelTimeIndex), fontSize: 22, fontWeight: 700 }}
                 />
-              </div>
-            </Card>
-          </Col>
-
-          <Col xs={24}>
-            <Card title="Top hành lang theo tổng trễ">
-              <Text
-                type="secondary"
-                style={{ display: 'block', marginBottom: 12 }}
-              >
-                Xếp hạng các corridor có tổng delay cao nhất để ưu tiên can
-                thiệp.
-              </Text>
-              <div style={{ height: 300 }}>
-                <Bar
-                  data={rankingData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    indexAxis: 'y' as const,
-                    plugins: { legend: { display: false } },
-                  }}
+                <Text style={{ fontSize: 11, color: getTtiColor(dash.kpis.travelTimeIndex) }}>
+                  {getTtiLabel(dash.kpis.travelTimeIndex)}
+                </Text>
+              </Card>
+            </Col>
+            <Col xs={12} sm={8} md={8} lg={4}>
+              <Card size="small" style={{ textAlign: 'center', height: '100%' }} hoverable>
+                <Statistic
+                  title={
+                    <Tooltip title="Tổng thời gian mất mát của các xe trên hành lang trong ngày">
+                      <span><FireOutlined style={{ color: '#F5222D', marginRight: 4 }} />Tổng trễ</span>
+                    </Tooltip>
+                  }
+                  value={dash.kpis.totalDelaySeconds ?? 0}
+                  precision={0}
+                  suffix="giây"
+                  formatter={zeroDecFmt}
+                  valueStyle={{ color: '#F5222D', fontSize: 22, fontWeight: 700 }}
                 />
-              </div>
-            </Card>
-          </Col>
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  ≈ {formatSeconds(dash.kpis.totalDelaySeconds)}
+                </Text>
+              </Card>
+            </Col>
+            <Col xs={12} sm={8} md={8} lg={4}>
+              <Card size="small" style={{ textAlign: 'center', height: '100%' }} hoverable>
+                <Statistic
+                  title={
+                    <Tooltip title="Hiệu suất vận hành: 1.0 = tối ưu hoàn toàn; < 0.7 = cần xem xét">
+                      <span><ThunderboltOutlined style={{ color: '#722ed1', marginRight: 4 }} />Hiệu suất</span>
+                    </Tooltip>
+                  }
+                  value={(dash.kpis.corridorEfficiency ?? 0) * 100}
+                  precision={1}
+                  suffix="%"
+                  formatter={twoDecFmt}
+                  valueStyle={{ color: (dash.kpis.corridorEfficiency ?? 0) >= 0.75 ? '#52C41A' : '#FA8C16', fontSize: 22, fontWeight: 700 }}
+                />
+                <Text style={{ fontSize: 11, color: '#666' }}>
+                  {getEfficiencyLabel(dash.kpis.corridorEfficiency)}
+                </Text>
+              </Card>
+            </Col>
+            <Col xs={12} sm={8} md={8} lg={4}>
+              <Card size="small" style={{ textAlign: 'center', height: '100%' }} hoverable>
+                <Statistic
+                  title={
+                    <Tooltip title="Sự cố đang hoạt động ảnh hưởng đến hành lang này">
+                      <span><AlertOutlined style={{ color: '#fa8c16', marginRight: 4 }} />Sự cố</span>
+                    </Tooltip>
+                  }
+                  value={dash.kpis.activeIncidentCount ?? 0}
+                  precision={0}
+                  suffix="sự cố"
+                  formatter={zeroDecFmt}
+                  valueStyle={{ color: (dash.kpis.activeIncidentCount ?? 0) > 0 ? '#FA8C16' : '#52C41A', fontSize: 22, fontWeight: 700 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={12} sm={8} md={8} lg={4}>
+              <Card size="small" style={{ textAlign: 'center', height: '100%', background: '#fafafa' }} hoverable>
+                <Text strong style={{ display: 'block', marginBottom: 8, fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>
+                  <BarChartOutlined style={{ marginRight: 4 }} />So với baseline
+                </Text>
+                <Space direction="vertical" size={4}>
+                  {dash.baselineComparison.speedDeltaPct !== null && (
+                    <Text style={{ fontSize: 13 }}>
+                      Tốc độ{' '}
+                      {dash.baselineComparison.speedDeltaPct >= 0 ? (
+                        <Text style={{ color: '#52C41A', fontWeight: 600 }}>
+                          <ArrowUpOutlined />+{dash.baselineComparison.speedDeltaPct.toFixed(1)}%
+                        </Text>
+                      ) : (
+                        <Text style={{ color: '#F5222D', fontWeight: 600 }}>
+                          <ArrowDownOutlined />{dash.baselineComparison.speedDeltaPct.toFixed(1)}%
+                        </Text>
+                      )}
+                    </Text>
+                  )}
+                  {dash.baselineComparison.delayDeltaPct !== null && (
+                    <Text style={{ fontSize: 13 }}>
+                      Trễ{' '}
+                      {dash.baselineComparison.delayDeltaPct <= 0 ? (
+                        <Text style={{ color: '#52C41A', fontWeight: 600 }}>
+                          <ArrowDownOutlined />{dash.baselineComparison.delayDeltaPct.toFixed(1)}%
+                        </Text>
+                      ) : (
+                        <Text style={{ color: '#F5222D', fontWeight: 600 }}>
+                          <ArrowUpOutlined />+{dash.baselineComparison.delayDeltaPct.toFixed(1)}%
+                        </Text>
+                      )}
+                    </Text>
+                  )}
+                  {dash.baselineComparison.speedDeltaPct === null && dash.baselineComparison.delayDeltaPct === null && (
+                    <Text type="secondary" style={{ fontSize: 12 }}>Chưa có baseline</Text>
+                  )}
+                </Space>
+              </Card>
+            </Col>
+          </Row>
 
-          <Col xs={24}>
-            <Card title="Heatmap giờ x hành lang (TTI)">
-              <Text
-                type="secondary"
-                style={{ display: 'block', marginBottom: 12 }}
+          {/* ─── PHẦN B: CẢNH BÁO VẬN HÀNH ─── */}
+          {(dash.alerts.isBelowTargetSpeed || dash.alerts.isHighTti || dash.alerts.isHighIncidentCount) && (
+            <Card
+              style={{ marginBottom: 16, border: '1px solid #ffccc7', background: '#fff2f0' }}
+              bodyStyle={{ padding: '12px 20px' }}
+            >
+              <Space size={16} wrap>
+                <Text strong style={{ color: '#cf1322' }}>
+                  <AlertOutlined style={{ marginRight: 6 }} />
+                  Cảnh báo hoạt động:
+                </Text>
+                {dash.alerts.isBelowTargetSpeed && (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message="Tốc độ dưới mục tiêu — có nguy cơ ảnh hưởng luồng giao thông"
+                    style={{ padding: '4px 12px', borderRadius: 8 }}
+                  />
+                )}
+                {dash.alerts.isHighTti && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="TTI cao — thời gian di chuyển kéo dài bất thường"
+                    style={{ padding: '4px 12px', borderRadius: 8 }}
+                  />
+                )}
+                {dash.alerts.isHighIncidentCount && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="Số sự cố cao — cần xem xét phương án phân luồng"
+                    style={{ padding: '4px 12px', borderRadius: 8 }}
+                  />
+                )}
+              </Space>
+            </Card>
+          )}
+
+          {/* ─── PHẦN C: XU HƯỚNG TRONG NGÀY ─── */}
+          <Title level={5} style={{ margin: '0 0 12px', color: '#555', letterSpacing: 0.2 }}>
+            <DashboardOutlined style={{ marginRight: 6 }} />
+            Diễn biến trong ngày — {selectedCorridorName}
+          </Title>
+          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+            <Col xs={24} lg={14}>
+              <Card
+                title={
+                  <Space>
+                    <DashboardOutlined style={{ color: '#1677ff' }} />
+                    <span>Tốc độ thực tế so với mục tiêu vận hành</span>
+                  </Space>
+                }
+                extra={
+                  <Badge
+                    status={dash.alerts.isBelowTargetSpeed ? 'error' : 'success'}
+                    text={dash.alerts.isBelowTargetSpeed ? 'Dưới mục tiêu' : 'Đạt mục tiêu'}
+                  />
+                }
               >
-                Bản đồ nhiệt giúp thấy corridor nào quá tải theo từng giờ trong
-                ngày.
-              </Text>
-              <div style={{ overflowX: 'hidden' }}>
-                <table
-                  style={{
-                    borderCollapse: 'collapse',
-                    width: '100%',
-                    tableLayout: 'fixed',
-                  }}
-                >
+                <Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 12 }}>
+                  Vùng màu đỏ chỉ ra các khung giờ tốc độ thực tế thấp hơn mức vận hành kỳ vọng.
+                </Text>
+                <div style={{ height: 280 }}>
+                  {dash.speedVsTarget.length > 0 ? (
+                    <LineChart
+                      data={speedVsTargetChartData}
+                      options={{
+                        ...chartBaseOptions,
+                        scales: {
+                          ...chartBaseOptions.scales,
+                          y: { ...chartBaseOptions.scales.y, title: { display: true, text: 'Tốc độ (km/h)' } },
+                          x: { ...chartBaseOptions.scales.x, title: { display: true, text: 'Giờ trong ngày' } },
+                        },
+                      }}
+                    />
+                  ) : (
+                    <EmptyState message="Chưa có dữ liệu tốc độ theo giờ" />
+                  )}
+                </div>
+              </Card>
+            </Col>
+            <Col xs={24} lg={10}>
+              <Card
+                title={
+                  <Space>
+                    <ClockCircleOutlined style={{ color: '#FA8C16' }} />
+                    <span>Chỉ số kéo dài hành trình (TTI) theo giờ</span>
+                  </Space>
+                }
+                extra={
+                  <Tooltip title="TTI = 1.0 là điều kiện lý tưởng. TTI = 1.5 nghĩa là hành trình mất gấp 1.5 lần bình thường.">
+                    <Text type="secondary" style={{ fontSize: 12 }}>TTI là gì?</Text>
+                  </Tooltip>
+                }
+              >
+                <Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 12 }}>
+                  Đường đỏ đứt là ngưỡng cảnh báo (1.3). Điểm đỏ = giờ cần ưu tiên can thiệp.
+                </Text>
+                <div style={{ height: 280 }}>
+                  {dash.ttiHourly.length > 0 ? (
+                    <LineChart
+                      data={ttiChartData}
+                      options={{
+                        ...chartBaseOptions,
+                        scales: {
+                          ...chartBaseOptions.scales,
+                          y: { ...chartBaseOptions.scales.y, min: 0.8, title: { display: true, text: 'TTI' } },
+                          x: { ...chartBaseOptions.scales.x, title: { display: true, text: 'Giờ trong ngày' } },
+                        },
+                      }}
+                    />
+                  ) : (
+                    <EmptyState message="Chưa có dữ liệu TTI" />
+                  )}
+                </div>
+              </Card>
+            </Col>
+          </Row>
+
+          {/* ─── PHẦN D: HEATMAP CORRIDOR x GIỜ ─── */}
+          <Card
+            title={
+              <Space>
+                <ApartmentOutlined style={{ color: '#722ed1' }} />
+                <span>Bản đồ nhiệt — Chỉ số TTI theo Hành lang & Giờ trong ngày</span>
+              </Space>
+            }
+            extra={
+              <Space size={8}>
+                <Tag color="green" style={{ borderRadius: 6 }}>Tốt (&lt;1.1)</Tag>
+                <Tag color="gold" style={{ borderRadius: 6 }}>Trung bình (1.1-1.3)</Tag>
+                <Tag color="orange" style={{ borderRadius: 6 }}>Chậm (1.3-1.5)</Tag>
+                <Tag color="red" style={{ borderRadius: 6 }}>Ùn tắc (&gt;1.5)</Tag>
+              </Space>
+            }
+            style={{ marginBottom: 16 }}
+          >
+            <Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 12 }}>
+              Ô tối màu = hành lang & khung giờ cần ưu tiên. Hover vào từng ô để xem giá trị TTI cụ thể.
+            </Text>
+            {heatmapRows.length === 0 ? (
+              <EmptyState message="Chưa có dữ liệu bản đồ nhiệt" />
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 800 }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: 'left', padding: 8 }}>
-                        Corridor
+                      <th style={{ textAlign: 'left', padding: '6px 12px', fontSize: 12, color: '#555', minWidth: 180, borderBottom: '2px solid #f0f0f0' }}>
+                        Tên hành lang
                       </th>
-                      {heatmapHours.map((hour) => (
-                        <th
-                          key={hour}
-                          style={{ textAlign: 'center', padding: 4 }}
-                        >
-                          {hour.toString().padStart(2, '0')}
+                      {heatmapHours.map((h) => (
+                        <th key={h} style={{ textAlign: 'center', padding: '4px 2px', fontSize: 10, color: '#888', borderBottom: '2px solid #f0f0f0' }}>
+                          {h}h
                         </th>
                       ))}
                     </tr>
@@ -395,24 +643,26 @@ export const CorridorAnalyticsTab: React.FC<CorridorAnalyticsTabProps> = ({
                   <tbody>
                     {heatmapRows.map((row) => (
                       <tr key={row.corridorKey}>
-                        <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '6px 12px', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', borderBottom: '1px solid #f5f5f5' }}>
                           {row.corridorName}
                         </td>
                         {row.cells.map((cell, idx) => (
                           <td
-                            key={`${row.corridorKey}-${idx}`}
+                            key={idx}
+                            title={cell === null ? 'Không có dữ liệu' : `TTI: ${cell.toFixed(2)} — ${getTtiLabel(cell)}`}
                             style={{
                               width: 28,
-                              height: 24,
-                              background: getHeatCellStyle(cell),
+                              height: 28,
+                              background: getHeatColor(cell),
                               textAlign: 'center',
-                              fontSize: 10,
+                              fontSize: 9,
+                              cursor: 'default',
+                              borderBottom: '1px solid rgba(255,255,255,0.5)',
+                              transition: 'opacity 0.15s',
+                              color: cell !== null && cell >= 1.5 ? '#fff' : 'transparent',
                             }}
-                            title={
-                              cell === null ? 'N/A' : `TTI: ${cell.toFixed(2)}`
-                            }
                           >
-                            {cell === null ? '' : cell.toFixed(1)}
+                            {cell !== null ? cell.toFixed(1) : ''}
                           </td>
                         ))}
                       </tr>
@@ -420,92 +670,82 @@ export const CorridorAnalyticsTab: React.FC<CorridorAnalyticsTabProps> = ({
                   </tbody>
                 </table>
               </div>
-            </Card>
-          </Col>
+            )}
+          </Card>
 
-          <Col xs={24} lg={12}>
-            <Card title="Top segment nghẽn cổ chai">
-              <Text
-                type="secondary"
-                style={{ display: 'block', marginBottom: 12 }}
+          {/* ─── PHẦN E: ƯU TIÊN CAN THIỆP ─── */}
+          <Title level={5} style={{ margin: '0 0 12px', color: '#555', letterSpacing: 0.2 }}>
+            <FireOutlined style={{ marginRight: 6, color: '#F5222D' }} />
+            Ưu tiên can thiệp vận hành
+          </Title>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={12}>
+              <Card
+                title={
+                  <Space>
+                    <BarChartOutlined style={{ color: '#F5222D' }} />
+                    <span>Xếp hạng hành lang theo tổng thời gian trễ</span>
+                  </Space>
+                }
               >
-                Các segment thường xuyên nghẽn nhất trong corridor đang theo
-                dõi.
-              </Text>
-              <div style={{ height: 280 }}>
-                <Bar
-                  data={bottleneckData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                  }}
-                />
-              </div>
-            </Card>
-          </Col>
-
-          <Col xs={24} lg={12}>
-            <Card title="Cảnh báo ngưỡng & so sánh baseline">
-              <Text
-                type="secondary"
-                style={{ display: 'block', marginBottom: 12 }}
+                <Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 12 }}>
+                  Hành lang đứng đầu = ưu tiên số một trong phân bổ lực lượng xử lý. Màu đỏ = cần can thiệp ngay.
+                </Text>
+                <div style={{ height: 280 }}>
+                  {dash.topDelayCorridors.length > 0 ? (
+                    <Bar
+                      data={rankingChartData}
+                      options={{
+                        ...chartBaseOptions,
+                        indexAxis: 'y' as const,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                          x: { ...chartBaseOptions.scales.x, title: { display: true, text: 'Tổng độ trễ (giây)' } },
+                          y: { ...chartBaseOptions.scales.y, ticks: { font: { size: 11 } } },
+                        },
+                      }}
+                    />
+                  ) : (
+                    <EmptyState message="Chưa có dữ liệu xếp hạng" />
+                  )}
+                </div>
+              </Card>
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card
+                title={
+                  <Space>
+                    <FireOutlined style={{ color: '#722ed1' }} />
+                    <span>Điểm nghẽn cổ chai thường xuyên</span>
+                  </Space>
+                }
               >
-                Cảnh báo vượt ngưỡng vận hành và mức chênh lệch so với baseline
-                lịch sử.
-              </Text>
-              <Space direction="vertical" size={10}>
-                <Tag
-                  color={
-                    corridorDashboard.alerts.isBelowTargetSpeed
-                      ? 'red'
-                      : 'green'
-                  }
-                >
-                  {corridorDashboard.alerts.isBelowTargetSpeed
-                    ? 'Tốc độ dưới mục tiêu'
-                    : 'Tốc độ đạt mục tiêu'}
-                </Tag>
-                <Tag
-                  color={corridorDashboard.alerts.isHighTti ? 'red' : 'green'}
-                >
-                  {corridorDashboard.alerts.isHighTti
-                    ? 'TTI cao (cảnh báo)'
-                    : 'TTI trong ngưỡng'}
-                </Tag>
-                <Tag
-                  color={
-                    corridorDashboard.alerts.isHighIncidentCount
-                      ? 'orange'
-                      : 'green'
-                  }
-                >
-                  {corridorDashboard.alerts.isHighIncidentCount
-                    ? 'Số sự cố cao'
-                    : 'Số sự cố ổn định'}
-                </Tag>
-
-                <Text>
-                  Delta tốc độ vs baseline:{' '}
-                  <strong>
-                    {corridorDashboard.baselineComparison.speedDeltaPct === null
-                      ? 'N/A'
-                      : `${corridorDashboard.baselineComparison.speedDeltaPct.toFixed(2)}%`}
-                  </strong>
+                <Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 12 }}>
+                  Đoạn đường thường xuyên trở thành điểm nghẽn — ưu tiên khảo sát hạ tầng tại đây.
                 </Text>
-                <Text>
-                  Delta tổng trễ vs baseline:{' '}
-                  <strong>
-                    {corridorDashboard.baselineComparison.delayDeltaPct === null
-                      ? 'N/A'
-                      : `${corridorDashboard.baselineComparison.delayDeltaPct.toFixed(2)}%`}
-                  </strong>
-                </Text>
-              </Space>
-            </Card>
-          </Col>
-        </Row>
+                <div style={{ height: 280 }}>
+                  {dash.topBottlenecks.length > 0 ? (
+                    <Bar
+                      data={bottleneckChartData}
+                      options={{
+                        ...chartBaseOptions,
+                        indexAxis: 'y' as const,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                          x: { ...chartBaseOptions.scales.x, title: { display: true, text: 'Số lần xuất hiện' }, ticks: { stepSize: 1 } },
+                          y: { ...chartBaseOptions.scales.y, ticks: { font: { size: 11 } } },
+                        },
+                      }}
+                    />
+                  ) : (
+                    <EmptyState message="Chưa có dữ liệu điểm nghẽn" />
+                  )}
+                </div>
+              </Card>
+            </Col>
+          </Row>
+        </>
       )}
-    </Card>
+    </div>
   )
 }
