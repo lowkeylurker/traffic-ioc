@@ -24,6 +24,7 @@ export const MainLayout: React.FC = () => {
   const location = useLocation()
   const { isSignedIn, signOut, getToken } = useAuth()
   const { user } = useUser()
+  const [collapsed, setCollapsed] = useState(true)
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
 
   // Guest mode is when user is not signed in
@@ -102,6 +103,9 @@ export const MainLayout: React.FC = () => {
       <Sider
         width={LAYOUT_SIDER_WIDTH}
         theme="light"
+        collapsible
+        collapsed={collapsed}
+        onCollapse={(value) => setCollapsed(value)}
         style={{
           background: '#ffffff',
           borderRight: '1px solid #f0f0f0',
@@ -109,16 +113,26 @@ export const MainLayout: React.FC = () => {
           flexDirection: 'column',
         }}
       >
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
           <div
             style={{
               padding: '16px',
+              textAlign: collapsed ? 'center' : 'left',
               color: '#001529',
-              fontSize: 18,
+              fontSize: collapsed ? 20 : 18,
               fontWeight: 'bold',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s',
             }}
           >
-            Traffic IOC
+            {collapsed ? '🚦' : 'Traffic IOC'}
           </div>
           <Menu
             theme="light"
@@ -126,45 +140,59 @@ export const MainLayout: React.FC = () => {
             selectedKeys={[location.pathname]}
             items={visibleMenuItems}
             onClick={(item) => navigate(item.key)}
-            style={{ flex: 1 }}
+            style={{ flex: 1, borderInlineEnd: 'none' }}
           />
         </div>
         <div
           style={{
             marginTop: 'auto',
-            padding: '16px',
+            padding: collapsed ? '16px 8px' : '16px',
             borderTop: '1px solid #f0f0f0',
             display: 'flex',
             flexDirection: 'column',
             gap: '8px',
+            transition: 'all 0.2s',
           }}
         >
           {isGuest ? (
             <Button
               type="primary"
-              block
+              block={!collapsed}
               onClick={() => setAuthDialogOpen(true)}
+              icon={collapsed ? <UserOutlined /> : undefined}
+              style={{ padding: collapsed ? 0 : undefined }}
             >
-              Đăng nhập / Đăng ký
+              {!collapsed && 'Đăng nhập / Đăng ký'}
             </Button>
           ) : (
             <>
-              <span
-                style={{
-                  fontSize: 12,
-                  color: 'rgba(0, 0, 0, 0.65)',
-                  textAlign: 'center',
-                }}
-              >
-                {user?.firstName} {user?.lastName}
-              </span>
+              {!collapsed && (
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: 'rgba(0, 0, 0, 0.65)',
+                    textAlign: 'center',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {user?.firstName} {user?.lastName}
+                </span>
+              )}
               <Button
-                type="text"
+                type={collapsed ? 'primary' : 'text'}
                 icon={<LogoutOutlined />}
                 onClick={handleLogout}
                 size="small"
+                block
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                }}
               >
-                Đăng xuất
+                {!collapsed && 'Đăng xuất'}
               </Button>
             </>
           )}
