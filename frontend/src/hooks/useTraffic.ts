@@ -23,7 +23,7 @@ import {
 } from '@/utils/segmentCache'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-const TRAFFIC_STATUS_CACHE_MAX_AGE_MS = 2 * 60 * 1000
+const TRAFFIC_STATUS_CACHE_MAX_AGE_MS = 15 * 60 * 1000
 
 // Fetch segments hook (danh sách đoạn đường tĩnh ban đầu - deprecated for map rendering, use useTrafficMap instead)
 export const useSegments = () => {
