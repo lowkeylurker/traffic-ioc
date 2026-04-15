@@ -38,10 +38,10 @@ export const LiveNewsTicker: React.FC = () => {
     // Initial fetch
     void fetchNews();
 
-    // Lặp tự động mỗi 2 phút theo yêu cầu (khớp với cron job backend)
+    // Lặp tự động mỗi 3 phút theo yêu cầu (khớp với cron job backend)
     const interval = setInterval(() => {
       void fetchNews();
-    }, 120000);
+    }, 180000);
 
     return () => {
       clearInterval(interval);

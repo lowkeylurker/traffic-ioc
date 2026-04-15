@@ -24,7 +24,7 @@ async function fetchTrafficData() {
           corridor_key, travel_time_index, total_delay_seconds, timestamp
         FROM fact_corridor_performance
         WHERE timestamp >= NOW() - INTERVAL '15 minutes'
-        ORDER BY corridor_key, timestamp DESC
+          AND timestamp::date = CURRENT_DATE
       )
       SELECT 
         dc.corridor_name as corridor, 
@@ -66,7 +66,7 @@ async function fetchTrafficData() {
           segment_key, los_level
         FROM fact_traffic_flow
         WHERE timestamp >= NOW() - INTERVAL '15 minutes'
-        ORDER BY segment_key, timestamp DESC
+          AND timestamp::date = CURRENT_DATE
       )
       SELECT dr.name as road, f.los_level as level
       FROM latest_flow f
@@ -94,7 +94,7 @@ async function fetchTrafficData() {
       LEFT JOIN dim_way dw ON ds.way_key = dw.way_key
       LEFT JOIN dim_road dr ON dw.road_key = dr.road_key
       WHERE fi.timestamp >= NOW() - INTERVAL '30 minutes'
-      ORDER BY fi.timestamp DESC
+        AND fi.timestamp::date = CURRENT_DATE
       LIMIT 1
     `;
     if (incidentRaw && incidentRaw.length > 0) {
@@ -123,7 +123,7 @@ async function processGenerateNews(job: Job) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite-preview' });
 
     const prompt = `[SYSTEM INSTRUCTION]
 Bạn là một Biên tập viên Kênh Truyền hình Giao thông Quốc gia (VTV Giao thông). 

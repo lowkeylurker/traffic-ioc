@@ -171,6 +171,7 @@ export class WeatherService {
             timestamp
           FROM fact_traffic_flow
           WHERE timestamp >= NOW() - INTERVAL '15 minutes'
+            AND timestamp::date = CURRENT_DATE
           ORDER BY segment_key, timestamp DESC
         )
         SELECT
