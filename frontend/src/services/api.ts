@@ -207,4 +207,10 @@ export const userApi = {
     axiosInstance.patch(`/user/report/${reportId}/status`, payload),
 }
 
+// News Ticker API
+export const newsApi = {
+  getTicker: (): Promise<ApiResponse<{ news: string }>> =>
+    axiosInstance.get('/news/ticker'),
+}
+
 export default axiosInstance
