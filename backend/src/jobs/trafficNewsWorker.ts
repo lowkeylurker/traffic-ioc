@@ -19,15 +19,39 @@ async function fetchTrafficData() {
   let highestTTI = { road: 'Chưa có dữ liệu', value: 0, delaySeconds: 0 };
   try {
     const ttiRaw = await prisma.$queryRaw<any[]>`
-      SELECT dc.corridor_name as corridor, fcp.travel_time_index as tti, fcp.total_delay_seconds as delay
-      FROM fact_corridor_performance fcp
-      JOIN dim_corridor dc ON fcp.corridor_key = dc.corridor_key
-      WHERE fcp.timestamp >= NOW() - INTERVAL '15 minutes'
-      ORDER BY fcp.travel_time_index DESC NULLS LAST
+      WITH latest_corridor_flow AS (
+        SELECT DISTINCT ON (corridor_key)
+          corridor_key, travel_time_index, total_delay_seconds, timestamp
+        FROM fact_corridor_performance
+        WHERE timestamp >= NOW() - INTERVAL '15 minutes'
+        ORDER BY corridor_key, timestamp DESC
+      )
+      SELECT 
+        dc.corridor_name as corridor, 
+        f.travel_time_index as tti, 
+        f.total_delay_seconds as delay,
+        dc.total_length_m as length,
+        dc.target_avg_speed as target_speed
+      FROM latest_corridor_flow f
+      JOIN dim_corridor dc ON f.corridor_key = dc.corridor_key
+      WHERE dc.target_avg_speed IS NOT NULL AND dc.target_avg_speed > 0
+      ORDER BY f.travel_time_index DESC NULLS LAST
       LIMIT 1
     `;
     if (ttiRaw && ttiRaw.length > 0 && ttiRaw[0].corridor) {
-      highestTTI = { road: ttiRaw[0].corridor, value: ttiRaw[0].tti, delaySeconds: ttiRaw[0].delay };
+      const row = ttiRaw[0];
+      // Tính toán delay chính xác hơn cho 1 hành trình: 
+      // Delay (s) = (TTI - 1) * Free_Flow_Time(s)
+      // Free_Flow_Time = (Length/1000 km) / (Target_Speed km/h) * 3600 (s/h)
+      const freeFlowTime = (row.length * 3.6) / row.target_speed;
+      const calculatedDelay = Math.round((row.tti - 1) * freeFlowTime);
+      
+      // Sử dụng giá trị tính toán, nếu vô lý thì fallback về giá trị từ DB
+      highestTTI = { 
+        road: row.corridor, 
+        value: row.tti, 
+        delaySeconds: calculatedDelay > 0 ? calculatedDelay : (row.delay || 0) 
+      };
     }
   } catch (e) {
     logger.warn('Could not fetch highest TTI', e);
