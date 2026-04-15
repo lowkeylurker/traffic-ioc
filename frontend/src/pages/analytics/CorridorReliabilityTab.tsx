@@ -7,6 +7,7 @@ import {
   ReliabilityTimeWindow,
 } from '@/types'
 import {
+  ApartmentOutlined,
   DatabaseOutlined,
   FilterOutlined,
   SearchOutlined,
@@ -35,6 +36,12 @@ import { Doughnut } from 'react-chartjs-2'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 const { Text, Title } = Typography
+
+const TIME_WINDOW_LABELS: Record<string, string> = {
+  AM_PEAK: 'Giờ cao điểm sáng (07:00-09:00)',
+  PM_PEAK: 'Giờ cao điểm chiều (16:00-18:30)',
+  OFF_PEAK: 'Giờ bình thường (ngoài cao điểm)',
+}
 
 type CorridorReliabilityItem = CorridorReliabilityData
 type CorridorLimitOption = number | 'all'
@@ -472,87 +479,112 @@ export const CorridorReliabilityTab: React.FC = () => {
 
   const segmentTableColumns = [
     {
-      title: 'Segment',
+      title: 'Tên đoạn đường',
       dataIndex: 'segmentName',
       key: 'segmentName',
+      ellipsis: true,
+      render: (value: string) => <Text style={{ fontSize: 12 }}>{value}</Text>,
     },
     {
-      title: 'Corridor',
+      title: 'Hành lang',
       dataIndex: 'corridorName',
       key: 'corridorName',
+      ellipsis: true,
+      render: (value: string) => <Text type="secondary" style={{ fontSize: 12 }}>{value}</Text>,
     },
     {
-      title: 'Buffer Index',
+      title: 'Chỉ số dự phòng (BI)',
       dataIndex: 'bufferIndex',
       key: 'bufferIndex',
       render: (value: number) => (
-        <Tag color={value < 0.2 ? 'green' : value <= 0.4 ? 'orange' : 'red'}>
+        <Tag
+          color={value < 0.2 ? 'green' : value <= 0.4 ? 'orange' : 'red'}
+          style={{ borderRadius: 6, fontWeight: 600 }}
+        >
           {value.toFixed(2)}
         </Tag>
       ),
     },
     {
-      title: 'PTI',
+      title: 'PTI (biến động)',
       dataIndex: 'pti',
       key: 'pti',
-      render: (value: number) => value.toFixed(2),
+      render: (value: number) => (
+        <span style={{ color: value <= 1.25 ? '#52C41A' : value <= 1.5 ? '#FA8C16' : '#F5222D', fontWeight: 600 }}>
+          {value.toFixed(2)}
+        </span>
+      ),
     },
     {
-      title: 'Tg di chuyển',
+      title: 'Thời gian di chuyển',
       dataIndex: 'tAvg',
       key: 'tAvg',
       render: (value: number | null) => formatTravelTime(value),
     },
     {
-      title: 'Segment Key',
+      title: 'Mã đoạn',
       dataIndex: 'segmentKey',
       key: 'segmentKey',
+      render: (value: string) => <Text type="secondary" style={{ fontSize: 11 }}>{value}</Text>,
     },
   ]
 
   const corridorSummaryColumns = [
     {
-      title: 'Corridor',
+      title: 'Tên hành lang',
       dataIndex: 'corridorName',
       key: 'corridorName',
+      render: (value: string) => <Text strong style={{ fontSize: 13 }}>{value}</Text>,
     },
     {
-      title: 'Số segment',
+      title: 'Số đoạn',
       dataIndex: 'segmentCount',
       key: 'segmentCount',
+      render: (value: number) => <Text>{value} đoạn</Text>,
     },
     {
-      title: 'Buffer Index (TB)',
+      title: 'Chỉ số BI (TB)',
       dataIndex: 'bufferIndexAvg',
       key: 'bufferIndexAvg',
+      sorter: (a: CorridorSummaryRow, b: CorridorSummaryRow) => b.bufferIndexAvg - a.bufferIndexAvg,
       render: (value: number) => (
-        <Tag color={value < 0.2 ? 'green' : value <= 0.4 ? 'orange' : 'red'}>
+        <Tag
+          color={value < 0.2 ? 'green' : value <= 0.4 ? 'orange' : 'red'}
+          style={{ borderRadius: 6, fontWeight: 600, minWidth: 50, textAlign: 'center' }}
+        >
           {value.toFixed(2)}
         </Tag>
       ),
     },
     {
-      title: 'PTI (TB)',
+      title: 'PTI TB',
       dataIndex: 'ptiAvg',
       key: 'ptiAvg',
-      render: (value: number) => value.toFixed(2),
+      sorter: (a: CorridorSummaryRow, b: CorridorSummaryRow) => b.ptiAvg - a.ptiAvg,
+      render: (value: number) => (
+        <span style={{ color: value <= 1.25 ? '#52C41A' : value <= 1.5 ? '#FA8C16' : '#F5222D', fontWeight: 600 }}>
+          {value.toFixed(2)}
+        </span>
+      ),
     },
     {
-      title: 'Tg đi hết corridor',
+      title: 'Thời gian đi hết',
       dataIndex: 'tAvgSeconds',
       key: 'tAvgSeconds',
       render: (value: number) => formatTravelTime(value),
     },
     {
-      title: 'Action',
+      title: 'Phân tích',
       key: 'action',
       render: (_: unknown, row: CorridorSummaryRow) => (
         <Button
           icon={<SearchOutlined />}
-          type="text"
+          type="primary"
+          size="small"
           onClick={() => setSelectedCorridorAnalysis(row)}
+          style={{ borderRadius: 6 }}
         >
-          Phân tích
+          Chi tiết
         </Button>
       ),
     },
@@ -580,46 +612,75 @@ export const CorridorReliabilityTab: React.FC = () => {
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card
+        style={{ background: 'linear-gradient(135deg,#f8f9fe 0%,#eef2fb 100%)', border: '1px solid #e8ecf5' }}
+        bodyStyle={{ padding: '16px 20px' }}
         title={
-          <Space size={8}>
+          <Space>
             <FilterOutlined />
-            <span>Bộ lọc độ tin cậy corridor</span>
+            <span>Bộ lọc phân tích độ tin cậy hành lang</span>
           </Space>
         }
       >
-        <Space size={12} wrap>
-          <Select
-            style={{ minWidth: 220 }}
-            value={timeWindow}
-            onChange={(value: ReliabilityTimeWindow) => setTimeWindow(value)}
-            options={[
-              { label: 'Giờ cao điểm sáng', value: 'AM_PEAK' },
-              { label: 'Giờ cao điểm chiều', value: 'PM_PEAK' },
-              { label: 'Giờ bình thường', value: 'OFF_PEAK' },
-            ]}
-          />
-          <Select
-            style={{ minWidth: 260 }}
-            value={selectedCorridorKey}
-            onChange={(value: string | 'all') => setSelectedCorridorKey(value)}
-            options={[
-              { label: 'Tất cả corridor', value: 'all' },
-              ...corridorOptions.map((corridor) => ({
-                label: corridor.corridorName,
-                value: corridor.corridorKey,
-              })),
-            ]}
-          />
-          <Select
-            style={{ minWidth: 220 }}
-            value={segmentSortBy}
-            onChange={(value: ReliabilitySortBy) => setSegmentSortBy(value)}
-            options={[
-              { label: 'Segment sort: Buffer Index', value: 'buffer_index' },
-              { label: 'Segment sort: PTI', value: 'pti' },
-            ]}
-          />
-        </Space>
+        <Row gutter={[12, 12]} align="middle">
+          <Col xs={24} md={8}>
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>Khung thời gian</Text>
+              <Select
+                style={{ width: '100%' }}
+                value={timeWindow}
+                onChange={(value: ReliabilityTimeWindow) => setTimeWindow(value)}
+                options={[
+                  { label: TIME_WINDOW_LABELS['AM_PEAK'], value: 'AM_PEAK' },
+                  { label: TIME_WINDOW_LABELS['PM_PEAK'], value: 'PM_PEAK' },
+                  { label: TIME_WINDOW_LABELS['OFF_PEAK'], value: 'OFF_PEAK' },
+                ]}
+                size="large"
+              />
+            </Space>
+          </Col>
+          <Col xs={24} md={8}>
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>Lọc theo hành lang</Text>
+              <Select
+                style={{ width: '100%' }}
+                value={selectedCorridorKey}
+                onChange={(value: string | 'all') => setSelectedCorridorKey(value)}
+                options={[
+                  { label: 'Tất cả hành lang', value: 'all' },
+                  ...corridorOptions.map((corridor) => ({
+                    label: corridor.corridorName,
+                    value: corridor.corridorKey,
+                  })),
+                ]}
+                size="large"
+                showSearch
+                optionFilterProp="label"
+              />
+            </Space>
+          </Col>
+          <Col xs={24} md={8}>
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>Sắp xếp đoạn đường theo</Text>
+              <Select
+                style={{ width: '100%' }}
+                value={segmentSortBy}
+                onChange={(value: ReliabilitySortBy) => setSegmentSortBy(value)}
+                options={[
+                  { label: 'Chỉ số dự phòng (Buffer Index)', value: 'buffer_index' },
+                  { label: 'Chỉ số biến động (PTI)', value: 'pti' },
+                ]}
+                size="large"
+              />
+            </Space>
+          </Col>
+        </Row>
+        <div style={{ marginTop: 12 }}>
+          <Space size={8} wrap>
+            <Tag color="green" style={{ borderRadius: 6 }}>Ổn định — BI &lt; 0.2: Thời gian di chuyển nhất quán, ít biến động</Tag>
+            <Tag color="orange" style={{ borderRadius: 6 }}>Thất thường — BI 0.2-0.4: Cần theo dõi, ưu tiên điều phối</Tag>
+            <Tag color="red" style={{ borderRadius: 6 }}>Báo động — BI &gt; 0.4: Cần can thiệp, có nguy cơ ùn tắc kéo dài</Tag>
+          </Space>
+        </div>
       </Card>
 
       {rows.length === 0 ? (
@@ -631,9 +692,10 @@ export const CorridorReliabilityTab: React.FC = () => {
               title={
                 <Space size={8}>
                   <DatabaseOutlined />
-                  <span>Danh sách segment reliability</span>
+                  <span>Danh sách đoạn đường theo độ tin cậy</span>
                 </Space>
               }
+              extra={<Text type="secondary" style={{ fontSize: 12 }}>Click vào hàng để xem trên bản đồ</Text>}
             >
               <Table<CorridorReliabilityItem>
                 rowKey="segmentKey"
@@ -650,13 +712,16 @@ export const CorridorReliabilityTab: React.FC = () => {
           </Col>
 
           <Col xs={24} xl={14}>
-            <Card title="Static heatmap reliability theo corridor">
-              <Text
-                type="secondary"
-                style={{ display: 'block', marginBottom: 12 }}
-              >
-                Quy tắc màu: Xanh (&lt;0.2), Vàng/Cam (0.2-0.4), Đỏ sẫm
-                (&gt;0.4).
+            <Card
+              title={
+                <Space>
+                  <ApartmentOutlined />
+                  <span>Bản đồ độ tin cậy hành lang — {TIME_WINDOW_LABELS[timeWindow]}</span>
+                </Space>
+              }
+            >
+              <Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 12 }}>
+                Màu sắc đoạn đường phản ánh mức độ đáng tin cậy trong khung giờ đã chọn. Click vào đoạn đường trong bảng để zoom bản đồ.
               </Text>
               {mapboxToken ? (
                 <div
@@ -703,23 +768,23 @@ export const CorridorReliabilityTab: React.FC = () => {
           title={
             <Space size={8}>
               <DatabaseOutlined />
-              <span>Bảng tổng hợp corridor reliability (TB theo segment)</span>
+              <span>Tổng hợp mức độ tin cậy theo hành lang (trung bình từng đoạn)</span>
             </Space>
           }
           extra={
             <Space size={8}>
               <Select
-                style={{ width: 220 }}
+                style={{ width: 240 }}
                 value={corridorSortBy}
                 onChange={(value: ReliabilitySortBy) =>
                   setCorridorSortBy(value)
                 }
                 options={[
                   {
-                    label: 'Corridor sort: Buffer Index (TB)',
+                    label: 'Sắp xếp: Buffer Index (TB)',
                     value: 'buffer_index',
                   },
-                  { label: 'Corridor sort: PTI (TB)', value: 'pti' },
+                  { label: 'Sắp xếp: PTI (TB)', value: 'pti' },
                 ]}
               />
               <Select
@@ -729,7 +794,7 @@ export const CorridorReliabilityTab: React.FC = () => {
                   setCorridorLimit(value)
                 }
                 options={[
-                  { label: 'All', value: 'all' },
+                  { label: 'Tất cả', value: 'all' },
                   { label: 'Top 5', value: 5 },
                   { label: 'Top 10', value: 10 },
                   { label: 'Top 15', value: 15 },
