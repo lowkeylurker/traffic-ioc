@@ -1,5 +1,6 @@
 export { AnalyticsPage } from './AnalyticsPage'
 export { CitizenReportsAdminPage } from './CitizenReportsAdminPage'
+export { DashboardPage } from './DashboardPage'
 export { NewsPage } from './NewsPage'
 export { RealTimePage } from './RealTimePage'
 export { SimulationPage } from './SimulationPage'

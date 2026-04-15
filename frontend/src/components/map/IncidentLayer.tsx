@@ -1,5 +1,11 @@
 // Incident Layer Component (A2)
 import { IncidentFeature, IncidentSeverity, IncidentType } from '@/types'
+import {
+  ExclamationCircleOutlined,
+  FireOutlined,
+  ToolOutlined,
+  WarningOutlined,
+} from '@ant-design/icons'
 import { Button, Tag } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
 import { Marker, Popup } from 'react-map-gl'
@@ -9,6 +15,9 @@ interface IncidentLayerProps {
   isLoading?: boolean
   onIncidentClick?: (incident: IncidentFeature) => void
   mapRef?: React.RefObject<unknown>
+
+  selectedIncident?: IncidentFeature | null
+  onSelectedIncidentChange?: (incident: IncidentFeature | null) => void
 }
 
 type ZoomAwareMap = {
@@ -21,13 +30,13 @@ type MapRefLike = {
   getMap?: () => ZoomAwareMap
 } & Partial<ZoomAwareMap>
 
-// Icon mapping for incident types
-const INCIDENT_ICONS: Record<IncidentType, string> = {
-  ACCIDENT: '💥',
-  FLOOD: '🌊',
-  CONSTRUCTION: '🚧',
-  FIRE: '🔥',
-  OTHER: '⚠️',
+// Icon mapping for incident types (outlined icons)
+const INCIDENT_ICONS: Record<IncidentType, React.ReactNode> = {
+  ACCIDENT: <WarningOutlined />,
+  FLOOD: <ExclamationCircleOutlined />,
+  CONSTRUCTION: <ToolOutlined />,
+  FIRE: <FireOutlined />,
+  OTHER: <ExclamationCircleOutlined />,
 }
 
 // Severity colors
@@ -43,10 +52,25 @@ export const IncidentLayer: React.FC<IncidentLayerProps> = ({
   isLoading,
   onIncidentClick,
   mapRef,
+  selectedIncident: controlledSelectedIncident,
+  onSelectedIncidentChange,
 }) => {
-  const [selectedIncident, setSelectedIncident] =
+  const [uncontrolledSelectedIncident, setUncontrolledSelectedIncident] =
     useState<IncidentFeature | null>(null)
   const [currentZoom, setCurrentZoom] = useState<number>(12)
+
+  const selectedIncident =
+    controlledSelectedIncident !== undefined
+      ? controlledSelectedIncident
+      : uncontrolledSelectedIncident
+
+  const setSelectedIncident = (next: IncidentFeature | null) => {
+    if (controlledSelectedIncident !== undefined) {
+      onSelectedIncidentChange?.(next)
+      return
+    }
+    setUncontrolledSelectedIncident(next)
+  }
 
   useEffect(() => {
     if (!mapRef) return
@@ -90,12 +114,8 @@ export const IncidentLayer: React.FC<IncidentLayerProps> = ({
     () => Math.max(22, Math.min(44, 22 + (currentZoom - 10) * 2.2)),
     [currentZoom]
   )
-  const markerBorderWidth = useMemo(
-    () => Math.max(2, Math.min(4, markerSize * 0.08)),
-    [markerSize]
-  )
   const markerIconSize = useMemo(
-    () => Math.max(14, Math.min(24, markerSize * 0.52)),
+    () => Math.max(16, Math.min(28, markerSize * 0.62)),
     [markerSize]
   )
 
@@ -132,22 +152,33 @@ export const IncidentLayer: React.FC<IncidentLayerProps> = ({
                 animation:
                   severity === 'CRITICAL' ? 'pulse 1.5s infinite' : 'none',
               }}
+              title={`${incident.properties.title} (${severity})`}
+              aria-label={`Sự cố: ${incident.properties.title}`}
             >
               <div
                 style={{
-                  background: 'white',
-                  borderRadius: '50%',
                   width: `${markerSize}px`,
                   height: `${markerSize}px`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: `${markerIconSize}px`,
-                  border: `${markerBorderWidth}px solid ${SEVERITY_COLORS[severity]}`,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                  color: SEVERITY_COLORS[severity],
+                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.35))',
+                  userSelect: 'none',
                 }}
               >
-                {INCIDENT_ICONS[type]}
+                <span
+                  style={{
+                    fontSize: `${markerIconSize}px`,
+                    lineHeight: 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {INCIDENT_ICONS[type]}
+                </span>
               </div>
             </div>
           </Marker>
@@ -269,7 +300,7 @@ export const IncidentLayer: React.FC<IncidentLayerProps> = ({
                 flexWrap: 'wrap',
               }}
             >
-              <span>🕓</span>
+              <span style={{ color: 'rgba(0,0,0,0.55)' }}>🕓</span>
               {new Date(selectedIncident.properties.timestamp).toLocaleString(
                 'vi-VN'
               )}

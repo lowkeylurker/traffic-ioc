@@ -2,7 +2,6 @@
 
 import {
   AlertOutlined,
-  BgColorsOutlined,
   CameraOutlined,
   CloudOutlined,
   CompassOutlined,
@@ -19,9 +18,13 @@ interface MapControlsProps {
   onCompass?: () => void
   onCamera?: () => void
   onSegmentStatusToggle?: (enabled: boolean) => void
-  onHeatmapToggle?: (enabled: boolean) => void
   onWeatherToggle?: (enabled: boolean) => void
   onIncidentToggle?: (enabled: boolean) => void
+  showCamera?: boolean
+
+  defaultSegmentStatusLayerEnabled?: boolean
+  defaultWeatherLayerEnabled?: boolean
+  defaultIncidentLayerEnabled?: boolean
 }
 
 export const MapControls: React.FC<MapControlsProps> = ({
@@ -30,24 +33,27 @@ export const MapControls: React.FC<MapControlsProps> = ({
   onCompass,
   onCamera,
   onSegmentStatusToggle,
-  onHeatmapToggle,
   onWeatherToggle,
   onIncidentToggle,
+  showCamera = true,
+
+  defaultSegmentStatusLayerEnabled = true,
+  defaultWeatherLayerEnabled = false,
+  defaultIncidentLayerEnabled = false,
 }) => {
-  const [segmentStatusLayerEnabled, setSegmentStatusLayerEnabled] =
-    useState(true)
-  const [heatmapEnabled, setHeatmapEnabled] = useState(false)
-  const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(false)
-  const [incidentLayerEnabled, setIncidentLayerEnabled] = useState(false)
+  const [segmentStatusLayerEnabled, setSegmentStatusLayerEnabled] = useState(
+    defaultSegmentStatusLayerEnabled
+  )
+  const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(
+    defaultWeatherLayerEnabled
+  )
+  const [incidentLayerEnabled, setIncidentLayerEnabled] = useState(
+    defaultIncidentLayerEnabled
+  )
 
   const handleSegmentStatusToggle = () => {
     setSegmentStatusLayerEnabled(!segmentStatusLayerEnabled)
     onSegmentStatusToggle?.(!segmentStatusLayerEnabled)
-  }
-
-  const handleHeatmapToggle = () => {
-    setHeatmapEnabled(!heatmapEnabled)
-    onHeatmapToggle?.(!heatmapEnabled)
   }
 
   const handleWeatherToggle = () => {
@@ -127,15 +133,17 @@ export const MapControls: React.FC<MapControlsProps> = ({
           </Tooltip>
 
           <Tooltip title="Camera giám sát" placement="left">
-            <Button
-              type="text"
-              size="small"
-              icon={
-                <CameraOutlined style={{ fontSize: 18, color: '#722ed1' }} />
-              }
-              onClick={onCamera}
-              style={{ width: '100%', textAlign: 'center' }}
-            />
+            {showCamera && (
+              <Button
+                type="text"
+                size="small"
+                icon={
+                  <CameraOutlined style={{ fontSize: 18, color: '#722ed1' }} />
+                }
+                onClick={onCamera}
+                style={{ width: '100%', textAlign: 'center' }}
+              />
+            )}
           </Tooltip>
 
           <Tooltip
@@ -151,19 +159,6 @@ export const MapControls: React.FC<MapControlsProps> = ({
               size="small"
               icon={<LineChartOutlined style={{ fontSize: 18 }} />}
               onClick={handleSegmentStatusToggle}
-              style={{ width: '100%', textAlign: 'center' }}
-            />
-          </Tooltip>
-
-          <Tooltip
-            placement="left"
-            title={heatmapEnabled ? 'Tắt bản đồ nhiệt' : 'Bật bản đồ nhiệt'}
-          >
-            <Button
-              type={heatmapEnabled ? 'primary' : 'text'}
-              size="small"
-              icon={<BgColorsOutlined style={{ fontSize: 18 }} />}
-              onClick={handleHeatmapToggle}
               style={{ width: '100%', textAlign: 'center' }}
             />
           </Tooltip>

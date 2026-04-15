@@ -13,6 +13,7 @@ import {
   PointElement,
   Title,
   Tooltip,
+  type TooltipItem,
 } from 'chart.js'
 import React from 'react'
 import { Bar, Doughnut, Line, Scatter } from 'react-chartjs-2'
@@ -254,9 +255,20 @@ export const ComparisonChart: React.FC<ComparisonChartProps> = ({
         },
         tooltip: {
           callbacks: {
-            label: (context: { raw: { x: number; y: number } }) => {
-              const x = context.raw.x
-              const y = context.raw.y
+            label: (tooltipItem: TooltipItem<'scatter'>) => {
+              const raw = tooltipItem.raw as unknown as
+                | { x: number; y: number | null }
+                | undefined
+
+              const x = raw?.x ?? 0
+              const y = raw?.y
+              if (
+                y === null ||
+                y === undefined ||
+                !Number.isFinite(Number(y))
+              ) {
+                return `${getHourLabel(x)}: N/A`
+              }
               return `${getHourLabel(x)}: ${y.toFixed(2)} ${unit}`
             },
           },
@@ -511,8 +523,8 @@ export const ComparisonDeltaPercentBarChart: React.FC<
       },
       tooltip: {
         callbacks: {
-          label: (context: { raw: number | null }) => {
-            const value = context.raw
+          label: (tooltipItem: TooltipItem<'bar'>) => {
+            const value = tooltipItem.raw as unknown as number | null
             if (value === null) {
               return 'N/A'
             }
@@ -762,11 +774,12 @@ export const MiniSparklineChart: React.FC<MiniSparklineChartProps> = ({
       },
       tooltip: {
         callbacks: {
-          label: (context: { raw: number | null }) => {
-            if (context.raw === null) {
+          label: (tooltipItem: TooltipItem<'line'>) => {
+            const raw = tooltipItem.raw as unknown as number | null
+            if (raw === null) {
               return 'N/A'
             }
-            return `Giá trị TB: ${Number(context.raw).toFixed(2)}`
+            return `Giá trị TB: ${Number(raw).toFixed(2)}`
           },
         },
       },
@@ -835,8 +848,8 @@ export const AnomalyDistributionChart: React.FC<
       },
       tooltip: {
         callbacks: {
-          label: (context: { raw: number }) => {
-            const severity = Number(context.raw)
+          label: (tooltipItem: TooltipItem<'bar'>) => {
+            const severity = Number(tooltipItem.raw as unknown as number)
             return severity > 0
               ? `Mức lệch bất thường: ${severity.toFixed(2)}`
               : 'Không bất thường'
