@@ -175,13 +175,15 @@ export class WeatherService {
         )
         SELECT
           s.segment_key::text as "segmentId",
-          s.segment_id_source::text as "segmentName",
+          COALESCE(r.name, s.segment_id_source::text) as "segmentName",
           ST_AsGeoJSON(s.geometry_linestring)::json as geometry,
           dw.weather_id as "weatherId",
           dw.main_category as "weatherCategory",
           dw.severity_level as "severityLevel",
           lf.timestamp as "timestamp"
         FROM dim_segment s
+        LEFT JOIN dim_way w ON w.way_key = s.way_key
+        LEFT JOIN dim_road r ON r.road_key = w.road_key
         LEFT JOIN latest_flow lf ON lf.segment_key = s.segment_key
         LEFT JOIN dim_weather dw ON dw.weather_key = lf.weather_key
         ORDER BY s.segment_key

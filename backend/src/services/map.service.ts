@@ -320,7 +320,7 @@ export class MapService {
         rows = await prisma.$queryRaw<any[]>`
           SELECT
             s.segment_key::text as "segmentId",
-            s.segment_id_source::text as "segmentName",
+            COALESCE(r.name, s.segment_id_source::text) as "segmentName",
             w.road_key::text as "roadKey",
             r.name as "roadName",
             EXISTS (
@@ -341,7 +341,7 @@ export class MapService {
         rows = await prisma.$queryRaw<any[]>`
           SELECT
             s.segment_key::text as "segmentId",
-            s.segment_id_source::text as "segmentName",
+            COALESCE(r.name, s.segment_id_source::text) as "segmentName",
             w.road_key::text as "roadKey",
             r.name as "roadName",
             false as "isCorridor",
@@ -447,7 +447,7 @@ export class MapService {
         )
         SELECT
           f.segment_key          AS "segmentId",
-          s.segment_id_source::text AS "segmentName",
+          COALESCE(r.name, s.segment_id_source::text) AS "segmentName",
           f.current_speed_kmh    AS "currentSpeed",
           f.current_speed_kmh    AS "avgSpeed",
           f.los_level            AS "losGrade",
@@ -462,6 +462,8 @@ export class MapService {
           f.timestamp            AS timestamp
         FROM latest_flow f
         LEFT JOIN dim_segment s ON f.segment_key = s.segment_key
+        LEFT JOIN dim_way w ON w.way_key = s.way_key
+        LEFT JOIN dim_road r ON r.road_key = w.road_key
         WHERE s.geometry_linestring IS NOT NULL
       `);
 
@@ -489,7 +491,7 @@ export class MapService {
         `
         SELECT
           s.segment_key          AS "segmentId",
-          s.segment_id_source::text AS "segmentName",
+          COALESCE(r.name, s.segment_id_source::text) AS "segmentName",
           f.current_speed_kmh    AS "currentSpeed",
           f.current_speed_kmh    AS "avgSpeed",
           f.los_level            AS "losGrade",
@@ -498,6 +500,8 @@ export class MapService {
           NULL::float            AS "occupancyRate",
           f.timestamp            AS timestamp
         FROM dim_segment s
+        LEFT JOIN dim_way w ON w.way_key = s.way_key
+        LEFT JOIN dim_road r ON r.road_key = w.road_key
         LEFT JOIN LATERAL (
           SELECT *
           FROM fact_traffic_flow ftf
