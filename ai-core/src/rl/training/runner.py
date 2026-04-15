@@ -66,6 +66,7 @@ class RLTrainingConfig:
     reward_scale: float = 1.0
     reward_clip: float = 30.0
     run_id: str | None = None
+    prediction_horizon_minutes: int = 15
     checkpoint_path: str | None = None
     artifacts_path: str | None = None
     pretrained_model_path: str | None = None
@@ -113,7 +114,8 @@ def _load_default_rl_training_config(mode: str) -> RLTrainingConfig:
     use_window_balancing = os.getenv("RL_USE_WINDOW_BALANCING", use_window_balancing_default) == "1"
     reward_scale = float(os.getenv("RL_REWARD_SCALE", "1.0"))
     reward_clip = float(os.getenv("RL_REWARD_CLIP", "30.0"))
-    run_id = os.getenv("RL_RUN_ID", f"{mode}_seed{seed}")
+    prediction_horizon_minutes = int(os.getenv("RL_PREDICTION_HORIZON_MINUTES", "15"))
+    run_id = os.getenv("RL_RUN_ID", f"{mode}_seed{seed}_h{prediction_horizon_minutes}")
 
     checkpoint_path = os.getenv("RL_CHECKPOINT_PATH")
     artifacts_path = os.getenv("RL_ARTIFACTS_PATH")
@@ -153,6 +155,7 @@ def _load_default_rl_training_config(mode: str) -> RLTrainingConfig:
         reward_scale=reward_scale,
         reward_clip=reward_clip,
         run_id=run_id,
+        prediction_horizon_minutes=prediction_horizon_minutes,
         checkpoint_path=checkpoint_path,
         artifacts_path=artifacts_path,
         pretrained_model_path=pretrained_model_path,
@@ -309,6 +312,7 @@ def _build_reward_class_weights(train_dataset: TrafficDataset) -> np.ndarray:
 def _balance_majority_windows(
     df_train: pd.DataFrame,
     window_size: int,
+    target_offset_steps: int,
     seed: int,
 ) -> tuple[pd.DataFrame, dict]:
     """Apply window-level majority undersampling while preserving 12-step continuity."""
@@ -319,17 +323,18 @@ def _balance_majority_windows(
     segment_keys = df_train["segment_key"].to_numpy()
     targets = df_train[TARGET_COL].clip(0, 5).astype(np.int64).to_numpy()
 
+    continuity_window_size = window_size + target_offset_steps - 1
     valid_starts = find_valid_window_starts(
         timestamps=timestamps,
         segment_keys=segment_keys,
-        window_size=window_size,
+        window_size=continuity_window_size,
         step_minutes=WINDOW_STEP_MINUTES,
     )
     if not valid_starts:
         return df_train, {"applied": False, "reason": "no_valid_windows"}
 
     starts = np.asarray(valid_starts, dtype=np.int64)
-    target_indices = starts + window_size
+    target_indices = starts + window_size + target_offset_steps - 1
     window_labels = targets[target_indices]
 
     counts = np.bincount(window_labels, minlength=6).astype(np.int64)
@@ -427,13 +432,13 @@ def _balance_majority_windows(
 
     row_keep_mask = np.zeros(len(df_train), dtype=bool)
     for start_idx in kept_starts:
-        row_keep_mask[start_idx : start_idx + window_size + 1] = True
+        row_keep_mask[start_idx : start_idx + window_size + target_offset_steps] = True
 
     balanced_df = df_train.loc[row_keep_mask].copy().reset_index(drop=True)
     post_valid = find_valid_window_starts(
         timestamps=pd.to_datetime(balanced_df["timestamp"]).to_numpy(),
         segment_keys=balanced_df["segment_key"].to_numpy(),
-        window_size=window_size,
+        window_size=continuity_window_size,
         step_minutes=WINDOW_STEP_MINUTES,
     )
     if not post_valid:
@@ -444,7 +449,7 @@ def _balance_majority_windows(
         }
 
     post_targets = balanced_df[TARGET_COL].clip(0, 5).astype(np.int64).to_numpy()
-    post_target_indices = np.asarray(post_valid, dtype=np.int64) + window_size
+    post_target_indices = np.asarray(post_valid, dtype=np.int64) + window_size + target_offset_steps - 1
     after_counts = np.bincount(post_targets[post_target_indices], minlength=6).astype(np.int64)
 
     stats = {
@@ -534,7 +539,14 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
     use_window_balancing = config.use_window_balancing
     reward_scale = config.reward_scale
     reward_clip = config.reward_clip
-    run_id = config.run_id or f"{mode}_seed{seed}"
+    prediction_horizon_minutes = int(config.prediction_horizon_minutes)
+    if prediction_horizon_minutes not in (15, 30):
+        raise ValueError("prediction_horizon_minutes chỉ được phép là 15 hoặc 30")
+    if prediction_horizon_minutes % WINDOW_STEP_MINUTES != 0:
+        raise ValueError("prediction_horizon_minutes phải chia hết cho WINDOW_STEP_MINUTES")
+
+    target_offset_steps = prediction_horizon_minutes // WINDOW_STEP_MINUTES
+    run_id = config.run_id or f"{mode}_seed{seed}_h{prediction_horizon_minutes}"
     checkpoint_path = config.checkpoint_path or str(get_rl_checkpoint_path(mode=mode, run_id=run_id))
 
     random.seed(seed)
@@ -548,6 +560,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
         f"📦 Config | corridors={corridor_ids} | start={start_date} | end={end_date} | "
         f"peak_hours_only={peak_hours_only} | episodes={episodes} | batch_size={batch_size} | "
         f"eval_ratio={eval_ratio} | seed={seed} | max_segments={max_segments} | max_steps={max_steps_per_episode} | "
+        f"horizon={prediction_horizon_minutes}m | target_offset_steps={target_offset_steps} | "
         f"checkpoint={checkpoint_path}"
     )
     print(f"🖥️ Requested device: {requested_device}")
@@ -584,6 +597,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
         train_raw, balance_stats = _balance_majority_windows(
             df_train=train_raw,
             window_size=window_size,
+            target_offset_steps=target_offset_steps,
             seed=seed,
         )
         if balance_stats.get("applied"):
@@ -625,9 +639,21 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
         print(f"💾 Đã lưu artifacts pure RL vào: {pure_artifacts_path}")
         model_path = None
 
-    train_dataset = TrafficDataset(train_scaled, window_size=window_size)
+    train_dataset = TrafficDataset(
+        train_scaled,
+        window_size=window_size,
+        target_offset_steps=target_offset_steps,
+    )
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
-    eval_dataset = TrafficDataset(eval_scaled, window_size=window_size) if not eval_raw.empty else None
+    eval_dataset = (
+        TrafficDataset(
+            eval_scaled,
+            window_size=window_size,
+            target_offset_steps=target_offset_steps,
+        )
+        if not eval_raw.empty
+        else None
+    )
     eval_loader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=False) if eval_dataset is not None else None
 
     train_snapshot = _dataset_quality_snapshot(train_dataset)
@@ -730,6 +756,8 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
             "batch_size": batch_size,
             "episodes": episodes,
             "window_size": window_size,
+            "prediction_horizon_minutes": prediction_horizon_minutes,
+            "target_offset_steps": target_offset_steps,
             "eval_ratio": eval_ratio,
             "seed": seed,
             "run_id": run_id,

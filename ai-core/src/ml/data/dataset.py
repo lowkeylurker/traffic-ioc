@@ -20,12 +20,16 @@ logger = logging.getLogger(__name__)
 
 
 class TrafficDataset(Dataset):
-    def __init__(self, df: pd.DataFrame, window_size: int = 12):
+    def __init__(self, df: pd.DataFrame, window_size: int = 12, target_offset_steps: int = 1):
         self.df = df
         self.window_size = window_size
+        self.target_offset_steps = target_offset_steps
         self.dynamic_cols = DYNAMIC_FEATURE_COLS
         self.static_cols = STATIC_MODEL_FEATURE_COLS
         self.cat_cols = CATEGORICAL_FEATURE_COLS
+
+        if self.target_offset_steps <= 0:
+            raise ValueError("target_offset_steps phải >= 1")
 
         self.timestamps = pd.to_datetime(self.df["timestamp"]).values
         self.segment_keys = self.df["segment_key"].values
@@ -35,18 +39,25 @@ class TrafficDataset(Dataset):
         self.cat_features = self.df[self.cat_cols].astype(np.int64).values
         self.targets = self.df[TARGET_COL].clip(0, 5).astype(np.int64).values
 
+        continuity_window_size = self.window_size + self.target_offset_steps - 1
         self.valid_indices = find_valid_window_starts(
             timestamps=self.timestamps,
             segment_keys=self.segment_keys,
-            window_size=self.window_size,
+            window_size=continuity_window_size,
             step_minutes=15,
         )
 
         print(f"Tổng số dòng dữ liệu thô: {len(self.df)}")
-        print(f"Tổng số cửa sổ 12-timesteps hợp lệ thu được: {len(self.valid_indices)}")
+        print(
+            "Tổng số cửa sổ hợp lệ thu được: "
+            f"{len(self.valid_indices)} (window={self.window_size}, target_offset={self.target_offset_steps})"
+        )
+
+    def _target_index(self, start_idx: int) -> int:
+        return start_idx + self.window_size + self.target_offset_steps - 1
 
     def get_training_targets(self) -> np.ndarray:
-        target_indices = [start_idx + self.window_size for start_idx in self.valid_indices]
+        target_indices = [self._target_index(start_idx) for start_idx in self.valid_indices]
         return self.targets[target_indices]
 
     def __len__(self):
@@ -54,11 +65,12 @@ class TrafficDataset(Dataset):
 
     def __getitem__(self, idx):
         start_idx = self.valid_indices[idx]
-        target_idx = start_idx + self.window_size
+        target_idx = self._target_index(start_idx)
+        input_end_idx = start_idx + self.window_size
 
-        x_dynamic = self.dynamic_features[start_idx:target_idx]
-        x_static = self.static_features[target_idx - 1]
-        x_cat = self.cat_features[target_idx - 1]
+        x_dynamic = self.dynamic_features[start_idx:input_end_idx]
+        x_static = self.static_features[input_end_idx - 1]
+        x_cat = self.cat_features[input_end_idx - 1]
         y_target = self.targets[target_idx]
 
         return (
@@ -74,6 +86,7 @@ def prepare_dataloaders(
     train_ratio=0.8,
     batch_size=64,
     window_size=WINDOW_SIZE_DEFAULT,
+    target_offset_steps: int = 1,
     use_weighted_sampler: bool = True,
 ):
     df_working = df.copy()
@@ -113,8 +126,16 @@ def prepare_dataloaders(
     df_train_scaled = scaler.transform(df_train)
     df_val_scaled = scaler.transform(df_val)
 
-    train_dataset = TrafficDataset(df_train_scaled, window_size=window_size)
-    val_dataset = TrafficDataset(df_val_scaled, window_size=window_size)
+    train_dataset = TrafficDataset(
+        df_train_scaled,
+        window_size=window_size,
+        target_offset_steps=target_offset_steps,
+    )
+    val_dataset = TrafficDataset(
+        df_val_scaled,
+        window_size=window_size,
+        target_offset_steps=target_offset_steps,
+    )
 
     train_sampler = None
     if use_weighted_sampler:

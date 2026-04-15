@@ -96,7 +96,10 @@ def _resolve_device(requested: str | None) -> str:
     return "cuda"
 
 
-def _build_config(profile: str, device: str) -> RLTrainingConfig:
+def _build_config(profile: str, device: str, horizon_minutes: int) -> RLTrainingConfig:
+    if horizon_minutes not in (15, 30):
+        raise ValueError("horizon_minutes chỉ được phép là 15 hoặc 30")
+
     preset = PROFILE_PRESETS[profile]
     return RLTrainingConfig(
         start_date="2026-03-25",
@@ -128,7 +131,8 @@ def _build_config(profile: str, device: str) -> RLTrainingConfig:
         use_window_balancing=True,
         reward_scale=1.0,
         reward_clip=25.0,
-        run_id=str(preset["run_id"]),
+        run_id=f"{str(preset['run_id'])}_h{horizon_minutes}",
+        prediction_horizon_minutes=horizon_minutes,
     )
 
 
@@ -146,6 +150,13 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Requested torch device; default resolves to RL_DEVICE env or cuda",
     )
+    parser.add_argument(
+        "--horizon",
+        choices=(15, 30),
+        type=int,
+        default=15,
+        help="Prediction horizon in minutes for training target (15 or 30)",
+    )
     return parser.parse_args()
 
 
@@ -153,13 +164,14 @@ def main() -> None:
     warnings.filterwarnings("ignore")
     args = _parse_args()
     device = _resolve_device(args.device)
-    config = _build_config(profile=args.profile, device=device)
+    config = _build_config(profile=args.profile, device=device, horizon_minutes=args.horizon)
 
     print("========================================")
     print(" RL Pure Training Launcher (Python CLI)")
     print("========================================")
     print(f" Profile : {args.profile}")
     print(f" Device  : {device}")
+    print(f" Horizon : {args.horizon}m")
     print(f" Run ID  : {config.run_id}")
     print(f" Episodes: {config.episodes}")
     print(f" Batch   : {config.batch_size}")

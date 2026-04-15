@@ -17,6 +17,11 @@ if str(ROOT_DIR) not in sys.path:
 from src.rl.training.runner import RLTrainingConfig, run_rl_training
 
 
+PREDICTION_HORIZON_MINUTES = 15  # Supported: 15 or 30
+if PREDICTION_HORIZON_MINUTES not in (15, 30):
+    raise ValueError("PREDICTION_HORIZON_MINUTES chỉ được phép là 15 hoặc 30")
+
+
 CONFIG = RLTrainingConfig(
     start_date="2026-03-20",
     end_date="2026-04-08",
@@ -46,7 +51,8 @@ CONFIG = RLTrainingConfig(
     use_class_aware_reward=False,
     reward_scale=1.0,
     reward_clip=30.0,
-    run_id="warmstart_manual",
+    run_id=f"warmstart_manual_h{PREDICTION_HORIZON_MINUTES}",
+    prediction_horizon_minutes=PREDICTION_HORIZON_MINUTES,
 )
 
 

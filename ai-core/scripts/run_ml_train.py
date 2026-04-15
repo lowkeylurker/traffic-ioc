@@ -24,7 +24,12 @@ from src.features.sliding_window import find_valid_window_starts
 from src.utils.data_loader import load_bulk_corridor_data
 
 
-RUN_ID = "manual"
+PREDICTION_HORIZON_MINUTES = 15  # Supported: 15 or 30
+if PREDICTION_HORIZON_MINUTES not in (15, 30):
+    raise ValueError("PREDICTION_HORIZON_MINUTES chỉ được phép là 15 hoặc 30")
+
+TARGET_OFFSET_STEPS = PREDICTION_HORIZON_MINUTES // WINDOW_STEP_MINUTES
+RUN_ID = f"manual_h{PREDICTION_HORIZON_MINUTES}"
 CHECKPOINT_PATH = str(get_ml_checkpoint_path(run_id=RUN_ID))
 PREPROCESSING_OUT = str(get_ml_preprocessing_path(run_id=RUN_ID))
 METRICS_OUT = str(get_ml_metrics_path(run_id=RUN_ID))
@@ -61,7 +66,12 @@ START_DATE = "2026-03-25"
 END_DATE = "2026-04-08"
 
 
-def _balance_majority_windows(df: pd.DataFrame, window_size: int = 12, seed: int = 42) -> tuple[pd.DataFrame, dict]:
+def _balance_majority_windows(
+    df: pd.DataFrame,
+    window_size: int = 12,
+    target_offset_steps: int = 1,
+    seed: int = 42,
+) -> tuple[pd.DataFrame, dict]:
     if df.empty:
         return df, {"applied": False, "reason": "empty_df"}
 
@@ -70,17 +80,18 @@ def _balance_majority_windows(df: pd.DataFrame, window_size: int = 12, seed: int
     segment_keys = ordered["segment_key"].to_numpy()
     targets = ordered[TARGET_COL].clip(0, 5).astype(np.int64).to_numpy()
 
+    continuity_window_size = window_size + target_offset_steps - 1
     valid_starts = find_valid_window_starts(
         timestamps=timestamps,
         segment_keys=segment_keys,
-        window_size=window_size,
+        window_size=continuity_window_size,
         step_minutes=WINDOW_STEP_MINUTES,
     )
     if not valid_starts:
         return ordered, {"applied": False, "reason": "no_valid_windows"}
 
     starts = np.asarray(valid_starts, dtype=np.int64)
-    target_indices = starts + window_size
+    target_indices = starts + window_size + target_offset_steps - 1
     labels = targets[target_indices]
     counts = np.bincount(labels, minlength=6).astype(np.int64)
 
@@ -110,19 +121,19 @@ def _balance_majority_windows(df: pd.DataFrame, window_size: int = 12, seed: int
 
     row_keep_mask = np.zeros(len(ordered), dtype=bool)
     for start_idx in kept_starts:
-        row_keep_mask[start_idx : start_idx + window_size + 1] = True
+        row_keep_mask[start_idx : start_idx + window_size + target_offset_steps] = True
 
     balanced = ordered.loc[row_keep_mask].copy().reset_index(drop=True)
     balanced_starts = find_valid_window_starts(
         timestamps=pd.to_datetime(balanced["timestamp"]).to_numpy(),
         segment_keys=balanced["segment_key"].to_numpy(),
-        window_size=window_size,
+        window_size=continuity_window_size,
         step_minutes=WINDOW_STEP_MINUTES,
     )
     after_counts = np.zeros(6, dtype=np.int64)
     if balanced_starts:
         b_targets = balanced[TARGET_COL].clip(0, 5).astype(np.int64).to_numpy()
-        b_target_indices = np.asarray(balanced_starts, dtype=np.int64) + window_size
+        b_target_indices = np.asarray(balanced_starts, dtype=np.int64) + window_size + target_offset_steps - 1
         after_counts = np.bincount(b_targets[b_target_indices], minlength=6).astype(np.int64)
 
     stats = {
@@ -144,6 +155,7 @@ def main() -> None:
         f"🧪 Run={RUN_ID} | weighted_sampler={USE_WEIGHTED_SAMPLER} | "
         f"class_weights={USE_CLASS_WEIGHTS} | clip=[{CLASS_WEIGHT_CLIP_MIN}, {CLASS_WEIGHT_CLIP_MAX}] | "
         f"epochs={TRAIN_EPOCHS} | lr={LEARNING_RATE} | batch_size={BATCH_SIZE} | patience={PATIENCE} | "
+        f"horizon={PREDICTION_HORIZON_MINUTES}m | "
         f"loss={LOSS_TYPE} | dropout={DROPOUT_RATE} | weight_decay={WEIGHT_DECAY} | "
         f"label_smoothing={LABEL_SMOOTHING} | lr_scheduler={USE_LR_SCHEDULER} | "
         f"window_balancing={USE_WINDOW_BALANCING} | "
@@ -176,7 +188,12 @@ def main() -> None:
     balancing_stats = {"applied": False, "reason": "disabled"}
     if USE_WINDOW_BALANCING:
         print("⚖️ Applying window-level majority undersampling on supervised dataset...")
-        df_master, balancing_stats = _balance_majority_windows(df_master, window_size=12, seed=42)
+        df_master, balancing_stats = _balance_majority_windows(
+            df_master,
+            window_size=12,
+            target_offset_steps=TARGET_OFFSET_STEPS,
+            seed=42,
+        )
         if balancing_stats.get("applied"):
             print(
                 "✅ Window balancing applied | "
@@ -197,6 +214,7 @@ def main() -> None:
         train_ratio=0.8,
         batch_size=BATCH_SIZE,
         window_size=12,
+        target_offset_steps=TARGET_OFFSET_STEPS,
         use_weighted_sampler=USE_WEIGHTED_SAMPLER,
     )
 
@@ -282,6 +300,8 @@ def main() -> None:
                 "batch_size": BATCH_SIZE,
                 "patience": PATIENCE,
                 "use_window_balancing": USE_WINDOW_BALANCING,
+                "prediction_horizon_minutes": PREDICTION_HORIZON_MINUTES,
+                "target_offset_steps": TARGET_OFFSET_STEPS,
             },
             "summary": summary,
             "window_balancing": balancing_stats,
