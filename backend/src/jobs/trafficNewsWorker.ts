@@ -16,42 +16,47 @@ async function fetchTrafficData() {
   // Lấy đoạn đường có TTI (Travel Time Index) cao nhất (điểm nghẽn)
   // Lưu ý: Tên bảng và schema có thể thay đổi tùy thuộc vào Prisma schema thực tế.
   // Ở đây sử dụng Query raw hoặc các bảng giả định tương tự như project đang dùng.
-  let highestTTI = { road: 'Chưa có dữ liệu', value: 0 };
+  let highestTTI = { road: 'Chưa có dữ liệu', value: 0, delaySeconds: 0 };
   try {
     const ttiRaw = await prisma.$queryRaw<any[]>`
-      SELECT "dim_road"."name" as road, "fact_traffic_flow".travel_time_index as tti
-      FROM "fact_traffic_flow"
-      JOIN "dim_segment" ON "fact_traffic_flow".segment_id_source = "dim_segment".segment_id_source
-      JOIN "dim_way" ON "dim_segment".way_id = "dim_way".way_id
-      JOIN "dim_road" ON "dim_way".road_id = "dim_road".road_id
-      ORDER BY travel_time_index DESC NULLS LAST
+      SELECT dc.corridor_name as corridor, fcp.travel_time_index as tti, fcp.total_delay_seconds as delay
+      FROM fact_corridor_performance fcp
+      JOIN dim_corridor dc ON fcp.corridor_key = dc.corridor_key
+      WHERE fcp.timestamp >= NOW() - INTERVAL '15 minutes'
+      ORDER BY fcp.travel_time_index DESC NULLS LAST
       LIMIT 1
     `;
-    if (ttiRaw && ttiRaw.length > 0 && ttiRaw[0].road) {
-      highestTTI = { road: ttiRaw[0].road, value: ttiRaw[0].tti };
+    if (ttiRaw && ttiRaw.length > 0 && ttiRaw[0].corridor) {
+      highestTTI = { road: ttiRaw[0].corridor, value: ttiRaw[0].tti, delaySeconds: ttiRaw[0].delay };
     }
   } catch (e) {
     logger.warn('Could not fetch highest TTI', e);
   }
 
-  // Lấy đoạn đường có vận tốc thấp nhất
-  let lowestSpeed = { road: 'Chưa có dữ liệu', value: 0 };
+  // Lấy đoạn đường có mức độ phục vụ (LOS) tệ nhất (thường là E hoặc F)
+  let worstLOS = { road: 'Chưa có dữ liệu', level: 'N/A' };
   try {
-    const speedRaw = await prisma.$queryRaw<any[]>`
-      SELECT "dim_road"."name" as road, "fact_traffic_flow".current_speed_kmh as speed
-      FROM "fact_traffic_flow"
-      JOIN "dim_segment" ON "fact_traffic_flow".segment_id_source = "dim_segment".segment_id_source
-      JOIN "dim_way" ON "dim_segment".way_id = "dim_way".way_id
-      JOIN "dim_road" ON "dim_way".road_id = "dim_road".road_id
-      WHERE "fact_traffic_flow".current_speed_kmh > 0
-      ORDER BY current_speed_kmh ASC
+    const losRaw = await prisma.$queryRaw<any[]>`
+      WITH latest_flow AS (
+        SELECT DISTINCT ON (segment_key)
+          segment_key, los_level
+        FROM fact_traffic_flow
+        WHERE timestamp >= NOW() - INTERVAL '15 minutes'
+        ORDER BY segment_key, timestamp DESC
+      )
+      SELECT dr.name as road, f.los_level as level
+      FROM latest_flow f
+      JOIN dim_segment ds ON f.segment_key = ds.segment_key
+      JOIN dim_way dw ON ds.way_key = dw.way_key
+      JOIN dim_road dr ON dw.road_key = dr.road_key
+      ORDER BY f.los_level DESC NULLS LAST
       LIMIT 1
     `;
-    if (speedRaw && speedRaw.length > 0 && speedRaw[0].road) {
-      lowestSpeed = { road: speedRaw[0].road, value: speedRaw[0].speed };
+    if (losRaw && losRaw.length > 0 && losRaw[0].road) {
+      worstLOS = { road: losRaw[0].road, level: losRaw[0].level };
     }
   } catch (e) {
-    logger.warn('Could not fetch lowest speed', e);
+    logger.warn('Could not fetch worst LOS', e);
   }
 
   // Lấy sự kiện mới nhất trong 30 phút qua
@@ -59,21 +64,24 @@ async function fetchTrafficData() {
   try {
     // raw query: sự kiện xảy ra trong vòng 30 phút
     const incidentRaw = await prisma.$queryRaw<any[]>`
-      SELECT type_name, impact_level
-      FROM incident_records
-      WHERE created_at >= NOW() - INTERVAL '30 minutes'
-      ORDER BY created_at DESC
+      SELECT fi.incident_type, fi.severity_level as impact_level, dr.name as road_name
+      FROM fact_incident fi
+      LEFT JOIN dim_segment ds ON fi.segment_key = ds.segment_key
+      LEFT JOIN dim_way dw ON ds.way_key = dw.way_key
+      LEFT JOIN dim_road dr ON dw.road_key = dr.road_key
+      WHERE fi.timestamp >= NOW() - INTERVAL '30 minutes'
+      ORDER BY fi.timestamp DESC
       LIMIT 1
     `;
     if (incidentRaw && incidentRaw.length > 0) {
-      latestIncident = `${incidentRaw[0].type_name} (Mức độ: ${incidentRaw[0].impact_level})`;
+      latestIncident = `${incidentRaw[0].incident_type} tại ${incidentRaw[0].road_name || 'chưa rõ vị trí'} (Mức độ: ${incidentRaw[0].impact_level})`;
     }
   } catch (e) {
     logger.warn('Could not fetch latest incident (using mocked/placeholder)', e);
     // Nếu bảng incident_records không tồn tại, dùng text fallback
   }
 
-  return { highestTTI, lowestSpeed, latestIncident };
+  return { highestTTI, worstLOS, latestIncident };
 }
 
 /**
@@ -83,40 +91,54 @@ async function processGenerateNews(job: Job) {
   try {
     logger.log('Bắt đầu quy trình lấy dữ liệu giao thông để tạo tin tức...');
     const dbData = await fetchTrafficData();
-    
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY is not configured in .env');
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    const prompt = `Bạn là chuyên gia phân tích giao thông. 
-Dữ liệu hiện tại:
-- Điểm TTI (kéo dài hành trình) cao nhất: Đường ${dbData.highestTTI.road} (TTI: ${dbData.highestTTI.value.toFixed(1)})
-- Điểm tốc độ thấp nhất: Đường ${dbData.lowestSpeed.road} (${dbData.lowestSpeed.value} km/h)
-- Sự kiện mới nhất (30 phút qua): ${dbData.latestIncident}
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
-YÊU CẦU:
-Viết 1 câu ngắn dưới 50 từ, bắt đầu bằng emoji thích hợp. Không dùng markdown, không giải thích. Mục tiêu: Báo cáo tình hình chung cho người đi đường.`;
+    const prompt = `[SYSTEM INSTRUCTION]
+Bạn là một Biên tập viên Kênh Truyền hình Giao thông Quốc gia (VTV Giao thông). 
+Nhiệm vụ của bạn là tổng hợp dữ liệu khô khan thành một câu tin tức chạy dưới màn hình (News Ticker).
+
+LUẬT BẮT BUỘC (CRITICAL RULES):
+1. VĂN PHONG: Ngắn gọn, khẩn trương, chuyên nghiệp, mang tính cảnh báo.
+2. ĐỘ DÀI: Tối đa 2 câu, không vượt quá 50 từ.
+3. FORMAT: KHÔNG dùng Markdown (như in đậm **, in nghiêng *). BẮT BUỘC bắt đầu bằng một Emoji phù hợp (⚠️, 🔴, 🌧️, 🚗).
+4. CẤM: Tuyệt đối không chào hỏi, không giải thích, không thêm cụm từ như "Đây là bản tin...". Chỉ trả về nội dung bản tin.
+
+[USER PROMPT]
+Hãy tạo một bản tin giao thông từ 3 dữ liệu Real-time sau đây:
+- Hành lang kẹt nặng nhất: ${dbData.highestTTI.road}. Tại đây, chỉ số TTI là ${dbData.highestTTI.value.toFixed(1)} (nghĩa là người dân phải tốn thêm ${dbData.highestTTI.delaySeconds || 0} giây so với bình thường).
+- Tuyến đường có mức độ phục vụ tệ nhất: ${dbData.worstLOS.road} (Xếp loại LOS: ${dbData.worstLOS.level} - Hãy diễn giải mức này thành từ ngữ mô tả kẹt xe: A/B: Thông thoáng, C: Trung bình, D: Đông đúc, E: Ùn ứ, F: Ùn tắc nghiêm trọng).
+- Sự cố mới nhất từ người dân: ${dbData.latestIncident}.
+
+YÊU CẦU DIỄN GIẢI:
+1. Tuyệt đối không nhắc đến từ "TTI" hay "LOS" trong bản tin.
+2. Với TTI, hãy nêu rõ số giây (hoặc số phút nếu lớn hơn 60s) mà người dân bị trễ thêm.
+3. Với LOS, hãy dùng các tính từ mô tả trạng thái kẹt xe tương ứng.
+4. Ưu tiên tạo câu văn nối mạch lạc, khẩn trương.`;
 
     logger.log('Đang gọi AI để tóm tắt...');
     const result = await model.generateContent(prompt);
     let textNews = result.response.text().trim();
-    
+
     // Fallback nếu AI trả về lỗi định dạng (chứa markdown, quá dài...)
     if (textNews.includes('**')) textNews = textNews.replace(/\*\*/g, '');
-    
+
     // Ghi vào Redis
     const redis = getRedisConnection();
     await redis.set(REDIS_NEWS_KEY, textNews); // Lưu vĩnh viễn (khi bị đè thì cập nhật)
     logger.log('Cập nhật tin tức thành công:', textNews);
-    
+
     return { success: true, news: textNews };
   } catch (error) {
     logger.error('Lỗi khi processGenerateNews:', error);
-    
+
     // Ghi tin nhắn dự phòng vào Redis nếu thất bại liên tục (có thể bỏ qua bước này nhưng để an toàn)
     const redis = getRedisConnection();
     const currentNews = await redis.get(REDIS_NEWS_KEY);
@@ -128,14 +150,10 @@ Viết 1 câu ngắn dưới 50 từ, bắt đầu bằng emoji thích hợp. Kh
 }
 
 // Khởi tạo Worker
-export const trafficNewsWorker = new Worker(
-  NEWS_QUEUE_NAME,
-  processGenerateNews,
-  {
-    connection: getRedisConnection(),
-    concurrency: 1, // Tránh call AI liên tục trùng lúc
-  }
-);
+export const trafficNewsWorker = new Worker(NEWS_QUEUE_NAME, processGenerateNews, {
+  connection: getRedisConnection(),
+  concurrency: 1, // Tránh call AI liên tục trùng lúc
+});
 
 trafficNewsWorker.on('completed', (job) => {
   logger.log(`Job ${job.id} completed successfully.`);

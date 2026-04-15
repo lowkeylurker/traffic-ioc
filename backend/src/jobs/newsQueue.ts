@@ -30,7 +30,7 @@ export async function scheduleTrafficNewsJob() {
       {},
       {
         repeat: {
-          pattern: '*/5 * * * *', // Chạy mỗi 5 phút
+          pattern: '*/2 * * * *', // Chạy mỗi 2 phút
         },
       }
     );

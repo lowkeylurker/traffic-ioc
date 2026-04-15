@@ -6,14 +6,29 @@ import { newsApi } from '@/services/api';
 const { Text } = Typography;
 
 export const LiveNewsTicker: React.FC = () => {
-  const [news, setNews] = useState<string>('📡 Đang tổng hợp tín hiệu giao thông toàn thành phố...');
+  const [news, setNews] = useState<string>('');
+  const [isVisible, setIsVisible] = useState<boolean>(false);
+  const [newsKey, setNewsKey] = useState<number>(0);
 
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+
     const fetchNews = async () => {
       try {
         const response = await newsApi.getTicker();
         if (response.success && response.data?.news) {
           setNews(response.data.news);
+          setNewsKey(Date.now());
+          setIsVisible(true);
+
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+
+          // Tự động ẩn sau 20s
+          timeoutId = setTimeout(() => {
+            setIsVisible(false);
+          }, 20000);
         }
       } catch (error) {
         console.error('Failed to fetch live news ticker:', error);
@@ -23,12 +38,15 @@ export const LiveNewsTicker: React.FC = () => {
     // Initial fetch
     void fetchNews();
 
-    // Lặp tự động mỗi 1 phút theo yêu cầu
+    // Lặp tự động mỗi 2 phút theo yêu cầu (khớp với cron job backend)
     const interval = setInterval(() => {
-      fetchNews();
-    }, 60000);
+      void fetchNews();
+    }, 120000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   return (
@@ -42,10 +60,13 @@ export const LiveNewsTicker: React.FC = () => {
         backgroundColor: '#000000',
         display: 'flex',
         alignItems: 'center',
-        zIndex: 1000, // Nổi lên trên UI Map
+        zIndex: 1000,
         overflow: 'hidden',
         boxShadow: '0 -2px 8px rgba(0,0,0,0.15)',
-        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        transform: isVisible ? 'translateY(0)' : 'translateY(100%)',
+        transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+        opacity: isVisible ? 1 : 0,
       }}
     >
       {/* BADGE: Đứng im */}
@@ -91,24 +112,27 @@ export const LiveNewsTicker: React.FC = () => {
         <style>
           {`
             @keyframes newsMarquee {
-              0% { transform: translateX(100%); }
-              100% { transform: translateX(-100%); }
+              0% { transform: translateX(0); }
+              100% { transform: translateX(calc(-100vw - 100%)); }
             }
             .news-ticker-text {
-              display: inline-block;
+              position: absolute;
+              left: 100%;
+              display: flex;
+              align-items: center;
+              height: 100%;
               white-space: nowrap;
               color: #ffffff;
               font-size: 15px;
               font-weight: 500;
-              padding-left: 100%; /* Đảm bảo chạy từ mép ngoài */
-              animation: newsMarquee 20s linear infinite;
+              animation: newsMarquee 20s linear forwards;
             }
             .news-ticker-text:hover {
               animation-play-state: paused;
             }
           `}
         </style>
-        <div className="news-ticker-text">
+        <div key={newsKey} className="news-ticker-text">
           <NotificationOutlined style={{ color: '#faad14', marginRight: 8 }} />
           {news}
         </div>
