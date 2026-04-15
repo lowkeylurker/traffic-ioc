@@ -1,12 +1,14 @@
 # AI Core
 
-`ai-core` là service AI/ML của Traffic IOC. Module này cung cấp:
+`ai-core` là service AI/ML của Traffic IOC, cung cấp suy luận dự báo tắc nghẽn cho App và các công cụ nội bộ phục vụ kiểm tra, benchmark, và chẩn đoán fallback.
 
-- Dự báo tắc nghẽn cho App qua API public.
-- Benchmark và debug fallback qua API internal.
-- Các artifact RL, metrics, histories, checkpoints phục vụ huấn luyện và suy luận.
+## Tổng quan dịch vụ
 
-## Chạy nhanh
+- Public API: phục vụ App gọi trong luồng production.
+- Internal API: phục vụ debug, benchmark, và kiểm tra chất lượng dữ liệu.
+- Tài nguyên mô hình và kết quả huấn luyện được tổ chức trong `artifacts/rl/`.
+
+## Cài đặt và chạy
 
 Từ thư mục gốc `traffic-ioc/`:
 
@@ -14,106 +16,63 @@ Từ thư mục gốc `traffic-ioc/`:
 docker-compose up -d ai-core
 ```
 
-Mở các địa chỉ sau:
-
-- Swagger UI: `http://localhost:5000/docs`
-- ReDoc: `http://localhost:5000/redoc`
-- OpenAPI JSON: `http://localhost:5000/openapi.json`
-
-## API cho App
-
-### Public API
-
-`POST /api/v1/congestion-prediction/batch`
-
-Dùng để dự báo tắc nghẽn theo danh sách segment. Đây là endpoint App nên gọi trong luồng production.
-
-### Internal API
-
-- `GET /api/internal/v1/congestion-prediction/debug-fallback`
-- `POST /api/internal/v1/congestion-prediction/benchmark`
-
-Hai endpoint này chỉ dùng cho debug, kiểm tra fallback và đo hiệu năng.
-
-## Cách dùng API từ App
-
-### 1. Request batch prediction
+Kiểm tra nhanh:
 
 ```bash
-curl -X POST "http://localhost:5000/api/v1/congestion-prediction/batch" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "segment_ids": [101, 202, 303],
-    "request_time": "2026-04-15T09:30:00",
-    "prediction_horizon_minutes": 15
-  }'
+docker-compose ps
+docker-compose logs -f ai-core
 ```
 
-### 2. Ý nghĩa response
-
-Mỗi item trả về có các field chính:
-
-- `segment_id`: segment gốc App yêu cầu.
-- `congestion_level`: mức tắc nghẽn 0-5.
-- `status`: `ok`, `no_data`, hoặc `error`.
-- `reason_code`: lý do ra kết quả, ví dụ `DIRECT`, `FALLBACK_NEAREST`, `NO_VALID_WINDOW`.
-- `used_fallback`: `true` nếu hệ thống phải lấy từ segment thay thế.
-- `source_segment_id`: segment nguồn nếu có fallback.
-- `fallback_distance_m`: khoảng cách fallback tính theo mét.
-
-### 3. Cách xử lý ở App
-
-- Nếu `status = ok` và `reason_code = DIRECT`, hiển thị kết quả trực tiếp.
-- Nếu `status = ok` và `used_fallback = true`, vẫn có thể hiển thị kết quả nhưng nên gắn nhãn fallback.
-- Nếu `status = no_data`, App nên hiển thị trạng thái không đủ dữ liệu hoặc fallback không thành công.
-- Chỉ dùng `segment_ids` hợp lệ, số nguyên dương.
-- `prediction_horizon_minutes` hiện chỉ hỗ trợ `15`.
-
-## Benchmark và debug
-
-### Benchmark nội bộ
-
-```bash
-curl -X POST "http://localhost:5000/api/internal/v1/congestion-prediction/benchmark" \
-  -H "Content-Type: application/json" \
-  -d '{"batch_size": 5, "num_runs": 1, "seed": 42, "prediction_horizon_minutes": 15}'
-```
-
-Trả về:
-- `p50_latency_ms`
-- `p95_latency_ms`
-- `avg_latency_ms`
-- `throughput_per_second`
-- `success_rate_pct`
-- `direct_hit_rate_pct`
-- `fallback_hit_rate_pct`
-- `no_data_rate_pct`
-
-### Debug fallback nội bộ
-
-```bash
-curl "http://localhost:5000/api/internal/v1/congestion-prediction/debug-fallback?segment_id=101&request_time=2026-04-15T09:30:00&limit=8"
-```
-
-Dùng để xem corridor nào được map, candidate nào được thử, candidate nào bị loại do khoảng cách hoặc do không có valid window.
-
-## Chạy test
+Chạy test:
 
 ```bash
 docker-compose exec ai-core python -m pytest src/tests/test_congestion_batch_route.py -q
 ```
 
-## Cấu trúc chính
+## Swagger và tài liệu API
+
+- Swagger UI: `http://localhost:5000/docs`
+- ReDoc: `http://localhost:5000/redoc`
+- OpenAPI JSON: `http://localhost:5000/openapi.json`
+
+### Nhóm endpoint trong Swagger
+
+- `congestion-rl-public`: endpoint public cho App.
+- `congestion-rl-internal`: endpoint nội bộ cho benchmark và debug.
+
+## Dùng cho App
+
+App chỉ nên gọi endpoint public:
+
+- `POST /api/v1/congestion-prediction/batch`
+
+Payload nhận danh sách `segment_ids`, thời điểm request, và `prediction_horizon_minutes`.
+
+Kết quả trả về có các trường quan trọng như:
+
+- `status`
+- `reason_code`
+- `used_fallback`
+- `source_segment_id`
+- `fallback_distance_m`
+
+Ý nghĩa sử dụng:
+
+- `DIRECT`: kết quả suy luận trực tiếp.
+- `FALLBACK_NEAREST`: lấy từ segment thay thế gần nhất trong cùng corridor.
+- `no_data`: không có kết quả hợp lệ.
+
+## Tham khảo cấu trúc dự án
 
 - `src/api/`: FastAPI app và routes.
-- `src/schemas/`: request/response schema, enum contract.
+- `src/schemas/`: request/response schema và enum contract.
 - `src/data_access/`: truy vấn DB và lookup corridor/candidate.
 - `src/rl/`: inference, artifacts, training utilities.
 - `docs/`: tài liệu vận hành và workflow.
 - `artifacts/rl/`: checkpoints, metrics, histories, benchmark outputs.
 
-## Lưu ý
+## Ghi chú
 
-- Swagger UI và API chỉ hoạt động khi `ai-core` container đang chạy.
-- Public API dành cho App; internal API không nên dùng trong luồng production.
-- Các checkpoint/metric RL được quản lý trong `artifacts/rl/` để giữ workspace gọn gàng.
+- Swagger UI chỉ hoạt động khi container `ai-core` đang chạy.
+- App nên dùng API public, không phụ thuộc các endpoint internal.
+- Các artifact RL không nên để rải ở gốc repo; hãy dùng `artifacts/rl/` để giữ workspace gọn gàng.
