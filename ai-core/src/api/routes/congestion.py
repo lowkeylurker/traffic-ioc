@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Optional, Tuple
 
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.dependencies import get_warmstart_rl_predictor
 from src.data_access import (
@@ -28,6 +28,7 @@ from src.schemas.congestion_rl_schema import (
 )
 
 router = APIRouter(prefix="/api/v1", tags=["congestion-rl"])
+internal_router = APIRouter(prefix="/api/internal/v1", tags=["congestion-rl-internal"])
 
 FALLBACK_NEAREST_LIMIT = 8
 FALLBACK_MAX_DISTANCE_M = 2000.0
@@ -44,6 +45,26 @@ REASON_FALLBACK_NO_VALID_WINDOW = "FALLBACK_NO_VALID_WINDOW"
 SegmentPredictCache = dict[tuple[int, str, int], Optional[CongestionPredictionItem]]
 CorridorCache = dict[int, list[int]]
 CandidateCache = dict[tuple[int, int, int], list[tuple[int, float]]]
+
+
+COMMON_ERROR_RESPONSES = {
+	400: {
+		"description": "Bad Request - Invalid input payload or query params",
+		"content": {
+			"application/json": {
+				"example": {"detail": "segment_ids must be positive integers"}
+			}
+		},
+	},
+	500: {
+		"description": "Internal Server Error - Inference execution failed",
+		"content": {
+			"application/json": {
+				"example": {"detail": "Failed to run warmstart RL inference: <error>"}
+			}
+		},
+	},
+}
 
 
 def _extract_level(status_description: str | None) -> int | None:
@@ -157,7 +178,85 @@ def _fallback_predict_in_same_corridor(
 	return None, REASON_FALLBACK_NO_CANDIDATE
 
 
-@router.post("/congestion-prediction/batch", response_model=CongestionBatchPredictionResponse)
+@router.post(
+	"/congestion-prediction/batch",
+	response_model=CongestionBatchPredictionResponse,
+	tags=["congestion-rl-public"],
+	summary="Batch congestion prediction for mobile app",
+	description=(
+		"Predict congestion level for multiple road segments at a target time. "
+		"Service tries direct inference first, then nearest-segment fallback in the same corridor. "
+		"Each item includes reason_code for app-side behavior and observability."
+	),
+	response_description="Batch prediction result with per-segment status and fallback metadata",
+	responses={
+		**COMMON_ERROR_RESPONSES,
+		200: {
+			"description": "Batch prediction completed",
+			"content": {
+				"application/json": {
+					"examples": {
+						"mixed_direct_and_fallback": {
+							"summary": "One direct hit and one fallback hit",
+							"value": {
+								"request_time": "2026-04-15T09:30:00",
+								"prediction_horizon_minutes": 15,
+								"model_profile": "warmstart",
+								"total_segments": 2,
+								"success_count": 2,
+								"no_data_count": 0,
+								"items": [
+									{
+										"segment_id": 101,
+										"congestion_level": 4,
+										"status": "ok",
+										"status_description": "Mức 4 (Kẹt nặng)",
+										"forecast_for_time": "2026-04-15T09:45:00",
+										"reason_code": "DIRECT",
+										"model_profile": "warmstart",
+										"used_fallback": False,
+										"source_segment_id": 101,
+										"fallback_distance_m": 0.0
+									},
+									{
+										"segment_id": 202,
+										"congestion_level": 3,
+										"status": "ok",
+										"status_description": "Mức 3 (Kẹt)",
+										"forecast_for_time": "2026-04-15T09:45:00",
+										"reason_code": "FALLBACK_NEAREST",
+										"model_profile": "warmstart",
+										"used_fallback": True,
+										"source_segment_id": 999,
+										"fallback_distance_m": 120.5
+									}
+								]
+							}
+						}
+					}
+				}
+			},
+		},
+	},
+	openapi_extra={
+		"requestBody": {
+			"content": {
+				"application/json": {
+					"examples": {
+						"app_batch_request": {
+							"summary": "App request for dashboard refresh",
+							"value": {
+								"segment_ids": [101, 202, 303],
+								"request_time": "2026-04-15T09:30:00",
+								"prediction_horizon_minutes": 15,
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+)
 def predict_congestion_batch(
 	payload: CongestionBatchPredictionRequest,
 	predictor: RLTrafficPredictor = Depends(get_warmstart_rl_predictor),
@@ -254,12 +353,50 @@ def predict_congestion_batch(
 	)
 
 
-@router.get("/congestion-prediction/debug-fallback")
+@internal_router.get(
+	"/congestion-prediction/debug-fallback",
+	tags=["congestion-rl-internal"],
+	summary="Inspect fallback candidates for one segment",
+	description=(
+		"Debug endpoint for troubleshooting fallback behavior. "
+		"Returns corridor mapping, nearest candidates, distance filtering and probe result per candidate."
+	),
+	response_description="Fallback diagnostic details for a single segment",
+	responses={
+		**COMMON_ERROR_RESPONSES,
+		200: {
+			"description": "Fallback diagnostic data returned",
+			"content": {
+				"application/json": {
+					"example": {
+						"segment_id": 857844920435081278,
+						"request_time": "2026-04-15T09:30:00",
+						"prediction_horizon_minutes": 15,
+						"direct_prediction_available": False,
+						"overall_reason": "FALLBACK_NO_VALID_WINDOW",
+						"corridor_ids": [136550177913819656],
+						"fallback_distance_threshold_m": 2000.0,
+						"candidates": [
+							{
+								"corridor_id": 136550177913819656,
+								"candidate_segment_id": 918493465781527680,
+								"distance_m": 48.52,
+								"within_distance_threshold": True,
+								"probe_status": "no_data",
+								"probe_reason": "FALLBACK_NO_VALID_WINDOW"
+							}
+						]
+					}
+				}
+			},
+		},
+	},
+)
 def debug_fallback_candidates(
-	segment_id: int,
+	segment_id: int = Query(..., description="Target segment id to inspect", gt=0),
 	request_time: Optional[datetime] = None,
-	prediction_horizon_minutes: int = 15,
-	limit: int = 8,
+	prediction_horizon_minutes: int = Query(15, description="Only value 15 is currently supported"),
+	limit: int = Query(8, description="Maximum candidates per corridor to inspect", ge=1, le=30),
 	predictor: RLTrafficPredictor = Depends(get_warmstart_rl_predictor),
 ) -> dict:
 	if segment_id <= 0:
@@ -334,7 +471,69 @@ def debug_fallback_candidates(
 	}
 
 
-@router.post("/congestion-prediction/benchmark", response_model=BenchmarkBatchResponse)
+@internal_router.post(
+	"/congestion-prediction/benchmark",
+	response_model=BenchmarkBatchResponse,
+	tags=["congestion-rl-internal"],
+	summary="Benchmark congestion batch API",
+	description=(
+		"Performance benchmark using real segment pool from warehouse. "
+		"Returns latency statistics and quality rates: direct_hit_rate, fallback_hit_rate, no_data_rate. "
+		"Use this endpoint for capacity planning and regression checks."
+	),
+	response_description="Benchmark metrics for the provided batch configuration",
+	responses={
+		**COMMON_ERROR_RESPONSES,
+		503: {
+			"description": "No benchmark segment pool is available in warehouse",
+			"content": {
+				"application/json": {
+					"example": {"detail": "No warehouse segment pool available for benchmark"}
+				}
+			},
+		},
+		200: {
+			"description": "Benchmark completed",
+			"content": {
+				"application/json": {
+					"example": {
+						"batch_size": 20,
+						"num_runs": 3,
+						"total_time_ms": 9624.4,
+						"p50_latency_ms": 2916.34,
+						"p95_latency_ms": 4498.01,
+						"avg_latency_ms": 3208.13,
+						"throughput_per_second": 6.23,
+						"success_rate_pct": 42.0,
+						"direct_hit_rate_pct": 25.5,
+						"fallback_hit_rate_pct": 16.5,
+						"no_data_rate_pct": 58.0,
+						"model_profile": "warmstart",
+						"note": None
+					}
+				}
+			},
+		},
+	},
+	openapi_extra={
+		"requestBody": {
+			"content": {
+				"application/json": {
+					"examples": {
+						"ci_small": {
+							"summary": "Fast CI smoke benchmark",
+							"value": {"batch_size": 5, "num_runs": 1, "seed": 42, "prediction_horizon_minutes": 15}
+						},
+						"capacity_planning": {
+							"summary": "Capacity planning benchmark",
+							"value": {"batch_size": 50, "num_runs": 5, "seed": 42, "prediction_horizon_minutes": 15}
+						},
+					}
+				}
+			}
+		}
+	},
+)
 def benchmark_batch_prediction(
 	payload: BenchmarkBatchRequest,
 	predictor: RLTrafficPredictor = Depends(get_warmstart_rl_predictor),

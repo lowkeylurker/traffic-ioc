@@ -169,7 +169,7 @@ def test_benchmark_endpoint(monkeypatch):
     try:
         client = TestClient(app)
         response = client.post(
-            "/api/v1/congestion-prediction/benchmark",
+			"/api/internal/v1/congestion-prediction/benchmark",
             json={"batch_size": 10, "num_runs": 2, "seed": 42},
         )
         assert response.status_code == 200

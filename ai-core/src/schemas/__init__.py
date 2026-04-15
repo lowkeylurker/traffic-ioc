@@ -16,6 +16,8 @@ from src.schemas.congestion_rl_schema import (
     CongestionBatchPredictionResponse,
     CongestionPredictionRequest,
     CongestionPredictionResponse,
+    PredictionReasonCode,
+    PredictionStatus,
 )
 
 __all__ = [
@@ -27,6 +29,8 @@ __all__ = [
     "CongestionBatchPredictionResponse",
     "BenchmarkBatchRequest",
     "BenchmarkBatchResponse",
+    "PredictionStatus",
+    "PredictionReasonCode",
     "ImputationRequest",
     "ImputationResponse",
 ]

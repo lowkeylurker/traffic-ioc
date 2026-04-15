@@ -3,9 +3,26 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class PredictionStatus(str, Enum):
+	OK = "ok"
+	NO_DATA = "no_data"
+	ERROR = "error"
+
+
+class PredictionReasonCode(str, Enum):
+	DIRECT = "DIRECT"
+	FALLBACK_NEAREST = "FALLBACK_NEAREST"
+	NO_VALID_WINDOW = "NO_VALID_WINDOW"
+	NO_CORRIDOR_MAPPING = "NO_CORRIDOR_MAPPING"
+	FALLBACK_NO_CANDIDATE = "FALLBACK_NO_CANDIDATE"
+	FALLBACK_DISTANCE_EXCEEDED = "FALLBACK_DISTANCE_EXCEEDED"
+	FALLBACK_NO_VALID_WINDOW = "FALLBACK_NO_VALID_WINDOW"
 
 
 class CongestionPredictionRequest(BaseModel):
@@ -21,10 +38,10 @@ class CongestionPredictionItem(BaseModel):
 
 	segment_id: int
 	congestion_level: Optional[int] = Field(default=None, ge=0, le=5)
-	status: str = Field(default="ok", description="ok | no_data | error")
+	status: PredictionStatus = Field(default=PredictionStatus.OK, description="Prediction status")
 	status_description: Optional[str] = None
 	forecast_for_time: Optional[datetime] = None
-	reason_code: str = Field(default="DIRECT")
+	reason_code: PredictionReasonCode = Field(default=PredictionReasonCode.DIRECT)
 	model_profile: str = Field(default="warmstart")
 	used_fallback: bool = False
 	source_segment_id: Optional[int] = None
