@@ -6,6 +6,7 @@ from .forecast_mart_repository import (
     maybe_refresh_forecast_mart_for_segments,
 )
 from .warehouse_repository import (
+    get_benchmark_segment_pool,
     get_corridors_by_segment,
     get_nearest_segments_in_corridor,
     get_segments_in_corridor,
@@ -13,6 +14,7 @@ from .warehouse_repository import (
 )
 
 __all__ = [
+    "get_benchmark_segment_pool",
     "get_corridors_by_segment",
     "get_nearest_segments_in_corridor",
     "get_segments_in_corridor",

@@ -13,7 +13,11 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.dependencies import get_warmstart_rl_predictor
-from src.data_access import get_corridors_by_segment, get_nearest_segments_in_corridor
+from src.data_access import (
+	get_benchmark_segment_pool,
+	get_corridors_by_segment,
+	get_nearest_segments_in_corridor,
+)
 from src.rl.inference.predictor import RLTrafficPredictor, forecast_for_request
 from src.schemas.congestion_rl_schema import (
 	BenchmarkBatchRequest,
@@ -37,6 +41,11 @@ REASON_FALLBACK_DISTANCE_EXCEEDED = "FALLBACK_DISTANCE_EXCEEDED"
 REASON_FALLBACK_NO_VALID_WINDOW = "FALLBACK_NO_VALID_WINDOW"
 
 
+SegmentPredictCache = dict[tuple[int, str, int], Optional[CongestionPredictionItem]]
+CorridorCache = dict[int, list[int]]
+CandidateCache = dict[tuple[int, int, int], list[tuple[int, float]]]
+
+
 def _extract_level(status_description: str | None) -> int | None:
 	if not status_description:
 		return None
@@ -51,7 +60,13 @@ def _try_predict_single_segment(
 	segment_id: int,
 	request_time_str: str,
 	horizon_minutes: int,
+	predict_cache: Optional[SegmentPredictCache] = None,
 ) -> Optional[CongestionPredictionItem]:
+	cache_key = (segment_id, request_time_str, horizon_minutes)
+	if predict_cache is not None and cache_key in predict_cache:
+		cached = predict_cache[cache_key]
+		return cached.model_copy(deep=True) if cached is not None else None
+
 	df_segment_result = forecast_for_request(
 		predictor=predictor,
 		segment_ids=[segment_id],
@@ -59,6 +74,8 @@ def _try_predict_single_segment(
 		resample_minutes=horizon_minutes,
 	)
 	if not isinstance(df_segment_result, pd.DataFrame) or df_segment_result.empty:
+		if predict_cache is not None:
+			predict_cache[cache_key] = None
 		return None
 
 	row = df_segment_result.iloc[0]
@@ -66,7 +83,7 @@ def _try_predict_single_segment(
 	level = _extract_level(status_description)
 	forecast_for_time = pd.to_datetime(row.get("Forecast_For_Time")).to_pydatetime()
 
-	return CongestionPredictionItem(
+	result = CongestionPredictionItem(
 		segment_id=int(row["Segment_ID"]),
 		congestion_level=level,
 		status="ok",
@@ -75,6 +92,9 @@ def _try_predict_single_segment(
 		reason_code=REASON_DIRECT,
 		model_profile="warmstart",
 	)
+	if predict_cache is not None:
+		predict_cache[cache_key] = result
+	return result.model_copy(deep=True)
 
 
 def _fallback_predict_in_same_corridor(
@@ -82,19 +102,29 @@ def _fallback_predict_in_same_corridor(
 	target_segment_id: int,
 	request_time_str: str,
 	horizon_minutes: int,
+	corridor_cache: CorridorCache,
+	candidate_cache: CandidateCache,
+	predict_cache: SegmentPredictCache,
 ) -> Tuple[Optional[CongestionPredictionItem], str]:
-	corridor_ids = get_corridors_by_segment(target_segment_id)
+	corridor_ids = corridor_cache.get(target_segment_id)
+	if corridor_ids is None:
+		corridor_ids = get_corridors_by_segment(target_segment_id)
+		corridor_cache[target_segment_id] = corridor_ids
 	if not corridor_ids:
 		return None, REASON_NO_CORRIDOR_MAPPING
 
 	found_any_candidate = False
 	found_candidate_within_distance = False
 	for corridor_id in corridor_ids:
-		candidates = get_nearest_segments_in_corridor(
-			segment_id=target_segment_id,
-			corridor_id=corridor_id,
-			limit=FALLBACK_NEAREST_LIMIT,
-		)
+		cache_key = (target_segment_id, corridor_id, FALLBACK_NEAREST_LIMIT)
+		candidates = candidate_cache.get(cache_key)
+		if candidates is None:
+			candidates = get_nearest_segments_in_corridor(
+				segment_id=target_segment_id,
+				corridor_id=corridor_id,
+				limit=FALLBACK_NEAREST_LIMIT,
+			)
+			candidate_cache[cache_key] = candidates
 		if candidates:
 			found_any_candidate = True
 		for candidate_segment_id, distance_m in candidates:
@@ -108,6 +138,7 @@ def _fallback_predict_in_same_corridor(
 				segment_id=candidate_segment_id,
 				request_time_str=request_time_str,
 				horizon_minutes=horizon_minutes,
+				predict_cache=predict_cache,
 			)
 			if candidate_item is None:
 				continue
@@ -153,6 +184,9 @@ def predict_congestion_batch(
 		raise HTTPException(status_code=500, detail=f"Failed to run warmstart RL inference: {exc}") from exc
 
 	by_segment: dict[int, CongestionPredictionItem] = {}
+	corridor_cache: CorridorCache = {}
+	candidate_cache: CandidateCache = {}
+	predict_cache: SegmentPredictCache = {}
 	if isinstance(df_results, pd.DataFrame) and not df_results.empty:
 		for _, row in df_results.iterrows():
 			sid = int(row["Segment_ID"])
@@ -183,6 +217,9 @@ def predict_congestion_batch(
 				target_segment_id=sid,
 				request_time_str=request_time_str,
 				horizon_minutes=payload.prediction_horizon_minutes,
+				corridor_cache=corridor_cache,
+				candidate_cache=candidate_cache,
+				predict_cache=predict_cache,
 			)
 			if fallback_item is not None:
 				items.append(fallback_item)
@@ -234,12 +271,14 @@ def debug_fallback_candidates(
 
 	request_dt = request_time or datetime.utcnow()
 	request_time_str = request_dt.strftime("%Y-%m-%d %H:%M:%S")
+	predict_cache: SegmentPredictCache = {}
 
 	direct_item = _try_predict_single_segment(
 		predictor=predictor,
 		segment_id=segment_id,
 		request_time_str=request_time_str,
 		horizon_minutes=prediction_horizon_minutes,
+		predict_cache=predict_cache,
 	)
 
 	corridor_ids = get_corridors_by_segment(segment_id)
@@ -257,6 +296,7 @@ def debug_fallback_candidates(
 					segment_id=candidate_segment_id,
 					request_time_str=request_time_str,
 					horizon_minutes=prediction_horizon_minutes,
+					predict_cache=predict_cache,
 				)
 				candidate_reason = REASON_FALLBACK_NEAREST if candidate_item else REASON_FALLBACK_NO_VALID_WINDOW
 
@@ -301,22 +341,31 @@ def benchmark_batch_prediction(
 ) -> BenchmarkBatchResponse:
 	"""Benchmark batch prediction performance.
 	
-	Generates random segment IDs and runs multiple batch predictions to measure latency metrics.
+	Samples real segment IDs from warehouse and runs multiple batch predictions to measure latency metrics.
 	"""
 	if payload.batch_size <= 0 or payload.batch_size > 500:
 		raise HTTPException(status_code=400, detail="batch_size must be between 1 and 500")
 	if payload.num_runs <= 0 or payload.num_runs > 20:
 		raise HTTPException(status_code=400, detail="num_runs must be between 1 and 20")
 
-	# Generate random but reproducible segment IDs
-	random.seed(payload.seed)
-	segment_ids = [random.randint(1, 10**15) for _ in range(payload.batch_size)]
+	# Build benchmark batch from real warehouse segment pool (production-like)
+	segment_pool = get_benchmark_segment_pool(limit=max(5000, payload.batch_size))
+	if not segment_pool:
+		raise HTTPException(status_code=503, detail="No warehouse segment pool available for benchmark")
+
+	rng = random.Random(payload.seed)
+	if len(segment_pool) >= payload.batch_size:
+		segment_ids = rng.sample(segment_pool, payload.batch_size)
+	else:
+		segment_ids = [rng.choice(segment_pool) for _ in range(payload.batch_size)]
 	
 	request_time = datetime.utcnow()
-	request_time_str = request_time.strftime("%Y-%m-%d %H:%M:%S")
 
 	latencies_ms: list[float] = []
 	success_count = 0
+	direct_count = 0
+	fallback_count = 0
+	no_data_count = 0
 	total_runs = 0
 
 	start_total = time.time()
@@ -337,6 +386,9 @@ def benchmark_batch_prediction(
 			latency_ms = (end_run - start_run) * 1000.0
 			latencies_ms.append(latency_ms)
 			success_count += response.success_count
+			direct_count += sum(1 for item in response.items if item.reason_code == REASON_DIRECT and item.status == "ok")
+			fallback_count += sum(1 for item in response.items if item.used_fallback and item.status == "ok")
+			no_data_count += response.no_data_count
 			total_runs += 1
 
 		except Exception:
@@ -358,7 +410,11 @@ def benchmark_batch_prediction(
 	
 	avg_latency = statistics.mean(latencies_ms)
 	throughput = (payload.batch_size * total_runs) / (total_time_ms / 1000.0)
-	success_rate = (success_count / (payload.batch_size * total_runs)) * 100.0 if total_runs > 0 else 0.0
+	total_predictions = payload.batch_size * total_runs
+	success_rate = (success_count / total_predictions) * 100.0 if total_predictions > 0 else 0.0
+	direct_hit_rate = (direct_count / total_predictions) * 100.0 if total_predictions > 0 else 0.0
+	fallback_hit_rate = (fallback_count / total_predictions) * 100.0 if total_predictions > 0 else 0.0
+	no_data_rate = (no_data_count / total_predictions) * 100.0 if total_predictions > 0 else 0.0
 
 	note = None
 	if total_runs < payload.num_runs:
@@ -373,6 +429,9 @@ def benchmark_batch_prediction(
 		avg_latency_ms=round(avg_latency, 2),
 		throughput_per_second=round(throughput, 2),
 		success_rate_pct=round(success_rate, 2),
+		direct_hit_rate_pct=round(direct_hit_rate, 2),
+		fallback_hit_rate_pct=round(fallback_hit_rate, 2),
+		no_data_rate_pct=round(no_data_rate, 2),
 		model_profile="warmstart",
 		note=note,
 	)

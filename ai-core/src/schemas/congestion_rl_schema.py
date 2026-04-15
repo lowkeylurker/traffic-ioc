@@ -74,5 +74,8 @@ class BenchmarkBatchResponse(BaseModel):
 	avg_latency_ms: float
 	throughput_per_second: float
 	success_rate_pct: float
+	direct_hit_rate_pct: float
+	fallback_hit_rate_pct: float
+	no_data_rate_pct: float
 	model_profile: str = "warmstart"
 	note: Optional[str] = None

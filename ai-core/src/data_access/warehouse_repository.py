@@ -87,6 +87,24 @@ def get_nearest_segments_in_corridor(
     ]
 
 
+def get_benchmark_segment_pool(limit: int = 5000) -> list[int]:
+    """Return a real segment pool from warehouse traffic facts for benchmark sampling."""
+    engine = get_engine()
+    query = text(
+        """
+        SELECT DISTINCT f.segment_key
+        FROM fact_traffic_flow f
+        WHERE f.segment_key IS NOT NULL
+        ORDER BY f.segment_key
+        LIMIT :limit
+        """
+    )
+    df = pd.read_sql_query(query, engine, params={"limit": int(limit)})
+    if df.empty:
+        return []
+    return [int(segment_key) for segment_key in df["segment_key"].tolist()]
+
+
 def load_warehouse_rows_by_segments(
     segment_ids: list[int],
     start_date: str,
