@@ -34,25 +34,25 @@ CHECKPOINT_PATH = str(get_ml_checkpoint_path(run_id=RUN_ID))
 PREPROCESSING_OUT = str(get_ml_preprocessing_path(run_id=RUN_ID))
 METRICS_OUT = str(get_ml_metrics_path(run_id=RUN_ID))
 
-USE_WEIGHTED_SAMPLER = True
+USE_WEIGHTED_SAMPLER = False
 USE_CLASS_WEIGHTS = True
-CLASS_WEIGHT_CLIP_MIN = 0.5
-CLASS_WEIGHT_CLIP_MAX = 25.0
-TRAIN_EPOCHS = 30
+CLASS_WEIGHT_CLIP_MIN = 0.8
+CLASS_WEIGHT_CLIP_MAX = 1.8
+TRAIN_EPOCHS = 35
 LEARNING_RATE = 0.001
-PATIENCE = 5
+PATIENCE = 12
 BATCH_SIZE = 256
 LOSS_TYPE = "ce"
 FOCAL_GAMMA = 2.0
 CLASS_BALANCED_BETA = 0.9999
-LABEL_SMOOTHING = 0.0
+LABEL_SMOOTHING = 0.05
 WEIGHT_DECAY = 0.0001
-USE_LR_SCHEDULER = False
+USE_LR_SCHEDULER = True
 SCHEDULER_PATIENCE = 2
 SCHEDULER_FACTOR = 0.5
 DROPOUT_RATE = 0.2
 # Toggle trực tiếp trong code: True = bật, False = tắt
-USE_WINDOW_BALANCING = False
+USE_WINDOW_BALANCING = True
 
 CORRIDOR_IDS = [
     136550177913819656,
@@ -63,7 +63,7 @@ CORRIDOR_IDS = [
     1100735735503891924,
 ]
 START_DATE = "2026-03-25"
-END_DATE = "2026-04-08"
+END_DATE = "2026-04-16"
 
 
 def _balance_majority_windows(
@@ -95,14 +95,14 @@ def _balance_majority_windows(
     labels = targets[target_indices]
     counts = np.bincount(labels, minlength=6).astype(np.int64)
 
-    minority_total = int(counts[3] + counts[4] + counts[5])
-    if minority_total <= 0:
-        return ordered, {"applied": False, "reason": "no_minority_windows", "before_window_counts": counts.tolist()}
+    congested_anchor = int(counts[3])
+    if congested_anchor <= 0:
+        return ordered, {"applied": False, "reason": "no_class3_windows", "before_window_counts": counts.tolist()}
 
     target_counts = counts.astype(np.float64)
-    target_counts[0] = min(float(counts[0]), float(2 * minority_total))
-    target_counts[1] = min(float(counts[1]), float(3 * minority_total))
-    target_counts[2] = min(float(counts[2]), float(4 * minority_total))
+    target_counts[0] = min(float(counts[0]), float(3.0 * congested_anchor))
+    target_counts[1] = min(float(counts[1]), float(3.5 * congested_anchor))
+    target_counts[2] = min(float(counts[2]), float(4.0 * congested_anchor))
 
     keep_probs = np.ones(6, dtype=np.float64)
     for cls in (0, 1, 2):
@@ -138,7 +138,7 @@ def _balance_majority_windows(
 
     stats = {
         "applied": True,
-        "rule": "T0=2M, T1=3M, T2=4M, keep all labels 3-5",
+        "rule": "Anchor class3 (D): T0<=3.0*C3, T1<=3.5*C3, T2<=4.0*C3, keep labels 3-5",
         "before_window_counts": counts.tolist(),
         "after_window_counts": after_counts.tolist(),
         "keep_probs": [float(round(v, 4)) for v in keep_probs.tolist()],
