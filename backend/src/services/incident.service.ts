@@ -624,6 +624,100 @@ export class IncidentService {
 
     return response;
   }
+
+  /**
+   * Confirm citizen report with POSTGIS Geofencing and GAMIFICATION auto-approve
+   */
+  async confirmCitizenReport(
+    reportKey: string,
+    userId: string,
+    isTrue: boolean,
+    userLng: number,
+    userLat: number
+  ): Promise<{ status: string; message: string }> {
+    const reportKeyBigInt = BigInt(reportKey);
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Geofencing using PostGIS ST_DWithin (< 200m)
+      const distanceCheck = await tx.$queryRaw<Array<{ is_within: boolean }>>(Prisma.sql`
+        SELECT ST_DWithin(
+          geometry::geography,
+          ST_SetSRID(ST_MakePoint(${userLng}, ${userLat}), 4326)::geography,
+          200
+        ) as is_within
+        FROM fact_citizen_report
+        WHERE report_key = ${reportKeyBigInt}
+      `);
+
+      if (!distanceCheck.length || !distanceCheck[0].is_within) {
+        throw new Error('Bạn ở quá xa sự cố (hơn 200m), không thể xác nhận.');
+      }
+
+      // 2. Upsert user in dim_user (ensure existence for gamification)
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO dim_user (user_id) 
+        VALUES (${userId}) 
+        ON CONFLICT (user_id) DO NOTHING
+      `);
+
+      // 3. Insert or update the confirmation
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO incident_confirmations (report_key, user_id, is_true)
+        VALUES (${reportKeyBigInt}, ${userId}, ${isTrue})
+        ON CONFLICT (report_key, user_id) 
+        DO UPDATE SET is_true = EXCLUDED.is_true, created_at = NOW()
+      `);
+
+      // 4. Calculate total trust weight
+      const weightResult = await tx.$queryRaw<Array<{ total_trust: number }>>(Prisma.sql`
+        SELECT COALESCE(SUM(u.trust_weight), 0) as total_trust
+        FROM incident_confirmations ic
+        JOIN dim_user u ON ic.user_id = u.user_id
+        WHERE ic.report_key = ${reportKeyBigInt} AND ic.is_true = true
+      `);
+
+      const totalTrust = Number(weightResult[0]?.total_trust || 0);
+
+      // 5. Auto approve threshold: >= 10
+      if (totalTrust >= 10) {
+        // Find reporter to give reputation
+        const report = await tx.$queryRaw<Array<{ reporter_id: string; status: string }>>(Prisma.sql`
+          SELECT reporter_id, status FROM fact_citizen_report WHERE report_key = ${reportKeyBigInt}
+        `);
+
+        if (report.length > 0 && report[0].status === 'PENDING') {
+          // Update report to APPROVED
+          await tx.$executeRaw(Prisma.sql`
+            UPDATE fact_citizen_report 
+            SET status = 'APPROVED', approved_at = NOW()
+            WHERE report_key = ${reportKeyBigInt}
+          `);
+
+          // Reward 50 points to the reporter
+          const reporterId = report[0].reporter_id;
+          await tx.$executeRaw(Prisma.sql`
+            UPDATE dim_user 
+            SET reputation_score = reputation_score + 50 
+            WHERE user_id = ${reporterId}
+          `);
+
+          // Reward 50 points to all users who confirmed correctly
+          await tx.$executeRaw(Prisma.sql`
+            UPDATE dim_user u
+            SET reputation_score = reputation_score + 50
+            FROM incident_confirmations ic
+            WHERE ic.user_id = u.user_id 
+              AND ic.report_key = ${reportKeyBigInt} 
+              AND ic.is_true = true
+          `);
+          
+          return { status: 'APPROVED', message: 'Xác nhận thành công. Sự cố đã được tự động duyệt!' };
+        }
+      }
+
+      return { status: 'PENDING', message: 'Xác nhận thành công. Chờ thêm người dùng khác.' };
+    });
+  }
 }
 
 export const incidentService = new IncidentService();

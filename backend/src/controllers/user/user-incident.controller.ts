@@ -145,6 +145,40 @@ export class UserIncidentController {
       return res.status(400).json(ResponseUtil.badRequest((error as Error).message));
     }
   }
+
+  async getScore(req: AuthedRequest, res: Response, _next: NextFunction) {
+    try {
+      const userId = req.auth?.userId;
+      if (!userId) {
+        return res.status(401).json(ResponseUtil.error('Authentication required', 401));
+      }
+
+      // We need to fetch from dim_user using prisma.
+      // Assuming we can import prisma here, or just let userIncidentService handle it.
+      // Let's import PrismaClient locally or via a service. 
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+
+      let user = await prisma.dim_user.findUnique({
+        where: { user_id: userId }
+      });
+
+      if (!user) {
+        // Return default if not exists
+        return res.json(ResponseUtil.success({
+          reputationScore: 0,
+          trustWeight: 1.0
+        }, 'User score fetched successfully (default)'));
+      }
+
+      return res.json(ResponseUtil.success({
+        reputationScore: user.reputation_score,
+        trustWeight: user.trust_weight
+      }, 'User score fetched successfully'));
+    } catch (error) {
+      return res.status(400).json(ResponseUtil.badRequest((error as Error).message));
+    }
+  }
 }
 
 export const userIncidentController = new UserIncidentController();

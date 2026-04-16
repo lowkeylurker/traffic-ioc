@@ -115,8 +115,19 @@ export const CitizenReportsAdminPage: React.FC = () => {
     {
       title: 'Mô tả',
       dataIndex: 'description',
-      ellipsis: true,
-      render: (value: string | null) => value || 'Không có mô tả',
+      width: 250,
+      render: (value: string | null, record: CitizenReportItem) => (
+        <Space direction="vertical" size={2}>
+          <Text ellipsis={{ tooltip: value || 'Không có mô tả' }}>
+            {value || 'Không có mô tả'}
+          </Text>
+          {record.moderationNote && (
+            <Tag color="warning" style={{ marginTop: 4, whiteSpace: 'normal' }}>
+              ⚠️ {record.moderationNote}
+            </Tag>
+          )}
+        </Space>
+      ),
     },
     {
       title: 'Thời điểm',

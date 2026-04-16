@@ -82,7 +82,7 @@ export type IncidentType =
   | 'FIRE'
   | 'OTHER'
 export type IncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
-export type IncidentStatus = 'OPEN' | 'RESOLVED' | 'PENDING'
+export type IncidentStatus = 'OPEN' | 'RESOLVED' | 'PENDING' | 'APPROVED' | 'REJECTED'
 
 export interface IncidentFeature {
   type: 'Feature'

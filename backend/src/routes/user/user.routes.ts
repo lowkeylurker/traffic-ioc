@@ -10,6 +10,9 @@ const router = Router();
 // GET /api/v1/user/news?lat=...&long=...&radius=...
 router.get('/news', (req, res, next) => userIncidentController.getNews(req, res, next));
 
+// GET /api/v1/user/score
+router.get('/score', authMiddleware, (req, res, next) => userIncidentController.getScore(req, res, next));
+
 // POST /api/v1/user/report
 router.post('/report', authMiddleware, reportRateLimit, imageUpload.single('image'), (req, res, next) =>
   userIncidentController.submitReport(req, res, next)

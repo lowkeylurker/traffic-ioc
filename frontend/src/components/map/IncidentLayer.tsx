@@ -157,15 +157,20 @@ export const IncidentLayer: React.FC<IncidentLayerProps> = ({
             >
               <div
                 style={{
-                  width: `${markerSize}px`,
-                  height: `${markerSize}px`,
+                  width: incident.properties.status === 'APPROVED' ? `${markerSize * 1.5}px` : `${markerSize}px`,
+                  height: incident.properties.status === 'APPROVED' ? `${markerSize * 1.5}px` : `${markerSize}px`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: `${markerIconSize}px`,
-                  color: SEVERITY_COLORS[severity],
-                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.35))',
+                  fontSize: incident.properties.status === 'APPROVED' ? `${markerIconSize * 1.5}px` : `${markerIconSize}px`,
+                  color: incident.properties.status === 'APPROVED' ? '#ff4d4f' : SEVERITY_COLORS[severity],
+                  filter: incident.properties.status === 'APPROVED' 
+                    ? 'drop-shadow(0 0 12px rgba(255, 77, 79, 0.8))'
+                    : 'drop-shadow(0 2px 6px rgba(0,0,0,0.35))',
                   userSelect: 'none',
+                  transition: 'all 0.3s ease',
+                  backgroundColor: incident.properties.status === 'APPROVED' ? 'rgba(255,255,255,0.9)' : 'transparent',
+                  borderRadius: incident.properties.status === 'APPROVED' ? '50%' : 'none',
                 }}
               >
                 <span

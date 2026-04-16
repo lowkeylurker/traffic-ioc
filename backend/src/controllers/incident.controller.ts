@@ -129,6 +129,34 @@ export class IncidentController {
       res.json(ResponseUtil.error('Failed to update incident status', 500));
     }
   }
+
+  /**
+   * POST /api/v1/incidents/:id/confirm
+   * Confirm/reject a citizen report based on user location (Gamification & Trust-based Auto Approval)
+   */
+  async confirmReport(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { isTrue, userLng, userLat } = req.body;
+      
+      // Usually user ID comes from Auth Middleware (Clerk/authMiddleware).
+      // Make sure its available from the req object
+      const userId = req.body.userId || 'demo_user_id';
+
+      if (!userId || typeof isTrue !== 'boolean' || userLng === undefined || userLat === undefined) {
+        return res.json(ResponseUtil.error('Missing required fields (userId, isTrue, userLng, userLat)', 400));
+      }
+
+      const result = await incidentService.confirmCitizenReport(id, userId, isTrue, Number(userLng), Number(userLat));
+      res.json(ResponseUtil.success(result, result.message));
+    } catch (error) {
+      console.error('Error confirming report:', error);
+      if (error instanceof Error && error.message.includes('200m')) {
+        return res.json(ResponseUtil.error(error.message, 403));
+      }
+      res.json(ResponseUtil.error('Failed to confirm report', 500));
+    }
+  }
 }
 
 export const incidentController = new IncidentController();

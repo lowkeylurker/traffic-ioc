@@ -205,6 +205,9 @@ export const userApi = {
     payload: { status: 'APPROVED' | 'REJECTED'; note?: string }
   ): Promise<ApiResponse<null>> =>
     axiosInstance.patch(`/user/report/${reportId}/status`, payload),
+
+  getScore: (): Promise<ApiResponse<{ reputationScore: number; trustWeight: number }>> =>
+    axiosInstance.get('/user/score'),
 }
 
 export default axiosInstance

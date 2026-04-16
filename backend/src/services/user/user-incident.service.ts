@@ -156,7 +156,7 @@ export class UserIncidentService {
     const incidentType = normalizeType(input.incidentType);
     const description = input.description?.trim() || null;
 
-    const rows = await prisma.$queryRaw<Array<{ report_key: bigint; status: ReportStatus }>>(Prisma.sql`
+    const rows = await prisma.$queryRaw<Array<{ report_key: bigint; status: ReportStatus; segment_key: bigint }>>(Prisma.sql`
       WITH base AS (
         SELECT
           ST_SetSRID(ST_MakePoint(${input.lng}, ${input.lat}), 4326) AS geom,
@@ -221,13 +221,73 @@ export class UserIncidentService {
         created_at,
         updated_at
       FROM payload
-      RETURNING report_key, status
+      RETURNING report_key, status, segment_key
     `);
 
     const row = rows[0];
+    const reportKey = row.report_key;
+    let finalStatus = row.status;
+
+    // Rule 2: Data Fusion Auto-Approve Check
+    try {
+      const trafficRows = await prisma.$queryRaw<
+        Array<{
+          current_speed_kmh: number | null;
+          free_flow_speed_kmh: number | null;
+        }>
+      >(Prisma.sql`
+        SELECT current_speed_kmh, free_flow_speed_kmh
+        FROM fact_traffic_flow
+        WHERE segment_key = ${row.segment_key}
+          AND timestamp >= NOW() - INTERVAL '10 minutes'
+        ORDER BY timestamp DESC
+        LIMIT 1
+      `);
+      
+      if (trafficRows.length > 0) {
+        const traffic = trafficRows[0];
+        const currentSpeed = Number(traffic.current_speed_kmh);
+        const freeFlow = Number(traffic.free_flow_speed_kmh);
+        
+        if (currentSpeed > 0 && freeFlow > 0) {
+          const tti = freeFlow / currentSpeed;
+          
+          if (tti >= 1.5) {
+            // Auto-Approve: TTI is high
+            await this.moderateReport(
+              reportKey.toString(),
+              'APPROVED',
+              'SYSTEM_DATA_FUSION',
+              'Auto-approved via Data Fusion (TTI >= 1.5)'
+            );
+            
+            // Upsert user and grant 50 points
+            await prisma.$executeRaw(Prisma.sql`
+              INSERT INTO dim_user (user_id, reputation_score)
+              VALUES (${input.reporterId}, 50)
+              ON CONFLICT (user_id) DO UPDATE
+              SET reputation_score = dim_user.reputation_score + 50
+            `);
+            
+            finalStatus = 'APPROVED';
+          } else if (tti < 1.0) {
+            // Suspicious: TTI is low (road is clear)
+            await prisma.$executeRaw(Prisma.sql`
+              UPDATE fact_citizen_report
+              SET moderation_note = 'Suspicious: Data Fusion mismatch (TTI < 1.0, speed is normal)'
+              WHERE report_key = ${reportKey}
+            `);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Data Fusion error:', error);
+      // Fail silently for data fusion, fallback to PENDING
+    }
+
     return {
-      reportId: row.report_key.toString(),
-      status: row.status,
+      reportId: reportKey.toString(),
+      status: finalStatus,
     };
   }
 
@@ -391,11 +451,13 @@ export class UserIncidentService {
         Array<{
           status: ReportStatus;
           approved_incident_key: bigint | null;
+          reporter_id: string;
         }>
       >(Prisma.sql`
         SELECT
           status,
-          approved_incident_key
+          approved_incident_key,
+          reporter_id
         FROM fact_citizen_report
         WHERE report_key = ${reportKey}
         LIMIT 1
@@ -472,6 +534,32 @@ export class UserIncidentService {
           updated_at = NOW()
         WHERE report_key = ${reportKey}
       `);
+
+      // Rule 3: Multi-tier Penalty for REJECTED reports
+      if (normalizedStatus === 'REJECTED') {
+        const reporterId = current.reporter_id;
+        
+        // 1. Penalty for reporter
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE dim_user
+          SET 
+            reputation_score = GREATEST(reputation_score - 100, 0),
+            trust_weight = GREATEST(trust_weight * 0.5, 0.0)
+          WHERE user_id = ${reporterId}
+        `);
+
+        // 2. Penalty for confirmers who voted "Yes"
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE dim_user u
+          SET 
+            reputation_score = GREATEST(reputation_score - 100, 0),
+            trust_weight = GREATEST(trust_weight * 0.5, 0.0)
+          FROM incident_confirmations ic
+          WHERE ic.user_id = u.user_id 
+            AND ic.report_key = ${reportKey} 
+            AND ic.is_true = true
+        `);
+      }
     });
   }
 }

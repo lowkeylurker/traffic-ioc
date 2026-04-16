@@ -329,6 +329,8 @@ model fact_citizen_report {
   @@index([created_at(sort: Desc)], map: "idx_fact_citizen_report_created_at")
   @@index([segment_key, date_key], map: "idx_fact_citizen_report_segment_date")
   @@index([timestamp(sort: Desc)], map: "idx_fact_citizen_report_ts")
+
+  incident_confirmations incident_confirmations[]
 }
 
 /// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
@@ -471,4 +473,29 @@ enum IncidentStatus {
   VERIFIED
   REJECTED
   RESOLVED
+}
+
+model dim_user {
+  user_id          String                   @id @db.VarChar(255)
+  clerk_id         String?                  @unique @db.VarChar(255)
+  reputation_score Int                      @default(0)
+  trust_weight     Float                    @default(1.0)
+  created_at       DateTime                 @default(now()) @db.Timestamp(6)
+  
+  incident_confirmations incident_confirmations[]
+}
+
+model incident_confirmations {
+  id               BigInt              @id @default(autoincrement())
+  report_key       BigInt
+  user_id          String              @db.VarChar(255)
+  is_true          Boolean
+  created_at       DateTime            @default(now()) @db.Timestamp(6)
+
+  fact_citizen_report fact_citizen_report @relation(fields: [report_key], references: [report_key], onDelete: NoAction, onUpdate: NoAction)
+  dim_user            dim_user            @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([report_key, user_id], map: "uq_incident_confirm_report_user")
+  @@index([report_key], map: "idx_incident_confirm_report")
+  @@index([user_id], map: "idx_incident_confirm_user")
 }

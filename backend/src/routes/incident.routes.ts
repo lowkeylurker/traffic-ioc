@@ -25,4 +25,7 @@ router.patch(
   incidentController.updateIncidentStatus.bind(incidentController)
 );
 
+// POST /api/v1/incidents/:id/confirm - Confirm citizen report (Gamification Auto-Approve)
+router.post('/:id/confirm', incidentController.confirmReport.bind(incidentController));
+
 export default router;
