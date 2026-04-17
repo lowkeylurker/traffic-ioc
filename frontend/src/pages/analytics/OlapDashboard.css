@@ -1,0 +1,74 @@
+.olap-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.olap-card {
+  border-radius: 12px;
+}
+
+.olap-toolbar-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.olap-toolbar-title-block {
+  flex: 1;
+  min-width: 280px;
+}
+
+.olap-filter-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.olap-filter-panel {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.olap-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.olap-control {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.olap-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.olap-chart-note {
+  margin-top: 12px;
+}
+
+@media (max-width: 1200px) {
+  .olap-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 992px) {
+  .olap-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .olap-chart-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,4 +1,5 @@
 export { AnalyticsPage } from './AnalyticsPage'
+export { BiOlapDashboardPage } from './BiOlapDashboardPage'
 export { CitizenReportsAdminPage } from './CitizenReportsAdminPage'
 export { DashboardPage } from './DashboardPage'
 export { NewsPage } from './NewsPage'

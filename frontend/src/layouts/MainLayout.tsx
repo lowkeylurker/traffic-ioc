@@ -6,6 +6,7 @@ import { setAccessTokenGetter } from '@/services/api'
 import {
   AuditOutlined,
   BarChartOutlined,
+  DatabaseOutlined,
   ExperimentOutlined,
   EyeOutlined,
   LogoutOutlined,
@@ -72,6 +73,11 @@ export const MainLayout: React.FC = () => {
             key: '/simulation',
             icon: <ExperimentOutlined />,
             label: 'Mô phỏng & Dự báo',
+          },
+          {
+            key: '/bi-olap',
+            icon: <DatabaseOutlined />,
+            label: 'BI & OLAP Dashboard',
           },
           {
             key: '/incident-reports',

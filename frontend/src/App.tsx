@@ -1,6 +1,7 @@
 import { RoleGuard } from '@/components'
 import { MainLayout } from '@/layouts/MainLayout'
 import { AnalyticsPage } from '@/pages/AnalyticsPage'
+import { BiOlapDashboardPage } from '@/pages/BiOlapDashboardPage'
 import { CitizenReportsAdminPage } from '@/pages/CitizenReportsAdminPage'
 import { NewsPage } from '@/pages/NewsPage'
 import { RealTimePage } from '@/pages/RealTimePage'
@@ -57,6 +58,14 @@ function App() {
             element={
               <RoleGuard requiredRole="admin">
                 <SimulationPage />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="bi-olap"
+            element={
+              <RoleGuard requiredRole="admin">
+                <BiOlapDashboardPage />
               </RoleGuard>
             }
           />

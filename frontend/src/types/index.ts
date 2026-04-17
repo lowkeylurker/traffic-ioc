@@ -374,6 +374,53 @@ export interface CorridorReliabilityQueryParams {
   corridorKey?: string
 }
 
+export type OlapAnalyzeType = 'heatmap' | 'scatter' | 'drilldown'
+export type OlapDrillLevel = 'year' | 'month'
+
+export interface OlapAnalyzeCommonParams {
+  startDate?: string
+  endDate?: string
+  districts?: string
+  weatherImpactMin?: number
+  weatherImpactMax?: number
+}
+
+export interface OlapHeatmapParams extends OlapAnalyzeCommonParams {
+  type: 'heatmap'
+}
+
+export interface OlapScatterParams extends OlapAnalyzeCommonParams {
+  type: 'scatter'
+}
+
+export interface OlapDrilldownParams extends OlapAnalyzeCommonParams {
+  type: 'drilldown'
+  level: OlapDrillLevel
+  value: string
+}
+
+// [dayOfWeek, hourOfDay, ttiValue]
+export type OlapHeatmapCell = [number, number, number]
+
+export interface OlapScatterPoint {
+  weather_impact_score: number
+  avg_tti: number
+  incident_count: number
+  district: string
+}
+
+export interface OlapDrilldownPoint {
+  bucket: string
+  avg_tti: number
+  incident_count: number
+}
+
+export interface OlapDrilldownResponse {
+  level: OlapDrillLevel
+  value: string
+  points: OlapDrilldownPoint[]
+}
+
 export interface ForecastData {
   segmentId: number
   predictedSpeed: number

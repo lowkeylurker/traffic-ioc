@@ -9,11 +9,12 @@ import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { Logger } from './utils/logger';
 
 // Routes
-import compression from 'compression';
 import { clerkMiddleware } from '@clerk/express';
+import compression from 'compression';
 import analyticsRoutes from './routes/analytics.routes';
 import incidentRoutes from './routes/incident.routes';
 import mapRoutes from './routes/map.routes';
+import olapRoutes from './routes/olap.routes';
 import simulationRoutes from './routes/simulation.routes';
 import userRoutes from './routes/user/user.routes';
 import weatherRoutes from './routes/weather.routes';
@@ -59,8 +60,12 @@ export const createApp = (): Express => {
   // ============================================================================
   const apiV1 = `${API_VERSIONS.V1}`;
 
+  // Alias without version for BI/OLAP compatibility
+  app.use('/api/olap', olapRoutes);
+
   app.use(`${apiV1}${ROUTE_PATHS.MAP}`, mapRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.ANALYTICS}`, analyticsRoutes);
+  app.use(`${apiV1}${ROUTE_PATHS.OLAP}`, olapRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.SIMULATION}`, simulationRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.INCIDENT}`, incidentRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.WEATHER}`, weatherRoutes);
@@ -69,6 +74,7 @@ export const createApp = (): Express => {
   logger.log('Routes registered:', {
     map: `${apiV1}${ROUTE_PATHS.MAP}`,
     analytics: `${apiV1}${ROUTE_PATHS.ANALYTICS}`,
+    olap: `${apiV1}${ROUTE_PATHS.OLAP}`,
     simulation: `${apiV1}${ROUTE_PATHS.SIMULATION}`,
     incident: `${apiV1}${ROUTE_PATHS.INCIDENT}`,
     weather: `${apiV1}${ROUTE_PATHS.WEATHER}`,

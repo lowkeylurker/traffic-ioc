@@ -2,10 +2,11 @@
 
 import 'dotenv/config';
 import { createApp } from './app';
-import { Logger } from './utils/logger';
 import { prisma } from './config/prisma';
 import { closeRedisConnection } from './config/redis';
+import { olapJobService } from './jobs/olap-job.service';
 import { reliabilityJobService } from './jobs/reliability-job.service';
+import { Logger } from './utils/logger';
 
 const logger = new Logger('Server');
 
@@ -22,6 +23,7 @@ async function main() {
     // Khởi tạo Express app
     const app = createApp();
 
+    await olapJobService.start();
     await reliabilityJobService.start();
 
     // Start server
@@ -43,6 +45,7 @@ async function main() {
     process.on('SIGTERM', () => {
       logger.log('SIGTERM received, shutting down gracefully...');
       server.close(async () => {
+        await olapJobService.stop();
         await reliabilityJobService.stop();
         await closeRedisConnection();
         await prisma.$disconnect();
@@ -54,6 +57,7 @@ async function main() {
     process.on('SIGINT', () => {
       logger.log('SIGINT received, shutting down gracefully...');
       server.close(async () => {
+        await olapJobService.stop();
         await reliabilityJobService.stop();
         await closeRedisConnection();
         await prisma.$disconnect();
