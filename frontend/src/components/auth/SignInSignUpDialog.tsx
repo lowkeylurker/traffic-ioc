@@ -13,6 +13,7 @@ import { GoogleOutlined } from '@ant-design/icons'
 import { useSignIn, useSignUp, useAuth, useClerk } from '@clerk/clerk-react'
 import { useNavigate } from 'react-router-dom'
 import type { TabsProps } from 'antd'
+import { userApi } from '@/services/api'
 
 interface SignInSignUpDialogProps {
   open: boolean
@@ -36,12 +37,20 @@ export const SignInSignUpDialog: React.FC<SignInSignUpDialogProps> = ({
   const { setActive } = useClerk()
   const navigate = useNavigate()
 
-  // Auto-close dialog when user is signed in
+  // Auto-close dialog and sync user when signed in
   React.useEffect(() => {
-    if (isSignedIn && open) {
-      onClose()
-      navigate('/real-time')
+    const handleSyncAndRedirect = async () => {
+      if (isSignedIn && open) {
+        try {
+          await userApi.syncUser()
+        } catch (error) {
+          console.error('Failed to sync user:', error)
+        }
+        onClose()
+        navigate('/real-time')
+      }
     }
+    handleSyncAndRedirect()
   }, [isSignedIn, open, onClose, navigate])
 
   const handleSignIn = async (values: { email: string; password: string }) => {
@@ -57,6 +66,12 @@ export const SignInSignUpDialog: React.FC<SignInSignUpDialogProps> = ({
       if (result.status === 'complete') {
         // Set the active session to complete the sign-in
         await setActive({ session: result.createdSessionId })
+        // Sync user to DB
+        try {
+          await userApi.syncUser()
+        } catch (e) {
+          console.error('Sync failed', e)
+        }
         message.success('Đăng nhập thành công')
         onClose()
         navigate('/real-time')
@@ -97,6 +112,12 @@ export const SignInSignUpDialog: React.FC<SignInSignUpDialogProps> = ({
       })
 
       if (result.status === 'complete') {
+        // Sync user to DB
+        try {
+          await userApi.syncUser()
+        } catch (e) {
+          console.error('Sync failed', e)
+        }
         message.success('Đăng ký thành công')
         onClose()
         navigate('/real-time')
@@ -140,6 +161,12 @@ export const SignInSignUpDialog: React.FC<SignInSignUpDialogProps> = ({
       if (result?.status === 'complete') {
         // Set the active session to complete the sign-up
         await setActive({ session: result.createdSessionId })
+        // Sync user to DB
+        try {
+          await userApi.syncUser()
+        } catch (e) {
+          console.error('Sync failed', e)
+        }
         message.success('Đăng ký thành công')
         setVerificationStep(false)
         setVerificationCode('')

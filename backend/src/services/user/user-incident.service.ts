@@ -1,5 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { v4 as uuidv4 } from 'uuid';
+
 
 type ReportStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -560,6 +562,21 @@ export class UserIncidentService {
             AND ic.is_true = true
         `);
       }
+    });
+  }
+
+  async ensureUserExists(userId: string): Promise<void> {
+    if (!userId) return;
+
+    await prisma.dim_user.upsert({
+      where: { user_id: userId },
+      update: {},
+      create: {
+        user_id: uuidv4(),
+        clerk_id: userId,
+        reputation_score: 0,
+        trust_weight: 1.0,
+      },
     });
   }
 }

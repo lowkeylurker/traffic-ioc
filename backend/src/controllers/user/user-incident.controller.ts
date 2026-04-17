@@ -179,6 +179,20 @@ export class UserIncidentController {
       return res.status(400).json(ResponseUtil.badRequest((error as Error).message));
     }
   }
+
+  async syncUser(req: AuthedRequest, res: Response, _next: NextFunction) {
+    try {
+      const userId = req.auth?.userId;
+      if (!userId) {
+        return res.status(401).json(ResponseUtil.error('Authentication required', 401));
+      }
+
+      await userIncidentService.ensureUserExists(userId);
+      return res.json(ResponseUtil.success(null, 'User synchronized successfully'));
+    } catch (error) {
+      return res.status(400).json(ResponseUtil.badRequest((error as Error).message));
+    }
+  }
 }
 
 export const userIncidentController = new UserIncidentController();

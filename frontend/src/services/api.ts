@@ -208,6 +208,9 @@ export const userApi = {
 
   getScore: (): Promise<ApiResponse<{ reputationScore: number; trustWeight: number }>> =>
     axiosInstance.get('/user/score'),
+
+  syncUser: (): Promise<ApiResponse<null>> =>
+    axiosInstance.post('/user/sync'),
 }
 
 export default axiosInstance

@@ -13,6 +13,9 @@ router.get('/news', (req, res, next) => userIncidentController.getNews(req, res,
 // GET /api/v1/user/score
 router.get('/score', authMiddleware, (req, res, next) => userIncidentController.getScore(req, res, next));
 
+// POST /api/v1/user/sync
+router.post('/sync', authMiddleware, (req, res, next) => userIncidentController.syncUser(req, res, next));
+
 // POST /api/v1/user/report
 router.post('/report', authMiddleware, reportRateLimit, imageUpload.single('image'), (req, res, next) =>
   userIncidentController.submitReport(req, res, next)
