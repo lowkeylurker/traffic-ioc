@@ -146,7 +146,13 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
         f.traffic_index,
         f.delay_seconds,
         f.quality_flag,
-        f.congestion_level AS target_label,
+        CASE
+            WHEN f.traffic_index IS NULL THEN NULL
+            WHEN f.traffic_index <= 0.10 THEN 0
+            WHEN f.traffic_index <= 0.25 THEN 1
+            WHEN f.traffic_index <= 0.42 THEN 2
+            ELSE 3
+        END AS target_label,
         w_dim.default_lane_count,
         f.free_flow_speed_kmh AS static_free_flow,
         w_dim.osm_highway_type,

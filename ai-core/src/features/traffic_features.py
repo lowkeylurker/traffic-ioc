@@ -18,33 +18,25 @@ def calculate_traffic_index(current_speed_kmh, free_flow_speed_kmh):
 def classify_los(traffic_index):
 	if pd.isna(traffic_index):
 		return None
-	if traffic_index <= 0.15:
+	if traffic_index <= 0.10:
 		return "A"
-	if traffic_index <= 0.3:
+	if traffic_index <= 0.25:
 		return "B"
-	if traffic_index <= 0.45:
+	if traffic_index <= 0.42:
 		return "C"
-	if traffic_index <= 0.6:
-		return "D"
-	if traffic_index <= 0.8:
-		return "E"
-	return "F"
+	return "D"
 
 
 def classify_congestion_level(traffic_index):
 	if pd.isna(traffic_index):
 		return np.nan
-	if traffic_index <= 0.15:
+	if traffic_index <= 0.10:
 		return 0
-	if traffic_index <= 0.3:
+	if traffic_index <= 0.25:
 		return 1
-	if traffic_index <= 0.45:
+	if traffic_index <= 0.42:
 		return 2
-	if traffic_index <= 0.6:
-		return 3
-	if traffic_index <= 0.8:
-		return 4
-	return 5
+	return 3
 
 
 def extract_traffic_features(

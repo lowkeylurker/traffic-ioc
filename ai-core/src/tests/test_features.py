@@ -46,7 +46,7 @@ def test_extract_traffic_features_classifies_congestion() -> None:
 
 	assert np.isclose(enriched.loc[0, "traffic_index"], 0.5)
 	assert classify_los(enriched.loc[0, "traffic_index"]) == "D"
-	assert classify_congestion_level(0.75) == 4
+	assert classify_congestion_level(0.75) == 3
 
 
 def test_calculate_traffic_index_handles_invalid_free_flow() -> None:

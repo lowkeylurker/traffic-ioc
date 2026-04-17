@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -19,17 +20,17 @@ from src.ml.data.dataset import prepare_dataloaders
 from src.ml.artifacts import get_ml_checkpoint_path, get_ml_metrics_path, get_ml_preprocessing_path
 from src.ml.models.traffic_model import TrafficCongestionModel
 from src.ml.training.loop import train_model
-from src.ml.feature_contract import TARGET_COL, WINDOW_STEP_MINUTES
+from src.ml.feature_contract import NUM_CLASSES, TARGET_COL, WINDOW_STEP_MINUTES
 from src.features.sliding_window import find_valid_window_starts
 from src.utils.data_loader import load_bulk_corridor_data
 
 
-PREDICTION_HORIZON_MINUTES = 15  # Supported: 15 or 30
+PREDICTION_HORIZON_MINUTES = int(os.getenv("ML_PREDICTION_HORIZON_MINUTES", "15"))  # Supported: 15 or 30
 if PREDICTION_HORIZON_MINUTES not in (15, 30):
     raise ValueError("PREDICTION_HORIZON_MINUTES chỉ được phép là 15 hoặc 30")
 
 TARGET_OFFSET_STEPS = PREDICTION_HORIZON_MINUTES // WINDOW_STEP_MINUTES
-RUN_ID = f"manual_h{PREDICTION_HORIZON_MINUTES}"
+RUN_ID = os.getenv("ML_RUN_ID", f"manual_h{PREDICTION_HORIZON_MINUTES}")
 CHECKPOINT_PATH = str(get_ml_checkpoint_path(run_id=RUN_ID))
 PREPROCESSING_OUT = str(get_ml_preprocessing_path(run_id=RUN_ID))
 METRICS_OUT = str(get_ml_metrics_path(run_id=RUN_ID))
@@ -78,7 +79,7 @@ def _balance_majority_windows(
     ordered = df.sort_values(by=["segment_key", "timestamp"]).reset_index(drop=True)
     timestamps = pd.to_datetime(ordered["timestamp"]).to_numpy()
     segment_keys = ordered["segment_key"].to_numpy()
-    targets = ordered[TARGET_COL].clip(0, 5).astype(np.int64).to_numpy()
+    targets = ordered[TARGET_COL].clip(0, NUM_CLASSES - 1).astype(np.int64).to_numpy()
 
     continuity_window_size = window_size + target_offset_steps - 1
     valid_starts = find_valid_window_starts(
@@ -93,7 +94,7 @@ def _balance_majority_windows(
     starts = np.asarray(valid_starts, dtype=np.int64)
     target_indices = starts + window_size + target_offset_steps - 1
     labels = targets[target_indices]
-    counts = np.bincount(labels, minlength=6).astype(np.int64)
+    counts = np.bincount(labels, minlength=NUM_CLASSES).astype(np.int64)
 
     congested_anchor = int(counts[3])
     if congested_anchor <= 0:
@@ -104,7 +105,7 @@ def _balance_majority_windows(
     target_counts[1] = min(float(counts[1]), float(3.5 * congested_anchor))
     target_counts[2] = min(float(counts[2]), float(4.0 * congested_anchor))
 
-    keep_probs = np.ones(6, dtype=np.float64)
+    keep_probs = np.ones(NUM_CLASSES, dtype=np.float64)
     for cls in (0, 1, 2):
         if counts[cls] > 0:
             keep_probs[cls] = min(1.0, float(target_counts[cls]) / float(counts[cls]))
@@ -130,15 +131,15 @@ def _balance_majority_windows(
         window_size=continuity_window_size,
         step_minutes=WINDOW_STEP_MINUTES,
     )
-    after_counts = np.zeros(6, dtype=np.int64)
+    after_counts = np.zeros(NUM_CLASSES, dtype=np.int64)
     if balanced_starts:
-        b_targets = balanced[TARGET_COL].clip(0, 5).astype(np.int64).to_numpy()
+        b_targets = balanced[TARGET_COL].clip(0, NUM_CLASSES - 1).astype(np.int64).to_numpy()
         b_target_indices = np.asarray(balanced_starts, dtype=np.int64) + window_size + target_offset_steps - 1
-        after_counts = np.bincount(b_targets[b_target_indices], minlength=6).astype(np.int64)
+        after_counts = np.bincount(b_targets[b_target_indices], minlength=NUM_CLASSES).astype(np.int64)
 
     stats = {
         "applied": True,
-        "rule": "Anchor class3 (D): T0<=3.0*C3, T1<=3.5*C3, T2<=4.0*C3, keep labels 3-5",
+        "rule": "Anchor class3 (D): T0<=3.0*C3, T1<=3.5*C3, T2<=4.0*C3, keep labels >=3",
         "before_window_counts": counts.tolist(),
         "after_window_counts": after_counts.tolist(),
         "keep_probs": [float(round(v, 4)) for v in keep_probs.tolist()],
@@ -202,7 +203,7 @@ def main() -> None:
             )
             print(f"📉 Window class counts before: {balancing_stats.get('before_window_counts')}")
             print(f"📈 Window class counts after : {balancing_stats.get('after_window_counts')}")
-            print(f"🎛️ Keep probs [0..5]: {balancing_stats.get('keep_probs')}")
+            print(f"🎛️ Keep probs [0..{NUM_CLASSES - 1}]: {balancing_stats.get('keep_probs')}")
         else:
             print(f"⚠️ Window balancing skipped: {balancing_stats.get('reason')}")
 
@@ -256,12 +257,18 @@ def main() -> None:
 
     if METRICS_OUT:
         # Build comprehensive metrics breakdown
-        class_names = {0: "VeryFree", 1: "Stable", 2: "Moderate", 3: "Congested", 4: "HeavyJam", 5: "Severe"}
+        default_class_names = {
+            0: "A_Free",
+            1: "B_Stable",
+            2: "C_Dense",
+            3: "D_HighCongestion",
+        }
+        class_names = {idx: default_class_names.get(idx, f"Class_{idx}") for idx in range(NUM_CLASSES)}
         
         # Per-class history at best epoch
         best_epoch_idx = summary["best_epoch"] - 1
         per_class_at_best = {}
-        for cls_idx in range(6):
+        for cls_idx in range(NUM_CLASSES):
             per_class_at_best[f"class_{cls_idx}"] = {
                 "name": class_names[cls_idx],
                 "recall": history["per_class_recall"][cls_idx][best_epoch_idx] if best_epoch_idx < len(history["per_class_recall"][cls_idx]) else 0.0,
@@ -271,7 +278,7 @@ def main() -> None:
         
         # Per-class trajectory (all epochs)
         per_class_trajectory = {}
-        for cls_idx in range(6):
+        for cls_idx in range(NUM_CLASSES):
             per_class_trajectory[f"class_{cls_idx}"] = {
                 "name": class_names[cls_idx],
                 "recall_history": history["per_class_recall"][cls_idx],
@@ -308,7 +315,7 @@ def main() -> None:
             "per_class_at_best_epoch": per_class_at_best,
             "per_class_trajectory": per_class_trajectory,
             "confusion_matrix": {
-                "labels": [0, 1, 2, 3, 4, 5],
+                "labels": list(range(NUM_CLASSES)),
                 "matrix": summary.get("confusion_matrix", []),
             },
         }
@@ -320,9 +327,9 @@ def main() -> None:
         print("\n" + "="*80)
         print("📊 PER-CLASS METRICS TẠI BEST EPOCH")
         print("="*80)
-        for cls_idx in range(6):
+        for cls_idx in range(NUM_CLASSES):
             metrics = per_class_at_best[f"class_{cls_idx}"]
-            marker = "⚠️ " if cls_idx >= 4 else "  "
+            marker = "⚠️ " if cls_idx == NUM_CLASSES - 1 else "  "
             print(f"{marker}Class {cls_idx} ({metrics['name']:12s}): Recall={metrics['recall']:.4f} | Prec={metrics['precision']:.4f} | F1={metrics['f1']:.4f}")
         print("="*80)
 

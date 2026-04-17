@@ -16,6 +16,7 @@ from sklearn.metrics import (
     recall_score,
 )
 
+from src.ml.feature_contract import NUM_CLASSES
 from src.ml.training.class_weighting import class_balanced_weights, get_class_weights
 from src.ml.training.losses import focal_loss
 
@@ -78,9 +79,9 @@ def train_model(
         "val_acc": [],
         "val_f1": [],
         "epoch_time_sec": [],
-        "per_class_recall": [[] for _ in range(6)],
-        "per_class_precision": [[] for _ in range(6)],
-        "per_class_f1": [[] for _ in range(6)],
+        "per_class_recall": [[] for _ in range(NUM_CLASSES)],
+        "per_class_precision": [[] for _ in range(NUM_CLASSES)],
+        "per_class_f1": [[] for _ in range(NUM_CLASSES)],
     }
     best_f1 = 0.0
     best_epoch = 0
@@ -150,9 +151,13 @@ def train_model(
         
         # Calculate per-class metrics
         per_class_precision, per_class_recall, per_class_f1, _ = precision_recall_fscore_support(
-            all_targets, all_preds, labels=[0, 1, 2, 3, 4, 5], average=None, zero_division=0
+            all_targets,
+            all_preds,
+            labels=list(range(NUM_CLASSES)),
+            average=None,
+            zero_division=0,
         )
-        minority_recall = float((per_class_recall[4] + per_class_recall[5]) / 2.0)
+        minority_recall = float(per_class_recall[NUM_CLASSES - 1])
 
         # Track in history
         history["train_loss"].append(train_loss)
@@ -160,7 +165,7 @@ def train_model(
         history["val_acc"].append(val_acc)
         history["val_f1"].append(val_f1)
         
-        for cls_idx in range(6):
+        for cls_idx in range(NUM_CLASSES):
             history["per_class_recall"][cls_idx].append(float(per_class_recall[cls_idx]))
             history["per_class_precision"][cls_idx].append(float(per_class_precision[cls_idx]))
             history["per_class_f1"][cls_idx].append(float(per_class_f1[cls_idx]))
@@ -169,7 +174,7 @@ def train_model(
         history["epoch_time_sec"].append(epoch_time)
 
         # Enhanced console output
-        class_labels = ["VeryFree", "Stable", "Moderate", "Congested", "HeavyJam", "Severe"]
+        class_labels = ["A_Free", "B_Stable", "C_Dense", "D_HighCongestion"]
         print(
             f"\n{'='*80}\n"
             f"Epoch {epoch + 1:03d}/{epochs} | Time: {epoch_time:.1f}s | "
@@ -178,13 +183,13 @@ def train_model(
             f"{'-'*80}"
         )
         
-        for cls_idx in range(6):
+        for cls_idx in range(NUM_CLASSES):
             recall_val = per_class_recall[cls_idx]
             prec_val = per_class_precision[cls_idx]
             f1_val = per_class_f1[cls_idx]
             
             # Highlight minority classes
-            marker = "⚠️ " if cls_idx >= 4 else "  "
+            marker = "⚠️ " if cls_idx == NUM_CLASSES - 1 else "  "
             print(
                 f"{marker}Class {cls_idx} ({class_labels[cls_idx]:12s}) | "
                 f"Recall: {recall_val:.4f} | Prec: {prec_val:.4f} | F1: {f1_val:.4f}"
@@ -219,12 +224,12 @@ def train_model(
     print(f"\n✅ HUẤN LUYỆN HOÀN TẤT. Macro-F1 tốt nhất đạt: {best_f1:.4f}")
     
     # Compute confusion matrix from best epoch predictions
-    cm = confusion_matrix(best_epoch_targets, best_epoch_predictions, labels=[0, 1, 2, 3, 4, 5])
+    cm = confusion_matrix(best_epoch_targets, best_epoch_predictions, labels=list(range(NUM_CLASSES)))
     
     # Build per-class summary at best epoch
     best_epoch_idx = best_epoch - 1
     per_class_summary = {}
-    for cls_idx in range(6):
+    for cls_idx in range(NUM_CLASSES):
         per_class_summary[f"class_{cls_idx}"] = {
             "recall": float(history["per_class_recall"][cls_idx][best_epoch_idx]) if best_epoch_idx < len(history["per_class_recall"][cls_idx]) else 0.0,
             "precision": float(history["per_class_precision"][cls_idx][best_epoch_idx]) if best_epoch_idx < len(history["per_class_precision"][cls_idx]) else 0.0,

@@ -12,7 +12,7 @@ from typing import Literal, Optional, Tuple
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.api.dependencies import get_warmstart_rl_predictor
+from src.api.dependencies import get_warmstart_rl_predictor_by_horizon
 from src.data_access import (
 	get_benchmark_segment_pool,
 	get_corridors_by_segment,
@@ -259,8 +259,8 @@ def _fallback_predict_in_same_corridor(
 )
 def predict_congestion_batch(
 	payload: CongestionBatchPredictionRequest,
-	predictor: RLTrafficPredictor = Depends(get_warmstart_rl_predictor),
 ) -> CongestionBatchPredictionResponse:
+	predictor = get_warmstart_rl_predictor_by_horizon(payload.prediction_horizon_minutes)
 	segment_ids = list(dict.fromkeys(payload.segment_ids))
 	if not segment_ids:
 		raise HTTPException(status_code=400, detail="segment_ids must not be empty")
@@ -397,8 +397,8 @@ def debug_fallback_candidates(
 	request_time: Optional[datetime] = None,
 	prediction_horizon_minutes: Literal[15, 30] = Query(15, description="Allowed values: 15 or 30 minutes"),
 	limit: int = Query(8, description="Maximum candidates per corridor to inspect", ge=1, le=30),
-	predictor: RLTrafficPredictor = Depends(get_warmstart_rl_predictor),
 ) -> dict:
+	predictor = get_warmstart_rl_predictor_by_horizon(prediction_horizon_minutes)
 	if segment_id <= 0:
 		raise HTTPException(status_code=400, detail="segment_id must be a positive integer")
 	if prediction_horizon_minutes not in (15, 30):
@@ -536,8 +536,8 @@ def debug_fallback_candidates(
 )
 def benchmark_batch_prediction(
 	payload: BenchmarkBatchRequest,
-	predictor: RLTrafficPredictor = Depends(get_warmstart_rl_predictor),
 ) -> BenchmarkBatchResponse:
+	predictor = get_warmstart_rl_predictor_by_horizon(payload.prediction_horizon_minutes)
 	"""Benchmark batch prediction performance.
 	
 	Samples real segment IDs from warehouse and runs multiple batch predictions to measure latency metrics.

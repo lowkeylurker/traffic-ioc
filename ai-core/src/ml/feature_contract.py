@@ -35,16 +35,14 @@ CATEGORICAL_FEATURE_COLS = [
 
 TARGET_COL = "target_label"
 WINDOW_SIZE_DEFAULT = 12
-NUM_CLASSES = 6
+NUM_CLASSES = 4
 WINDOW_STEP_MINUTES = 15
 
 CLASS_MAPPING = {
-    0: "Thông thoáng tuyệt đối",
-    1: "Lưu thông ổn định",
-    2: "Mật độ hơi cao",
-    3: "Đông đúc - Di chuyển chậm",
-    4: "Ùn ứ - Có rủi ro kẹt xe",
-    5: "Kẹt xe nghiêm trọng",
+    0: "A - Thông thoáng",
+    1: "B - Lưu thông ổn định",
+    2: "C - Đông đúc",
+    3: "D - Ùn tắc cao",
 }
 
 
