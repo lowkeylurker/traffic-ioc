@@ -293,19 +293,28 @@ def _dataset_quality_snapshot(dataset: TrafficDataset) -> dict:
 def _build_reward_class_weights(train_dataset: TrafficDataset) -> np.ndarray:
     targets = train_dataset.get_training_targets()
     counts = np.bincount(targets, minlength=6).astype(np.float64)
-    non_zero = counts[counts > 0]
-    if non_zero.size == 0:
+    if counts[:4].sum() == 0:
         return np.ones(6, dtype=np.float32)
 
-    max_count = float(non_zero.max())
     weights = np.ones(6, dtype=np.float64)
-    for cls in range(6):
-        n = counts[cls]
-        if n > 0:
-            # sqrt re-weighting keeps rewards stable while still boosting minority classes.
-            weights[cls] = np.sqrt(max_count / float(n))
+    focus_counts = counts[:4]
+    focus_max = float(max(focus_counts.max(), 1.0))
 
-    weights = np.clip(weights, 1.0, 4.0)
+    # Keep classes 0-2 close to baseline so the policy preserves stable traffic predictions.
+    weights[0] = 1.0
+    weights[1] = 1.0
+    weights[2] = 1.0
+
+    # Class 3 is the priority target; make it more attractive without over-boosting the tail.
+    if counts[3] > 0:
+        weights[3] = float(np.clip(np.sqrt(focus_max / float(counts[3])) * 1.15, 1.6, 2.2))
+    else:
+        weights[3] = 2.0
+
+    weights[4] = 0.7
+    weights[5] = 0.7
+
+    weights = np.clip(weights, 0.7, 2.2)
     return weights.astype(np.float32)
 
 
@@ -707,14 +716,14 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
 
     train_eval_fn = None
     if eval_loader is not None and len(eval_dataset) > 0 and early_stop_patience > 0:
-        print("🧪 Early-stop sẽ theo dõi eval_macro_f1 trên holdout split trong lúc train.")
+        print("🧪 Early-stop sẽ theo dõi macro_f1 trên holdout split cho classes 0-3 trong lúc train.")
 
         def _eval_macro_f1_snapshot() -> dict:
             return evaluate_policy_net(agent.policy_net, eval_loader, device=device)
 
         train_eval_fn = _eval_macro_f1_snapshot
     elif early_stop_patience > 0:
-        print("⚠️ Early-stop bị tắt vì eval split không đủ valid windows để tính macro_f1.")
+        print("⚠️ Early-stop bị tắt vì eval split không đủ valid windows để tính macro_f1 cho classes 0-3.")
 
     history = train_rl_agent(
         env=env,
@@ -729,6 +738,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
     )
 
     eval_summary = {}
+    eval_summary_best_checkpoint = {}
     if eval_loader is not None and len(eval_dataset) > 0:
         print("🧪 Đang đánh giá policy trên holdout split...")
         eval_summary = evaluate_policy_net(agent.policy_net, eval_loader, device=device)
@@ -736,8 +746,23 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
             f"✅ Eval | samples={eval_summary.get('num_samples', 0)} | "
             f"acc={eval_summary.get('accuracy', 0.0):.4f} | "
             f"macro_f1={eval_summary.get('macro_f1', 0.0):.4f} | "
-            f"recall[3-5]={eval_summary.get('minority_recall_35', 0.0):.4f}"
+            f"recall[3]={eval_summary.get('focus_recall_3', eval_summary.get('minority_recall_35', 0.0)):.4f}"
         )
+
+        checkpoint_file = Path(checkpoint_path)
+        if checkpoint_file.exists():
+            print(f"🧪 Đang nạp best checkpoint để đánh giá lại: {checkpoint_path}")
+            best_state = torch.load(checkpoint_file, map_location=device)
+            agent.policy_net.load_state_dict(best_state)
+            eval_summary_best_checkpoint = evaluate_policy_net(agent.policy_net, eval_loader, device=device)
+            print(
+                f"✅ Best Checkpoint Eval | samples={eval_summary_best_checkpoint.get('num_samples', 0)} | "
+                f"acc={eval_summary_best_checkpoint.get('accuracy', 0.0):.4f} | "
+                f"macro_f1={eval_summary_best_checkpoint.get('macro_f1', 0.0):.4f} | "
+                f"recall[3]={eval_summary_best_checkpoint.get('focus_recall_3', eval_summary_best_checkpoint.get('minority_recall_35', 0.0)):.4f}"
+            )
+        else:
+            print(f"⚠️ Không tìm thấy checkpoint để evaluate lại: {checkpoint_path}")
     else:
         print("⚠️ Bỏ qua holdout evaluation vì eval split không đủ valid windows.")
 
@@ -786,6 +811,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
         "window_balancing": balance_stats,
         "final_summary": history.get("final_summary", {}),
         "eval_summary": eval_summary,
+        "eval_summary_best_checkpoint": eval_summary_best_checkpoint,
     }
     with open(metrics_out, "w", encoding="utf-8") as file_handle:
         json.dump(payload, file_handle, indent=2)

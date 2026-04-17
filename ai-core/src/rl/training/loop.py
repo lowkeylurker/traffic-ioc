@@ -29,6 +29,7 @@ def train_rl_agent(
         "avg_losses": [],
         "epsilons": [],
         "minority_recall_35": [],
+        "focus_recall_3": [],
         "eval_macro_f1": [],
         "eval_events": [],
         "per_class_precision": [[] for _ in range(6)],
@@ -88,12 +89,12 @@ def train_rl_agent(
                 average=None,
                 zero_division=0,
             )
-            minority_recall_35 = float((ep_recall[3] + ep_recall[4] + ep_recall[5]) / 3.0)
+            focus_recall_3 = float(ep_recall[3])
         else:
             ep_precision = np.zeros(6, dtype=np.float32)
             ep_recall = np.zeros(6, dtype=np.float32)
             ep_f1 = np.zeros(6, dtype=np.float32)
-            minority_recall_35 = 0.0
+            focus_recall_3 = 0.0
 
         agent.update_epsilon()
 
@@ -105,7 +106,8 @@ def train_rl_agent(
         history["episode_rewards"].append(total_reward)
         history["avg_losses"].append(avg_loss)
         history["epsilons"].append(agent.epsilon)
-        history["minority_recall_35"].append(minority_recall_35)
+        history["minority_recall_35"].append(focus_recall_3)
+        history["focus_recall_3"].append(focus_recall_3)
         for cls_idx in range(6):
             history["per_class_precision"][cls_idx].append(float(ep_precision[cls_idx]))
             history["per_class_recall"][cls_idx].append(float(ep_recall[cls_idx]))
@@ -117,7 +119,7 @@ def train_rl_agent(
             f"🎬 Episode {episode + 1:03d}/{num_episodes} | Steps: {step_count} | "
             f"Time: {ep_time:.1f}s | Reward: {total_reward:8.1f} | "
             f"Avg Loss: {avg_loss:.4f} | Epsilon: {agent.epsilon:.3f} | "
-            f"Recall[3-5]: {minority_recall_35:.4f}"
+            f"Recall[3]: {focus_recall_3:.4f}"
         )
 
         if total_reward > best_reward:
@@ -140,7 +142,7 @@ def train_rl_agent(
                     "episode": int(episode + 1),
                     "macro_f1": eval_macro_f1,
                     "accuracy": float(eval_summary.get("accuracy", 0.0)),
-                    "minority_recall_35": float(eval_summary.get("minority_recall_35", 0.0)),
+                    "focus_recall_3": float(eval_summary.get("focus_recall_3", eval_summary.get("minority_recall_35", 0.0))),
                     "num_samples": int(eval_summary.get("num_samples", 0)),
                 }
             )
@@ -189,7 +191,8 @@ def train_rl_agent(
         history["final_summary"] = {
             "confusion_matrix": cm.tolist(),
             "per_class_metrics": final_per_class,
-            "minority_recall_35": float((recall[3] + recall[4] + recall[5]) / 3.0),
+            "minority_recall_35": float(recall[3]),
+            "focus_recall_3": float(recall[3]),
             "best_reward": float(best_reward),
             "best_eval_macro_f1": float(best_eval_macro_f1 if best_eval_macro_f1 > -float("inf") else 0.0),
             "stopped_early": bool(stopped_early),
@@ -201,6 +204,7 @@ def train_rl_agent(
             "confusion_matrix": [],
             "per_class_metrics": {},
             "minority_recall_35": 0.0,
+            "focus_recall_3": 0.0,
             "best_reward": float(best_reward),
             "best_eval_macro_f1": float(best_eval_macro_f1 if best_eval_macro_f1 > -float("inf") else 0.0),
             "stopped_early": bool(stopped_early),
