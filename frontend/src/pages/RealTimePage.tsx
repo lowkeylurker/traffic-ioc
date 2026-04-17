@@ -7,7 +7,8 @@ import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
 import { POLLING_INTERVALS } from '@/config/constants'
 import { useTrafficMap } from '@/hooks/useTraffic'
-import { mapApi } from '@/services/api'
+import { mapApi, userApi } from '@/services/api'
+import { Space, Tooltip } from 'antd'
 import {
   GeoJSONFeature,
   IncidentCollection,
@@ -86,6 +87,21 @@ const RealTimeMapOnly: React.FC = () => {
   })
 
   const incidents = incidentData?.features || []
+
+  // Gamification & Trust widget score
+  const { data: userScore } = useQuery({
+    queryKey: ['userScore'],
+    queryFn: async () => {
+      try {
+        const response = await userApi.getScore()
+        return response.data
+      } catch {
+        return { reputationScore: 0, trustWeight: 1.0 }
+      }
+    },
+    staleTime: 60000,
+    retry: false,
+  })
 
   const {
     data: impactResponse,
@@ -270,6 +286,94 @@ const RealTimeMapOnly: React.FC = () => {
       />
 
       <MapLegend />
+
+      {/* Gamification Widget */}
+      {userScore && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 12,
+            left: 12,
+            zIndex: 30,
+            background:
+              'linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.85) 100%)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255, 215, 0, 0.3)',
+            borderRadius: 16,
+            padding: '8px 16px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            pointerEvents: 'auto',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#fcd34d',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}
+            >
+              Hiệp Sĩ Giao Thông
+            </span>
+            <Space align="center" size={6}>
+              <span style={{ fontSize: '1.2rem' }}>🏆</span>
+              <span
+                style={{
+                  color: '#fff',
+                  fontWeight: 800,
+                  fontSize: 18,
+                  textShadow: '0 2px 4px rgba(0,0,0,0.5)',
+                }}
+              >
+                {userScore.reputationScore.toLocaleString()}
+              </span>
+            </Space>
+          </div>
+
+          <div
+            style={{
+              width: 1,
+              height: 32,
+              background: 'rgba(255,255,255,0.1)',
+            }}
+          />
+
+          <Tooltip
+            title={`Uy tín ẩn (Elo): ${userScore.trustWeight.toFixed(
+              1
+            )}. Tăng lên khi bạn xác nhận đúng sự cố.`}
+            placement="bottom"
+          >
+            <div
+              style={{
+                cursor: 'help',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 18,
+                  filter: 'drop-shadow(0 0 4px rgba(56, 189, 248, 0.6))',
+                }}
+              >
+                🛡️
+              </span>
+            </div>
+          </Tooltip>
+        </div>
+      )}
 
       {weatherLayerEnabled && weatherLayerLoading && (
         <div
