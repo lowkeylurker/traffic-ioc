@@ -6,6 +6,7 @@ import { Logger } from './utils/logger';
 import { prisma } from './config/prisma';
 import { closeRedisConnection } from './config/redis';
 import { reliabilityJobService } from './jobs/reliability-job.service';
+import { routingRefreshJobService } from './jobs/routing-refresh-job.service';
 
 const logger = new Logger('Server');
 
@@ -23,6 +24,7 @@ async function main() {
     const app = createApp();
 
     await reliabilityJobService.start();
+    await routingRefreshJobService.start();
 
     // Start server
     const server = app.listen(PORT, () => {
@@ -44,6 +46,7 @@ async function main() {
       logger.log('SIGTERM received, shutting down gracefully...');
       server.close(async () => {
         await reliabilityJobService.stop();
+        await routingRefreshJobService.stop();
         await closeRedisConnection();
         await prisma.$disconnect();
         logger.log('✓ Server shut down successfully');
@@ -55,6 +58,7 @@ async function main() {
       logger.log('SIGINT received, shutting down gracefully...');
       server.close(async () => {
         await reliabilityJobService.stop();
+        await routingRefreshJobService.stop();
         await closeRedisConnection();
         await prisma.$disconnect();
         logger.log('✓ Server shut down successfully');
