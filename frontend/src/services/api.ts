@@ -160,6 +160,15 @@ export const simulationApi = {
       endPoint,
       blockedSegments,
     }),
+  getDynamicRoute: (
+    startLat: number,
+    startLng: number,
+    endLat: number,
+    endLng: number
+  ): Promise<ApiResponse<any>> =>
+    axiosInstance.get('/simulation/routes', {
+      params: { startLat, startLng, endLat, endLng },
+    }),
 }
 
 // Weather API

@@ -41,6 +41,12 @@ SELECT pgr_createTopology(
 );
 
 -- 4. Xây dựng View kết hợp Topology tĩnh & Dữ liệu giao thông theo thời gian thực (Data Fusion)
+-- COST: Tiêu chí tìm đường là "TỔNG THỜI GIAN NGẮN NHẤT"
+-- Công thức: Độ_Dài(m) / Vận_tốc(m/s). (Tốc độ km/h quy đổi qua m/s = kmh * 1000 / 3600)
+-- Nếu đường mất tín hiệu (null), dùng mặc định tốc độ free_flow hoặc 40km/h
+
+-- REVERSE_COST: Tiêu chí chống đi ngược vào đường 1 chiều
+-- Phạt nặng hệ số -1 nếu là đường 1 chiều (is_one_way = true)
 CREATE OR REPLACE VIEW view_dynamic_routing_edges AS
 WITH latest_traffic AS (
     -- Dùng DISTINCT ON để chỉ rút ra bản ghi mới nhất của mỗi đoạn đường
@@ -56,23 +62,15 @@ SELECT
     r.id,
     r.source,
     r.target,
-    
-    -- COST: Tiêu chí tìm đường là "TỔNG THỜI GIAN NGẮN NHẤT"
-    -- Công thức: Độ_Dài(m) / Vận_tốc(m/s). (Tốc độ km/h quy đổi qua m/s = kmh * 1000 / 3600)
-    -- Nếu đường mất tín hiệu (null), dùng mặc định tốc độ free_flow hoặc 40km/h
     (r.distance_m / 
       NULLIF(COALESCE(t.current_speed_kmh, t.free_flow_speed_kmh, 40) * 1000.0 / 3600.0, 0)
     )::FLOAT8 AS cost,
-
-    -- REVERSE_COST: Tiêu chí chống đi ngược vào đường 1 chiều
-    -- Phạt nặng hệ số -1 nếu là đường 1 chiều (is_one_way = true)
     CASE 
         WHEN r.is_one_way THEN -1.0::FLOAT8
         ELSE (r.distance_m / 
                NULLIF(COALESCE(t.current_speed_kmh, t.free_flow_speed_kmh, 40) * 1000.0 / 3600.0, 0)
              )::FLOAT8
     END AS reverse_cost,
-
     r.geom_way AS geom
 FROM routing_edges r
 LEFT JOIN latest_traffic t ON r.id = t.segment_key;
