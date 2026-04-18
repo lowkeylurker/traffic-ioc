@@ -19,7 +19,8 @@ SELECT
     s.length_m AS distance_m,
     s.is_one_way,
     COALESCE(w.default_speed_limit, 40)::FLOAT8 AS free_flow_speed_kmh,
-    s.geometry_linestring AS geom_way
+    s.geometry_linestring AS geom_way,
+    ST_Centroid(s.geometry_linestring) as geom_centroid -- Add centroid column directly
 FROM dim_segment s
 LEFT JOIN dim_way w ON s.way_key = w.way_key
 WHERE s.geometry_linestring IS NOT NULL;
@@ -27,6 +28,7 @@ WHERE s.geometry_linestring IS NOT NULL;
 -- 2. Thêm Primary Key và Spatial Index
 ALTER TABLE routing_edges ADD PRIMARY KEY (id);
 CREATE INDEX idx_routing_edges_geom ON routing_edges USING GIST(geom_way);
+CREATE INDEX idx_routing_edges_centroid ON routing_edges USING GIST(geom_centroid); -- CRITICAL: Index on Point for KNN
 CREATE INDEX idx_routing_edges_source ON routing_edges (source);
 CREATE INDEX idx_routing_edges_target ON routing_edges (target);
 
@@ -41,7 +43,48 @@ SELECT pgr_createTopology(
     clean := true         -- Bật clean dữ liệu chồng chéo
 );
 
--- 4. Xây dựng Materialized View với cơ chế bù đắp dữ liệu nâng cao (Confidence Decay & IDW Imputation)
+-- 4. Tạo bảng tham chiếu hàng xóm (Proximity Lookup Table)
+-- Mục đích: Tính toán sẵn 10 hàng xóm gần nhất cho từng đoạn đường để tránh tính toán hình học lúc tạo View
+CREATE TABLE IF NOT EXISTS dim_segment_traffic_proximity (
+    segment_key BIGINT,
+    neighbor_segment_key BIGINT,
+    distance FLOAT8,
+    rank INT,
+    PRIMARY KEY (segment_key, neighbor_segment_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_segment_traffic_proximity_neighbor ON dim_segment_traffic_proximity (neighbor_segment_key);
+
+-- Tính toán dữ liệu hàng xóm (Chỉ chạy một lần, có thể mất vài phút cho 430k dòng)
+INSERT INTO dim_segment_traffic_proximity (segment_key, neighbor_segment_key, distance, rank)
+SELECT 
+    sub.id,
+    sub.neighbor_id,
+    sub.distance,
+    sub.rank
+FROM (
+    SELECT 
+        r1.id,
+        r2.id as neighbor_id,
+        ST_Distance(r1.geom_centroid, r2.geom_centroid) as distance,
+        ROW_NUMBER() OVER(PARTITION BY r1.id ORDER BY r1.geom_centroid <-> r2.geom_centroid) as rank
+    FROM routing_edges r1
+    CROSS JOIN LATERAL (
+        -- Tìm top 10 hàng xóm có khả năng có dữ liệu traffic (các đường trục chính)
+        -- Sử dụng toán tử <-> trên cột đã index để đạt tốc độ KNN thực sự
+        SELECT r2.id
+        FROM routing_edges r2
+        JOIN dim_segment s2 ON r2.id = s2.segment_key
+        JOIN dim_way w2 ON s2.way_key = w2.way_key
+        WHERE w2.osm_highway_type IN ('motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link')
+          AND r1.id != r2.id
+        ORDER BY r1.geom_centroid <-> r2.geom_centroid
+        LIMIT 10
+    ) r2
+) sub
+ON CONFLICT DO NOTHING;
+
+-- 5. Xây dựng Materialized View với cơ chế bù đắp dữ liệu nâng cao (Confidence Decay & IDW Imputation)
 -- Mục đích: Đảm bảo tính liên tục của dữ liệu ngay cả khi hệ thống cảm biến bị mất tín hiệu
 
 DROP VIEW IF EXISTS view_dynamic_routing_edges CASCADE;
@@ -66,36 +109,54 @@ traffic_with_confidence AS (
 
 decay_traffic AS (
     SELECT 
-        segment_key,
-        tti,
-        confidence,
+        twc.segment_key,
+        twc.tti,
+        twc.confidence,
+        twc.free_flow_speed_kmh,
         -- TTI_adj = 1.0 + (tti - 1.0) * confidence
         -- Data càng cũ -> TTI tiến về 1.0 (coi như đường thông thoáng trở lại)
-        (1.0 + (tti - 1.0) * confidence) as adjusted_tti
-    FROM traffic_with_confidence
+        (1.0 + (twc.tti - 1.0) * twc.confidence) as adjusted_tti,
+        ST_Centroid(r.geom_way) as geom_centroid -- USE CENTROID for Point-to-Point math
+    FROM traffic_with_confidence twc
+    JOIN routing_edges r ON twc.segment_key = r.id
 ),
 dark_segments AS (
-    SELECT id, geom_way
-    FROM routing_edges
-    WHERE id NOT IN (SELECT segment_key FROM decay_traffic)
+    SELECT 
+        r.id, 
+        ST_Centroid(r.geom_way) as geom_centroid -- USE CENTROID for Point-to-Point math
+    FROM routing_edges r
+    JOIN dim_segment s ON r.id = s.segment_key
+    JOIN dim_way w ON s.way_key = w.way_key
+    LEFT JOIN decay_traffic dt ON r.id = dt.segment_key
+    WHERE dt.segment_key IS NULL
+      AND w.osm_highway_type IN (
+          'motorway', 'motorway_link', 
+          'trunk', 'trunk_link', 
+          'primary', 'primary_link', 
+          'secondary', 'secondary_link', 
+          'tertiary', 'tertiary_link'
+      )
 ),
 idw_imputed AS (
     SELECT 
-        ds.id as segment_key,
+        segment_key,
         -- IDW: Sum(TTI_i / d_i^2) / Sum(1 / d_i^2) | Với p=2
-        (SUM(neighbors.adjusted_tti / NULLIF(POWER(ST_Distance(ds.geom_way, neighbors.geom_way), 2), 0)) / 
-         SUM(1.0 / NULLIF(POWER(ST_Distance(ds.geom_way, neighbors.geom_way), 2), 0))
-        ) as imputed_tti
-    FROM dark_segments ds
-    CROSS JOIN LATERAL (
-        -- Lấy Top 3 hàng xóm gần nhất có dữ liệu gần đây
-        SELECT re.geom_way, dt.adjusted_tti
-        FROM routing_edges re
-        JOIN decay_traffic dt ON re.id = dt.segment_key
-        ORDER BY ds.geom_way <-> re.geom_way
-        LIMIT 3
-    ) neighbors
-    GROUP BY ds.id
+        (SUM(adjusted_tti / d2) / SUM(1.0 / d2)) as imputed_tti
+    FROM (
+        SELECT 
+            ds.id as segment_key,
+            dt.adjusted_tti,
+            -- Dùng khoảng cách đã tính toán sẵn trong bảng Proximity (Nhanh gấp 100 lần ST_Distance)
+            NULLIF(POWER(prox.distance, 2), 0) as d2,
+            -- Lấy Top 3 hàng xóm thực sự có dữ liệu live tại thời điểm hiện tại
+            ROW_NUMBER() OVER(PARTITION BY ds.id ORDER BY prox.distance) as rank
+        FROM dark_segments ds
+        JOIN dim_segment_traffic_proximity prox ON ds.id = prox.segment_key
+        -- JOIN B-Tree ID thay vì JOIN không gia (Spatial Join)
+        JOIN decay_traffic dt ON prox.neighbor_segment_key = dt.segment_key
+    ) neighbors_with_traffic
+    WHERE rank <= 3
+    GROUP BY segment_key
 )
 -- BƯỚC 4: Tổng hợp Chi phí cuối cùng (Final Cost)
 -- Thứ tự ưu tiên Tốc độ cơ sở: Live Free-flow > Default Speed Limit > 40km/h
