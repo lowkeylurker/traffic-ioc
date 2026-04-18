@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+import os
 import pandas as pd
 
 from sqlalchemy import text
 
 from src.core.database import get_engine
+
+
+def _warehouse_query_timeout_ms() -> int:
+    raw = os.getenv("AI_WAREHOUSE_QUERY_TIMEOUT_MS", "180000")
+    try:
+        return max(5000, int(raw))
+    except ValueError:
+        return 180000
 
 
 def get_segments_in_corridor(corridor_id: int) -> list[int]:
@@ -151,4 +160,7 @@ def load_warehouse_rows_by_segments(
           AND f.timestamp <= '{end_date}'
         ORDER BY f.segment_key, f.timestamp ASC;
     """
-    return pd.read_sql_query(query, get_engine())
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(text(f"SET statement_timeout = {_warehouse_query_timeout_ms()}"))
+        return pd.read_sql_query(text(query), conn)

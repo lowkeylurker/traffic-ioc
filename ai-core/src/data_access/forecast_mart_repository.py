@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from datetime import timedelta
 
@@ -12,6 +13,22 @@ from src.core.config import settings
 from src.core.database import get_engine
 
 _LAST_MART_REFRESH_AT: dict[str, float] = {}
+
+
+def _mart_query_timeout_ms() -> int:
+    raw = os.getenv("AI_FORECAST_MART_QUERY_TIMEOUT_MS", "20000")
+    try:
+        return max(1000, int(raw))
+    except ValueError:
+        return 20000
+
+
+def _mart_lock_timeout_ms() -> int:
+    raw = os.getenv("AI_FORECAST_MART_LOCK_TIMEOUT_MS", "2000")
+    try:
+        return max(500, int(raw))
+    except ValueError:
+        return 2000
 
 _MART_DDL = text(
     """
@@ -249,7 +266,6 @@ def load_forecast_mart_by_segments(
     end_date: str,
 ) -> pd.DataFrame:
     """Load pre-joined model features from forecast mart."""
-    _ensure_forecast_mart_table(engine)
     segment_ids_str = _segment_refresh_key(segment_ids)
 
     query = f"""
@@ -275,4 +291,11 @@ def load_forecast_mart_by_segments(
           AND timestamp <= '{end_date}'
         ORDER BY segment_key, timestamp ASC
     """
-    return pd.read_sql_query(query, engine)
+    try:
+        with engine.connect() as conn:
+            conn.execute(text(f"SET statement_timeout = {_mart_query_timeout_ms()}"))
+            conn.execute(text(f"SET lock_timeout = {_mart_lock_timeout_ms()}"))
+            return pd.read_sql_query(text(query), conn)
+    except Exception as exc:
+        print(f"⚠️ Query forecast mart bị timeout/lỗi ({exc}), chuyển fallback sang warehouse.")
+        return pd.DataFrame()

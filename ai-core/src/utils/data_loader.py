@@ -62,6 +62,19 @@ def load_bulk_segment_data(segment_ids: list, start_date: str, end_date: str, pe
 
     if df_bulk.empty:
         print("⏳ Đang kéo dữ liệu Bulk từ Warehouse cho danh sách segments... (Vui lòng đợi)")
-        df_bulk = load_warehouse_rows_by_segments(segment_ids, start_date, end_date)
+        try:
+            df_bulk = load_warehouse_rows_by_segments(segment_ids, start_date, end_date)
+        except Exception as e:
+            raise RuntimeError(
+                "Không thể tải dữ liệu từ Warehouse (query timeout hoặc lỗi DB). "
+                "Hãy kiểm tra kết nối DB/lock và thử tăng AI_WAREHOUSE_QUERY_TIMEOUT_MS. "
+                f"Chi tiết: {e}"
+            ) from e
+
+    if df_bulk.empty:
+        raise RuntimeError(
+            "Không có dữ liệu cho danh sách segments trong khoảng thời gian đã chọn "
+            "(mart rỗng và warehouse trả về 0 dòng)."
+        )
 
     return process_bulk_dataframe(df_bulk, peak_hours_only=peak_hours_only, source_label="DataMart/Warehouse")
