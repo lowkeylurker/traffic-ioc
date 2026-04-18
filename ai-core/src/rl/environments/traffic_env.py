@@ -1,6 +1,7 @@
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
+from src.ml.feature_contract import NUM_CLASSES
 
 
 class TrafficForecastingEnv(gym.Env):
@@ -19,14 +20,14 @@ class TrafficForecastingEnv(gym.Env):
         self.reward_clip = reward_clip
 
         if class_weights is None:
-            self.class_weights = np.ones(6, dtype=np.float32)
+            self.class_weights = np.ones(NUM_CLASSES, dtype=np.float32)
         else:
             arr = np.asarray(class_weights, dtype=np.float32)
-            if arr.shape[0] != 6:
-                raise ValueError("class_weights phải có đúng 6 phần tử")
+            if arr.shape[0] != NUM_CLASSES:
+                raise ValueError(f"class_weights phải có đúng {NUM_CLASSES} phần tử, nhận được {arr.shape[0]}")
             self.class_weights = arr
 
-        self.action_space = spaces.Discrete(6)
+        self.action_space = spaces.Discrete(NUM_CLASSES)
         self.observation_space = spaces.Dict(
             {
                 "dynamic": spaces.Box(low=0, high=1, shape=(12, 5), dtype=np.float32),

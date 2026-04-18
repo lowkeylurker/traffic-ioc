@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from src.ml.models.traffic_model import TrafficCongestionModel
+from src.ml.feature_contract import NUM_CLASSES
 
 
 class ReplayBuffer:
@@ -86,7 +87,7 @@ class DQNAgent:
                 x_cat = torch.LongTensor(state["categorical"]).unsqueeze(0).to(self.device)
                 q_values = self.policy_net(x_dyn, x_stat, x_cat)
                 return torch.argmax(q_values, dim=1).item()
-        return random.randrange(6)
+        return random.randrange(NUM_CLASSES)
 
     def optimize_model(self):
         min_required = max(self.batch_size, self.warmup_steps)

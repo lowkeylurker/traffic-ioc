@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from src.features.sliding_window import find_valid_window_starts
 from src.ml.data.dataset import TrafficDataset
 from src.ml.artifacts import get_ml_checkpoint_path, get_ml_preprocessing_path
-from src.ml.feature_contract import CATEGORICAL_FEATURE_COLS, TARGET_COL, WINDOW_STEP_MINUTES
+from src.ml.feature_contract import CATEGORICAL_FEATURE_COLS, TARGET_COL, WINDOW_STEP_MINUTES, NUM_CLASSES
 from src.data_access import get_segments_in_corridor
 from src.rl.artifacts import (
     get_rl_checkpoint_path,
@@ -292,27 +292,23 @@ def _dataset_quality_snapshot(dataset: TrafficDataset) -> dict:
 
 def _build_reward_class_weights(train_dataset: TrafficDataset) -> np.ndarray:
     targets = train_dataset.get_training_targets()
-    counts = np.bincount(targets, minlength=6).astype(np.float64)
-    if counts[:4].sum() == 0:
-        return np.ones(6, dtype=np.float32)
+    counts = np.bincount(targets, minlength=NUM_CLASSES).astype(np.float64)
+    if counts[:NUM_CLASSES].sum() == 0:
+        return np.ones(NUM_CLASSES, dtype=np.float32)
 
-    weights = np.ones(6, dtype=np.float64)
-    focus_counts = counts[:4]
+    weights = np.ones(NUM_CLASSES, dtype=np.float64)
+    focus_counts = counts[:NUM_CLASSES]
     focus_max = float(max(focus_counts.max(), 1.0))
 
-    # Keep classes 0-2 close to baseline so the policy preserves stable traffic predictions.
-    weights[0] = 1.0
-    weights[1] = 1.0
-    weights[2] = 1.0
+    # Keep classes 0 to NUM_CLASSES-2 close to baseline so the policy preserves stable traffic predictions.
+    for i in range(NUM_CLASSES - 1):
+        weights[i] = 1.0
 
-    # Class 3 is the priority target; make it more attractive without over-boosting the tail.
-    if counts[3] > 0:
-        weights[3] = float(np.clip(np.sqrt(focus_max / float(counts[3])) * 1.15, 1.6, 2.2))
+    # Last class (NUM_CLASSES-1) is the priority target; make it more attractive without over-boosting the tail.
+    if counts[NUM_CLASSES - 1] > 0:
+        weights[NUM_CLASSES - 1] = float(np.clip(np.sqrt(focus_max / float(counts[NUM_CLASSES - 1])) * 1.15, 1.6, 2.2))
     else:
-        weights[3] = 2.0
-
-    weights[4] = 0.7
-    weights[5] = 0.7
+        weights[NUM_CLASSES - 1] = 2.0
 
     weights = np.clip(weights, 0.7, 2.2)
     return weights.astype(np.float32)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 import warnings
@@ -14,9 +15,12 @@ from src.ml.artifacts import get_ml_checkpoint_path, get_ml_preprocessing_path
 from src.rl.training.runner import RLTrainingConfig, run_rl_training
 
 
-# Toggle trực tiếp trong code: True = bật, False = tắt
-USE_WINDOW_BALANCING = False
-PREDICTION_HORIZON_MINUTES = 15  # Supported: 15 or 30
+# Support env var override (like ML training): RL_PREDICTION_HORIZON_MINUTES or ML_PREDICTION_HORIZON_MINUTES
+PREDICTION_HORIZON_MINUTES = int(
+    os.getenv("RL_PREDICTION_HORIZON_MINUTES") or os.getenv("ML_PREDICTION_HORIZON_MINUTES", "15")
+)
+USE_WINDOW_BALANCING = os.getenv("RL_USE_WINDOW_BALANCING", "False").lower() == "true"
+
 if PREDICTION_HORIZON_MINUTES not in (15, 30):
     raise ValueError("PREDICTION_HORIZON_MINUTES chỉ được phép là 15 hoặc 30")
 

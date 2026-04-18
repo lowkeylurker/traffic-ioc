@@ -2,6 +2,7 @@ import os
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import psycopg2
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 # Import CityFlow - Engine giả lập giao thông
@@ -15,6 +16,22 @@ except ImportError:
 load_dotenv()
 
 app = FastAPI(title="Smart Traffic AI-Core Health Checker")
+
+
+def _get_allowed_origins() -> list[str]:
+    """Read CORS origins from env with a safe local default for frontend dev."""
+    raw = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
+    origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return origins or ["http://localhost:5173"]
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_get_allowed_origins(),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def _psycopg2_compatible_dsn(raw_db_url: str) -> str:
