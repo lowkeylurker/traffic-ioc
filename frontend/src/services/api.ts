@@ -24,6 +24,8 @@ import {
   TrafficStatus,
   VehicleMixData,
   WeatherData,
+  PredictionRequestBody,
+  PredictionResponse,
 } from '@/types'
 import axios, { AxiosError, AxiosInstance } from 'axios'
 
@@ -205,6 +207,14 @@ export const userApi = {
     payload: { status: 'APPROVED' | 'REJECTED'; note?: string }
   ): Promise<ApiResponse<null>> =>
     axiosInstance.patch(`/user/report/${reportId}/status`, payload),
+}
+
+// Prediction API
+export const predictionApi = {
+  getBatchPrediction: (
+    data: PredictionRequestBody
+  ): Promise<ApiResponse<PredictionResponse>> =>
+    axiosInstance.post('/congestion-prediction/batch', data),
 }
 
 export default axiosInstance

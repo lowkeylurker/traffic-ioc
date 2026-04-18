@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { Card, Row, Col, Button, Input, Space, message } from 'antd'
 import { ExperimentOutlined } from '@ant-design/icons'
 import { LineChart } from '@/components/charts/ChartComponents'
-import { TrafficMap } from '@/components/map/TrafficMap'
+import { PredictiveMap } from '@/components/map/PredictiveMap'
 import { useSegments, useTrafficStatus } from '@/hooks/useTraffic'
 import { simulationApi } from '@/services/api'
 import dayjs from 'dayjs'
@@ -93,17 +93,13 @@ export const SimulationPage: React.FC = () => {
       {/* Left Pane - Map */}
       <Col xs={24} md={16} style={{ height: '100%' }}>
         <Card
-          title="Bản đồ Mô phỏng"
+          title="Bản đồ Dự báo Động"
           style={{ height: '100%' }}
           bodyStyle={{ height: 'calc(100% - 57px)', padding: 0 }}
         >
-          <TrafficMap
-            segmentData={segments}
-            trafficStatus={trafficStatus}
-            onMapClick={(event) => {
-              // In thực tế, cần click vào segment để chọn
-              console.log('Map clicked:', event)
-            }}
+          <PredictiveMap
+            segmentData={segments as any}
+            trafficStatus={trafficStatus as any}
           />
         </Card>
       </Col>
