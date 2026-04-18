@@ -5,13 +5,10 @@ import { Card, Row, Col, Button, Input, Space, message } from 'antd'
 import { ExperimentOutlined } from '@ant-design/icons'
 import { LineChart } from '@/components/charts/ChartComponents'
 import { PredictiveMap } from '@/components/map/PredictiveMap'
-import { useSegments, useTrafficStatus } from '@/hooks/useTraffic'
 import { simulationApi } from '@/services/api'
 import dayjs from 'dayjs'
 
 export const SimulationPage: React.FC = () => {
-  const segments = useSegments()
-  const trafficStatus = useTrafficStatus()
   const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(
     null
   )
@@ -97,10 +94,7 @@ export const SimulationPage: React.FC = () => {
           style={{ height: '100%' }}
           bodyStyle={{ height: 'calc(100% - 57px)', padding: 0 }}
         >
-          <PredictiveMap
-            segmentData={segments as any}
-            trafficStatus={trafficStatus as any}
-          />
+          <PredictiveMap />
         </Card>
       </Col>
 

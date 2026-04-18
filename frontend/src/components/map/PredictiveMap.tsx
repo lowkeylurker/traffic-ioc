@@ -1,4 +1,5 @@
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/config/constants'
+import { useSegments, useTrafficStatus } from '@/hooks/useTraffic'
 import { predictionApi } from '@/services/api'
 import { GeoJSONFeature, SegmentResponse, TrafficStatus, PredictionItem } from '@/types'
 import { PathStyleExtension } from '@deck.gl/extensions'
@@ -16,16 +17,23 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 const MAP_STYLE = import.meta.env.VITE_MAPBOX_STYLE
 
 interface PredictiveMapProps {
-  segmentData: SegmentResponse | null
+  segmentData?: SegmentResponse | null
   trafficStatus?: TrafficStatus[]
   style?: React.CSSProperties
 }
 
 export const PredictiveMap: React.FC<PredictiveMapProps> = ({
-  segmentData,
-  trafficStatus,
+  segmentData: propSegmentData,
+  trafficStatus: propTrafficStatus,
   style,
 }) => {
+  // Sử dụng dữ liệu từ props hoặc fallback về global hooks (tự động check IndexedDB cache)
+  const hookSegments = useSegments()
+  const hookStatus = useTrafficStatus()
+
+  const segmentData = propSegmentData !== undefined ? propSegmentData : hookSegments
+  const trafficStatus = propTrafficStatus !== undefined ? propTrafficStatus : hookStatus
+
   const [timeMode, setTimeMode] = useState<number>(0)
   const [loading, setLoading] = useState<boolean>(false)
   const [predictionData, setPredictionData] = useState<PredictionItem[]>([])

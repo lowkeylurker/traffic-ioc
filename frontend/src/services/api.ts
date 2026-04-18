@@ -30,6 +30,7 @@ import {
 import axios, { AxiosError, AxiosInstance } from 'axios'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL
+const aiCoreURL = import.meta.env.VITE_AI_CORE_URL
 
 type AccessTokenGetter = () => Promise<string | null>
 
@@ -214,7 +215,9 @@ export const predictionApi = {
   getBatchPrediction: (
     data: PredictionRequestBody
   ): Promise<ApiResponse<PredictionResponse>> =>
-    axiosInstance.post('/congestion-prediction/batch', data),
+    axiosInstance.post('/congestion-prediction/batch', data, {
+      baseURL: aiCoreURL,
+    }),
 }
 
 export default axiosInstance
