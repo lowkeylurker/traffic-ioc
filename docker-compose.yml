@@ -124,15 +124,8 @@ services:
       - ./ai-core/cache:/app/cache
     command: uvicorn src.api.app:app --host 0.0.0.0 --port 5000 --reload
     environment:
-      - DB_CONNECTION_STRING=postgresql://${DB_USER:-traffic_user}:${DB_PASSWORD:-traffic_password}@postgres:5432/${DB_NAME:-traffic_ioc}
       - PORT=5000
       - LOG_LEVEL=INFO
-      - DB_HOST=${DB_HOST:-postgres}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_USER=${DB_USER:-traffic_user}
-      - DB_PASSWORD=${DB_PASSWORD:-traffic_password}
-      - DB_NAME=${DB_NAME:-traffic_ioc}
-      - DB_SCHEMA=${DB_SCHEMA:-public}
     env_file:
       - ./ai-core/.env
     ports:

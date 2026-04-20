@@ -31,12 +31,21 @@ WORKDIR /app
 # Copy requirements trước để tận dụng Docker layer caching
 COPY requirements.txt .
 COPY requirements-ml.txt .
+COPY requirements-dev.txt .
 
 # Build argument để chọn có cài ML dependencies hay không
 ARG INSTALL_ML=false
 
 # Install runtime dependencies (luôn luôn cài)
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Install test tooling for CI-style checks inside container
+RUN pip install --no-cache-dir \
+    pytest==7.4.3 \
+    pytest-cov==4.1.0 \
+    pytest-mock==3.12.0 \
+    pytest-asyncio==0.21.1 \
+    httpx==0.24.1
 
 # Install ML dependencies (chỉ khi cần - mất ~15-20 phút)
 # Build với: docker-compose build --build-arg INSTALL_ML=true ai-core

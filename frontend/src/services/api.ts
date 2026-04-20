@@ -10,7 +10,6 @@ import {
   CorridorDashboardQueryParams,
   CorridorReliabilityData,
   CorridorReliabilityQueryParams,
-  ForecastData,
   IncidentCollection,
   IncidentImpactResponse,
   IncidentReportCreateResponse,
@@ -24,10 +23,13 @@ import {
   TrafficStatus,
   VehicleMixData,
   WeatherData,
+  PredictionRequestBody,
+  PredictionResponse,
 } from '@/types'
 import axios, { AxiosError, AxiosInstance } from 'axios'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL
+const aiCoreURL = import.meta.env.VITE_AI_CORE_URL
 
 type AccessTokenGetter = () => Promise<string | null>
 
@@ -142,14 +144,6 @@ export const analyticsApi = {
 
 // Simulation API
 export const simulationApi = {
-  runForecast: (
-    segmentId: number,
-    horizonMinutes?: number
-  ): Promise<ApiResponse<ForecastData[]>> =>
-    axiosInstance.post('/simulation/forecast', {
-      segmentId,
-      horizonMinutes,
-    }),
   runRouting: (
     startPoint: [number, number],
     endPoint: [number, number],
@@ -211,6 +205,16 @@ export const userApi = {
 export const newsApi = {
   getTicker: (): Promise<ApiResponse<{ news: string }>> =>
     axiosInstance.get('/news/ticker'),
+}
+
+// Prediction API
+export const predictionApi = {
+  getBatchPrediction: (
+    data: PredictionRequestBody
+  ): Promise<ApiResponse<PredictionResponse>> =>
+    axiosInstance.post('/congestion-prediction/batch', data, {
+      baseURL: aiCoreURL,
+    }),
 }
 
 export default axiosInstance

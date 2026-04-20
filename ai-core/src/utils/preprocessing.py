@@ -1,14 +1,27 @@
-"""
-preprocessing.py - Data Preprocessing Utilities
+"""Generic preprocessing helpers shared across AI-core."""
 
-Cung cấp:
-- normalize_features(X): StandardScaler normalize
-- detect_outliers(data, method='iqr'): IQR / Z-score
-- remove_outliers(data, outlier_mask): Remove outliers
-- handle_missing_values(data): Fill NaN with strategy
-- clip_values(data, min_val, max_val): Clip to range
+from __future__ import annotations
 
-Pure functions với sklearn utilities.
-"""
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 
-# TODO: Triển khải các hàm tiền xử lý
+from src.ml.feature_contract import DYNAMIC_FEATURE_COLS, STATIC_SCALER_FEATURE_COLS
+
+
+class TrafficScaler:
+	def __init__(self):
+		self.dynamic_scaler = MinMaxScaler()
+		self.static_scaler = MinMaxScaler()
+		self.dynamic_cols = DYNAMIC_FEATURE_COLS
+		self.static_cols = STATIC_SCALER_FEATURE_COLS
+
+	def fit(self, df_train: pd.DataFrame):
+		self.dynamic_scaler.fit(df_train[self.dynamic_cols])
+		self.static_scaler.fit(df_train[self.static_cols])
+		return self
+
+	def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+		df_scaled = df.copy()
+		df_scaled[self.dynamic_cols] = self.dynamic_scaler.transform(df[self.dynamic_cols])
+		df_scaled[self.static_cols] = self.static_scaler.transform(df[self.static_cols])
+		return df_scaled
