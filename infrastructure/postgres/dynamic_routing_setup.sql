@@ -1,3 +1,4 @@
+-- Active: 1776663881779@@127.0.0.1@5433@traffic_ioc_db
 -- ==========================================
 -- SCRIPT: Tiền xử lý Data Warehouse DW cho chức năng Dynamic Routing
 -- PURPOSE: Tạo cấu trúc Topology cho hệ thống dẫn đường với pgRouting
@@ -40,7 +41,8 @@ SELECT pgr_createTopology(
     'id',                 -- Tên Khóa chính
     'source',             -- Nút đầu
     'target',             -- Nút cuối
-    clean := true         -- Bật clean dữ liệu chồng chéo
+    'true',               -- Lọc rows_where mặc định
+    true                  -- Bật clean dữ liệu chồng chéo
 );
 
 -- 4. Tạo bảng tham chiếu hàng xóm (Proximity Lookup Table)
@@ -72,7 +74,7 @@ FROM (
     CROSS JOIN LATERAL (
         -- Tìm top 10 hàng xóm có khả năng có dữ liệu traffic (các đường trục chính)
         -- Sử dụng toán tử <-> trên cột đã index để đạt tốc độ KNN thực sự
-        SELECT r2.id
+        SELECT r2.id, r2.geom_centroid
         FROM routing_edges r2
         JOIN dim_segment s2 ON r2.id = s2.segment_key
         JOIN dim_way w2 ON s2.way_key = w2.way_key
