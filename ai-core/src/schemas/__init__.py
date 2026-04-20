@@ -9,11 +9,28 @@ TẦNG 2: DATA CONTRACTS - Pydantic Models
 Export các schemas từ tất cả sub-modules.
 """
 
+from src.schemas.congestion_rl_schema import (
+    BenchmarkBatchRequest,
+    BenchmarkBatchResponse,
+    CongestionBatchPredictionRequest,
+    CongestionBatchPredictionResponse,
+    CongestionPredictionRequest,
+    CongestionPredictionResponse,
+    PredictionReasonCode,
+    PredictionStatus,
+)
+
 __all__ = [
     "ForecastRequest",
     "ForecastResponse",
     "CongestionPredictionRequest",
     "CongestionPredictionResponse",
+    "CongestionBatchPredictionRequest",
+    "CongestionBatchPredictionResponse",
+    "BenchmarkBatchRequest",
+    "BenchmarkBatchResponse",
+    "PredictionStatus",
+    "PredictionReasonCode",
     "ImputationRequest",
     "ImputationResponse",
 ]
