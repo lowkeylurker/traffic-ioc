@@ -33,4 +33,5 @@ export const ROUTE_PATHS = {
   INCIDENT: '/incidents',
   WEATHER: '/weather',
   USER: '/user',
+  NEWS: '/news',
 };

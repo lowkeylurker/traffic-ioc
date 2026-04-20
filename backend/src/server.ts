@@ -6,6 +6,8 @@ import { Logger } from './utils/logger';
 import { prisma } from './config/prisma';
 import { closeRedisConnection } from './config/redis';
 import { reliabilityJobService } from './jobs/reliability-job.service';
+import { scheduleTrafficNewsJob } from './jobs/newsQueue';
+import { trafficNewsWorker } from './jobs/trafficNewsWorker';
 
 const logger = new Logger('Server');
 
@@ -23,6 +25,9 @@ async function main() {
     const app = createApp();
 
     await reliabilityJobService.start();
+    
+    // Khởi tạo News Ticker Job
+    await scheduleTrafficNewsJob();
 
     // Start server
     const server = app.listen(PORT, () => {
@@ -43,6 +48,7 @@ async function main() {
     process.on('SIGTERM', () => {
       logger.log('SIGTERM received, shutting down gracefully...');
       server.close(async () => {
+        await trafficNewsWorker.close();
         await reliabilityJobService.stop();
         await closeRedisConnection();
         await prisma.$disconnect();
@@ -54,6 +60,7 @@ async function main() {
     process.on('SIGINT', () => {
       logger.log('SIGINT received, shutting down gracefully...');
       server.close(async () => {
+        await trafficNewsWorker.close();
         await reliabilityJobService.stop();
         await closeRedisConnection();
         await prisma.$disconnect();
