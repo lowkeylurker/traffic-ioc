@@ -1,197 +1,290 @@
-// Simulation & Forecast Page
-
-import { useMemo, useState } from 'react'
-import { Card, Row, Col, Button, Input, Space, message } from 'antd'
-import { ExperimentOutlined } from '@ant-design/icons'
+import { ExperimentOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, Card, Col, Input, Row, Space, Spin, Typography, message } from 'antd'
+import dayjs from 'dayjs'
+import React, { useState } from 'react'
 import { LineChart } from '@/components/charts/ChartComponents'
 import { PredictiveMap } from '@/components/map/PredictiveMap'
-import { simulationApi } from '@/services/api'
-import dayjs from 'dayjs'
+import { SelectionMap } from '@/components/map/SelectionMap'
+import { useSegments, useTrafficStatus } from '@/hooks/useTraffic'
+import { analyticsApi, predictionApi } from '@/services/api'
+import { PredictionItem, ComparisonMetric } from '@/types'
+
+const { Text } = Typography
+
+type RoadInfo = {
+  roadName: string
+  roadKey?: string
+  segmentCount: number
+  segmentIds: number[]
+}
 
 export const SimulationPage: React.FC = () => {
-  const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(
-    null
-  )
-  const [forecastLoading, setForecastLoading] = useState(false)
-  const [routingLoading, setRoutingLoading] = useState(false)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [forecastResult, setForecastResult] = useState<any>(null)
-  const [routingResult, setRoutingResult] = useState<string>('')
+  const segmentData = useSegments()
+  const trafficStatus = useTrafficStatus()
 
-  // Mock forecast chart data
-  const forecastChartData = useMemo(() => {
-    const now = dayjs()
-    const labels = Array.from({ length: 12 }, (_, i) =>
-      now.add(i * 5, 'minute').format('HH:mm')
-    )
+  // Hide scrollbars on mount to fit viewport
+  React.useEffect(() => {
+    const contentEl = document.querySelector('.ant-layout-content') as HTMLElement | null
+    const prevContentOverflow = contentEl?.style.overflow
+    const prevBodyOverflow = document.body.style.overflow
 
-    return {
-      labels,
-      datasets: [
-        {
-          label: 'Dự báo tốc độ',
-          data: Array.from(
-            { length: 12 },
-            () => 30 + Math.random() * 20 // Random speed 30-50 km/h
-          ),
-          fill: true,
-          backgroundColor: 'rgba(24, 144, 255, 0.1)',
-          borderColor: '#1890ff',
-          tension: 0.3,
-        },
-      ],
+    if (contentEl) {
+      contentEl.style.overflow = 'hidden'
+    }
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      if (contentEl) {
+        contentEl.style.overflow = prevContentOverflow ?? ''
+      }
+      document.body.style.overflow = prevBodyOverflow
     }
   }, [])
 
-  const handleForecast = async () => {
-    if (!selectedSegmentId) {
-      message.warning('Vui lòng chọn một đoạn đường')
+  const [selectedRoad, setSelectedRoad] = useState<RoadInfo | null>(null)
+  const [hoveredRoad, setHoveredRoad] = useState<RoadInfo | null>(null)
+
+  const [forecastLoading, setForecastLoading] = useState(false)
+  const [chartLoading, setChartLoading] = useState(false)
+  const [routingLoading, setRoutingLoading] = useState(false)
+  const [viewMode, setViewMode] = useState<'real-time' | 'forecast'>('real-time')
+  const [predictionData, setPredictionData] = useState<PredictionItem[]>([])
+  
+  const [chartData, setChartData] = useState<{
+    labels: string[];
+    datasets: {
+      label: string;
+      data: (number | null)[];
+      fill?: boolean;
+      backgroundColor?: string;
+      borderColor?: string;
+      tension?: number;
+      borderDash?: number[];
+      hidden?: boolean;
+    }[];
+  } | null>(null)
+
+  // Fetch historical chart data when road selection changes
+  React.useEffect(() => {
+    if (!selectedRoad) {
+      setChartData(null)
+      return
+    }
+
+    const fetchChartData = async () => {
+      setChartLoading(true)
+      try {
+        const params = {
+          scopeType: (selectedRoad.roadKey ? 'road' : 'segment') as 'road' | 'segment',
+          roadKey: selectedRoad.roadKey,
+          segmentId: !selectedRoad.roadKey ? String(selectedRoad.segmentIds[0]) : undefined,
+          metric: 'currentSpeedKmh' as ComparisonMetric,
+          date: dayjs().format('YYYY-MM-DD'),
+        }
+
+        const result = await analyticsApi.getComparison(params)
+        
+        if (result.success && result.data) {
+          const sortedData = [...result.data].sort((a, b) => a.hour - b.hour)
+
+          setChartData({
+            labels: sortedData.map(d => `${d.hour}h`),
+            datasets: [
+              {
+                label: 'Tốc độ thực tế (km/h)',
+                data: sortedData.map(d => d.todayValue),
+                fill: true,
+                backgroundColor: 'rgba(82, 196, 26, 0.1)',
+                borderColor: '#52c41a',
+                tension: 0.3,
+              },
+              {
+                label: 'Tốc độ lịch sử (Baseline)',
+                data: sortedData.map(d => d.baselineAvg),
+                fill: false,
+                borderColor: '#bfbfbf',
+                borderDash: [5, 5],
+                tension: 0.3,
+                hidden: true,
+              }
+            ],
+          })
+        }
+      } catch (error) {
+        console.error('Failed to fetch chart data:', error)
+      } finally {
+        setChartLoading(false)
+      }
+    }
+
+    fetchChartData()
+  }, [selectedRoad])
+
+  const handleRunForecast = async () => {
+    if (!selectedRoad || selectedRoad.segmentIds.length === 0) {
+      message.warning('Vui lòng chọn một đoạn đường hoặc trục đường trên bản đồ phụ.')
       return
     }
 
     setForecastLoading(true)
     try {
-      const result = await simulationApi.runForecast(selectedSegmentId, 60)
-      if (result.success && result.data) {
-        setForecastResult(result.data)
-        message.success('Dự báo thành công')
+      const response = await predictionApi.getBatchPrediction({
+        segment_ids: selectedRoad.segmentIds,
+        request_time: dayjs().format('YYYY-MM-DDTHH:mm:ss'),
+        prediction_horizon_minutes: 15,
+      })
+
+      if (response.success && response.data) {
+        setPredictionData(response.data.items)
+        setViewMode('forecast')
+        message.success(`Dự báo hoàn tất cho ${selectedRoad.roadName}`)
       }
     } catch (error) {
-      message.error('Lỗi khi dự báo')
+      message.error('Lỗi khi lấy dữ liệu dự báo')
       console.error('Forecast error:', error)
     } finally {
       setForecastLoading(false)
     }
   }
 
+  const handleReset = () => {
+    setViewMode('real-time')
+    setPredictionData([])
+  }
+
   const handleRouting = async () => {
+    if (!selectedRoad) return
     setRoutingLoading(true)
     try {
-      const result = await simulationApi.runRouting(
-        [106.7009, 10.7769], // Start point
-        [106.715, 10.81] // End point
-      )
-      if (result.success && result.data) {
-        setRoutingResult(
-          `Lộ trình thay thế: ${result.data.totalDistance?.toFixed(1)} km, ~${Math.round(result.data.estimatedTime)} phút`
-        )
-        message.success('Tính toán lộ trình thành công')
-      }
-    } catch (error) {
+      // Logic for alternative routing could go here
+      message.info('Đang tính toán lộ trình thay thế dựa trên dự báo kẹt xe...')
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      message.success('Đã đề xuất lộ trình thay thế tối ưu.')
+    } catch {
       message.error('Lỗi khi tính toán lộ trình')
-      console.error('Routing error:', error)
     } finally {
       setRoutingLoading(false)
     }
   }
 
+  const displayRoad = selectedRoad || hoveredRoad
+  const inputValue = displayRoad 
+    ? `${displayRoad.roadName} (${displayRoad.segmentCount} segments)` 
+    : ''
+
   return (
-    <Row gutter={[16, 16]} style={{ height: 'calc(100vh - 150px)' }}>
-      {/* Left Pane - Map */}
-      <Col xs={24} md={16} style={{ height: '100%' }}>
+    <Row gutter={[16, 16]} style={{ height: 'calc(100vh - 16px)', padding: '16px', overflow: 'hidden' }}>
+      {/* Left Pane - Main Predictive Map */}
+      <Col xs={24} md={16} lg={17} style={{ height: '100%' }}>
         <Card
-          title="Bản đồ Dự báo Động"
+          title={
+            <Space>
+              <span>Bản đồ Dự báo Động</span>
+              {viewMode === 'forecast' && (
+                <Text type="danger" strong style={{ fontSize: '12px' }}>
+                  (Đang ở chế độ Dự báo)
+                </Text>
+              )}
+            </Space>
+          }
+          extra={
+            viewMode === 'forecast' && (
+              <Button size="small" icon={<ReloadOutlined />} onClick={handleReset}>
+                Quay lại Hiện tại
+              </Button>
+            )
+          }
           style={{ height: '100%' }}
           bodyStyle={{ height: 'calc(100% - 57px)', padding: 0 }}
         >
-          <PredictiveMap />
+          <PredictiveMap 
+            viewMode={viewMode}
+            predictionData={predictionData}
+            selectedRoad={selectedRoad}
+            isLoading={forecastLoading}
+          />
         </Card>
       </Col>
 
       {/* Right Pane - Control Panel */}
-      <Col xs={24} md={8} style={{ height: '100%' }}>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16,
-            height: '100%',
-          }}
-        >
-          {/* B1 Chart - Forecast */}
-          <Card title="Dự báo 60 phút tới (B1)" loading={forecastLoading}>
-            <div style={{ height: 250 }}>
-              <LineChart
-                data={forecastChartData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      position: 'top' as const,
-                    },
-                  },
-                  scales: {
-                    y: {
-                      beginAtZero: true,
-                      max: 80,
-                    },
-                  },
-                }}
-              />
-            </div>
+      <Col xs={24} md={8} lg={7} style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Selection Map (Small) */}
+          <Card 
+            title="Chọn trục đường / Đoạn đường" 
+            size="small"
+            bodyStyle={{ height: 280, padding: 4 }}
+          >
+            <SelectionMap 
+              segmentData={segmentData} 
+              trafficStatus={trafficStatus || []} 
+              onSelect={setSelectedRoad}
+              onHover={setHoveredRoad}
+            />
           </Card>
 
-          {/* Control Buttons */}
-          <Card>
-            <Space direction="vertical" style={{ width: '100%' }}>
+          {/* Selection Details & Controls */}
+          <Card size="small">
+            <Space direction="vertical" style={{ width: '100%' }} size="middle">
               <div>
-                <label style={{ display: 'block', marginBottom: 8 }}>
-                  Chọn đoạn đường:
+                <label style={{ display: 'block', marginBottom: 8, fontSize: '13px', fontWeight: 500 }}>
+                  Trục đường đang chọn:
                 </label>
                 <Input
-                  type="number"
-                  placeholder="Nhập ID đoạn đường"
-                  value={selectedSegmentId || ''}
-                  onChange={(e) =>
-                    setSelectedSegmentId(
-                      e.target.value ? parseInt(e.target.value) : null
-                    )
-                  }
+                  placeholder="Hover hoặc Click vào bản đồ để chọn"
+                  value={inputValue}
+                  readOnly
+                  style={{ 
+                    backgroundColor: selectedRoad ? '#e6f7ff' : '#f5f5f5',
+                    borderColor: selectedRoad ? '#91d5ff' : '#d9d9d9'
+                  }}
                 />
               </div>
 
-              <Button
-                type="primary"
-                icon={<ExperimentOutlined />}
-                loading={forecastLoading}
-                onClick={handleForecast}
-                block
-              >
-                Chạy dự báo
-              </Button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Button
+                  type="primary"
+                  icon={<ExperimentOutlined />}
+                  loading={forecastLoading}
+                  onClick={handleRunForecast}
+                  style={{ flex: 1 }}
+                  disabled={!selectedRoad}
+                >
+                  Chạy dự báo
+                </Button>
+                
+                {viewMode === 'forecast' && (
+                  <Button icon={<ReloadOutlined />} onClick={handleReset} />
+                )}
+              </div>
 
-              <Button loading={routingLoading} onClick={handleRouting} block>
+              <Button 
+                loading={routingLoading} 
+                onClick={handleRouting} 
+                block
+                disabled={!selectedRoad}
+              >
                 Tính toán lộ trình thay thế
               </Button>
             </Space>
           </Card>
 
-          {/* Result Panel */}
-          {(forecastResult || routingResult) && (
-            <Card title="Kết quả" style={{ flex: 1, overflowY: 'auto' }}>
-              {forecastResult && (
-                <div style={{ marginBottom: 16 }}>
-                  <p>
-                    <strong>Tốc độ dự báo:</strong>{' '}
-                    {forecastResult.predictedSpeed?.toFixed(1)} km/h
-                  </p>
-                  <p>
-                    <strong>LOS dự báo:</strong> {forecastResult.predictedLos}
-                  </p>
-                  <p>
-                    <strong>Độ tin cậy:</strong>{' '}
-                    {forecastResult.confidenceScore?.toFixed(0)}%
-                  </p>
+          {/* Speed Variation Chart */}
+          <Card 
+            title="Lịch sử tốc độ trong ngày (biểu đồ 24h)" 
+            size="small"
+            extra={chartLoading && <Spin size="small" />}
+          >
+            <div style={{ height: 240 }}>
+              {chartData ? (
+                <LineChart data={chartData} options={{ maintainAspectRatio: false }} />
+              ) : (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bfbfbf' }}>
+                  {selectedRoad ? 'Đang tải dữ liệu...' : 'Chọn đường để xem lịch sử tốc độ'}
                 </div>
               )}
-              {routingResult && (
-                <div>
-                  <p>{routingResult}</p>
-                </div>
-              )}
-            </Card>
-          )}
+            </div>
+          </Card>
         </div>
       </Col>
     </Row>

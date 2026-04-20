@@ -1,15 +1,12 @@
-import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/config/constants'
-import { useSegments, useTrafficStatus } from '@/hooks/useTraffic'
-import { predictionApi } from '@/services/api'
-import { GeoJSONFeature, SegmentResponse, TrafficStatus, PredictionItem } from '@/types'
-import { PathStyleExtension } from '@deck.gl/extensions'
+import { FlyToInterpolator } from '@deck.gl/core'
 import { GeoJsonLayer } from '@deck.gl/layers'
 import DeckGL from '@deck.gl/react'
-import { Card, Slider, Spin, Typography } from 'antd'
-import dayjs from 'dayjs'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import { Card, Spin, Typography } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
 import Map from 'react-map-gl'
+import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/config/constants'
+import { useSegments } from '@/hooks/useTraffic'
+import { GeoJSONFeature, SegmentResponse, PredictionItem } from '@/types'
 
 const { Text, Title } = Typography
 
@@ -18,162 +15,202 @@ const MAP_STYLE = import.meta.env.VITE_MAPBOX_STYLE
 
 interface PredictiveMapProps {
   segmentData?: SegmentResponse | null
-  trafficStatus?: TrafficStatus[]
+  predictionData?: PredictionItem[]
+  viewMode?: 'real-time' | 'forecast'
+  selectedRoad?: {
+    roadName: string
+    roadKey?: string
+    segmentCount: number
+    segmentIds: number[]
+  } | null
+  isLoading?: boolean
   style?: React.CSSProperties
+}
+
+interface FeatureProperties {
+  segmentId: number
+  segmentName: string
+  congestionLevel: number
+  predictionInfo?: PredictionItem
 }
 
 export const PredictiveMap: React.FC<PredictiveMapProps> = ({
   segmentData: propSegmentData,
-  trafficStatus: propTrafficStatus,
+  predictionData: propPredictionData = [],
+  viewMode = 'real-time',
+  selectedRoad,
+  isLoading = false,
   style,
 }) => {
-  // Sử dụng dữ liệu từ props hoặc fallback về global hooks (tự động check IndexedDB cache)
   const hookSegments = useSegments()
-  const hookStatus = useTrafficStatus()
-
   const segmentData = propSegmentData !== undefined ? propSegmentData : hookSegments
-  const trafficStatus = propTrafficStatus !== undefined ? propTrafficStatus : hookStatus
+  const predictionData = propPredictionData
 
-  const [timeMode, setTimeMode] = useState<number>(0)
-  const [loading, setLoading] = useState<boolean>(false)
-  const [predictionData, setPredictionData] = useState<PredictionItem[]>([])
-  const [hoverInfo, setHoverInfo] = useState<any>(null)
+  const [hoverInfo, setHoverInfo] = useState<{
+    x: number
+    y: number
+    object: GeoJSONFeature | null
+  } | null>(null)
 
-  // Gọi API lấy prediction data khi gạt slider sang chế độ Forecast (+15 Phút)
+  const [viewState, setViewState] = useState({
+    longitude: DEFAULT_MAP_CENTER[0],
+    latitude: DEFAULT_MAP_CENTER[1],
+    zoom: DEFAULT_MAP_ZOOM,
+    pitch: 45,
+    bearing: 0,
+    transitionDuration: 0,
+    transitionInterpolator: new FlyToInterpolator(),
+  })
+
+  // Fly-to effect when selectedRoad changes
   useEffect(() => {
-    let isMounted = true
+    if (!selectedRoad || !segmentData) return
 
-    const fetchPredictions = async () => {
-      // Chỉ fetch nếu đang ở mode 1 và có data trafficStatus
-      if (timeMode === 1 && trafficStatus && trafficStatus.length > 0) {
-        // Tránh fetch lại lần nữa nếu đã có data
-        if (predictionData.length > 0) return
+    const selectedSegmentIds = selectedRoad.segmentIds
+    const selectedSegments = segmentData.features.filter((f) =>
+      selectedSegmentIds.includes(f.properties.segmentId)
+    )
 
-        setLoading(true)
-        try {
-          const segmentIds = trafficStatus.map((s) => s.segmentId)
-          const response = await predictionApi.getBatchPrediction({
-            segment_ids: segmentIds,
-            request_time: dayjs().format('YYYY-MM-DDTHH:mm:ss'),
-            prediction_horizon_minutes: 15,
-          })
+    if (selectedSegments.length === 0) return
 
-          if (isMounted && response.success && response.data) {
-            setPredictionData(response.data.items)
-          }
-        } catch (error) {
-          console.error('Failed to fetch prediction batch', error)
-        } finally {
-          if (isMounted) setLoading(false)
-        }
+    // Calculate center for each segment and finding the overall centroid
+    const centers = selectedSegments.map(f => {
+      const coords = f.geometry.coordinates as [number, number][]
+      if (!coords || coords.length === 0) return null
+      
+      const midIdx = Math.floor(coords.length / 2)
+      return {
+        lng: coords[midIdx][0],
+        lat: coords[midIdx][1]
       }
-    }
+    }).filter((c): c is { lng: number; lat: number } => c !== null)
 
-    fetchPredictions()
+    if (centers.length > 0) {
+      // Calculate overall centroid of the centers
+      const centroid = centers.reduce((acc, c) => ({
+        lng: acc.lng + c.lng,
+        lat: acc.lat + c.lat
+      }), { lng: 0, lat: 0 })
+
+      centroid.lng /= centers.length
+      centroid.lat /= centers.length
+
+      // Pick the segment closest to the centroid as the representative fly-to target
+      const representative = centers.reduce((best, current) => {
+        const bestDist = Math.pow(best.lng - centroid.lng, 2) + Math.pow(best.lat - centroid.lat, 2)
+        const currentDist = Math.pow(current.lng - centroid.lng, 2) + Math.pow(current.lat - centroid.lat, 2)
+        return currentDist < bestDist ? current : best
+      })
+
+      setViewState((prev) => {
+        const isSame = Math.abs(prev.longitude - representative.lng) < 0.0001 && 
+                      Math.abs(prev.latitude - representative.lat) < 0.0001 && 
+                      prev.zoom === 14
+        
+        if (isSame) return prev
+        
+        return {
+          ...prev,
+          longitude: representative.lng,
+          latitude: representative.lat,
+          zoom: 14,
+          transitionDuration: 1000,
+          transitionInterpolator: new FlyToInterpolator(),
+        }
+      })
+    }
+  }, [selectedRoad, segmentData])
+
+  const [blink, setBlink] = useState(true)
+  useEffect(() => {
+    let interval: any = null
+    
+    if (isLoading) {
+      interval = setInterval(() => {
+        setBlink((b) => !b)
+      }, 400)
+    } else {
+      setBlink(true)
+    }
 
     return () => {
-      isMounted = false
+      if (interval) clearInterval(interval)
     }
-  }, [timeMode, trafficStatus, predictionData.length])
+  }, [isLoading])
 
-  // Gộp data từ traffic Status / prediction API vào GeoJSON Features
   const combinedGeoJson = useMemo(() => {
     if (!segmentData) return null
+    if (!selectedRoad) return { type: 'FeatureCollection', features: [] }
 
-    const features = segmentData.features.map((f: GeoJSONFeature) => {
-      const segId = f.properties.segmentId
-      const currentStatus = trafficStatus?.find((t) => t.segmentId === segId)
-      const predStatus = predictionData.find((p) => p.segment_id === segId)
+    const features = segmentData.features
+      .filter((f: GeoJSONFeature) => {
+        return selectedRoad.segmentIds.includes(f.properties.segmentId)
+      })
+      .map((f: GeoJSONFeature) => {
+        const segId = f.properties.segmentId
+        const predStatus = predictionData.find((p) => p.segment_id === segId)
 
-      let level = 1 // Mặc định xanh lá
-      let usedFallback = false
-      let showDesc = 'Không có dữ liệu'
-
-      if (timeMode === 0) {
-        // Mode Hiện tại (Real-time)
-        if (currentStatus) {
-          // Ánh xạ losScore (có thể từ 1 tới 6) sang congestion_level 1 -> 5
-          const score = currentStatus.losScore || 1
-          level = score > 5 ? 5 : score
-          showDesc = `LOS ${currentStatus.losGrade} - Tốc độ: ${Math.round(
-            currentStatus.currentSpeed
-          )} km/h`
+        let congestionLevel = -1
+        if (viewMode === 'forecast' && predStatus) {
+          congestionLevel = predStatus.congestion_level
         }
-      } else {
-        // Mode Dự báo +15 Phút
-        if (predStatus) {
-          level = predStatus.congestion_level
-          usedFallback = predStatus.used_fallback
-          showDesc = predStatus.status_description
-        } else if (currentStatus) {
-          // Fallback nếu không có prediction trả về nhưng có status hiện tại
-          const score = currentStatus.losScore || 1
-          level = score > 5 ? 5 : score
-          showDesc = `Dữ liệu hiện tại (Chưa có dự báo)`
+
+        return {
+          ...f,
+          properties: {
+            ...f.properties,
+            congestionLevel,
+            predictionInfo: predStatus,
+          },
         }
-      }
+      })
 
-      return {
-        ...f,
-        properties: {
-          ...f.properties,
-          displayLevel: level,
-          usedFallback,
-          displayDesc: showDesc,
-        },
-      }
-    })
+    return { type: 'FeatureCollection', features } as any
+  }, [segmentData, predictionData, viewMode, selectedRoad])
 
-    return { type: 'FeatureCollection', features }
-  }, [segmentData, trafficStatus, predictionData, timeMode])
+  const getLineColor = React.useCallback((f: any): [number, number, number, number] => {
+    const props = (f.properties || {}) as FeatureProperties
+    const level = props.congestionLevel
+    const opacity = isLoading ? (blink ? 255 : 50) : 255
 
-  // Hàm thiết lập màu dựa trên Level
-  const getLineColor = (f: any): [number, number, number] => {
-    const level = f.properties.displayLevel
-    if (level === 1) return [34, 197, 94] // Xanh lá
-    if (level === 2) return [234, 179, 8] // Vàng
-    if (level === 3) return [249, 115, 22] // Cam
-    if (level >= 4) return [239, 68, 68] // Đỏ
-    return [156, 163, 175] // Xám
-  }
+    if (level === -1) return [24, 144, 255, opacity]
 
-  // Khai báo Layer với Deck.gl
+    if (level === 0) return [34, 197, 94, opacity]
+    if (level === 1) return [234, 179, 8, opacity]
+    if (level === 2) return [249, 115, 22, opacity]
+    if (level >= 3) return [239, 68, 68, opacity]
+    
+    return [100, 100, 100, opacity]
+  }, [blink, isLoading])
+
   const layers = useMemo(() => {
     if (!combinedGeoJson) return []
 
     return [
       new GeoJsonLayer({
         id: 'predictive-traffic-lines',
-        data: combinedGeoJson as any,
+        data: combinedGeoJson,
         pickable: true,
         stroked: false,
         filled: false,
         lineWidthScale: 1,
-        lineWidthMinPixels: 2,
-        lineWidthMaxPixels: 10,
+        lineWidthMinPixels: 4,
+        lineWidthMaxPixels: 12,
         getLineColor,
-        getLineWidth: 4,
-        
-        // Cấu hình PathStyleExtension nâng cao của Deck.gl
-        // Để vẽ Nét đứt (Dash) ta cần sử dụng Extension này. Thuộc tính dash_array sẽ chứa mảng kích thước [dashLength, gapLength]
-        getDashArray: (f: any) =>
-          f.properties.usedFallback ? [4, 2] : [0, 0],
-        dashJustified: true,
-        extensions: [new PathStyleExtension({ dash: true })],
-        
-        onHover: (info: any) => setHoverInfo(info),
+        getLineWidth: 6,
         updateTriggers: {
-          getLineColor: [timeMode],
-          getDashArray: [timeMode],
+          getLineColor: [getLineColor, blink, isLoading, predictionData, viewMode],
         },
+        onHover: (info) => setHoverInfo(info as any),
       }),
     ]
-  }, [combinedGeoJson, timeMode])
+  }, [combinedGeoJson, getLineColor, blink, isLoading, predictionData, viewMode])
 
   const renderTooltip = () => {
     if (!hoverInfo || !hoverInfo.object) return null
+    const props = hoverInfo.object.properties as unknown as FeatureProperties
+    const predInfo = props.predictionInfo
 
-    const { properties } = hoverInfo.object
     return (
       <div
         className="deckgl-tooltip"
@@ -188,31 +225,28 @@ export const PredictiveMap: React.FC<PredictiveMapProps> = ({
           borderRadius: '8px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           fontFamily: 'sans-serif',
-          minWidth: '220px',
+          minWidth: '240px',
         }}
       >
-        <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '4px', color: '#1f2937' }}>
-          {properties.segmentName}
-        </div>
-        <div style={{ fontSize: '13px', color: '#4b5563', marginBottom: '4px' }}>
-          Mức độ kẹt xe: <span style={{ fontWeight: 'bold' }}>{properties.displayLevel}</span>
-        </div>
-        <div style={{ fontSize: '12px', color: '#6b7280' }}>
-          {properties.displayDesc}
+        <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', color: '#1f2937', borderBottom: '1px solid #f0f0f0', paddingBottom: '4px' }}>
+          {props.segmentName}
         </div>
         
-        {properties.usedFallback && (
-          <div style={{ 
-            marginTop: '8px', 
-            fontSize: '12px', 
-            color: '#ef4444', 
-            fontWeight: '500',
-            backgroundColor: '#fee2e2',
-            padding: '4px 8px',
-            borderRadius: '4px'
-          }}>
-            ⚠️ Dữ liệu nội suy từ đoạn đường lân cận
-          </div>
+        {predInfo ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span style={{ fontSize: '13px', color: '#4b5563' }}>Mức độ kẹt xe:</span>
+              <span style={{ fontWeight: 'bold', color: '#1f2937' }}>{predInfo.congestion_level}</span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic', marginBottom: '4px' }}>
+              {predInfo.status_description}
+            </div>
+            <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+              Mã lý do: <span style={{ color: '#6b7280' }}>{predInfo.reason_code}</span>
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: '13px', color: '#6b7280' }}>Dữ liệu hiện tại / Chưa có dự báo</div>
         )}
       </div>
     )
@@ -221,13 +255,8 @@ export const PredictiveMap: React.FC<PredictiveMapProps> = ({
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', ...style }}>
       <DeckGL
-        initialViewState={{
-          longitude: DEFAULT_MAP_CENTER[0],
-          latitude: DEFAULT_MAP_CENTER[1],
-          zoom: DEFAULT_MAP_ZOOM,
-          pitch: 45,
-          bearing: 0,
-        }}
+        viewState={viewState}
+        onViewStateChange={({ viewState: nextViewState }: any) => setViewState(nextViewState)}
         controller={true}
         layers={layers as any[]}
       >
@@ -239,45 +268,79 @@ export const PredictiveMap: React.FC<PredictiveMapProps> = ({
         {renderTooltip()}
       </DeckGL>
 
-      {/* Control Panel: Antd Card Floating Bottom Center */}
-      <Card
-        size="small"
-        style={{
-          position: 'absolute',
-          bottom: '32px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '320px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-          borderRadius: '12px',
-          zIndex: 10,
-        }}
-        bodyStyle={{ padding: '16px' }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Title level={5} style={{ margin: 0 }}>
-              Dự báo Giao thông Động
+      {/* Road Info Overlay (Top Right) */}
+      {selectedRoad && (
+        <Card
+          size="small"
+          style={{
+            position: 'absolute',
+            top: 16,
+            right: 16,
+            width: 240,
+            zIndex: 10,
+            background: 'rgba(255,255,255,0.9)',
+            backdropFilter: 'blur(4px)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            border: 'none',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <Title level={5} style={{ margin: 0, fontSize: '14px', color: '#1890ff' }}>
+              {selectedRoad.roadName}
             </Title>
-            {loading && <Spin size="small" />}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text type="secondary" style={{ fontSize: '12px' }}>Số phân đoạn:</Text>
+              <Text strong style={{ fontSize: '12px' }}>{selectedRoad.segmentCount}</Text>
+            </div>
+            {viewMode === 'forecast' && (
+              <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid #f0f0f0' }}>
+                <Text type="danger" strong style={{ fontSize: '12px' }}>Dữ liệu dự báo (15p)</Text>
+              </div>
+            )}
+            {isLoading && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <Spin size="small" />
+                <Text type="secondary" style={{ fontSize: '11px' }}>Đang chạy mô phỏng...</Text>
+              </div>
+            )}
           </div>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            Điều chỉnh thanh trượt để xem mốc thời gian ước tính kẹt xe
-          </Text>
-          <Slider
-            min={0}
-            max={1}
-            marks={{
-              0: 'Hiện tại',
-              1: '+15 Phút',
-            }}
-            step={null} // Chỉ cho phép chọn 0 hoặc 1
-            value={timeMode}
-            onChange={(val) => setTimeMode(val)}
-            tooltip={{ formatter: null }} // Tắt popup mặc định của slider
-          />
+        </Card>
+      )}
+
+      {/* Legend */}
+      {viewMode === 'forecast' && predictionData.length > 0 && (
+        <div style={{
+          position: 'absolute',
+          bottom: 16,
+          right: 16,
+          backgroundColor: 'white',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          zIndex: 10,
+          fontSize: '11px'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Chú giải (Tình trạng kẹt xe)</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 12, height: 12, backgroundColor: '#22c55e', borderRadius: '2px' }} />
+              <span>0: Thông thoáng</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 12, height: 12, backgroundColor: '#eab308', borderRadius: '2px' }} />
+              <span>1: Bình thường</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 12, height: 12, backgroundColor: '#f97316', borderRadius: '2px' }} />
+              <span>2: Đông đúc</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 12, height: 12, backgroundColor: '#ef4444', borderRadius: '2px' }} />
+              <span>3: Kẹt xe</span>
+            </div>
+          </div>
         </div>
-      </Card>
+      )}
     </div>
   )
 }

@@ -10,7 +10,6 @@ import {
   CorridorDashboardQueryParams,
   CorridorReliabilityData,
   CorridorReliabilityQueryParams,
-  ForecastData,
   IncidentCollection,
   IncidentImpactResponse,
   IncidentReportCreateResponse,
@@ -145,14 +144,6 @@ export const analyticsApi = {
 
 // Simulation API
 export const simulationApi = {
-  runForecast: (
-    segmentId: number,
-    horizonMinutes?: number
-  ): Promise<ApiResponse<ForecastData[]>> =>
-    axiosInstance.post('/simulation/forecast', {
-      segmentId,
-      horizonMinutes,
-    }),
   runRouting: (
     startPoint: [number, number],
     endPoint: [number, number],
