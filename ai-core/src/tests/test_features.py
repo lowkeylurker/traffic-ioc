@@ -1,18 +1,53 @@
-"""
-test_features.py - Unit Tests for Feature Engineering
+"""Unit tests for feature engineering helpers."""
 
-Test coverage:
-- test_traffic_features_calculation (TI, LOS, congestion_level)
-- test_temporal_features_extraction (hour, day, season, peak)
-- test_sliding_window_creation (shape, alignment)
-- test_feature_normalization
-- test_feature_edge_cases (zero speed, invalid hours, etc.)
-- test_feature_consistency (values in expected ranges)
+from datetime import datetime
 
-Sử dụng pytest + numpy/pandas testing utilities.
-"""
-
-import pytest
 import numpy as np
+import pandas as pd
 
-# TODO: Triển khải các test features
+from src.features.temporal_features import create_temporal_features
+from src.features.traffic_features import (
+	calculate_traffic_index,
+	classify_congestion_level,
+	classify_los,
+	extract_traffic_features,
+)
+
+
+def test_create_temporal_features_returns_expected_columns() -> None:
+	features = create_temporal_features(datetime(2026, 4, 9, 7, 15), holiday_dates=[datetime(2026, 4, 9)])
+
+	assert list(features.columns) == [
+		"timestamp",
+		"hour",
+		"day_of_week",
+		"month",
+		"is_weekend",
+		"is_holiday",
+		"is_peak_hour",
+		"time_key",
+		"time_sin",
+		"time_cos",
+	]
+	assert features.iloc[0]["hour"] == 7
+	assert bool(features.iloc[0]["is_holiday"]) is True
+	assert bool(features.iloc[0]["is_peak_hour"]) is True
+
+
+def test_extract_traffic_features_classifies_congestion() -> None:
+	df = pd.DataFrame(
+		{
+			"current_speed_kmh": [30.0, 10.0],
+			"static_free_flow": [60.0, 60.0],
+		}
+	)
+
+	enriched = extract_traffic_features(df)
+
+	assert np.isclose(enriched.loc[0, "traffic_index"], 0.5)
+	assert classify_los(enriched.loc[0, "traffic_index"]) == "D"
+	assert classify_congestion_level(0.75) == 3
+
+
+def test_calculate_traffic_index_handles_invalid_free_flow() -> None:
+	assert np.isnan(calculate_traffic_index(30.0, 0.0))
