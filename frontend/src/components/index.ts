@@ -1,6 +1,9 @@
 // Common Components
 export { EmptyState, ErrorState, Loading } from './common'
 
+// Global Features
+export { LiveNewsTicker } from './LiveNewsTicker'
+
 // Auth Components
 export { RoleGuard } from './auth/RoleGuard'
 export { SignInSignUpDialog } from './auth/SignInSignUpDialog'

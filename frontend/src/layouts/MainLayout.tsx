@@ -1,6 +1,7 @@
 // Main Layout Component
 
 import { SignInSignUpDialog } from '@/components'
+import { LiveNewsTicker } from '@/components/LiveNewsTicker'
 import { LAYOUT_SIDER_WIDTH } from '@/config/constants'
 import { setAccessTokenGetter } from '@/services/api'
 import {
@@ -215,6 +216,8 @@ export const MainLayout: React.FC = () => {
         open={authDialogOpen}
         onClose={() => setAuthDialogOpen(false)}
       />
+
+      <LiveNewsTicker />
     </Layout>
   )
 }

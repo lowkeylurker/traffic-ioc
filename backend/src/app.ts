@@ -15,6 +15,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import incidentRoutes from './routes/incident.routes';
 import mapRoutes from './routes/map.routes';
 import olapRoutes from './routes/olap.routes';
+import newsRoutes from './routes/news.routes';
 import simulationRoutes from './routes/simulation.routes';
 import userRoutes from './routes/user/user.routes';
 import weatherRoutes from './routes/weather.routes';
@@ -70,6 +71,7 @@ export const createApp = (): Express => {
   app.use(`${apiV1}${ROUTE_PATHS.INCIDENT}`, incidentRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.WEATHER}`, weatherRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.USER}`, userRoutes);
+  app.use(`${apiV1}${ROUTE_PATHS.NEWS}`, newsRoutes);
 
   logger.log('Routes registered:', {
     map: `${apiV1}${ROUTE_PATHS.MAP}`,
@@ -79,6 +81,7 @@ export const createApp = (): Express => {
     incident: `${apiV1}${ROUTE_PATHS.INCIDENT}`,
     weather: `${apiV1}${ROUTE_PATHS.WEATHER}`,
     user: `${apiV1}${ROUTE_PATHS.USER}`,
+    news: `${apiV1}${ROUTE_PATHS.NEWS}`,
   });
 
   // ============================================================================

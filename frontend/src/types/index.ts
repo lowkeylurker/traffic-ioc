@@ -447,3 +447,32 @@ export interface ApiResponse<T = any> {
   }
   timestamp: string
 }
+
+export interface PredictionRequestBody {
+  segment_ids: number[]
+  request_time: string
+  prediction_horizon_minutes: number
+}
+
+export interface PredictionItem {
+  segment_id: number
+  congestion_level: number
+  status: string
+  status_description: string
+  forecast_for_time: string
+  reason_code: string
+  model_profile: string
+  used_fallback: boolean
+  source_segment_id: number
+  fallback_distance_m: number
+}
+
+export interface PredictionResponse {
+  request_time: string
+  prediction_horizon_minutes: number
+  model_profile: string
+  total_segments: number
+  success_count: number
+  no_data_count: number
+  items: PredictionItem[]
+}

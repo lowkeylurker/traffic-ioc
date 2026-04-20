@@ -7,6 +7,8 @@ import { closeRedisConnection } from './config/redis';
 import { olapJobService } from './jobs/olap-job.service';
 import { reliabilityJobService } from './jobs/reliability-job.service';
 import { Logger } from './utils/logger';
+import { scheduleTrafficNewsJob } from './jobs/newsQueue';
+import { trafficNewsWorker } from './jobs/trafficNewsWorker';
 
 const logger = new Logger('Server');
 
@@ -25,6 +27,9 @@ async function main() {
 
     await olapJobService.start();
     await reliabilityJobService.start();
+    
+    // Khởi tạo News Ticker Job
+    await scheduleTrafficNewsJob();
 
     // Start server
     const server = app.listen(PORT, () => {
@@ -46,6 +51,7 @@ async function main() {
       logger.log('SIGTERM received, shutting down gracefully...');
       server.close(async () => {
         await olapJobService.stop();
+        await trafficNewsWorker.close();
         await reliabilityJobService.stop();
         await closeRedisConnection();
         await prisma.$disconnect();
@@ -58,6 +64,7 @@ async function main() {
       logger.log('SIGINT received, shutting down gracefully...');
       server.close(async () => {
         await olapJobService.stop();
+        await trafficNewsWorker.close();
         await reliabilityJobService.stop();
         await closeRedisConnection();
         await prisma.$disconnect();

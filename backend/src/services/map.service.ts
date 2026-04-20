@@ -443,6 +443,7 @@ export class MapService {
             segment_key, current_speed_kmh, los_level, traffic_index, pcu_volume, timestamp
           FROM fact_traffic_flow
           WHERE timestamp >= NOW() - INTERVAL '15 minutes'
+            AND timestamp::date = CURRENT_DATE
           ORDER BY segment_key, timestamp DESC
         )
         SELECT
@@ -507,6 +508,7 @@ export class MapService {
           FROM fact_traffic_flow ftf
           WHERE ftf.segment_key = s.segment_key
             AND ftf.timestamp >= NOW() - INTERVAL '15 minutes'
+            AND ftf.timestamp::date = CURRENT_DATE
           ORDER BY ftf.timestamp DESC
           LIMIT 1
         ) f ON TRUE
