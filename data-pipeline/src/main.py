@@ -3,8 +3,6 @@
 Commands:
     run-static     Sinh + UPSERT dimension thời gian + ngày lễ
     run-spatial    Download OSM network + UPSERT spatial dims
-    run-loader     Nạp đường phố Quận 1 & Quận 3 vào dim_segment
-    run-mocker     Sinh sự cố ngẫu nhiên mỗi 15 giây vào fact_incident
     run-realtime   Weather → Traffic Flow → Incident (priority corridors, critical segments)
     run-batch      Nightly: baseline (all) + corridor performance (priority corridors)
     run-all        Chạy tất cả theo thứ tự FK

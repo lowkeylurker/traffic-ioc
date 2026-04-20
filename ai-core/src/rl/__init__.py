@@ -1,20 +1,16 @@
-"""
-TẦNG 5: REINFORCEMENT LEARNING - Congestion Prediction
+"""Reinforcement learning modules for traffic control forecasting."""
 
-Cung cấp:
-- BaseRLAgent (ABC)
-- DQN Agent (Deep Q-Network)
-- PPO Agent (Proximal Policy Optimization)
-- CongestionEnv (Custom Gym environment)
-- ExperienceReplay (Replay buffer)
-
-Output: Binary prediction (congested/free) cho 15 phút tới.
-"""
+from src.rl.agents.dqn_agent import DQNAgent, ReplayBuffer
+from src.rl.environments.traffic_env import TrafficForecastingEnv
+from src.rl.inference.predictor import RLTrafficPredictor, forecast_for_request, is_continuous_12_steps
+from src.rl.training.loop import train_rl_agent
 
 __all__ = [
-    "BaseRLAgent",
     "DQNAgent",
-    "PPOAgent",
-    "CongestionEnv",
-    "ExperienceReplay",
+    "ReplayBuffer",
+    "TrafficForecastingEnv",
+    "RLTrafficPredictor",
+    "forecast_for_request",
+    "is_continuous_12_steps",
+    "train_rl_agent",
 ]

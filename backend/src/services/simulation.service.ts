@@ -7,32 +7,6 @@ const logger = new Logger('SimulationService');
 
 export class SimulationService {
   /**
-   * Dự báo tốc độ cho một đoạn đường trong tương lai
-   * Hiện tại: Mock data - sẽ được thay bằng AI model call
-   */
-  async forecast(request: ForecastRequest): Promise<ForecastResponse> {
-    try {
-      logger.log(`Forecasting for segment ${request.segmentId}`, request);
-
-      // TODO: Gọi AI model service để dự báo
-      // Tạm thời trả mock data
-      const mockForecast: ForecastResponse = {
-        segmentId: request.segmentId,
-        predictedSpeed: 35 + Math.random() * 15, // Random 35-50 km/h
-        predictedLos: this.getRandomLos(),
-        confidenceScore: 75 + Math.random() * 20, // 75-95%
-        forecastTime: new Date(Date.now() + (request.horizonMinutes || 60) * 60000),
-      };
-
-      logger.log(`Forecast generated for segment ${request.segmentId}`, mockForecast);
-      return mockForecast;
-    } catch (error) {
-      logger.error('Error generating forecast', error);
-      throw error;
-    }
-  }
-
-  /**
    * Tìm lộ trình thay thế tránh các đoạn đường bị chặn
    * Hiện tại: Mock data - sẽ được thay bằng pgRouting
    */

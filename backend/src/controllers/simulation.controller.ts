@@ -10,33 +10,6 @@ const logger = new Logger('SimulationController');
 
 export class SimulationController {
   /**
-   * POST /forecast - Dự báo tốc độ
-   * Body: { segmentId: number, horizonMinutes?: number }
-   */
-  async forecast(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      logger.log('POST /forecast', req.body);
-
-      const { segmentId, horizonMinutes } = req.body as ForecastDto;
-
-      // Validate
-      if (!segmentId) {
-        res.status(400).json(ResponseUtil.badRequest('segmentId is required'));
-        return;
-      }
-
-      const forecast = await simulationService.forecast({
-        segmentId,
-        horizonMinutes,
-      });
-
-      res.status(201).json(ResponseUtil.created(forecast, 'Forecast generated successfully'));
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
    * POST /routing - Tìm lộ trình thay thế
    * Body: { startPoint: [lon, lat], endPoint: [lon, lat], blockedSegments?: number[] }
    */
