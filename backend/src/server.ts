@@ -29,7 +29,7 @@ async function main() {
     await reliabilityJobService.start();
     
     // Khởi tạo News Ticker Job
-    await scheduleTrafficNewsJob();
+    // await scheduleTrafficNewsJob();
 
     // Start server
     const server = app.listen(PORT, () => {

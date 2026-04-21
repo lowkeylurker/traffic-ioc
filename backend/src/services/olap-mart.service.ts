@@ -24,12 +24,7 @@ interface HeatmapRow {
   avg_tti: number;
 }
 
-interface ScatterRow {
-  weather_impact_score: number;
-  avg_tti: number;
-  incident_count: number;
-  district: string;
-}
+type ScatterRow = [number, number, number, number, string];
 
 interface DrilldownRow {
   bucket: string;
@@ -116,10 +111,19 @@ export class OlapMartService {
         avg_tti numeric(10,4) NOT NULL,
         sample_count int NOT NULL,
         incident_count int NOT NULL DEFAULT 0,
+        total_pcu_volume bigint NOT NULL DEFAULT 0,
+        total_delay_seconds bigint NOT NULL DEFAULT 0,
         computed_at timestamp NOT NULL DEFAULT NOW(),
         PRIMARY KEY (date_key, hour_of_day, district, weather_category)
       )
     `);
+
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE report_olap_slot_district ADD COLUMN IF NOT EXISTS total_pcu_volume bigint NOT NULL DEFAULT 0'
+    );
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE report_olap_slot_district ADD COLUMN IF NOT EXISTS total_delay_seconds bigint NOT NULL DEFAULT 0'
+    );
 
     await prisma.$executeRawUnsafe(
       'CREATE INDEX IF NOT EXISTS idx_report_olap_slot_date ON report_olap_slot_district (full_date)'
@@ -132,6 +136,9 @@ export class OlapMartService {
     );
     await prisma.$executeRawUnsafe(
       'CREATE INDEX IF NOT EXISTS idx_report_olap_slot_district ON report_olap_slot_district (district)'
+    );
+    await prisma.$executeRawUnsafe(
+      'CREATE INDEX IF NOT EXISTS idx_report_olap_slot_scatter_filters ON report_olap_slot_district (full_date, district, weather_category)'
     );
 
     this.tableReady = true;
@@ -191,6 +198,8 @@ export class OlapMartService {
             THEN (ftf.free_flow_speed_kmh / ftf.current_speed_kmh)
             ELSE NULL
           END AS tti,
+          COALESCE(ftf.pcu_volume, 0)::bigint AS pcu_volume,
+          COALESCE(ftf.delay_seconds, 0)::bigint AS delay_seconds,
           ftf.time_key
         FROM fact_traffic_flow ftf
         INNER JOIN dim_date dd ON dd.date_key = ftf.date_key
@@ -213,6 +222,8 @@ export class OlapMartService {
           weather_category,
           AVG(tti)::numeric(10,4) AS avg_tti,
           COUNT(*)::int AS sample_count,
+          SUM(pcu_volume)::bigint AS total_pcu_volume,
+          SUM(delay_seconds)::bigint AS total_delay_seconds,
           MIN(time_key) AS sample_time_key
         FROM traffic_base
         WHERE tti IS NOT NULL
@@ -292,6 +303,8 @@ export class OlapMartService {
           avg_tti,
           sample_count,
           incident_count,
+          total_pcu_volume,
+          total_delay_seconds,
           computed_at
         )
         SELECT
@@ -307,6 +320,8 @@ export class OlapMartService {
           ta.avg_tti,
           ta.sample_count,
           COALESCE(ia.incident_count, 0) AS incident_count,
+          ta.total_pcu_volume,
+          ta.total_delay_seconds,
           NOW()
         FROM traffic_agg ta
         LEFT JOIN incident_agg ia
@@ -318,6 +333,8 @@ export class OlapMartService {
           avg_tti = EXCLUDED.avg_tti,
           sample_count = EXCLUDED.sample_count,
           incident_count = EXCLUDED.incident_count,
+          total_pcu_volume = EXCLUDED.total_pcu_volume,
+          total_delay_seconds = EXCLUDED.total_delay_seconds,
           computed_at = EXCLUDED.computed_at,
           full_date = EXCLUDED.full_date,
           year = EXCLUDED.year,
@@ -334,9 +351,9 @@ export class OlapMartService {
     return { upsertedRows };
   }
 
-  private buildDistrictFilter(districts: string[]): Prisma.Sql {
+  private buildDistrictFilter(districts: string[], column: Prisma.Sql = Prisma.sql`district`): Prisma.Sql {
     if (!districts.length) return Prisma.empty;
-    return Prisma.sql`AND district IN (${Prisma.join(districts)})`;
+    return Prisma.sql`AND ${column} IN (${Prisma.join(districts)})`;
   }
 
   async getHeatmap(query: OlapFilterQuery): Promise<Array<[number, number, number]>> {
@@ -373,27 +390,47 @@ export class OlapMartService {
     await this.ensureMartTable();
 
     const districtFilter = this.buildDistrictFilter(query.districts);
-    const rows = await prisma.$queryRaw<ScatterRow[]>(Prisma.sql`
+    const rows = await prisma.$queryRaw<
+      Array<{
+        weather_severity: number;
+        traffic_index: number;
+        pcu_volume: number;
+        delay_seconds: number;
+        location_name: string;
+      }>
+    >(Prisma.sql`
       SELECT
-        ${weatherImpactFromCategoryExpr} AS weather_impact_score,
-        AVG(avg_tti)::float8 AS avg_tti,
-        SUM(incident_count)::int AS incident_count,
-        district
+        (
+          CASE
+            WHEN COALESCE(weather_category, '') ILIKE '%thunder%' THEN 5
+            WHEN COALESCE(weather_category, '') ILIKE '%storm%' THEN 5
+            WHEN COALESCE(weather_category, '') ILIKE '%rain%' THEN 4
+            WHEN COALESCE(weather_category, '') ILIKE '%snow%' THEN 4
+            WHEN COALESCE(weather_category, '') ILIKE '%drizzle%' THEN 3
+            WHEN COALESCE(weather_category, '') ILIKE '%fog%' THEN 3
+            ELSE 1
+          END
+        )::float8 AS weather_severity,
+        AVG(avg_tti)::float8 AS traffic_index,
+        SUM(total_pcu_volume)::float8 AS pcu_volume,
+        SUM(total_delay_seconds)::float8 AS delay_seconds,
+        district AS location_name
       FROM report_olap_slot_district
       WHERE full_date BETWEEN ${query.startDate}::date AND ${query.endDate}::date
         AND ${weatherImpactFromCategoryExpr} BETWEEN ${query.weatherImpactMin} AND ${query.weatherImpactMax}
         ${districtFilter}
       GROUP BY district, weather_category
-      ORDER BY district, weather_impact_score
+      ORDER BY district, weather_severity
       LIMIT 600
     `);
 
-    return rows.map((r) => ({
-      district: r.district,
-      weather_impact_score: Number(toFinite(r.weather_impact_score, 0).toFixed(1)),
-      avg_tti: Number(toFinite(r.avg_tti, 1).toFixed(2)),
-      incident_count: Math.max(0, Math.round(toFinite(r.incident_count, 0))),
-    }));
+    return rows.map((r) => [
+      Number(toFinite(r.weather_severity, 1).toFixed(1)),
+      Number(toFinite(r.traffic_index, 1).toFixed(2)),
+      Math.max(0, Math.round(toFinite(r.pcu_volume, 0))),
+      Math.max(0, Math.round(toFinite(r.delay_seconds, 0))),
+      r.location_name,
+    ]);
   }
 
   async getDrilldownYear(query: OlapFilterQuery, year: number): Promise<DrilldownRow[]> {

@@ -402,12 +402,8 @@ export interface OlapDrilldownParams extends OlapAnalyzeCommonParams {
 // [dayOfWeek, hourOfDay, ttiValue]
 export type OlapHeatmapCell = [number, number, number]
 
-export interface OlapScatterPoint {
-  weather_impact_score: number
-  avg_tti: number
-  incident_count: number
-  district: string
-}
+// [weatherSeverity, trafficIndex, pcuVolume, delaySeconds, locationName]
+export type OlapScatterPoint = [number, number, number, number, string]
 
 export interface OlapDrilldownPoint {
   bucket: string

@@ -13,6 +13,7 @@ import {
   Button,
   Card,
   DatePicker,
+  Radio,
   Select,
   Slider,
   Space,
@@ -43,7 +44,7 @@ type HeatmapTooltipParam = {
 }
 
 type ScatterTooltipParam = {
-  value: [number, number, number, string]
+  value: [number, number, number, number, string]
 }
 
 type DrillTooltipParam = {
@@ -73,6 +74,7 @@ export const OlapDashboard: React.FC = () => {
   >([0, 120])
   const [debouncedWeatherImpactRange, setDebouncedWeatherImpactRange] =
     useState<[number, number]>([0, 120])
+  const [bubbleMetric, setBubbleMetric] = useState<'pcu' | 'delay'>('pcu')
 
   const [drillLevel, setDrillLevel] = useState<OlapDrillLevel>('year')
   const [drillValue, setDrillValue] = useState<string>(String(dayjs().year()))
@@ -242,33 +244,75 @@ export const OlapDashboard: React.FC = () => {
   }, [heatmapQuery.data])
 
   const scatterOption = useMemo<EChartsOption>(() => {
-    const data = (scatterQuery.data ?? []).map((item) => [
-      item.weather_impact_score,
-      item.avg_tti,
-      item.incident_count,
-      item.district,
-    ])
+    const data = scatterQuery.data ?? []
+
+    const metricMeta =
+      bubbleMetric === 'pcu'
+        ? {
+            dataIndex: 2,
+            label: 'Lưu lượng',
+            unit: 'PCU',
+          }
+        : {
+            dataIndex: 3,
+            label: 'Độ trễ',
+            unit: 'Giây',
+          }
+
+    const metricValues = data.map((item) =>
+      Number(item[metricMeta.dataIndex] ?? 0)
+    )
+    const minValue = metricValues.length > 0 ? Math.min(...metricValues) : 0
+    const maxValue = metricValues.length > 0 ? Math.max(...metricValues) : 0
+
+    const normalizeBubbleSize = (value: number): number => {
+      // Normalize metric values into a stable bubble size range [10px, 60px].
+      // This prevents extreme magnitude differences between PCU and delay values
+      // from making bubbles unreadably tiny or overwhelmingly large.
+      const MIN_SIZE = 10
+      const MAX_SIZE = 60
+
+      if (!Number.isFinite(value)) return MIN_SIZE
+      if (maxValue <= minValue) return (MIN_SIZE + MAX_SIZE) / 2
+
+      const ratio = (value - minValue) / (maxValue - minValue)
+      return MIN_SIZE + Math.max(0, Math.min(1, ratio)) * (MAX_SIZE - MIN_SIZE)
+    }
 
     return {
       tooltip: {
         formatter: (params: unknown) => {
           const typed = params as ScatterTooltipParam
-          const [weatherImpact, tti, incidents, district] = typed.value
+          const [
+            weatherSeverity,
+            trafficIndex,
+            pcuVolume,
+            delaySeconds,
+            locationName,
+          ] = typed.value
+          const metricValue =
+            bubbleMetric === 'pcu'
+              ? Math.round(pcuVolume)
+              : Math.round(delaySeconds)
           return [
-            `<b>${district}</b>`,
-            `Ảnh hưởng thời tiết: ${weatherImpact.toFixed(1)}`,
-            `TTI: ${tti.toFixed(2)}`,
-            `Sự cố: ${Math.round(incidents)}`,
+            `<b>${locationName}</b>`,
+            `Mức độ thời tiết: ${weatherSeverity.toFixed(1)}`,
+            `Traffic Index: ${trafficIndex.toFixed(2)}`,
+            `${metricMeta.label}: ${metricValue} ${metricMeta.unit}`,
+            `Lưu lượng: ${Math.round(pcuVolume)} PCU`,
+            `Độ trễ: ${Math.round(delaySeconds)} Giây`,
           ].join('<br/>')
         },
       },
       grid: { left: 60, right: 28, top: 24, bottom: 56 },
       xAxis: {
-        name: 'Mức ảnh hưởng thời tiết',
+        name: 'Mức độ thời tiết (1-5)',
         type: 'value',
+        min: 0,
+        max: 5,
       },
       yAxis: {
-        name: 'TTI trung bình',
+        name: 'Traffic Index',
         type: 'value',
       },
       series: [
@@ -276,8 +320,8 @@ export const OlapDashboard: React.FC = () => {
           type: 'scatter',
           data,
           symbolSize: (value: number[]) => {
-            const incidents = Number(value[2] ?? 0)
-            return Math.max(10, Math.min(56, incidents * 2.5))
+            const metricValue = Number(value[metricMeta.dataIndex] ?? 0)
+            return normalizeBubbleSize(metricValue)
           },
           itemStyle: {
             color: 'rgba(14, 116, 144, 0.55)',
@@ -292,7 +336,7 @@ export const OlapDashboard: React.FC = () => {
         },
       ],
     }
-  }, [scatterQuery.data])
+  }, [bubbleMetric, scatterQuery.data])
 
   const drilldownOption = useMemo<EChartsOption>(() => {
     const points = drilldownQuery.data?.points ?? []
@@ -472,6 +516,22 @@ export const OlapDashboard: React.FC = () => {
             <EmptyState message="Chưa có dữ liệu scatter theo bộ lọc hiện tại" />
           ) : (
             <>
+              <div className="olap-filter-panel" style={{ marginBottom: 12 }}>
+                <Text strong>Đại lượng Kích thước:</Text>
+                <Radio.Group
+                  className="olap-control"
+                  optionType="button"
+                  buttonStyle="solid"
+                  value={bubbleMetric}
+                  onChange={(event) => {
+                    setBubbleMetric(event.target.value)
+                  }}
+                  options={[
+                    { label: 'Lưu lượng xe (PCU)', value: 'pcu' },
+                    { label: 'Thời gian trễ (Giây)', value: 'delay' },
+                  ]}
+                />
+              </div>
               <ReactECharts
                 option={scatterOption}
                 style={{ height: 360 }}
@@ -483,7 +543,7 @@ export const OlapDashboard: React.FC = () => {
                 className="olap-chart-note"
                 type="info"
                 message="Gợi ý đọc biểu đồ"
-                description="Bubble càng to nghĩa là số sự cố càng nhiều. Hãy quan sát vùng thời tiết xấu có TTI > 2 để xác định ngưỡng hạ tầng bắt đầu quá tải."
+                description="Bubble sẽ đổi kích thước theo đại lượng bạn chọn (PCU hoặc Giây) và luôn được scale trong khoảng 10-60px để so sánh trực quan hơn."
               />
             </>
           )}
