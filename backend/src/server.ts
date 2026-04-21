@@ -2,10 +2,11 @@
 
 import 'dotenv/config';
 import { createApp } from './app';
-import { Logger } from './utils/logger';
 import { prisma } from './config/prisma';
 import { closeRedisConnection } from './config/redis';
+import { olapJobService } from './jobs/olap-job.service';
 import { reliabilityJobService } from './jobs/reliability-job.service';
+import { Logger } from './utils/logger';
 import { scheduleTrafficNewsJob } from './jobs/newsQueue';
 import { trafficNewsWorker } from './jobs/trafficNewsWorker';
 
@@ -24,10 +25,11 @@ async function main() {
     // Khởi tạo Express app
     const app = createApp();
 
+    await olapJobService.start();
     await reliabilityJobService.start();
     
     // Khởi tạo News Ticker Job
-    await scheduleTrafficNewsJob();
+    // await scheduleTrafficNewsJob();
 
     // Start server
     const server = app.listen(PORT, () => {
@@ -48,6 +50,7 @@ async function main() {
     process.on('SIGTERM', () => {
       logger.log('SIGTERM received, shutting down gracefully...');
       server.close(async () => {
+        await olapJobService.stop();
         await trafficNewsWorker.close();
         await reliabilityJobService.stop();
         await closeRedisConnection();
@@ -60,6 +63,7 @@ async function main() {
     process.on('SIGINT', () => {
       logger.log('SIGINT received, shutting down gracefully...');
       server.close(async () => {
+        await olapJobService.stop();
         await trafficNewsWorker.close();
         await reliabilityJobService.stop();
         await closeRedisConnection();
