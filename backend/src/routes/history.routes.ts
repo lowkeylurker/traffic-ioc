@@ -1,0 +1,20 @@
+import { Router } from 'express';
+import { historyController } from '../controllers/history.controller';
+import { adminOnly } from '../middlewares/admin.middleware';
+import { authMiddleware } from '../middlewares/auth.middleware';
+
+const router = Router();
+
+/**
+ * GET /api/v1/history
+ * Tra cứu lịch sử có phân trang
+ */
+router.get('/', authMiddleware, adminOnly, (req, res, next) => historyController.getHistory(req, res, next));
+
+/**
+ * GET /api/v1/history/export
+ * Export CSV theo stream
+ */
+router.get('/export', authMiddleware, adminOnly, (req, res, next) => historyController.exportHistory(req, res, next));
+
+export default router;

@@ -13,6 +13,8 @@ import {
   IncidentCollection,
   IncidentImpactResponse,
   IncidentReportCreateResponse,
+  HistoryQueryParams,
+  HistoryResponse,
   NewsFeedResponse,
   OlapDrilldownParams,
   OlapDrilldownResponse,
@@ -160,6 +162,23 @@ export const olapApi = {
     signal?: AbortSignal
   ): Promise<ApiResponse<OlapDrilldownResponse>> =>
     axiosInstance.get('/olap/drilldown', { params, signal }),
+}
+
+export const historyApi = {
+  getHistory: (
+    params: HistoryQueryParams,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<HistoryResponse>> =>
+    axiosInstance.get('/history', { params, signal }),
+  exportHistory: (
+    params: Omit<HistoryQueryParams, 'page' | 'limit'>,
+    signal?: AbortSignal
+  ): Promise<Blob> =>
+    axiosInstance.get('/history/export', {
+      params,
+      signal,
+      responseType: 'blob',
+    }),
 }
 
 // Simulation API

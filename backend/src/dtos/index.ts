@@ -84,3 +84,61 @@ export const ReliabilityQuerySchema = z.object({
 });
 
 export type ReliabilityQueryDto = z.infer<typeof ReliabilityQuerySchema>;
+
+const HistoryDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày phải đúng định dạng YYYY-MM-DD');
+
+const refineHistoryDateRange = (value: { startDate: string; endDate: string }, ctx: z.RefinementCtx) => {
+  const start = new Date(value.startDate);
+  const end = new Date(value.endDate);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'startDate/endDate phải là ngày hợp lệ',
+      path: ['startDate'],
+    });
+    return;
+  }
+
+  if (end < start) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'endDate phải lớn hơn hoặc bằng startDate',
+      path: ['endDate'],
+    });
+    return;
+  }
+
+  const diffDays = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+  if (diffDays > 7) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Khoảng thời gian không được vượt quá 7 ngày',
+      path: ['endDate'],
+    });
+  }
+};
+
+export const HistoryQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(1000).default(50),
+    startDate: HistoryDateSchema,
+    endDate: HistoryDateSchema,
+    roadName: z.string().min(1).optional(),
+    minTrafficIndex: z.coerce.number().min(0).optional(),
+  })
+  .superRefine(refineHistoryDateRange);
+
+export type HistoryQueryDto = z.infer<typeof HistoryQuerySchema>;
+
+export const HistoryExportQuerySchema = z
+  .object({
+    startDate: HistoryDateSchema,
+    endDate: HistoryDateSchema,
+    roadName: z.string().min(1).optional(),
+    minTrafficIndex: z.coerce.number().min(0).optional(),
+  })
+  .superRefine(refineHistoryDateRange);
+
+export type HistoryExportQueryDto = z.infer<typeof HistoryExportQuerySchema>;

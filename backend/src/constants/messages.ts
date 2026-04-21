@@ -32,6 +32,7 @@ export const ROUTE_PATHS = {
   OLAP: '/olap',
   SIMULATION: '/simulation',
   INCIDENT: '/incidents',
+  HISTORY: '/history',
   WEATHER: '/weather',
   USER: '/user',
   NEWS: '/news',

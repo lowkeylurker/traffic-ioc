@@ -10,6 +10,7 @@ import {
   DatabaseOutlined,
   ExperimentOutlined,
   EyeOutlined,
+  FileSearchOutlined,
   LogoutOutlined,
   NotificationOutlined,
   UserOutlined,
@@ -79,6 +80,11 @@ export const MainLayout: React.FC = () => {
             key: '/bi-olap',
             icon: <DatabaseOutlined />,
             label: 'BI & OLAP Dashboard',
+          },
+          {
+            key: '/history',
+            icon: <FileSearchOutlined />,
+            label: 'Tra cứu Lịch sử',
           },
           {
             key: '/incident-reports',

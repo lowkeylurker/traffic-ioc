@@ -402,6 +402,32 @@ export interface OlapDrilldownResponse {
   points: OlapDrilldownPoint[]
 }
 
+export interface HistoryQueryParams {
+  page: number
+  limit: number
+  startDate: string
+  endDate: string
+  roadName?: string
+  minTrafficIndex?: number
+}
+
+export interface HistoryRecord {
+  timestamp: string
+  roadName: string | null
+  segmentId: string
+  pcuVolume: number | null
+  delaySeconds: number | null
+  trafficIndex: number | null
+}
+
+export interface HistoryResponse {
+  items: HistoryRecord[]
+  page: number
+  limit: number
+  totalItems: number
+  totalPages: number
+}
+
 export interface ForecastData {
   segmentId: number
   predictedSpeed: number
