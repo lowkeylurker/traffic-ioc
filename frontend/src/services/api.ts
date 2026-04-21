@@ -246,7 +246,7 @@ export const newsApi = {
 export const predictionApi = {
   getBatchPrediction: (
     data: PredictionRequestBody
-  ): Promise<ApiResponse<PredictionResponse>> =>
+  ): Promise<PredictionResponse> =>
     axiosInstance.post('/congestion-prediction/batch', data, {
       baseURL: aiCoreURL,
     }),
