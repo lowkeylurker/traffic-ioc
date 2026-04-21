@@ -63,6 +63,7 @@ export const SimulationPage: React.FC = () => {
     'real-time'
   )
   const [predictionData, setPredictionData] = useState<PredictionItem[]>([])
+  const [mapResetVersion, setMapResetVersion] = useState(0)
 
   const [chartData, setChartData] = useState<{
     labels: string[]
@@ -170,6 +171,10 @@ export const SimulationPage: React.FC = () => {
   const handleReset = () => {
     setViewMode('real-time')
     setPredictionData([])
+    setSelectedRoad(null)
+    setHoveredRoad(null)
+    setForecastLoading(false)
+    setMapResetVersion((v) => v + 1)
   }
 
   const handleRouting = async () => {
@@ -229,6 +234,7 @@ export const SimulationPage: React.FC = () => {
           bodyStyle={{ height: 'calc(100% - 57px)', padding: 0 }}
         >
           <PredictiveMap
+            key={`predictive-map-${mapResetVersion}`}
             segmentData={segmentData}
             viewMode={viewMode}
             predictionData={predictionData}
@@ -258,10 +264,12 @@ export const SimulationPage: React.FC = () => {
             bodyStyle={{ height: 280, padding: 4 }}
           >
             <SelectionMap
+              key={`selection-map-${mapResetVersion}`}
               segmentData={segmentData}
               trafficStatus={trafficStatus || []}
               onSelect={setSelectedRoad}
               onHover={setHoveredRoad}
+              disabled={viewMode === 'forecast'}
             />
           </Card>
 
