@@ -16,10 +16,8 @@ import {
   NewsFeedResponse,
   OlapDrilldownParams,
   OlapDrilldownResponse,
+  OlapCrossAnalysisPoint,
   OlapHeatmapCell,
-  OlapHeatmapParams,
-  OlapScatterParams,
-  OlapScatterPoint,
   RelativeComparisonResult,
   ReliabilityRankData,
   RoadOption,
@@ -149,32 +147,19 @@ export const analyticsApi = {
 }
 
 export const olapApi = {
-  getDistricts: (signal?: AbortSignal): Promise<ApiResponse<string[]>> =>
-    axiosInstance.get('/olap/districts', { signal }),
+  getHeatmap: (signal?: AbortSignal): Promise<ApiResponse<OlapHeatmapCell[]>> =>
+    axiosInstance.get('/olap/heatmap', { signal }),
 
-  getHeatmap: (
-    params: Omit<OlapHeatmapParams, 'type'>,
+  getCrossAnalysis: (
     signal?: AbortSignal
-  ): Promise<ApiResponse<OlapHeatmapCell[]>> =>
-    axiosInstance.get('/olap/analyze', {
-      params: { ...params, type: 'heatmap' },
-      signal,
-    }),
-
-  getScatter: (
-    params: Omit<OlapScatterParams, 'type'>,
-    signal?: AbortSignal
-  ): Promise<ApiResponse<OlapScatterPoint[]>> =>
-    axiosInstance.get('/olap/analyze', {
-      params: { ...params, type: 'scatter' },
-      signal,
-    }),
+  ): Promise<ApiResponse<OlapCrossAnalysisPoint[]>> =>
+    axiosInstance.get('/olap/cross-analysis', { signal }),
 
   getDrilldown: (
-    params: OlapDrilldownParams,
+    params?: Pick<OlapDrilldownParams, 'roadName'>,
     signal?: AbortSignal
   ): Promise<ApiResponse<OlapDrilldownResponse>> =>
-    axiosInstance.get('/olap/analyze', { params, signal }),
+    axiosInstance.get('/olap/drilldown', { params, signal }),
 }
 
 // Simulation API

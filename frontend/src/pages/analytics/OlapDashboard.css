@@ -49,8 +49,12 @@
 
 .olap-chart-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
   gap: 16px;
+}
+
+.olap-chart-grid > * {
+  min-width: 0;
 }
 
 .olap-chart-note {

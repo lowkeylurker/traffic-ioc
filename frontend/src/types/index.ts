@@ -374,46 +374,31 @@ export interface CorridorReliabilityQueryParams {
   corridorKey?: string
 }
 
-export type OlapAnalyzeType = 'heatmap' | 'scatter' | 'drilldown'
-export type OlapDrillLevel = 'year' | 'month'
+// [hour, roadName, avgTrafficIndex]
+export type OlapHeatmapCell = [number, string, number]
 
-export interface OlapAnalyzeCommonParams {
-  startDate?: string
-  endDate?: string
-  districts?: string
-  weatherImpactMin?: number
-  weatherImpactMax?: number
+export interface OlapCrossAnalysisPoint {
+  roadName: string
+  designCapacity: number
+  avgTrafficIndex: number
+  avgPcuVolume: number
+  avgDelaySeconds: number
 }
 
-export interface OlapHeatmapParams extends OlapAnalyzeCommonParams {
-  type: 'heatmap'
+export type OlapDrillLevel = 'road' | 'segment'
+
+export interface OlapDrilldownParams {
+  roadName?: string
 }
-
-export interface OlapScatterParams extends OlapAnalyzeCommonParams {
-  type: 'scatter'
-}
-
-export interface OlapDrilldownParams extends OlapAnalyzeCommonParams {
-  type: 'drilldown'
-  level: OlapDrillLevel
-  value: string
-}
-
-// [dayOfWeek, hourOfDay, ttiValue]
-export type OlapHeatmapCell = [number, number, number]
-
-// [weatherSeverity, trafficIndex, pcuVolume, delaySeconds, locationName]
-export type OlapScatterPoint = [number, number, number, number, string]
 
 export interface OlapDrilldownPoint {
-  bucket: string
-  avg_tti: number
-  incident_count: number
+  label: string
+  avgDelaySeconds: number
 }
 
 export interface OlapDrilldownResponse {
   level: OlapDrillLevel
-  value: string
+  roadName?: string
   points: OlapDrilldownPoint[]
 }
 

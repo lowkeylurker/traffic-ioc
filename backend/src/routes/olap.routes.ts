@@ -5,12 +5,12 @@ import { authMiddleware } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-router.get('/districts', authMiddleware, adminOnly, (req, res, next) => olapController.getDistricts(req, res, next));
+router.get('/heatmap', authMiddleware, adminOnly, (req, res, next) => olapController.getHeatmap(req, res, next));
 
-/**
- * GET /api/v1/olap/analyze
- * OLAP endpoint cho heatmap/scatter/drilldown (đọc từ data mart).
- */
-router.get('/analyze', authMiddleware, adminOnly, (req, res, next) => olapController.analyze(req, res, next));
+router.get('/cross-analysis', authMiddleware, adminOnly, (req, res, next) =>
+  olapController.getCrossAnalysis(req, res, next)
+);
+
+router.get('/drilldown', authMiddleware, adminOnly, (req, res, next) => olapController.getDrilldown(req, res, next));
 
 export default router;
