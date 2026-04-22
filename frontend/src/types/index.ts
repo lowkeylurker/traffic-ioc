@@ -374,6 +374,34 @@ export interface CorridorReliabilityQueryParams {
   corridorKey?: string
 }
 
+// [hour, roadName, avgTrafficIndex]
+export type OlapHeatmapCell = [number, string, number]
+
+export interface OlapCrossAnalysisPoint {
+  roadName: string
+  designCapacity: number
+  avgTrafficIndex: number
+  avgPcuVolume: number
+  avgDelaySeconds: number
+}
+
+export type OlapDrillLevel = 'road' | 'segment'
+
+export interface OlapDrilldownParams {
+  roadName?: string
+}
+
+export interface OlapDrilldownPoint {
+  label: string
+  avgDelaySeconds: number
+}
+
+export interface OlapDrilldownResponse {
+  level: OlapDrillLevel
+  roadName?: string
+  points: OlapDrilldownPoint[]
+}
+
 export interface ForecastData {
   segmentId: number
   predictedSpeed: number

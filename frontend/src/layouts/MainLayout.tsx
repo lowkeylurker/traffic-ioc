@@ -1,11 +1,13 @@
 // Main Layout Component
 
 import { SignInSignUpDialog } from '@/components'
+import { LiveNewsTicker } from '@/components/LiveNewsTicker'
 import { LAYOUT_SIDER_WIDTH } from '@/config/constants'
 import { setAccessTokenGetter } from '@/services/api'
 import {
   AuditOutlined,
   BarChartOutlined,
+  DatabaseOutlined,
   ExperimentOutlined,
   EyeOutlined,
   LogoutOutlined,
@@ -72,6 +74,11 @@ export const MainLayout: React.FC = () => {
             key: '/simulation',
             icon: <ExperimentOutlined />,
             label: 'Mô phỏng & Dự báo',
+          },
+          {
+            key: '/bi-olap',
+            icon: <DatabaseOutlined />,
+            label: 'BI & OLAP Dashboard',
           },
           {
             key: '/incident-reports',
@@ -209,6 +216,8 @@ export const MainLayout: React.FC = () => {
         open={authDialogOpen}
         onClose={() => setAuthDialogOpen(false)}
       />
+
+      <LiveNewsTicker />
     </Layout>
   )
 }

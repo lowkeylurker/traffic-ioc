@@ -14,6 +14,10 @@ import {
   IncidentImpactResponse,
   IncidentReportCreateResponse,
   NewsFeedResponse,
+  OlapDrilldownParams,
+  OlapDrilldownResponse,
+  OlapCrossAnalysisPoint,
+  OlapHeatmapCell,
   RelativeComparisonResult,
   ReliabilityRankData,
   RoadOption,
@@ -142,6 +146,22 @@ export const analyticsApi = {
     axiosInstance.get('/analytics/reliability', { params, signal }),
 }
 
+export const olapApi = {
+  getHeatmap: (signal?: AbortSignal): Promise<ApiResponse<OlapHeatmapCell[]>> =>
+    axiosInstance.get('/olap/heatmap', { signal }),
+
+  getCrossAnalysis: (
+    signal?: AbortSignal
+  ): Promise<ApiResponse<OlapCrossAnalysisPoint[]>> =>
+    axiosInstance.get('/olap/cross-analysis', { signal }),
+
+  getDrilldown: (
+    params?: Pick<OlapDrilldownParams, 'roadName'>,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<OlapDrilldownResponse>> =>
+    axiosInstance.get('/olap/drilldown', { params, signal }),
+}
+
 // Simulation API
 export const simulationApi = {
   runRouting: (
@@ -210,11 +230,17 @@ export const userApi = {
     axiosInstance.patch(`/user/report/${reportId}/status`, payload),
 }
 
+// News Ticker API
+export const newsApi = {
+  getTicker: (): Promise<ApiResponse<{ news: string }>> =>
+    axiosInstance.get('/news/ticker'),
+}
+
 // Prediction API
 export const predictionApi = {
   getBatchPrediction: (
     data: PredictionRequestBody
-  ): Promise<ApiResponse<PredictionResponse>> =>
+  ): Promise<PredictionResponse> =>
     axiosInstance.post('/congestion-prediction/batch', data, {
       baseURL: aiCoreURL,
     }),

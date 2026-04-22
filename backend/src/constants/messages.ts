@@ -29,8 +29,10 @@ export const API_VERSIONS = {
 export const ROUTE_PATHS = {
   MAP: '/map',
   ANALYTICS: '/analytics',
+  OLAP: '/olap',
   SIMULATION: '/simulation',
   INCIDENT: '/incidents',
   WEATHER: '/weather',
   USER: '/user',
+  NEWS: '/news',
 };
