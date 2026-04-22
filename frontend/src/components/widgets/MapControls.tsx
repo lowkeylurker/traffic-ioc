@@ -6,6 +6,7 @@ import {
   CloudOutlined,
   CompassOutlined,
   LineChartOutlined,
+  NodeIndexOutlined,
   ZoomInOutlined,
   ZoomOutOutlined,
 } from '@ant-design/icons'
@@ -20,7 +21,9 @@ interface MapControlsProps {
   onSegmentStatusToggle?: (enabled: boolean) => void
   onWeatherToggle?: (enabled: boolean) => void
   onIncidentToggle?: (enabled: boolean) => void
+  onRoutingToggle?: (enabled: boolean) => void
   showCamera?: boolean
+  showRouting?: boolean
 
   defaultSegmentStatusLayerEnabled?: boolean
   defaultWeatherLayerEnabled?: boolean
@@ -35,7 +38,9 @@ export const MapControls: React.FC<MapControlsProps> = ({
   onSegmentStatusToggle,
   onWeatherToggle,
   onIncidentToggle,
+  onRoutingToggle,
   showCamera = true,
+  showRouting = true,
 
   defaultSegmentStatusLayerEnabled = true,
   defaultWeatherLayerEnabled = false,
@@ -51,6 +56,8 @@ export const MapControls: React.FC<MapControlsProps> = ({
     defaultIncidentLayerEnabled
   )
 
+  const [routingLayerEnabled, setRoutingLayerEnabled] = useState(false)
+
   const handleSegmentStatusToggle = () => {
     setSegmentStatusLayerEnabled(!segmentStatusLayerEnabled)
     onSegmentStatusToggle?.(!segmentStatusLayerEnabled)
@@ -64,6 +71,11 @@ export const MapControls: React.FC<MapControlsProps> = ({
   const handleIncidentToggle = () => {
     setIncidentLayerEnabled(!incidentLayerEnabled)
     onIncidentToggle?.(!incidentLayerEnabled)
+  }
+
+  const handleRoutingToggle = () => {
+    setRoutingLayerEnabled(!routingLayerEnabled)
+    onRoutingToggle?.(!routingLayerEnabled)
   }
 
   return (
@@ -145,6 +157,21 @@ export const MapControls: React.FC<MapControlsProps> = ({
               />
             )}
           </Tooltip>
+
+          {showRouting && (
+            <Tooltip
+              placement="left"
+              title={routingLayerEnabled ? 'Tắt dẫn đường' : 'Bật dẫn đường'}
+            >
+              <Button
+                type={routingLayerEnabled ? 'primary' : 'text'}
+                size="small"
+                icon={<NodeIndexOutlined style={{ fontSize: 18, color: routingLayerEnabled ? '#fff' : '#0e7490' }} />}
+                onClick={handleRoutingToggle}
+                style={{ width: '100%', textAlign: 'center' }}
+              />
+            </Tooltip>
+          )}
 
           <Tooltip
             placement="left"

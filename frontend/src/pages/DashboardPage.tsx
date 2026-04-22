@@ -1121,6 +1121,7 @@ export const DashboardPage: React.FC = () => {
           }
         }}
         showCamera={false}
+        showRouting={false}
         defaultSegmentStatusLayerEnabled={segmentStatusLayerEnabled}
         defaultWeatherLayerEnabled={weatherLayerEnabled}
         defaultIncidentLayerEnabled={incidentLayerEnabled}

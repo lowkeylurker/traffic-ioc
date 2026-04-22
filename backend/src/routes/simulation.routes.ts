@@ -12,4 +12,11 @@ const router = Router();
  */
 router.post('/routing', (req, res, next) => simulationController.routing(req, res, next));
 
+/**
+ * GET /api/v1/simulation/routes
+ * Tìm lộ trình động (Dynamic Routing)
+ * Query: startLat, startLng, endLat, endLng
+ */
+router.get('/routes', (req, res, next) => simulationController.dynamicRouting(req, res, next));
+
 export default router;

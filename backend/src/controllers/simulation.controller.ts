@@ -36,6 +36,33 @@ export class SimulationController {
       next(error);
     }
   }
+
+  /**
+   * GET /routes - Tìm lộ trình động (Dynamic Routing)
+   * Query: startLat, startLng, endLat, endLng
+   */
+  async dynamicRouting(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      logger.log('GET /routes', req.query);
+      const { startLat, startLng, endLat, endLng } = req.query;
+
+      if (!startLat || !startLng || !endLat || !endLng) {
+        res.status(400).json(ResponseUtil.badRequest('Missing start/end coordinates'));
+        return;
+      }
+
+      const route = await simulationService.getDynamicRoute(
+        parseFloat(startLat as string),
+        parseFloat(startLng as string),
+        parseFloat(endLat as string),
+        parseFloat(endLng as string)
+      );
+
+      res.status(200).json(ResponseUtil.success(route, 'Dynamic route computed'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const simulationController = new SimulationController();

@@ -6,6 +6,7 @@ import { prisma } from './config/prisma';
 import { closeRedisConnection } from './config/redis';
 import { olapJobService } from './jobs/olap-job.service';
 import { reliabilityJobService } from './jobs/reliability-job.service';
+import { routingRefreshJobService } from './jobs/routing-refresh-job.service';
 import { Logger } from './utils/logger';
 import { scheduleTrafficNewsJob } from './jobs/newsQueue';
 import { trafficNewsWorker } from './jobs/trafficNewsWorker';
@@ -27,6 +28,7 @@ async function main() {
 
     await olapJobService.start();
     await reliabilityJobService.start();
+    await routingRefreshJobService.start();
     
     // Khởi tạo News Ticker Job
     // await scheduleTrafficNewsJob();
@@ -53,6 +55,7 @@ async function main() {
         await olapJobService.stop();
         await trafficNewsWorker.close();
         await reliabilityJobService.stop();
+        await routingRefreshJobService.stop();
         await closeRedisConnection();
         await prisma.$disconnect();
         logger.log('✓ Server shut down successfully');
@@ -66,6 +69,7 @@ async function main() {
         await olapJobService.stop();
         await trafficNewsWorker.close();
         await reliabilityJobService.stop();
+        await routingRefreshJobService.stop();
         await closeRedisConnection();
         await prisma.$disconnect();
         logger.log('✓ Server shut down successfully');
