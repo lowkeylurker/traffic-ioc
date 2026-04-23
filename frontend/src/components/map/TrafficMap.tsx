@@ -13,6 +13,7 @@ import Map, { Layer, LayerProps, Source } from 'react-map-gl'
 const MAX_RENDER_SEGMENTS = 12000
 const MAX_FEATURES_FOR_AUTO_FIT = 50000
 const MIN_RENDER_SEGMENTS = 2500
+const TOMTOM_FLOW_TILE_MAX_ZOOM = 16
 
 type MapBounds = {
   minLon: number
@@ -31,6 +32,8 @@ interface TrafficMapProps {
   autoRefreshInterval?: number
   mapRef?: React.RefObject<any>
   segmentStatusLayerEnabled?: boolean
+  useTomTomFlowTiles?: boolean
+  tomTomFlowTilesUrl?: string
   children?: React.ReactNode
 }
 
@@ -40,6 +43,8 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   style,
   mapRef: externalMapRef,
   segmentStatusLayerEnabled = true,
+  useTomTomFlowTiles = false,
+  tomTomFlowTilesUrl,
   children,
 }) => {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
@@ -265,6 +270,56 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     []
   )
 
+  const tomTomFlowLayerStyle = useMemo(
+    () =>
+      ({
+        id: 'tomtom-traffic-flow-layer',
+        type: 'line',
+        source: 'tomtom-flow-source',
+        'source-layer': 'Traffic flow',
+        paint: {
+          // Quy doi theo data-pipeline: traffic_index = 1 - traffic_level
+          // Nguong LOS (HCM 2010): A<=0.15, B<=0.30, C<=0.45, D<=0.60, E<=0.80, F>0.80
+          'line-color': [
+            'let',
+            'trafficIndex',
+            ['-', 1, ['to-number', ['coalesce', ['get', 'traffic_level'], 0]]],
+            [
+              'case',
+              ['<=', ['var', 'trafficIndex'], 0.15],
+              TRAFFIC_COLORS.MINIMAL,
+              ['<=', ['var', 'trafficIndex'], 0.3],
+              TRAFFIC_COLORS.VERY_LOW,
+              ['<=', ['var', 'trafficIndex'], 0.45],
+              TRAFFIC_COLORS.MODERATE,
+              ['<=', ['var', 'trafficIndex'], 0.6],
+              TRAFFIC_COLORS.HIGH,
+              ['<=', ['var', 'trafficIndex'], 0.8],
+              TRAFFIC_COLORS.VERY_HIGH,
+              TRAFFIC_COLORS.EXTREME,
+            ],
+          ],
+          'line-width': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            8,
+            3,
+            12,
+            4,
+            16,
+            5,
+          ],
+          'line-opacity': 0.95,
+        },
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+      }) as LayerProps,
+    []
+  )
+
   // Set up map layer hover events
   useEffect(() => {
     if (!mapRef.current || !segmentData) return
@@ -340,6 +395,21 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
             >
               <Layer {...trafficOutlineLayerStyle} />
               <Layer {...trafficLayerStyle} />
+            </Source>
+          )}
+
+        {useTomTomFlowTiles &&
+          tomTomFlowTilesUrl &&
+          segmentStatusLayerEnabled && (
+            <Source
+              id="tomtom-flow-source"
+              type="vector"
+              tiles={[tomTomFlowTilesUrl]}
+              minzoom={0}
+              // Keep maxzoom at provider-supported level so map can overzoom instead of requesting empty high-z tiles.
+              maxzoom={TOMTOM_FLOW_TILE_MAX_ZOOM}
+            >
+              <Layer {...tomTomFlowLayerStyle} />
             </Source>
           )}
 

@@ -8,7 +8,6 @@ import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
 import { RoutingPanel } from '@/components/widgets/RoutingPanel'
 import { POLLING_INTERVALS } from '@/config/constants'
-import { useTrafficMap } from '@/hooks/useTraffic'
 import { mapApi, simulationApi } from '@/services/api'
 import {
   GeoJSONFeature,
@@ -36,8 +35,10 @@ const getSegmentCenter = (segment: GeoJSONFeature) => {
 }
 
 const RealTimeMapOnly: React.FC = () => {
-  const segmentData = useTrafficMap()
+  const segmentData = null
   const location = useLocation()
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+  const tomTomTileProxyUrl = `${apiBaseUrl}/traffic/tiles/{z}/{x}/{y}.pbf`
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null)
@@ -56,10 +57,12 @@ const RealTimeMapOnly: React.FC = () => {
   const [routingEndPoint, setRoutingEndPoint] = useState<string>('')
   const [rawStartPos, setRawStartPos] = useState<[number, number] | null>(null)
   const [rawEndPos, setRawEndPos] = useState<[number, number] | null>(null)
-  
+
   const [routingDataGeoJSON, setRoutingDataGeoJSON] = useState<any>(null)
   const [isRoutingLoading, setIsRoutingLoading] = useState(false)
-  const [activeRoutingInput, setActiveRoutingInput] = useState<'start'|'end'>('start')
+  const [activeRoutingInput, setActiveRoutingInput] = useState<'start' | 'end'>(
+    'start'
+  )
 
   const handleGetCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -73,7 +76,9 @@ const RealTimeMapOnly: React.FC = () => {
         },
         (error) => {
           console.warn('Geolocation error', error)
-          message.error('Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập.')
+          message.error(
+            'Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập.'
+          )
         }
       )
     }
@@ -242,7 +247,9 @@ const RealTimeMapOnly: React.FC = () => {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (position) => {
-            setRoutingStartPoint(`${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`)
+            setRoutingStartPoint(
+              `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`
+            )
           },
           (error) => {
             console.warn('Geolocation disabled or denied', error)
@@ -254,27 +261,41 @@ const RealTimeMapOnly: React.FC = () => {
 
   const handleComputeRoute = async () => {
     try {
-      let startLat, startLng, endLat, endLng;
+      let startLat, startLng, endLat, endLng
 
       if (rawStartPos) {
-        [startLng, startLat] = rawStartPos;
+        ;[startLng, startLat] = rawStartPos
       } else {
-        [startLat, startLng] = routingStartPoint.split(',').map((s) => parseFloat(s.trim()));
+        ;[startLat, startLng] = routingStartPoint
+          .split(',')
+          .map((s) => parseFloat(s.trim()))
       }
 
       if (rawEndPos) {
-        [endLng, endLat] = rawEndPos;
+        ;[endLng, endLat] = rawEndPos
       } else {
-        [endLat, endLng] = routingEndPoint.split(',').map((s) => parseFloat(s.trim()));
+        ;[endLat, endLng] = routingEndPoint
+          .split(',')
+          .map((s) => parseFloat(s.trim()))
       }
 
-      if (isNaN(startLat) || isNaN(startLng) || isNaN(endLat) || isNaN(endLng)) {
+      if (
+        isNaN(startLat) ||
+        isNaN(startLng) ||
+        isNaN(endLat) ||
+        isNaN(endLng)
+      ) {
         message.warning('Vui lòng chọn hoặc nhập toạ độ hợp lệ')
         return
       }
 
       setIsRoutingLoading(true)
-      const response = await simulationApi.getDynamicRoute(startLat, startLng, endLat, endLng)
+      const response = await simulationApi.getDynamicRoute(
+        startLat,
+        startLng,
+        endLat,
+        endLng
+      )
       if (response.success && response.data) {
         setRoutingDataGeoJSON(response.data)
         message.success('Tìm đường thành công')
@@ -324,6 +345,8 @@ const RealTimeMapOnly: React.FC = () => {
         style={{ height: '100%', width: '100%' }}
         mapRef={mapRef}
         segmentStatusLayerEnabled={segmentStatusLayerEnabled}
+        useTomTomFlowTiles
+        tomTomFlowTilesUrl={tomTomTileProxyUrl}
         onMapClick={handleMapClickForRouting}
       >
         {weatherLayerEnabled && (
@@ -350,39 +373,81 @@ const RealTimeMapOnly: React.FC = () => {
           segments={impactedSegments}
           mapRef={mapRef}
         />
-        
+
         {routingLayerEnabled && (
-          <RoutingMapboxLayer 
-          routeGeoJSON={routingDataGeoJSON} 
-          rawStart={rawStartPos}
-          rawEnd={rawEndPos}
-        />
+          <RoutingMapboxLayer
+            routeGeoJSON={routingDataGeoJSON}
+            rawStart={rawStartPos}
+            rawEnd={rawEndPos}
+          />
         )}
 
         {routingLayerEnabled && rawStartPos && (
-          <Marker longitude={rawStartPos[0]} latitude={rawStartPos[1]} anchor="bottom">
-            <div style={{ cursor: 'pointer', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 21L12 21.01M12 12C10.3431 12 9 10.6569 9 9C9 7.34315 10.3431 6 12 6C13.6569 6 15 7.34315 15 9C15 10.6569 13.6569 12 12 12ZM12 2C8.13401 2 5 5.13401 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13401 15.866 2 12 2Z" 
-                  fill="#3b82f6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <Marker
+            longitude={rawStartPos[0]}
+            latitude={rawStartPos[1]}
+            anchor="bottom"
+          >
+            <div
+              style={{
+                cursor: 'pointer',
+                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+              }}
+            >
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 21L12 21.01M12 12C10.3431 12 9 10.6569 9 9C9 7.34315 10.3431 6 12 6C13.6569 6 15 7.34315 15 9C15 10.6569 13.6569 12 12 12ZM12 2C8.13401 2 5 5.13401 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13401 15.866 2 12 2Z"
+                  fill="#3b82f6"
+                  stroke="white"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             </div>
           </Marker>
         )}
 
         {routingLayerEnabled && rawEndPos && (
-          <Marker longitude={rawEndPos[0]} latitude={rawEndPos[1]} anchor="bottom">
-            <div style={{ cursor: 'pointer', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 21L12 21.01M12 12C10.3431 12 9 10.6569 9 9C9 7.34315 10.3431 6 12 6C13.6569 6 15 7.34315 15 9C15 10.6569 13.6569 12 12 12ZM12 2C8.13401 2 5 5.13401 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13401 15.866 2 12 2Z" 
-                  fill="#ef4444" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <Marker
+            longitude={rawEndPos[0]}
+            latitude={rawEndPos[1]}
+            anchor="bottom"
+          >
+            <div
+              style={{
+                cursor: 'pointer',
+                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+              }}
+            >
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 21L12 21.01M12 12C10.3431 12 9 10.6569 9 9C9 7.34315 10.3431 6 12 6C13.6569 6 15 7.34315 15 9C15 10.6569 13.6569 12 12 12ZM12 2C8.13401 2 5 5.13401 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13401 15.866 2 12 2Z"
+                  fill="#ef4444"
+                  stroke="white"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             </div>
           </Marker>
         )}
       </TrafficMap>
 
-      <RoutingPanel 
+      <RoutingPanel
         visible={routingLayerEnabled}
         startPoint={routingStartPoint}
         endPoint={routingEndPoint}
