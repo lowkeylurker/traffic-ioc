@@ -38,6 +38,21 @@ export class TrafficController {
       next(error);
     }
   }
+
+  async getIncidentTile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { z, x, y } = req.params;
+      logger.log(`GET /traffic/incidents/${z}/${x}/${y}.pbf`);
+
+      const tileBuffer = await trafficTileService.getIncidentTile(z, x, y);
+
+      res.setHeader('Content-Type', 'application/x-protobuf');
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      res.status(200).send(tileBuffer);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const trafficController = new TrafficController();

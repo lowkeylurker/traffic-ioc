@@ -6,14 +6,21 @@ import {
   TRAFFIC_COLORS,
 } from '@/config/constants'
 import { GeoJSONFeature, SegmentResponse } from '@/types'
+import {
+  AlertTriangle,
+  ShieldAlert,
+  TrafficCone,
+} from 'lucide-react'
+import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Map, { Layer, LayerProps, MapRef, Source } from 'react-map-gl'
+import Map, { Layer, LayerProps, MapRef, Popup, Source } from 'react-map-gl'
 
 const MAX_RENDER_SEGMENTS = 12000
 const MAX_FEATURES_FOR_AUTO_FIT = 50000
 const MIN_RENDER_SEGMENTS = 2500
 const TOMTOM_FLOW_TILE_MAX_ZOOM = 16
+const TOMTOM_INCIDENT_TILE_MAX_ZOOM = 22
 
 type MapBounds = {
   minLon: number
@@ -39,6 +46,14 @@ type TomTomHoverPopupState = {
   detail: TomTomSegmentDetail | null
 }
 
+type TomTomIncidentPopupState = {
+  lng: number
+  lat: number
+  iconCategory: number | null
+  magnitude: number | null
+  description: string | null
+}
+
 const normalizeTrafficLevel = (value: unknown): number | null => {
   const level = Number(value)
   if (!Number.isFinite(level)) return null
@@ -55,6 +70,64 @@ const getLosFromTomTomTrafficLevel = (trafficLevel: number | null): string => {
   if (trafficIndex <= 0.6) return 'D'
   if (trafficIndex <= 0.8) return 'E'
   return 'F'
+}
+
+const normalizeIncidentCategory = (value: unknown): number | null => {
+  const category = Number(value)
+  return Number.isFinite(category) ? category : null
+}
+
+const normalizeIncidentMagnitude = (value: unknown): number | null => {
+  const magnitude = Number(value)
+  return Number.isFinite(magnitude) ? magnitude : null
+}
+
+const getIncidentCategoryLabel = (iconCategory: number | null): string => {
+  switch (iconCategory) {
+    case 1:
+      return 'Tai nạn'
+    case 2:
+      return 'Sương mù'
+    case 3:
+      return 'Điều kiện nguy hiểm'
+    case 4:
+      return 'Mưa lớn'
+    case 5:
+      return 'Băng giá'
+    case 6:
+      return 'Ùn tắc giao thông'
+    case 7:
+      return 'Hạn chế làn đường'
+    case 8:
+      return 'Đóng đường'
+    case 9:
+      return 'Công trường'
+    case 10:
+      return 'Gió mạnh'
+    case 11:
+      return 'Ngập lụt'
+    case 14:
+      return 'Xe hỏng'
+    default:
+      return 'Sự cố giao thông'
+  }
+}
+
+const getIncidentMagnitudeLabel = (magnitude: number | null): string => {
+  switch (magnitude) {
+    case 0:
+      return 'Không xác định'
+    case 1:
+      return 'Thấp'
+    case 2:
+      return 'Trung bình'
+    case 3:
+      return 'Cao'
+    case 4:
+      return 'Nghiêm trọng (Đóng đường)'
+    default:
+      return 'Không xác định'
+  }
 }
 
 const getLosBadgeData = (los: string) => {
@@ -149,6 +222,8 @@ interface TrafficMapProps {
   segmentStatusLayerEnabled?: boolean
   useTomTomFlowTiles?: boolean
   tomTomFlowTilesUrl?: string
+  useTomTomIncidentTiles?: boolean
+  tomTomIncidentTilesUrl?: string
   children?: React.ReactNode
 }
 
@@ -160,6 +235,8 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   segmentStatusLayerEnabled = true,
   useTomTomFlowTiles = false,
   tomTomFlowTilesUrl,
+  useTomTomIncidentTiles = false,
+  tomTomIncidentTilesUrl,
   children,
 }) => {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
@@ -190,6 +267,8 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
       error: null,
       detail: null,
     })
+  const [tomTomIncidentPopup, setTomTomIncidentPopup] =
+    useState<TomTomIncidentPopupState | null>(null)
   const hoverTimerRef = useRef<number | null>(null)
   const hoverAbortRef = useRef<AbortController | null>(null)
   const hoverSequenceRef = useRef(0)
@@ -277,14 +356,129 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
 
     if (!bounds) return
 
+    const west = bounds.getWest()
+    const east = bounds.getEast()
+    const south = bounds.getSouth()
+    const north = bounds.getNorth()
+    const zoom = map.getZoom()
+
     setViewportBounds({
-      minLon: bounds.getWest(),
-      maxLon: bounds.getEast(),
-      minLat: bounds.getSouth(),
-      maxLat: bounds.getNorth(),
+      minLon: west,
+      maxLon: east,
+      minLat: south,
+      maxLat: north,
     })
-    setCurrentZoom(map.getZoom())
+    setCurrentZoom(zoom)
   }
+
+  // Function to load TomTom-style incident icons into the map instance
+  const loadTomTomIncidentIcons = useCallback((map: mapboxgl.Map) => {
+    if (!map) return
+
+    const iconConfigs = [
+      { id: 'tomtom-incident-1', color: '#dc2626', type: 'accident' }, // Accident
+      { id: 'tomtom-incident-2', color: '#6b7280', type: 'other' }, // Fog
+      { id: 'tomtom-incident-3', color: '#dc2626', type: 'accident' }, // Dangerous Conditions
+      { id: 'tomtom-incident-4', color: '#3b82f6', type: 'other' }, // Rain
+      { id: 'tomtom-incident-5', color: '#3b82f6', type: 'other' }, // Ice
+      { id: 'tomtom-incident-6', color: '#ef4444', type: 'jam' }, // Jam
+      { id: 'tomtom-incident-7', color: '#f59e0b', type: 'closure' }, // Lane Closed
+      { id: 'tomtom-incident-8', color: '#000000', type: 'closure' }, // Road Closed
+      { id: 'tomtom-incident-9', color: '#f59e0b', type: 'work' }, // Road Works
+      { id: 'tomtom-incident-10', color: '#6b7280', type: 'other' }, // Wind
+      { id: 'tomtom-incident-11', color: '#3b82f6', type: 'other' }, // Flooding
+      { id: 'tomtom-incident-14', color: '#6b7280', type: 'accident' }, // Broken Down Vehicle
+      { id: 'tomtom-incident-other', color: '#6b7280', type: 'other' },
+    ]
+
+    iconConfigs.forEach(({ id, color, type }) => {
+      if (map.hasImage(id)) return
+
+      const size = 64
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      // 1. Draw Background
+      ctx.beginPath()
+      if (type === 'accident' || type === 'work') {
+        ctx.moveTo(size / 2, 8)
+        ctx.lineTo(size - 4, size - 8)
+        ctx.lineTo(4, size - 8)
+        ctx.closePath()
+      } else if (type === 'closure') {
+        ctx.arc(size / 2, size / 2, size / 2 - 6, 0, Math.PI * 2)
+      } else {
+        const r = 12
+        ctx.moveTo(8 + r, 8)
+        ctx.lineTo(size - 8 - r, 8)
+        ctx.quadraticCurveTo(size - 8, 8, size - 8, 8 + r)
+        ctx.lineTo(size - 8, size - 8 - r)
+        ctx.quadraticCurveTo(size - 8, size - 8, size - 8 - r, size - 8)
+        ctx.lineTo(8 + r, size - 8)
+        ctx.quadraticCurveTo(8, size - 8, 8, size - 8 - r)
+        ctx.lineTo(8, 8 + r)
+        ctx.quadraticCurveTo(8, 8, 8 + r, 8)
+      }
+
+      ctx.fillStyle = color
+      ctx.fill()
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 4
+      ctx.stroke()
+
+      // 2. Draw Symbol
+      ctx.fillStyle = '#ffffff'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+
+      if (type === 'accident') {
+        ctx.font = 'bold 32px Arial'
+        ctx.fillText('!', size / 2, size / 2 + 4)
+      } else if (type === 'work') {
+        ctx.font = 'bold 28px Arial'
+        ctx.fillText('W', size / 2, size / 2 + 6)
+      } else if (type === 'closure') {
+        ctx.beginPath()
+        ctx.moveTo(18, size / 2)
+        ctx.lineTo(size - 18, size / 2)
+        ctx.lineWidth = 8
+        ctx.stroke()
+      } else if (type === 'jam') {
+        ctx.font = 'bold 28px Arial'
+        ctx.fillText('⚡', size / 2, size / 2 + 2)
+      } else {
+        ctx.font = 'bold 32px Arial'
+        ctx.fillText('?', size / 2, size / 2)
+      }
+
+      const imageData = ctx.getImageData(0, 0, size, size)
+      map.addImage(id, imageData, { pixelRatio: 2 })
+    })
+  }, [])
+
+  // Re-load icons if style changes
+  useEffect(() => {
+    if (!mapRef.current) return
+    const map = mapRef.current.getMap()
+
+    const onStyleLoad = () => loadTomTomIncidentIcons(map)
+    map.on('style.load', onStyleLoad)
+
+    if (map.isStyleLoaded()) {
+      loadTomTomIncidentIcons(map)
+    }
+
+    return () => {
+      map.off('style.load', onStyleLoad)
+    }
+  }, [mapRef, loadTomTomIncidentIcons])
+
+  const resolvedTomTomIncidentTilesUrl = useMemo(() => {
+    return tomTomIncidentTilesUrl || ''
+  }, [tomTomIncidentTilesUrl])
 
   // Auto-fit map bounds when traffic data loads
   useEffect(() => {
@@ -447,6 +641,142 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         layout: {
           'line-join': 'round',
           'line-cap': 'round',
+        },
+      }) as LayerProps,
+    []
+  )
+
+  const tomTomIncidentLineLayerStyle = useMemo(
+    () =>
+      ({
+        id: 'tomtom-incident-line-layer',
+        type: 'line',
+        source: 'tomtom-incident-source',
+        'source-layer': 'Traffic incident flow',
+        paint: {
+          'line-color': '#b91c1c',
+          'line-width': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            7,
+            1.2,
+            12,
+            2.1,
+            16,
+            3.4,
+          ],
+          'line-opacity': 0.9,
+          'line-dasharray': [2, 1.2],
+        },
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+      }) as LayerProps,
+    []
+  )
+
+  const tomTomIncidentPointLayerStyle = useMemo(
+    () =>
+      ({
+        id: 'tomtom-incident-point-layer',
+        type: 'symbol',
+        source: 'tomtom-incident-source',
+        'source-layer': 'Traffic incident POI',
+        layout: {
+          'icon-image': [
+            'match',
+            [
+              'to-number',
+              [
+                'coalesce',
+                ['get', 'icon_category'],
+                ['get', 'iconCategory'],
+                -1,
+              ],
+            ],
+            1,
+            'tomtom-incident-1', // Accident
+            2,
+            'tomtom-incident-2', // Fog
+            3,
+            'tomtom-incident-3', // Dangerous Conditions
+            4,
+            'tomtom-incident-4', // Rain
+            5,
+            'tomtom-incident-5', // Ice
+            6,
+            'tomtom-incident-6', // Jam
+            7,
+            'tomtom-incident-7', // Lane Closed
+            8,
+            'tomtom-incident-8', // Road Closed
+            9,
+            'tomtom-incident-9', // Roadworks
+            10,
+            'tomtom-incident-10', // Wind
+            11,
+            'tomtom-incident-11', // Flooding
+            14,
+            'tomtom-incident-14', // Broken Down Vehicle
+            'tomtom-incident-other',
+          ],
+          'icon-size': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            10,
+            0.6,
+            14,
+            0.8,
+            17,
+            1.0,
+            22,
+            1.4,
+          ],
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-anchor': 'center',
+        },
+        paint: {
+          'icon-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            8,
+            0.8,
+            12,
+            1.0,
+          ],
+        },
+      }) as LayerProps,
+    []
+  )
+
+  const tomTomIncidentPointFallbackLayerStyle = useMemo(
+    () =>
+      ({
+        id: 'tomtom-incident-point-fallback-layer',
+        type: 'circle',
+        source: 'tomtom-incident-source',
+        'source-layer': 'Traffic incident POI',
+        paint: {
+          'circle-color': '#dc2626',
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1,
+          'circle-opacity': 0.6,
+          'circle-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            7,
+            2,
+            12,
+            3,
+            16,
+            4,
+          ],
         },
       }) as LayerProps,
     []
@@ -724,6 +1054,105 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     useTomTomFlowTiles,
   ])
 
+  useEffect(() => {
+    if (!useTomTomIncidentTiles || !resolvedTomTomIncidentTilesUrl) {
+      setTomTomIncidentPopup(null)
+      return
+    }
+
+    const pointLayerId = 'tomtom-incident-point-layer'
+    const fallbackPointLayerId = 'tomtom-incident-point-fallback-layer'
+    let cleanupLayerListeners: (() => void) | null = null
+
+    const waitForLayer = setInterval(() => {
+      if (!mapRef.current?.getMap) {
+        return
+      }
+
+      const map = mapRef.current.getMap()
+      if (!map.getLayer(pointLayerId) && !map.getLayer(fallbackPointLayerId)) {
+        return
+      }
+
+      clearInterval(waitForLayer)
+
+      const handleMouseEnter = (e: mapboxgl.MapLayerMouseEvent) => {
+        map.getCanvas().style.cursor = 'pointer'
+        handleIncidentHover(e)
+      }
+
+      const handleMouseLeave = () => {
+        map.getCanvas().style.cursor = ''
+        setTomTomIncidentPopup(null)
+      }
+
+      const handleIncidentHover = (e: mapboxgl.MapLayerMouseEvent) => {
+        e.originalEvent.stopPropagation()
+
+        const feature = e.features?.[0] as GeoJSON.Feature | undefined
+        if (!feature) {
+          setTomTomIncidentPopup(null)
+          return
+        }
+
+        const properties = (feature.properties ?? {}) as Record<string, unknown>
+        const description =
+          String(
+            properties.description ||
+              properties.event_description ||
+              properties.short_description ||
+              ''
+          ).trim() || null
+
+        const lng = e.lngLat?.lng
+        const lat = e.lngLat?.lat
+
+        if (typeof lng !== 'number' || typeof lat !== 'number') {
+          return
+        }
+
+        setTomTomIncidentPopup({
+          lng,
+          lat,
+          iconCategory: normalizeIncidentCategory(
+            properties.icon_category ?? properties.iconCategory
+          ),
+          magnitude: normalizeIncidentMagnitude(
+            properties.magnitude ?? properties.incident_magnitude
+          ),
+          description,
+        })
+      }
+
+      if (map.getLayer(pointLayerId)) {
+        map.on('mouseenter', pointLayerId, handleMouseEnter)
+        map.on('mouseleave', pointLayerId, handleMouseLeave)
+      }
+
+      if (map.getLayer(fallbackPointLayerId)) {
+        map.on('mouseenter', fallbackPointLayerId, handleMouseEnter)
+        map.on('mouseleave', fallbackPointLayerId, handleMouseLeave)
+      }
+
+      cleanupLayerListeners = () => {
+        if (map.getLayer(pointLayerId)) {
+          map.off('mouseenter', pointLayerId, handleMouseEnter)
+          map.off('mouseleave', pointLayerId, handleMouseLeave)
+        }
+
+        if (map.getLayer(fallbackPointLayerId)) {
+          map.off('mouseenter', fallbackPointLayerId, handleMouseEnter)
+          map.off('mouseleave', fallbackPointLayerId, handleMouseLeave)
+        }
+      }
+    }, 100)
+
+    return () => {
+      clearInterval(waitForLayer)
+      cleanupLayerListeners?.()
+    }
+  }, [mapRef, resolvedTomTomIncidentTilesUrl, useTomTomIncidentTiles])
+
   const tomTomLosBadge = tomTomHoverPopup.detail
     ? getLosBadgeData(
         getLosFromTomTomTrafficLevel(tomTomHoverPopup.detail.trafficLevel)
@@ -751,7 +1180,10 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         mapStyle={mapboxStyle}
         mapboxAccessToken={mapboxToken}
         onClick={onMapClick}
-        onLoad={updateViewportBounds}
+        onLoad={(e) => {
+          updateViewportBounds()
+          loadTomTomIncidentIcons(e.target)
+        }}
         onMoveEnd={updateViewportBounds}
       >
         {renderedSegmentData &&
@@ -782,8 +1214,138 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
             </Source>
           )}
 
-        {/* Render children components (e.g., IncidentLayer) */}
+        {/* Render children components (e.g., other custom layers) */}
         {children}
+
+        {useTomTomIncidentTiles && resolvedTomTomIncidentTilesUrl && (
+          <Source
+            id="tomtom-incident-source"
+            type="vector"
+            tiles={[resolvedTomTomIncidentTilesUrl]}
+            minzoom={0}
+            maxzoom={TOMTOM_INCIDENT_TILE_MAX_ZOOM}
+          >
+            <Layer {...tomTomIncidentLineLayerStyle} />
+            <Layer {...tomTomIncidentPointFallbackLayerStyle} />
+            <Layer {...tomTomIncidentPointLayerStyle} />
+          </Source>
+        )}
+
+        {tomTomIncidentPopup && (
+          <Popup
+            longitude={tomTomIncidentPopup.lng}
+            latitude={tomTomIncidentPopup.lat}
+            anchor="bottom"
+            closeButton={false}
+            closeOnClick={false}
+            onClose={() => setTomTomIncidentPopup(null)}
+            maxWidth="260px"
+          >
+            <div
+              style={{
+                minWidth: 180,
+                maxWidth: 240,
+                fontFamily: 'Inter, sans-serif',
+                padding: '2px',
+                pointerEvents: 'none',
+              }}
+            >
+              {/* Header */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '8px',
+                  paddingBottom: '6px',
+                  borderBottom: '1px solid #F3F4F6',
+                }}
+              >
+                <div
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '8px',
+                    background:
+                      [7, 8].includes(tomTomIncidentPopup.iconCategory || -1)
+                        ? '#000000' // Black for closures
+                        : [1, 3, 11].includes(
+                            tomTomIncidentPopup.iconCategory || -1
+                          )
+                          ? '#FEE2E2' // Red for accidents/danger
+                          : '#FEF3C7', // Amber for works/jams
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  {[7, 8].includes(tomTomIncidentPopup.iconCategory || -1) ? (
+                    <ShieldAlert size={16} color="#FFFFFF" />
+                  ) : [1, 3, 11].includes(
+                      tomTomIncidentPopup.iconCategory || -1
+                    ) ? (
+                    <AlertTriangle size={16} color="#DC2626" />
+                  ) : (
+                    <TrafficCone size={16} color="#D97706" />
+                  )}
+                </div>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: '#111827',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {getIncidentCategoryLabel(tomTomIncidentPopup.iconCategory)}
+                </div>
+              </div>
+
+              {/* Body */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div
+                  style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}
+                >
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      color: '#9CA3AF',
+                      textTransform: 'uppercase',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Mức độ:
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color:
+                        tomTomIncidentPopup.magnitude &&
+                        tomTomIncidentPopup.magnitude > 2
+                          ? '#DC2626'
+                          : '#4B5563',
+                    }}
+                  >
+                    {getIncidentMagnitudeLabel(tomTomIncidentPopup.magnitude)}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    fontSize: '12px',
+                    color: '#374151',
+                    lineHeight: 1.4,
+                    fontWeight: 500,
+                  }}
+                >
+                  {tomTomIncidentPopup.description || 'Không có mô tả chi tiết'}
+                </div>
+              </div>
+            </div>
+          </Popup>
+        )}
       </Map>
 
       {tomTomHoverPopup.visible && (

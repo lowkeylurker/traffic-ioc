@@ -1,23 +1,14 @@
 import { Loading } from '@/components'
-import IncidentImpactLayer from '@/components/map/IncidentImpactLayer'
-import { IncidentLayer } from '@/components/map/IncidentLayer'
-import { TrafficMap } from '@/components/map/TrafficMap'
 import { RoutingMapboxLayer } from '@/components/map/RoutingMapboxLayer'
+import { TrafficMap } from '@/components/map/TrafficMap'
 import WeatherVoronoiLayer from '@/components/map/WeatherVoronoiLayer'
 import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
 import { RoutingPanel } from '@/components/widgets/RoutingPanel'
-import { POLLING_INTERVALS } from '@/config/constants'
-import { mapApi, simulationApi } from '@/services/api'
-import {
-  IncidentCollection,
-  IncidentFeature,
-  IncidentImpactResponse,
-} from '@/types'
+import { simulationApi } from '@/services/api'
 import { useAuth, useUser } from '@clerk/clerk-react'
-import { useQuery } from '@tanstack/react-query'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { message } from 'antd'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Marker } from 'react-map-gl'
 import { DashboardPage } from './DashboardPage'
 
@@ -32,6 +23,7 @@ const RealTimeMapOnly: React.FC = () => {
     }
   }, [apiBaseUrl])
   const tomTomTileProxyUrl = `${apiOrigin}/api/traffic/tiles/{z}/{x}/{y}.pbf`
+  const tomTomIncidentTileProxyUrl = `${apiOrigin}/api/traffic/incidents/{z}/{x}/{y}.pbf`
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null)
@@ -41,8 +33,6 @@ const RealTimeMapOnly: React.FC = () => {
   const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(false)
   const [weatherLayerLoading, setWeatherLayerLoading] = useState(false)
   const [incidentLayerEnabled, setIncidentLayerEnabled] = useState(true)
-  const [selectedIncident, setSelectedIncident] =
-    useState<IncidentFeature | null>(null)
 
   // Routing states
   const [routingLayerEnabled, setRoutingLayerEnabled] = useState(false)
@@ -98,59 +88,6 @@ const RealTimeMapOnly: React.FC = () => {
       document.body.style.overflow = prevBodyOverflow
     }
   }, [])
-
-  const { data: incidentData, isLoading: incidentsLoading } = useQuery({
-    queryKey: ['incidents'],
-    queryFn: async (): Promise<IncidentCollection> => {
-      const response = await mapApi.getIncidents('OPEN')
-
-      if (response?.success && response?.data?.type === 'FeatureCollection') {
-        return response.data
-      }
-
-      return { type: 'FeatureCollection', features: [] }
-    },
-    refetchInterval: 180000,
-    refetchIntervalInBackground: true,
-    staleTime: 0,
-  })
-
-  const incidents = incidentData?.features || []
-
-  const {
-    data: impactResponse,
-    isLoading: impactLoading,
-    isError: impactError,
-  } = useQuery({
-    queryKey: ['incident-impact-propagation', selectedIncident?.properties?.id],
-    queryFn: async (): Promise<IncidentImpactResponse | null> => {
-      if (!selectedIncident?.properties?.id) return null
-
-      const response = await mapApi.getIncidentImpactPropagation(
-        selectedIncident.properties.id,
-        {
-          radiusMeters: 2000,
-          ttiThreshold: 1.5,
-          maxDepth: 4,
-          maxSegments: 200,
-        }
-      )
-
-      if (response?.success && response?.data) {
-        return response.data
-      }
-
-      return null
-    },
-    enabled: incidentLayerEnabled && Boolean(selectedIncident?.properties?.id),
-    refetchInterval: selectedIncident?.properties?.id
-      ? POLLING_INTERVALS.TRAFFIC_DATA
-      : false,
-    refetchIntervalInBackground: false,
-    staleTime: 0,
-  })
-
-  const impactedSegments = impactResponse?.impactedSegments ?? []
 
   const handleZoomIn = () => {
     if (mapRef.current) {
@@ -262,20 +199,6 @@ const RealTimeMapOnly: React.FC = () => {
     }
   }
 
-  const showImpactOverlay = useMemo(() => {
-    if (!incidentLayerEnabled) return false
-    if (!selectedIncident) return false
-    if (impactError) return false
-    if (impactLoading) return false
-    return impactedSegments.length > 0
-  }, [
-    impactError,
-    impactLoading,
-    impactedSegments.length,
-    incidentLayerEnabled,
-    selectedIncident,
-  ])
-
   return (
     <div style={{ height: '100vh', width: '100%', position: 'relative' }}>
       <TrafficMap
@@ -285,6 +208,8 @@ const RealTimeMapOnly: React.FC = () => {
         segmentStatusLayerEnabled={segmentStatusLayerEnabled}
         useTomTomFlowTiles
         tomTomFlowTilesUrl={tomTomTileProxyUrl}
+        useTomTomIncidentTiles={incidentLayerEnabled}
+        tomTomIncidentTilesUrl={tomTomIncidentTileProxyUrl}
         onMapClick={handleMapClickForRouting}
       >
         {weatherLayerEnabled && (
@@ -294,23 +219,6 @@ const RealTimeMapOnly: React.FC = () => {
             onLoadingChange={setWeatherLayerLoading}
           />
         )}
-
-        {incidentLayerEnabled && (
-          <IncidentLayer
-            incidents={incidents}
-            isLoading={incidentsLoading}
-            onIncidentClick={setSelectedIncident}
-            mapRef={mapRef}
-            selectedIncident={selectedIncident}
-            onSelectedIncidentChange={setSelectedIncident}
-          />
-        )}
-
-        <IncidentImpactLayer
-          visible={showImpactOverlay}
-          segments={impactedSegments}
-          mapRef={mapRef}
-        />
 
         {routingLayerEnabled && (
           <RoutingMapboxLayer
@@ -419,9 +327,6 @@ const RealTimeMapOnly: React.FC = () => {
         onWeatherToggle={setWeatherLayerEnabled}
         onIncidentToggle={(enabled) => {
           setIncidentLayerEnabled(enabled)
-          if (!enabled) {
-            setSelectedIncident(null)
-          }
         }}
         onRoutingToggle={(enabled) => {
           setRoutingLayerEnabled(enabled)
