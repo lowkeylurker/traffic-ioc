@@ -7,8 +7,8 @@ import {
 } from '@/config/constants'
 import { GeoJSONFeature, SegmentResponse } from '@/types'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import Map, { Layer, LayerProps, Source } from 'react-map-gl'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Map, { Layer, LayerProps, MapRef, Source } from 'react-map-gl'
 
 const MAX_RENDER_SEGMENTS = 12000
 const MAX_FEATURES_FOR_AUTO_FIT = 50000
@@ -22,6 +22,34 @@ type MapBounds = {
   maxLat: number
 }
 
+type HoveredTrafficFeature = GeoJSONFeature['properties'] & {
+  trafficLevel?: number
+  trafficIndex?: number
+}
+
+type TomTomSegmentDetail = {
+  currentSpeed: number
+  freeFlowSpeed: number
+  trafficIndex: string
+}
+
+type TomTomHoverPopupState = {
+  visible: boolean
+  loading: boolean
+  error: string | null
+  detail: TomTomSegmentDetail | null
+  title: string
+}
+
+const getLosFromTrafficIndex = (trafficIndex: number): string => {
+  if (trafficIndex <= 0.15) return 'A'
+  if (trafficIndex <= 0.3) return 'B'
+  if (trafficIndex <= 0.45) return 'C'
+  if (trafficIndex <= 0.6) return 'D'
+  if (trafficIndex <= 0.8) return 'E'
+  return 'F'
+}
+
 interface TrafficMapProps {
   segmentData: SegmentResponse | null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,7 +58,7 @@ interface TrafficMapProps {
   onMapClick?: (event: any) => void
   style?: React.CSSProperties
   autoRefreshInterval?: number
-  mapRef?: React.RefObject<any>
+  mapRef?: React.RefObject<MapRef>
   segmentStatusLayerEnabled?: boolean
   useTomTomFlowTiles?: boolean
   tomTomFlowTilesUrl?: string
@@ -49,18 +77,36 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
 }) => {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
   const mapboxStyle = import.meta.env.VITE_MAPBOX_STYLE
-  const internalMapRef = useRef<any>(null)
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+  const apiOrigin = useMemo(() => {
+    try {
+      return new URL(apiBaseUrl, window.location.origin).origin
+    } catch {
+      return window.location.origin
+    }
+  }, [apiBaseUrl])
+  const internalMapRef = useRef<MapRef | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = externalMapRef || internalMapRef
-  const [hoveredFeature, setHoveredFeature] = useState<
-    GeoJSONFeature['properties'] | null
-  >(null)
+  const [hoveredFeature, setHoveredFeature] =
+    useState<HoveredTrafficFeature | null>(null)
   const [viewportBounds, setViewportBounds] = useState<MapBounds | null>(null)
   const [currentZoom, setCurrentZoom] = useState<number>(DEFAULT_MAP_ZOOM)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
   })
+  const [tomTomHoverPopup, setTomTomHoverPopup] =
+    useState<TomTomHoverPopupState>({
+      visible: false,
+      loading: false,
+      error: null,
+      detail: null,
+      title: '',
+    })
+  const hoverTimerRef = useRef<number | null>(null)
+  const hoverAbortRef = useRef<AbortController | null>(null)
+  const hoverSequenceRef = useRef(0)
 
   const renderCap = useMemo(() => {
     if (currentZoom < 11) return MIN_RENDER_SEGMENTS
@@ -320,51 +366,278 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     []
   )
 
+  const clearTomTomHoverRequest = useCallback(() => {
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current)
+      hoverTimerRef.current = null
+    }
+
+    if (hoverAbortRef.current) {
+      hoverAbortRef.current.abort()
+      hoverAbortRef.current = null
+    }
+  }, [])
+
+  const resetTomTomHoverPopup = useCallback(() => {
+    clearTomTomHoverRequest()
+    hoverSequenceRef.current += 1
+    setTomTomHoverPopup({
+      visible: false,
+      loading: false,
+      error: null,
+      detail: null,
+      title: '',
+    })
+  }, [clearTomTomHoverRequest])
+
   // Set up map layer hover events
   useEffect(() => {
-    if (!mapRef.current || !segmentData) return
+    if (!mapRef.current?.getMap) return
 
     const map = mapRef.current.getMap()
-    const layerId = 'traffic-flow-layer'
+
+    const layerConfigs = [
+      {
+        id: 'traffic-flow-layer',
+        enabled: Boolean(segmentData && segmentStatusLayerEnabled),
+        normalize: (
+          properties: Record<string, unknown>
+        ): HoveredTrafficFeature =>
+          properties as unknown as HoveredTrafficFeature,
+      },
+    ]
+
+    const waitForLayers = setInterval(() => {
+      const missingEnabledLayer = layerConfigs.some(
+        (layer) => layer.enabled && !map.getLayer(layer.id)
+      )
+
+      if (missingEnabledLayer) {
+        return
+      }
+
+      clearInterval(waitForLayers)
+
+      layerConfigs.forEach((layer) => {
+        if (!layer.enabled) {
+          return
+        }
+
+        const handleMouseEnter = () => {
+          map.getCanvas().style.cursor = 'pointer'
+        }
+
+        const handleMouseLeave = () => {
+          map.getCanvas().style.cursor = ''
+          setHoveredFeature(null)
+        }
+
+        const handleMouseMove = (e: mapboxgl.MapLayerMouseEvent) => {
+          if (!e.features || e.features.length === 0) {
+            return
+          }
+
+          const feature = e.features[0] as GeoJSON.Feature
+          const normalized = layer.normalize(
+            (feature.properties ?? {}) as Record<string, unknown>
+          )
+          setHoveredFeature(normalized)
+
+          const container = containerRef.current
+          if (container) {
+            const rect = container.getBoundingClientRect()
+            setMousePosition({
+              x: e.originalEvent.clientX - rect.left,
+              y: e.originalEvent.clientY - rect.top,
+            })
+          }
+        }
+
+        map.on('mouseenter', layer.id, handleMouseEnter)
+        map.on('mouseleave', layer.id, handleMouseLeave)
+        map.on('mousemove', layer.id, handleMouseMove)
+
+        // Cleanup listeners correctly when deps change.
+        ;(layer as { cleanup?: () => void }).cleanup = () => {
+          map.off('mouseenter', layer.id, handleMouseEnter)
+          map.off('mouseleave', layer.id, handleMouseLeave)
+          map.off('mousemove', layer.id, handleMouseMove)
+        }
+      })
+    }, 100)
+
+    return () => {
+      clearInterval(waitForLayers)
+      layerConfigs.forEach((layer) => {
+        ;(layer as { cleanup?: () => void }).cleanup?.()
+      })
+    }
+  }, [
+    mapRef,
+    segmentData,
+    segmentStatusLayerEnabled,
+    tomTomFlowTilesUrl,
+    useTomTomFlowTiles,
+  ])
+
+  useEffect(() => {
+    if (!useTomTomFlowTiles || !tomTomFlowTilesUrl || !mapRef.current?.getMap) {
+      return
+    }
+
+    const map = mapRef.current.getMap()
+    const layerId = 'tomtom-traffic-flow-layer'
+    let cleanupLayerListeners: (() => void) | null = null
 
     const waitForLayer = setInterval(() => {
-      if (map.getLayer(layerId)) {
-        clearInterval(waitForLayer)
-        map.on('mouseenter', layerId, () => {
-          map.getCanvas().style.cursor = 'pointer'
+      if (!map.getLayer(layerId)) {
+        return
+      }
+
+      clearInterval(waitForLayer)
+
+      const handleMouseEnter = () => {
+        map.getCanvas().style.cursor = 'pointer'
+      }
+
+      const handleMouseLeave = () => {
+        map.getCanvas().style.cursor = ''
+        resetTomTomHoverPopup()
+      }
+
+      const handleMouseMove = (e: mapboxgl.MapLayerMouseEvent) => {
+        if (!e.features || e.features.length === 0) {
+          return
+        }
+
+        const feature = e.features[0] as GeoJSON.Feature
+        const properties = (feature.properties ?? {}) as Record<string, unknown>
+        const title =
+          String(
+            properties.road_name ||
+              properties.name ||
+              properties.segment_name ||
+              ''
+          ).trim() || 'Đoạn đường TomTom'
+
+        map.getCanvas().style.cursor = 'pointer'
+
+        const container = containerRef.current
+        if (container) {
+          const rect = container.getBoundingClientRect()
+          setMousePosition({
+            x: e.originalEvent.clientX - rect.left,
+            y: e.originalEvent.clientY - rect.top,
+          })
+        }
+
+        // Debounce timer để tránh gọi API liên tục khi chuột vẫn còn di chuyển.
+        // Nếu timer cũ không được clear ở đây, request chồng request sẽ dễ gây memory leak và dữ liệu popup bị race-condition.
+        clearTomTomHoverRequest()
+
+        const requestSequence = hoverSequenceRef.current + 1
+        hoverSequenceRef.current = requestSequence
+
+        setTomTomHoverPopup({
+          visible: true,
+          loading: true,
+          error: null,
+          detail: null,
+          title,
         })
 
-        map.on('mouseleave', layerId, () => {
-          map.getCanvas().style.cursor = ''
-        })
+        hoverTimerRef.current = window.setTimeout(() => {
+          const controller = new AbortController()
+          hoverAbortRef.current = controller
+          const lat = e.lngLat.lat
+          const lng = e.lngLat.lng
 
-        // Handle hover feature data
-        map.on('mousemove', layerId, (e: mapboxgl.MapLayerMouseEvent) => {
-          if (e.features && e.features.length > 0) {
-            const feature = e.features[0] as GeoJSON.Feature
-            setHoveredFeature(
-              feature.properties as GeoJSONFeature['properties']
-            )
-
-            // Calculate position relative to map container
-            if (containerRef.current) {
-              const rect = containerRef.current.getBoundingClientRect()
-              setMousePosition({
-                x: e.originalEvent.clientX - rect.left,
-                y: e.originalEvent.clientY - rect.top,
-              })
+          fetch(
+            `${apiOrigin}/api/traffic/segment-detail?lat=${lat}&lng=${lng}`,
+            {
+              signal: controller.signal,
             }
-          }
-        })
+          )
+            .then(async (response) => {
+              const payload = await response.json().catch(() => ({}))
 
-        map.on('mouseleave', layerId, () => {
-          setHoveredFeature(null)
-        })
+              if (hoverSequenceRef.current !== requestSequence) {
+                return
+              }
+
+              if (!response.ok || payload?.error) {
+                setTomTomHoverPopup({
+                  visible: true,
+                  loading: false,
+                  error:
+                    payload?.error || 'Không có dữ liệu cho đoạn đường này',
+                  detail: null,
+                  title,
+                })
+                return
+              }
+
+              setTomTomHoverPopup({
+                visible: true,
+                loading: false,
+                error: null,
+                detail: {
+                  currentSpeed: Number(payload.currentSpeed),
+                  freeFlowSpeed: Number(payload.freeFlowSpeed),
+                  trafficIndex: String(payload.trafficIndex),
+                },
+                title,
+              })
+            })
+            .catch((error: unknown) => {
+              if (
+                controller.signal.aborted ||
+                hoverSequenceRef.current !== requestSequence
+              ) {
+                return
+              }
+
+              console.error('TomTom segment detail error', error)
+              setTomTomHoverPopup({
+                visible: true,
+                loading: false,
+                error: 'Không thể lấy dữ liệu thực tế cho đoạn đường này',
+                detail: null,
+                title,
+              })
+            })
+            .finally(() => {
+              if (hoverAbortRef.current === controller) {
+                hoverAbortRef.current = null
+              }
+            })
+        }, 300)
+      }
+
+      map.on('mouseenter', layerId, handleMouseEnter)
+      map.on('mouseleave', layerId, handleMouseLeave)
+      map.on('mousemove', layerId, handleMouseMove)
+
+      cleanupLayerListeners = () => {
+        map.off('mouseenter', layerId, handleMouseEnter)
+        map.off('mouseleave', layerId, handleMouseLeave)
+        map.off('mousemove', layerId, handleMouseMove)
       }
     }, 100)
 
-    return () => clearInterval(waitForLayer)
-  }, [segmentData, mapRef])
+    return () => {
+      clearInterval(waitForLayer)
+      clearTomTomHoverRequest()
+      cleanupLayerListeners?.()
+    }
+  }, [
+    apiOrigin,
+    clearTomTomHoverRequest,
+    mapRef,
+    resetTomTomHoverPopup,
+    tomTomFlowTilesUrl,
+    useTomTomFlowTiles,
+  ])
 
   return (
     <div
@@ -416,6 +689,188 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         {/* Render children components (e.g., IncidentLayer) */}
         {children}
       </Map>
+
+      {tomTomHoverPopup.visible && (
+        <div
+          style={{
+            position: 'absolute',
+            left: `${mousePosition.x + 15}px`,
+            top: `${mousePosition.y - 10}px`,
+            zIndex: 25,
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.88)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255, 255, 255, 0.65)',
+              borderRadius: '12px',
+              padding: '16px',
+              minWidth: '240px',
+              boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+              fontFamily: 'sans-serif',
+            }}
+          >
+            <div style={{ marginBottom: '10px' }}>
+              <div
+                style={{
+                  color: '#1F2937',
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {tomTomHoverPopup.title || 'Đoạn đường TomTom'}
+              </div>
+              <div
+                style={{
+                  color: '#9CA3AF',
+                  fontSize: '10px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                Dữ liệu tốc độ thực tế
+              </div>
+            </div>
+
+            {tomTomHoverPopup.loading ? (
+              <div>
+                <div
+                  style={{
+                    height: '18px',
+                    borderRadius: '999px',
+                    background:
+                      'linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 37%, #e5e7eb 63%)',
+                    backgroundSize: '400% 100%',
+                    animation: 'pulse 1.2s ease-in-out infinite',
+                    marginBottom: '10px',
+                  }}
+                />
+                <div
+                  style={{
+                    height: '14px',
+                    borderRadius: '999px',
+                    background: '#f3f4f6',
+                    marginBottom: '8px',
+                    width: '85%',
+                  }}
+                />
+                <div
+                  style={{
+                    height: '14px',
+                    borderRadius: '999px',
+                    background: '#f3f4f6',
+                    width: '65%',
+                  }}
+                />
+              </div>
+            ) : tomTomHoverPopup.error ? (
+              <div
+                style={{
+                  color: '#b91c1c',
+                  fontSize: '13px',
+                  lineHeight: 1.5,
+                }}
+              >
+                {tomTomHoverPopup.error}
+              </div>
+            ) : tomTomHoverPopup.detail ? (
+              <div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    justifyContent: 'space-between',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                    <span
+                      style={{
+                        fontSize: '30px',
+                        fontWeight: 'bold',
+                        color: '#111827',
+                        lineHeight: '1',
+                      }}
+                    >
+                      {Math.round(tomTomHoverPopup.detail.currentSpeed)}
+                    </span>
+                    <span
+                      style={{
+                        color: '#6B7280',
+                        fontSize: '12px',
+                        marginLeft: '4px',
+                      }}
+                    >
+                      km/h
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '4px 10px',
+                      borderRadius: '9999px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                      border: '1px solid #FFFFFF',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        backgroundColor: '#2563eb',
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        textTransform: 'uppercase',
+                        letterSpacing: '-0.025em',
+                        color: '#2563eb',
+                      }}
+                    >
+                      {getLosFromTrafficIndex(
+                        Number(tomTomHoverPopup.detail.trafficIndex)
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    paddingTop: '8px',
+                    borderTop: '1px solid rgba(243, 244, 246, 0.7)',
+                  }}
+                >
+                  <div style={{ color: '#374151', fontSize: '12px' }}>
+                    Tốc độ tự do:{' '}
+                    <span style={{ fontWeight: 'bold' }}>
+                      {Math.round(tomTomHoverPopup.detail.freeFlowSpeed)} km/h
+                    </span>
+                  </div>
+                  <div style={{ color: '#374151', fontSize: '12px' }}>
+                    Traffic Index:{' '}
+                    <span style={{ fontWeight: 'bold' }}>
+                      {Number(tomTomHoverPopup.detail.trafficIndex).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
 
       {/* Hover Popup */}
       {hoveredFeature &&
@@ -511,7 +966,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
                       textOverflow: 'ellipsis',
                     }}
                   >
-                    {hoveredFeature.segmentName}
+                    {hoveredFeature.segmentName || 'Đoạn đường'}
                   </div>
                   <div
                     style={{

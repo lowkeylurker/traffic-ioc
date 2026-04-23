@@ -10,7 +10,6 @@ import { RoutingPanel } from '@/components/widgets/RoutingPanel'
 import { POLLING_INTERVALS } from '@/config/constants'
 import { mapApi, simulationApi } from '@/services/api'
 import {
-  GeoJSONFeature,
   IncidentCollection,
   IncidentFeature,
   IncidentImpactResponse,
@@ -18,27 +17,21 @@ import {
 import { useAuth, useUser } from '@clerk/clerk-react'
 import { useQuery } from '@tanstack/react-query'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
 import { message } from 'antd'
 import { Marker } from 'react-map-gl'
 import { DashboardPage } from './DashboardPage'
 
-const getSegmentCenter = (segment: GeoJSONFeature) => {
-  const coords = segment.geometry.coordinates
-  if (!coords || coords.length === 0) {
-    return null
-  }
-
-  const centerIdx = Math.floor(coords.length / 2)
-  const [lng, lat] = coords[centerIdx]
-  return { lng, lat }
-}
-
 const RealTimeMapOnly: React.FC = () => {
   const segmentData = null
-  const location = useLocation()
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
-  const tomTomTileProxyUrl = `${apiBaseUrl}/traffic/tiles/{z}/{x}/{y}.pbf`
+  const apiOrigin = useMemo(() => {
+    try {
+      return new URL(apiBaseUrl, window.location.origin).origin
+    } catch {
+      return window.location.origin
+    }
+  }, [apiBaseUrl])
+  const tomTomTileProxyUrl = `${apiOrigin}/api/traffic/tiles/{z}/{x}/{y}.pbf`
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null)
@@ -58,7 +51,8 @@ const RealTimeMapOnly: React.FC = () => {
   const [rawStartPos, setRawStartPos] = useState<[number, number] | null>(null)
   const [rawEndPos, setRawEndPos] = useState<[number, number] | null>(null)
 
-  const [routingDataGeoJSON, setRoutingDataGeoJSON] = useState<any>(null)
+  const [routingDataGeoJSON, setRoutingDataGeoJSON] =
+    useState<GeoJSON.FeatureCollection | null>(null)
   const [isRoutingLoading, setIsRoutingLoading] = useState(false)
   const [activeRoutingInput, setActiveRoutingInput] = useState<'start' | 'end'>(
     'start'
@@ -83,8 +77,6 @@ const RealTimeMapOnly: React.FC = () => {
       )
     }
   }
-
-  const lastHandledDeepLinkRef = useRef<string | null>(null)
 
   useEffect(() => {
     const contentEl = document.querySelector(
@@ -159,65 +151,6 @@ const RealTimeMapOnly: React.FC = () => {
   })
 
   const impactedSegments = impactResponse?.impactedSegments ?? []
-
-  const handleSegmentClick = (segment: GeoJSONFeature, zoom = 16) => {
-    if (!mapRef.current?.getMap) return
-
-    const map = mapRef.current.getMap()
-    const center = getSegmentCenter(segment)
-    if (!center) return
-
-    map.flyTo({
-      center: [center.lng, center.lat],
-      zoom,
-      duration: 1000,
-    })
-  }
-
-  useEffect(() => {
-    if (!segmentData?.features?.length) {
-      return
-    }
-
-    if (!location.search) {
-      return
-    }
-
-    if (lastHandledDeepLinkRef.current === location.search) {
-      return
-    }
-
-    const params = new URLSearchParams(location.search)
-    const segmentId = params.get('segmentId')
-    const roadKey = params.get('roadKey')
-
-    if (segmentId) {
-      const selectedFeature = segmentData.features.find(
-        (feature: GeoJSONFeature) =>
-          String(feature.properties.segmentId) === segmentId
-      )
-
-      if (selectedFeature) {
-        handleSegmentClick(selectedFeature)
-      }
-
-      lastHandledDeepLinkRef.current = location.search
-      return
-    }
-
-    if (roadKey) {
-      const roadSegments = segmentData.features.filter(
-        (feature: GeoJSONFeature) =>
-          String(feature.properties.roadKey) === roadKey
-      )
-
-      if (roadSegments.length > 0) {
-        handleSegmentClick(roadSegments[0])
-      }
-
-      lastHandledDeepLinkRef.current = location.search
-    }
-  }, [location.search, segmentData])
 
   const handleZoomIn = () => {
     if (mapRef.current) {
@@ -302,9 +235,14 @@ const RealTimeMapOnly: React.FC = () => {
       } else {
         message.error('Không tìm thấy đường đi hoặc cung đường quá ngắn')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Routing computed error', error)
-      message.error(error?.response?.data?.message || 'Có lỗi khi tìm lộ trình')
+      const axiosLikeError = error as {
+        response?: { data?: { message?: string } }
+      }
+      message.error(
+        axiosLikeError?.response?.data?.message || 'Có lỗi khi tìm lộ trình'
+      )
     } finally {
       setIsRoutingLoading(false)
     }
