@@ -29,8 +29,7 @@ type HoveredTrafficFeature = GeoJSONFeature['properties'] & {
 
 type TomTomSegmentDetail = {
   currentSpeed: number
-  freeFlowSpeed: number
-  trafficIndex: string
+  trafficLevel: number | null
 }
 
 type TomTomHoverPopupState = {
@@ -38,16 +37,104 @@ type TomTomHoverPopupState = {
   loading: boolean
   error: string | null
   detail: TomTomSegmentDetail | null
-  title: string
 }
 
-const getLosFromTrafficIndex = (trafficIndex: number): string => {
+const normalizeTrafficLevel = (value: unknown): number | null => {
+  const level = Number(value)
+  if (!Number.isFinite(level)) return null
+  return Math.max(0, Math.min(1, level))
+}
+
+const getLosFromTomTomTrafficLevel = (trafficLevel: number | null): string => {
+  if (trafficLevel === null) return 'N/A'
+
+  const trafficIndex = 1 - trafficLevel
   if (trafficIndex <= 0.15) return 'A'
   if (trafficIndex <= 0.3) return 'B'
   if (trafficIndex <= 0.45) return 'C'
   if (trafficIndex <= 0.6) return 'D'
   if (trafficIndex <= 0.8) return 'E'
   return 'F'
+}
+
+const getLosBadgeData = (los: string) => {
+  const normalizedLos = (los || 'N/A').toUpperCase()
+
+  switch (normalizedLos) {
+    case 'A':
+      return {
+        los: 'A',
+        status: 'Thông thoáng',
+        statusColor: TRAFFIC_COLORS.MINIMAL,
+        dotColor: TRAFFIC_COLORS.MINIMAL,
+      }
+    case 'B':
+      return {
+        los: 'B',
+        status: 'Khá thông thoáng',
+        statusColor: TRAFFIC_COLORS.VERY_LOW,
+        dotColor: TRAFFIC_COLORS.VERY_LOW,
+      }
+    case 'C':
+      return {
+        los: 'C',
+        status: 'Trung bình',
+        statusColor: TRAFFIC_COLORS.MODERATE,
+        dotColor: TRAFFIC_COLORS.MODERATE,
+      }
+    case 'D':
+      return {
+        los: 'D',
+        status: 'Mật độ cao',
+        statusColor: TRAFFIC_COLORS.HIGH,
+        dotColor: TRAFFIC_COLORS.HIGH,
+      }
+    case 'E':
+      return {
+        los: 'E',
+        status: 'Đông xe',
+        statusColor: TRAFFIC_COLORS.VERY_HIGH,
+        dotColor: TRAFFIC_COLORS.VERY_HIGH,
+      }
+    case 'F':
+      return {
+        los: 'F',
+        status: 'Ùn tắc nghiêm trọng',
+        statusColor: TRAFFIC_COLORS.EXTREME,
+        dotColor: TRAFFIC_COLORS.EXTREME,
+      }
+    default:
+      return {
+        los: 'N/A',
+        status: 'Không có dữ liệu',
+        statusColor: TRAFFIC_COLORS.NO_DATA,
+        dotColor: TRAFFIC_COLORS.NO_DATA,
+      }
+  }
+}
+
+const toRgba = (color: string, alpha: number): string => {
+  const normalized = color.trim()
+  const hexMatch = normalized.match(/^#([\da-f]{3}|[\da-f]{6})$/i)
+
+  if (!hexMatch) {
+    return `rgba(156, 163, 175, ${alpha})`
+  }
+
+  const hex = hexMatch[1]
+  const fullHex =
+    hex.length === 3
+      ? hex
+          .split('')
+          .map((char) => `${char}${char}`)
+          .join('')
+      : hex
+
+  const r = parseInt(fullHex.slice(0, 2), 16)
+  const g = parseInt(fullHex.slice(2, 4), 16)
+  const b = parseInt(fullHex.slice(4, 6), 16)
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 interface TrafficMapProps {
@@ -102,7 +189,6 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
       loading: false,
       error: null,
       detail: null,
-      title: '',
     })
   const hoverTimerRef = useRef<number | null>(null)
   const hoverAbortRef = useRef<AbortController | null>(null)
@@ -386,7 +472,6 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
       loading: false,
       error: null,
       detail: null,
-      title: '',
     })
   }, [clearTomTomHoverRequest])
 
@@ -481,15 +566,25 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   ])
 
   useEffect(() => {
-    if (!useTomTomFlowTiles || !tomTomFlowTilesUrl || !mapRef.current?.getMap) {
+    if (
+      !useTomTomFlowTiles ||
+      !tomTomFlowTilesUrl ||
+      !segmentStatusLayerEnabled
+    ) {
+      resetTomTomHoverPopup()
       return
     }
 
-    const map = mapRef.current.getMap()
     const layerId = 'tomtom-traffic-flow-layer'
     let cleanupLayerListeners: (() => void) | null = null
 
     const waitForLayer = setInterval(() => {
+      if (!mapRef.current?.getMap) {
+        return
+      }
+
+      const map = mapRef.current.getMap()
+
       if (!map.getLayer(layerId)) {
         return
       }
@@ -512,13 +607,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
 
         const feature = e.features[0] as GeoJSON.Feature
         const properties = (feature.properties ?? {}) as Record<string, unknown>
-        const title =
-          String(
-            properties.road_name ||
-              properties.name ||
-              properties.segment_name ||
-              ''
-          ).trim() || 'Đoạn đường TomTom'
+        const trafficLevel = normalizeTrafficLevel(properties.traffic_level)
 
         map.getCanvas().style.cursor = 'pointer'
 
@@ -543,7 +632,6 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
           loading: true,
           error: null,
           detail: null,
-          title,
         })
 
         hoverTimerRef.current = window.setTimeout(() => {
@@ -572,7 +660,6 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
                   error:
                     payload?.error || 'Không có dữ liệu cho đoạn đường này',
                   detail: null,
-                  title,
                 })
                 return
               }
@@ -583,10 +670,8 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
                 error: null,
                 detail: {
                   currentSpeed: Number(payload.currentSpeed),
-                  freeFlowSpeed: Number(payload.freeFlowSpeed),
-                  trafficIndex: String(payload.trafficIndex),
+                  trafficLevel,
                 },
-                title,
               })
             })
             .catch((error: unknown) => {
@@ -603,7 +688,6 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
                 loading: false,
                 error: 'Không thể lấy dữ liệu thực tế cho đoạn đường này',
                 detail: null,
-                title,
               })
             })
             .finally(() => {
@@ -635,9 +719,21 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     clearTomTomHoverRequest,
     mapRef,
     resetTomTomHoverPopup,
+    segmentStatusLayerEnabled,
     tomTomFlowTilesUrl,
     useTomTomFlowTiles,
   ])
+
+  const tomTomLosBadge = tomTomHoverPopup.detail
+    ? getLosBadgeData(
+        getLosFromTomTomTrafficLevel(tomTomHoverPopup.detail.trafficLevel)
+      )
+    : null
+  const tomTomBadgeColor = tomTomLosBadge?.statusColor || '#9CA3AF'
+  const tomTomPopupBorderColor = toRgba(tomTomBadgeColor, 0.72)
+  const tomTomPopupGradientStart = toRgba(tomTomBadgeColor, 0.24)
+  const tomTomPopupGradientEnd = toRgba(tomTomBadgeColor, 0.1)
+  const tomTomPopupShadowColor = toRgba(tomTomBadgeColor, 0.24)
 
   return (
     <div
@@ -702,32 +798,26 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         >
           <div
             style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.88)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255, 255, 255, 0.65)',
+              background:
+                `linear-gradient(140deg, ${tomTomPopupGradientStart} 0%, ` +
+                'rgba(255, 255, 255, 0.96) 52%, ' +
+                `${tomTomPopupGradientEnd} 100%)`,
+              backdropFilter: 'blur(10px) saturate(125%)',
+              border: `1.5px solid ${tomTomPopupBorderColor}`,
+              outline: '1px solid rgba(255, 255, 255, 0.85)',
               borderRadius: '12px',
-              padding: '16px',
-              minWidth: '240px',
-              boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+              padding: '12px',
+              minWidth: '220px',
+              boxShadow:
+                `0 10px 26px -8px ${tomTomPopupShadowColor}, ` +
+                '0 8px 24px 0 rgba(15, 23, 42, 0.2)',
               fontFamily: 'sans-serif',
             }}
           >
             <div style={{ marginBottom: '10px' }}>
               <div
                 style={{
-                  color: '#1F2937',
-                  fontWeight: 'bold',
-                  fontSize: '14px',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {tomTomHoverPopup.title || 'Đoạn đường TomTom'}
-              </div>
-              <div
-                style={{
-                  color: '#9CA3AF',
+                  color: '#6B7280',
                   fontSize: '10px',
                   textTransform: 'uppercase',
                   letterSpacing: '0.05em',
@@ -816,8 +906,8 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
                       gap: '6px',
                       padding: '4px 10px',
                       borderRadius: '9999px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                      border: '1px solid #FFFFFF',
+                      backgroundColor: toRgba(tomTomBadgeColor, 0.14),
+                      border: `1px solid ${toRgba(tomTomBadgeColor, 0.35)}`,
                     }}
                   >
                     <span
@@ -825,44 +915,18 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
                         width: '8px',
                         height: '8px',
                         borderRadius: '50%',
-                        backgroundColor: '#2563eb',
+                        backgroundColor: tomTomLosBadge?.dotColor || '#9CA3AF',
                       }}
                     />
                     <span
                       style={{
                         fontSize: '12px',
                         fontWeight: 'bold',
-                        textTransform: 'uppercase',
                         letterSpacing: '-0.025em',
-                        color: '#2563eb',
+                        color: tomTomLosBadge?.statusColor || '#6B7280',
                       }}
                     >
-                      {getLosFromTrafficIndex(
-                        Number(tomTomHoverPopup.detail.trafficIndex)
-                      )}
-                    </span>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '8px',
-                    paddingTop: '8px',
-                    borderTop: '1px solid rgba(243, 244, 246, 0.7)',
-                  }}
-                >
-                  <div style={{ color: '#374151', fontSize: '12px' }}>
-                    Tốc độ tự do:{' '}
-                    <span style={{ fontWeight: 'bold' }}>
-                      {Math.round(tomTomHoverPopup.detail.freeFlowSpeed)} km/h
-                    </span>
-                  </div>
-                  <div style={{ color: '#374151', fontSize: '12px' }}>
-                    Traffic Index:{' '}
-                    <span style={{ fontWeight: 'bold' }}>
-                      {Number(tomTomHoverPopup.detail.trafficIndex).toFixed(2)}
+                      {tomTomLosBadge?.status || 'Không có dữ liệu'}
                     </span>
                   </div>
                 </div>
@@ -932,6 +996,10 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
           }
 
           const popUpData = getPopUpData(hoveredFeature)
+          const legacyPopupBorderColor = toRgba(popUpData.statusColor, 0.72)
+          const legacyPopupGradientStart = toRgba(popUpData.statusColor, 0.24)
+          const legacyPopupGradientEnd = toRgba(popUpData.statusColor, 0.1)
+          const legacyPopupShadowColor = toRgba(popUpData.statusColor, 0.24)
 
           return (
             <div
@@ -945,13 +1013,19 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
             >
               <div
                 style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.85)',
-                  backdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(255, 255, 255, 0.5)',
+                  background:
+                    `linear-gradient(140deg, ${legacyPopupGradientStart} 0%, ` +
+                    'rgba(255, 255, 255, 0.96) 52%, ' +
+                    `${legacyPopupGradientEnd} 100%)`,
+                  backdropFilter: 'blur(10px) saturate(125%)',
+                  border: `1.5px solid ${legacyPopupBorderColor}`,
+                  outline: '1px solid rgba(255, 255, 255, 0.85)',
                   borderRadius: '12px',
                   padding: '16px',
                   minWidth: '220px',
-                  boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)',
+                  boxShadow:
+                    `0 10px 26px -8px ${legacyPopupShadowColor}, ` +
+                    '0 8px 24px 0 rgba(15, 23, 42, 0.2)',
                   fontFamily: 'sans-serif',
                 }}
               >
