@@ -27,6 +27,7 @@ interface HistoryFilterBarProps {
   initialRange: [Dayjs, Dayjs]
   onSearch: (values: HistoryFilterValues) => void
   onExport: (values: HistoryFilterValues) => void
+  onRoadNameChange?: (roadName?: string) => void
 }
 
 export const HistoryFilterBar: React.FC<HistoryFilterBarProps> = ({
@@ -36,6 +37,7 @@ export const HistoryFilterBar: React.FC<HistoryFilterBarProps> = ({
   initialRange,
   onSearch,
   onExport,
+  onRoadNameChange,
 }) => {
   const [form] = Form.useForm<HistoryFilterValues>()
   const [calendarRange, setCalendarRange] = useState<
@@ -74,6 +76,9 @@ export const HistoryFilterBar: React.FC<HistoryFilterBarProps> = ({
       layout="vertical"
       initialValues={{ dateRange: initialRange }}
       onFinish={onSearch}
+      onValuesChange={(_, allValues) => {
+        onRoadNameChange?.(allValues.roadName?.trim() || undefined)
+      }}
     >
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
         <Space direction="vertical" size={4} style={{ width: '100%' }}>

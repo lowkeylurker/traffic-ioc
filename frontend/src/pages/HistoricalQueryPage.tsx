@@ -2,11 +2,13 @@ import {
   HistoryFilterBar,
   HistoryFilterValues,
 } from '@/pages/history/components/HistoryFilterBar'
+import { HistoryMiniMap } from '@/pages/history/components/HistoryMiniMap'
 import { HistoryTable } from '@/pages/history/components/HistoryTable'
+import { HistoryTrendChart } from '@/pages/history/components/HistoryTrendChart'
 import { historyApi, mapApi } from '@/services/api'
 import { HistoryQueryParams } from '@/types'
 import { useQuery } from '@tanstack/react-query'
-import { Card, Space, Typography, message } from 'antd'
+import { Card, Col, Row, Space, Typography, message } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
 import React, { useMemo, useState } from 'react'
 
@@ -33,6 +35,7 @@ export const HistoricalQueryPage: React.FC = () => {
     startDate: DEFAULT_RANGE[0].format('YYYY-MM-DD'),
     endDate: DEFAULT_RANGE[1].format('YYYY-MM-DD'),
   })
+  const [selectedRoadName, setSelectedRoadName] = useState<string | undefined>()
   const [exporting, setExporting] = useState(false)
 
   const roadsQuery = useQuery({
@@ -62,9 +65,19 @@ export const HistoricalQueryPage: React.FC = () => {
     placeholderData: (previous) => previous,
   })
 
+  const mapSegmentsQuery = useQuery({
+    queryKey: ['history-map-segments'],
+    queryFn: async () => {
+      const response = await mapApi.getSegments()
+      return response.data?.features ?? []
+    },
+    staleTime: 5 * 60_000,
+  })
+
   const handleSearch = (values: HistoryFilterValues) => {
     const nextFilters = buildQueryParams(values)
     setFilters(nextFilters)
+    setSelectedRoadName(nextFilters.roadName)
     setPage(1)
   }
 
@@ -110,8 +123,23 @@ export const HistoricalQueryPage: React.FC = () => {
               initialRange={DEFAULT_RANGE}
               onSearch={handleSearch}
               onExport={handleExport}
+              onRoadNameChange={setSelectedRoadName}
             />
           </div>
+        </Card>
+
+        <Card title="Trực quan hóa nhanh">
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={17}>
+              <HistoryTrendChart data={tableData} />
+            </Col>
+            <Col xs={24} lg={7}>
+              <HistoryMiniMap
+                features={mapSegmentsQuery.data ?? []}
+                selectedRoadName={selectedRoadName}
+              />
+            </Col>
+          </Row>
         </Card>
 
         <Card>
