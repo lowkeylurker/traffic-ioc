@@ -17,6 +17,7 @@ import mapRoutes from './routes/map.routes';
 import olapRoutes from './routes/olap.routes';
 import newsRoutes from './routes/news.routes';
 import simulationRoutes from './routes/simulation.routes';
+import trafficRoutes from './routes/traffic.routes';
 import userRoutes from './routes/user/user.routes';
 import weatherRoutes from './routes/weather.routes';
 
@@ -63,8 +64,10 @@ export const createApp = (): Express => {
 
   // Alias without version for BI/OLAP compatibility
   app.use('/api/olap', olapRoutes);
+  app.use('/api/traffic', trafficRoutes);
 
   app.use(`${apiV1}${ROUTE_PATHS.MAP}`, mapRoutes);
+  app.use(`${apiV1}${ROUTE_PATHS.TRAFFIC}`, trafficRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.ANALYTICS}`, analyticsRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.OLAP}`, olapRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.SIMULATION}`, simulationRoutes);
@@ -75,6 +78,7 @@ export const createApp = (): Express => {
 
   logger.log('Routes registered:', {
     map: `${apiV1}${ROUTE_PATHS.MAP}`,
+    traffic: `${apiV1}${ROUTE_PATHS.TRAFFIC}`,
     analytics: `${apiV1}${ROUTE_PATHS.ANALYTICS}`,
     olap: `${apiV1}${ROUTE_PATHS.OLAP}`,
     simulation: `${apiV1}${ROUTE_PATHS.SIMULATION}`,
