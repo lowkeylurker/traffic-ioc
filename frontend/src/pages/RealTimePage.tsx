@@ -6,9 +6,10 @@ import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
 import { RoutingPanel } from '@/components/widgets/RoutingPanel'
 import { simulationApi } from '@/services/api'
+import { PlaceSearchResult } from '@/types'
 import { useAuth, useUser } from '@clerk/clerk-react'
 import { message } from 'antd'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Marker } from 'react-map-gl'
 import { DashboardPage } from './DashboardPage'
 
@@ -44,18 +45,28 @@ const RealTimeMapOnly: React.FC = () => {
   const [routingDataGeoJSON, setRoutingDataGeoJSON] =
     useState<GeoJSON.FeatureCollection | null>(null)
   const [isRoutingLoading, setIsRoutingLoading] = useState(false)
+  const [shouldAutoRoute, setShouldAutoRoute] = useState(false)
   const [activeRoutingInput, setActiveRoutingInput] = useState<'start' | 'end'>(
     'start'
   )
 
-  const handleGetCurrentLocation = () => {
+  const handleGetCurrentLocation = useCallback((target: 'start' | 'end') => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords
           const coordStr = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
-          setRoutingStartPoint(coordStr)
-          setRawStartPos([longitude, latitude])
+
+          if (target === 'start') {
+            setRoutingStartPoint(coordStr)
+            setRawStartPos([longitude, latitude])
+            setActiveRoutingInput('end')
+          } else {
+            setRoutingEndPoint(coordStr)
+            setRawEndPos([longitude, latitude])
+          }
+
+          setShouldAutoRoute(true)
           message.success('Đã lấy vị trí hiện tại')
         },
         (error) => {
@@ -66,7 +77,7 @@ const RealTimeMapOnly: React.FC = () => {
         }
       )
     }
-  }
+  }, [])
 
   useEffect(() => {
     const contentEl = document.querySelector(
@@ -129,7 +140,7 @@ const RealTimeMapOnly: React.FC = () => {
     }
   }, [routingLayerEnabled, routingStartPoint])
 
-  const handleComputeRoute = async () => {
+  const handleComputeRoute = useCallback(async () => {
     try {
       let startLat, startLng, endLat, endLng
 
@@ -183,7 +194,44 @@ const RealTimeMapOnly: React.FC = () => {
     } finally {
       setIsRoutingLoading(false)
     }
-  }
+  }, [rawEndPos, rawStartPos, routingEndPoint, routingStartPoint])
+
+  const handlePlaceSelect = useCallback(
+    (target: 'start' | 'end', place: PlaceSearchResult) => {
+      if (target === 'start') {
+        setRoutingStartPoint(place.name)
+        setRawStartPos([place.lon, place.lat])
+        setActiveRoutingInput('end')
+      } else {
+        setRoutingEndPoint(place.name)
+        setRawEndPos([place.lon, place.lat])
+      }
+
+      setShouldAutoRoute(true)
+      message.success(`Đã chọn: ${place.name}`)
+    },
+    []
+  )
+
+  useEffect(() => {
+    if (
+      !routingLayerEnabled ||
+      !shouldAutoRoute ||
+      !rawStartPos ||
+      !rawEndPos
+    ) {
+      return
+    }
+
+    setShouldAutoRoute(false)
+    void handleComputeRoute()
+  }, [
+    handleComputeRoute,
+    rawEndPos,
+    rawStartPos,
+    routingLayerEnabled,
+    shouldAutoRoute,
+  ])
 
   const handleMapClickForRouting = (event: mapboxgl.MapLayerMouseEvent) => {
     if (!routingLayerEnabled) return
@@ -300,8 +348,18 @@ const RealTimeMapOnly: React.FC = () => {
         loading={isRoutingLoading}
         activeInput={activeRoutingInput}
         routeGeoJSON={routingDataGeoJSON}
-        onStartChange={setRoutingStartPoint}
-        onEndChange={setRoutingEndPoint}
+        onStartChange={(value) => {
+          setRoutingStartPoint(value)
+          setRawStartPos(null)
+          setRoutingDataGeoJSON(null)
+        }}
+        onEndChange={(value) => {
+          setRoutingEndPoint(value)
+          setRawEndPos(null)
+          setRoutingDataGeoJSON(null)
+        }}
+        onStartPlaceSelect={(place) => handlePlaceSelect('start', place)}
+        onEndPlaceSelect={(place) => handlePlaceSelect('end', place)}
         onActiveInputSet={setActiveRoutingInput}
         onComputeRoute={handleComputeRoute}
         onGetCurrentLocation={handleGetCurrentLocation}
@@ -316,6 +374,7 @@ const RealTimeMapOnly: React.FC = () => {
           setRawStartPos(rawEndPos)
           setRoutingEndPoint(sText)
           setRawEndPos(sRaw)
+          setShouldAutoRoute(true)
         }}
       />
 
