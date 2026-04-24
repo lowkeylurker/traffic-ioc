@@ -416,6 +416,14 @@ export interface RoutingData {
   estimatedTime: number
 }
 
+export interface PlaceSearchResult {
+  id: string
+  name: string
+  address: string
+  lat: number
+  lon: number
+}
+
 export interface ApiResponse<T = any> {
   success: boolean
   statusCode: number

@@ -1,21 +1,33 @@
 // Map Legend Component
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 
 interface LegendItem {
   label: string
   color: string
-  range: string
+  grade: string
 }
 
 export const MapLegend: React.FC = () => {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 768px)')
+
+    const update = () => setIsMobile(mediaQuery.matches)
+    update()
+
+    mediaQuery.addEventListener('change', update)
+    return () => mediaQuery.removeEventListener('change', update)
+  }, [])
+
   const items: LegendItem[] = [
-    { label: 'Thông thoáng', color: '#52C41A', range: 'LOS A' },
-    { label: 'Khá thông thoáng', color: '#73D13D', range: 'LOS B' },
-    { label: 'Trung bình', color: '#FAAD14', range: 'LOS C' },
-    { label: 'Mật độ cao', color: '#D46B08', range: 'LOS D' },
-    { label: 'Đông xe', color: '#CF1322', range: 'LOS E' },
-    { label: 'Ùn tắc nghiêm trọng', color: '#820014', range: 'LOS F' },
+    { grade: 'A', label: 'Thông thoáng', color: '#52C41A' },
+    { grade: 'B', label: 'Khá thông thoáng', color: '#73D13D' },
+    { grade: 'C', label: 'Trung bình', color: '#FAAD14' },
+    { grade: 'D', label: 'Mật độ cao', color: '#D46B08' },
+    { grade: 'E', label: 'Đông xe', color: '#CF1322' },
+    { grade: 'F', label: 'Ùn tắc nặng', color: '#820014' },
   ]
 
   return (
@@ -26,64 +38,57 @@ export const MapLegend: React.FC = () => {
         right: 44,
         zIndex: 10,
         background: 'rgba(255, 255, 255, 0.96)',
-        backdropFilter: 'blur(8px)',
-        borderRadius: 8,
-        padding: '6px 8px',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.10)',
-        border: '1px solid rgba(0, 0, 0, 0.06)',
+        backdropFilter: 'blur(10px)',
+        borderRadius: isMobile ? 8 : 10,
+        padding: '5px 7px',
+        width: 170,
+        maxWidth: isMobile ? '220px' : 'none',
+        minWidth: isMobile ? 170 : 'auto',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+        border: '1px solid rgba(0, 0, 0, 0.08)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 6,
-        alignItems: 'center',
+        gap: isMobile ? 3 : 6,
       }}
     >
       <div
         style={{
-          fontSize: 11,
-          fontWeight: 700,
-          color: 'rgba(0, 0, 0, 0.65)',
-          alignSelf: 'flex-start',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+          gap: 2,
+          alignItems: 'stretch',
         }}
-      >
-        LOS
-      </div>
-      <div
-        style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: 6 }}
       >
         {items.map((item) => (
           <div
-            key={item.range}
+            key={item.grade}
             style={{
               display: 'flex',
+              justifyContent: 'center',
               alignItems: 'center',
-              gap: 6,
-              minWidth: 160,
+              borderRadius: 4,
+              height: 6,
+              backgroundColor: item.color,
             }}
-            title={item.range}
+            title={`LOS ${item.grade}: ${item.label}`}
           >
-            <div
-              style={{
-                width: 14,
-                height: 3,
-                borderRadius: 2,
-                backgroundColor: item.color,
-                flexShrink: 0,
-              }}
-            />
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: '#001529',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {item.range}: {item.label}
-            </div>
+            <span style={{ display: 'none' }}>{item.grade}</span>
           </div>
         ))}
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: isMobile ? 9 : 11,
+          color: 'rgba(0, 0, 0, 0.72)',
+          paddingInline: 1,
+          fontWeight: 600,
+        }}
+      >
+        <span>Nhanh</span>
+        <span>Chậm</span>
       </div>
     </div>
   )

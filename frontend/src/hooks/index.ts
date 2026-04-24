@@ -4,3 +4,5 @@ export {
   useAnalytics,
   useWeather,
 } from './useTraffic'
+export { useDebounce } from './useDebounce'
+export { usePlaceSearch } from './usePlaceSearch'

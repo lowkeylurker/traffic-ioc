@@ -11,27 +11,33 @@ import {
   ExperimentOutlined,
   EyeOutlined,
   LogoutOutlined,
+  MenuOutlined,
   NotificationOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import { useAuth, useUser } from '@clerk/clerk-react'
-import { Button, Layout, Menu } from 'antd'
+import { Button, Drawer, Grid, Layout, Menu } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 const { Sider, Content } = Layout
+const { useBreakpoint } = Grid
 
 export const MainLayout: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { isSignedIn, signOut, getToken } = useAuth()
   const { user } = useUser()
+  const screens = useBreakpoint()
   const [collapsed, setCollapsed] = useState(true)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
 
   // Guest mode is when user is not signed in
   const isGuest = !isSignedIn
   const isAdmin = isSignedIn && user?.publicMetadata?.role === 'admin'
+  const isUserMode = !isAdmin
+  const isMobileUserView = isUserMode && !screens.lg
 
   useEffect(() => {
     setAccessTokenGetter(async () => {
@@ -45,6 +51,10 @@ export const MainLayout: React.FC = () => {
       setAccessTokenGetter(null)
     }
   }, [getToken, isSignedIn])
+
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
 
   const visibleMenuItems = [
     {
@@ -105,106 +115,171 @@ export const MainLayout: React.FC = () => {
     navigate('/real-time')
   }
 
+  const renderMenuFooter = (isCollapsed: boolean, isDrawer = false) => (
+    <div
+      style={{
+        marginTop: 'auto',
+        padding: isCollapsed ? '16px 8px' : '16px',
+        borderTop: '1px solid #f0f0f0',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        transition: 'all 0.2s',
+      }}
+    >
+      {isGuest ? (
+        <Button
+          type="primary"
+          block={!isCollapsed || isDrawer}
+          onClick={() => {
+            setAuthDialogOpen(true)
+            if (isDrawer) {
+              setMobileMenuOpen(false)
+            }
+          }}
+          icon={isCollapsed && !isDrawer ? <UserOutlined /> : undefined}
+          style={{ padding: isCollapsed && !isDrawer ? 0 : undefined }}
+        >
+          {(!isCollapsed || isDrawer) && 'Đăng nhập / Đăng ký'}
+        </Button>
+      ) : (
+        <>
+          {(!isCollapsed || isDrawer) && (
+            <span
+              style={{
+                fontSize: 12,
+                color: 'rgba(0, 0, 0, 0.65)',
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {user?.firstName} {user?.lastName}
+            </span>
+          )}
+          <Button
+            type={isCollapsed && !isDrawer ? 'primary' : 'text'}
+            icon={<LogoutOutlined />}
+            onClick={async () => {
+              if (isDrawer) {
+                setMobileMenuOpen(false)
+              }
+              await handleLogout()
+            }}
+            size="small"
+            block
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent:
+                isCollapsed && !isDrawer ? 'center' : 'flex-start',
+            }}
+          >
+            {(!isCollapsed || isDrawer) && 'Đăng xuất'}
+          </Button>
+        </>
+      )}
+    </div>
+  )
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        width={LAYOUT_SIDER_WIDTH}
-        theme="light"
-        collapsible
-        collapsed={collapsed}
-        onCollapse={(value) => setCollapsed(value)}
-        style={{
-          background: '#ffffff',
-          borderRight: '1px solid #f0f0f0',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <div
+      {!isMobileUserView && (
+        <Sider
+          width={LAYOUT_SIDER_WIDTH}
+          theme="light"
+          collapsible
+          collapsed={collapsed}
+          onCollapse={(value) => setCollapsed(value)}
           style={{
-            flex: 1,
+            background: '#ffffff',
+            borderRight: '1px solid #f0f0f0',
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden',
           }}
         >
           <div
             style={{
-              padding: '16px',
-              textAlign: collapsed ? 'center' : 'left',
-              color: '#001529',
-              fontSize: collapsed ? 20 : 18,
-              fontWeight: 'bold',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.2s',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
             }}
           >
-            {collapsed ? '🚦' : 'Traffic IOC'}
-          </div>
-          <Menu
-            theme="light"
-            mode="inline"
-            selectedKeys={[location.pathname]}
-            items={visibleMenuItems}
-            onClick={(item) => navigate(item.key)}
-            style={{ flex: 1, borderInlineEnd: 'none' }}
-          />
-        </div>
-        <div
-          style={{
-            marginTop: 'auto',
-            padding: collapsed ? '16px 8px' : '16px',
-            borderTop: '1px solid #f0f0f0',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            transition: 'all 0.2s',
-          }}
-        >
-          {isGuest ? (
-            <Button
-              type="primary"
-              block={!collapsed}
-              onClick={() => setAuthDialogOpen(true)}
-              icon={collapsed ? <UserOutlined /> : undefined}
-              style={{ padding: collapsed ? 0 : undefined }}
+            <div
+              style={{
+                padding: '16px',
+                textAlign: collapsed ? 'center' : 'left',
+                color: '#001529',
+                fontSize: collapsed ? 20 : 18,
+                fontWeight: 'bold',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.2s',
+              }}
             >
-              {!collapsed && 'Đăng nhập / Đăng ký'}
-            </Button>
-          ) : (
-            <>
-              {!collapsed && (
-                <span
-                  style={{
-                    fontSize: 12,
-                    color: 'rgba(0, 0, 0, 0.65)',
-                    textAlign: 'center',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  {user?.firstName} {user?.lastName}
-                </span>
-              )}
-              <Button
-                type={collapsed ? 'primary' : 'text'}
-                icon={<LogoutOutlined />}
-                onClick={handleLogout}
-                size="small"
-                block
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: collapsed ? 'center' : 'flex-start',
-                }}
-              >
-                {!collapsed && 'Đăng xuất'}
-              </Button>
-            </>
-          )}
-        </div>
-      </Sider>
+              {collapsed ? '🚦' : 'Traffic IOC'}
+            </div>
+            <Menu
+              theme="light"
+              mode="inline"
+              selectedKeys={[location.pathname]}
+              items={visibleMenuItems}
+              onClick={(item) => navigate(item.key)}
+              style={{ flex: 1, borderInlineEnd: 'none' }}
+            />
+          </div>
+          {renderMenuFooter(collapsed)}
+        </Sider>
+      )}
+
+      {isMobileUserView && (
+        <>
+          <Button
+            type="primary"
+            shape="circle"
+            icon={<MenuOutlined />}
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Mở menu"
+            style={{
+              position: 'fixed',
+              top: 12,
+              right: 12,
+              zIndex: 1200,
+              boxShadow: '0 8px 18px rgba(0, 21, 41, 0.24)',
+            }}
+          />
+
+          <Drawer
+            placement="right"
+            width={280}
+            open={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+            title="Traffic IOC"
+            styles={{
+              body: {
+                padding: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+              },
+            }}
+          >
+            <Menu
+              theme="light"
+              mode="inline"
+              selectedKeys={[location.pathname]}
+              items={visibleMenuItems}
+              onClick={(item) => {
+                setMobileMenuOpen(false)
+                navigate(item.key)
+              }}
+              style={{ flex: 1, borderInlineEnd: 'none' }}
+            />
+            {renderMenuFooter(false, true)}
+          </Drawer>
+        </>
+      )}
 
       <Layout>
         <Content style={{ padding: 0, background: '#f0f2f5' }}>
