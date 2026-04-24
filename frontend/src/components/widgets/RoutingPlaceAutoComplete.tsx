@@ -36,7 +36,7 @@ export const RoutingPlaceAutoComplete: React.FC<
         label: (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <span style={{ fontWeight: 600, color: '#0e7490' }}>
-              Vị trí hiện tại của tôi
+              Vị trí của tôi
             </span>
             <span style={{ fontSize: 12, color: '#64748b' }}>
               Dùng GPS thiết bị để đặt vị trí
@@ -83,8 +83,10 @@ export const RoutingPlaceAutoComplete: React.FC<
       onSearch={onChange}
       onChange={onChange}
       onFocus={onFocus}
-      placeholder={placeholder}
       filterOption={false}
+      popupClassName="routing-place-dropdown"
+      popupMatchSelectWidth
+      listHeight={240}
       style={{ width: '100%' }}
     >
       <Input

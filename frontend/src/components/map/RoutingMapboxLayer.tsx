@@ -8,21 +8,35 @@ interface RoutingMapboxLayerProps {
   rawEnd?: [number, number] | null
 }
 
-export const RoutingMapboxLayer: React.FC<RoutingMapboxLayerProps> = ({ 
+export const RoutingMapboxLayer: React.FC<RoutingMapboxLayerProps> = ({
   routeGeoJSON,
   rawStart,
-  rawEnd 
+  rawEnd,
 }) => {
   // Main route styles
+  const casingLayerStyle = useMemo<LineLayer>(
+    () => ({
+      id: 'routing-casing-layer',
+      type: 'line',
+      paint: {
+        'line-color': '#0f172a',
+        'line-width': 10,
+        'line-opacity': 0.85,
+      },
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+    }),
+    []
+  )
+
   const glowLayerStyle = useMemo<LineLayer>(
     () => ({
       id: 'routing-glow-layer',
       type: 'line',
       paint: {
-        'line-color': '#00ffff',
-        'line-width': 12,
-        'line-opacity': 0.3,
-        'line-blur': 6,
+        'line-color': '#f8fafc',
+        'line-width': 8,
+        'line-opacity': 0.55,
+        'line-blur': 2,
       },
       layout: { 'line-join': 'round', 'line-cap': 'round' },
     }),
@@ -34,8 +48,8 @@ export const RoutingMapboxLayer: React.FC<RoutingMapboxLayerProps> = ({
       id: 'routing-core-layer',
       type: 'line',
       paint: {
-        'line-color': '#00d2ff',
-        'line-width': 5,
+        'line-color': '#2563eb',
+        'line-width': 4,
         'line-opacity': 1,
       },
       layout: { 'line-join': 'round', 'line-cap': 'round' },
@@ -67,9 +81,9 @@ export const RoutingMapboxLayer: React.FC<RoutingMapboxLayerProps> = ({
         type: 'Feature' as const,
         geometry: {
           type: 'LineString' as const,
-          coordinates: [rawStart, props.startSnapped]
+          coordinates: [rawStart, props.startSnapped],
         },
-        properties: {}
+        properties: {},
       })
     }
     if (rawEnd && props.endSnapped) {
@@ -77,28 +91,33 @@ export const RoutingMapboxLayer: React.FC<RoutingMapboxLayerProps> = ({
         type: 'Feature' as const,
         geometry: {
           type: 'LineString' as const,
-          coordinates: [rawEnd, props.endSnapped]
+          coordinates: [rawEnd, props.endSnapped],
         },
-        properties: {}
+        properties: {},
       })
     }
-    return { 
-      type: 'FeatureCollection' as const, 
-      features 
+    return {
+      type: 'FeatureCollection' as const,
+      features,
     }
   }, [routeGeoJSON, rawStart, rawEnd])
 
-  if (!routeGeoJSON || !routeGeoJSON.features || routeGeoJSON.features.length === 0) {
+  if (
+    !routeGeoJSON ||
+    !routeGeoJSON.features ||
+    routeGeoJSON.features.length === 0
+  ) {
     return null
   }
 
   return (
     <>
       <Source id="dynamic-route-source" type="geojson" data={routeGeoJSON}>
+        <Layer {...casingLayerStyle} />
         <Layer {...glowLayerStyle} />
         <Layer {...coreLayerStyle} />
       </Source>
-      
+
       {dashGeoJSON && (
         <Source id="routing-dash-source" type="geojson" data={dashGeoJSON}>
           <Layer {...dashLayerStyle} />

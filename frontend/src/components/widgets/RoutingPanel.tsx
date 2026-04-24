@@ -131,7 +131,8 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
-              gap: '8px',
+              gap: '16px',
+              padding: '4px 0',
             }}
           >
             <RoutingPlaceAutoComplete

@@ -14,6 +14,7 @@ import { Marker } from 'react-map-gl'
 import { DashboardPage } from './DashboardPage'
 
 const RealTimeMapOnly: React.FC = () => {
+  const MY_LOCATION_LABEL = 'Vị trí của tôi'
   const segmentData = null
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
   const apiOrigin = useMemo(() => {
@@ -50,34 +51,36 @@ const RealTimeMapOnly: React.FC = () => {
     'start'
   )
 
-  const handleGetCurrentLocation = useCallback((target: 'start' | 'end') => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords
-          const coordStr = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+  const handleGetCurrentLocation = useCallback(
+    (target: 'start' | 'end') => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords
 
-          if (target === 'start') {
-            setRoutingStartPoint(coordStr)
-            setRawStartPos([longitude, latitude])
-            setActiveRoutingInput('end')
-          } else {
-            setRoutingEndPoint(coordStr)
-            setRawEndPos([longitude, latitude])
+            if (target === 'start') {
+              setRoutingStartPoint(MY_LOCATION_LABEL)
+              setRawStartPos([longitude, latitude])
+              setActiveRoutingInput('end')
+            } else {
+              setRoutingEndPoint(MY_LOCATION_LABEL)
+              setRawEndPos([longitude, latitude])
+            }
+
+            setShouldAutoRoute(true)
+            message.success('Đã lấy vị trí hiện tại')
+          },
+          (error) => {
+            console.warn('Geolocation error', error)
+            message.error(
+              'Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập.'
+            )
           }
-
-          setShouldAutoRoute(true)
-          message.success('Đã lấy vị trí hiện tại')
-        },
-        (error) => {
-          console.warn('Geolocation error', error)
-          message.error(
-            'Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập.'
-          )
-        }
-      )
-    }
-  }, [])
+        )
+      }
+    },
+    [MY_LOCATION_LABEL]
+  )
 
   useEffect(() => {
     const contentEl = document.querySelector(
@@ -128,9 +131,12 @@ const RealTimeMapOnly: React.FC = () => {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (position) => {
-            setRoutingStartPoint(
-              `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`
-            )
+            setRoutingStartPoint(MY_LOCATION_LABEL)
+            setRawStartPos([
+              position.coords.longitude,
+              position.coords.latitude,
+            ])
+            setActiveRoutingInput('end')
           },
           (error) => {
             console.warn('Geolocation disabled or denied', error)
@@ -138,7 +144,7 @@ const RealTimeMapOnly: React.FC = () => {
         )
       }
     }
-  }, [routingLayerEnabled, routingStartPoint])
+  }, [MY_LOCATION_LABEL, routingLayerEnabled, routingStartPoint])
 
   const handleComputeRoute = useCallback(async () => {
     try {
