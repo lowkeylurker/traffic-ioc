@@ -102,56 +102,65 @@ export class SimulationService {
 
       logger.log(`Found Routing Nodes - Start: ${startNode}, End: ${endNode}`);
 
-      // 2. Chạy pgRouting pgr_dijkstra kết hợp CTE lấy LineString
-      // View `view_dynamic_routing_edges` đã có logic cost = length / speed. Tuy nhiên prompt nói "Cost = length * TTI...".
-      // Do schema DB `view_dynamic_routing_edges` đã tạo hàm cost tối ưu (length / speed, hoặc distance / (tti-based-speed)),
-      // Ở đây ta cứ dùng nguyên view `view_dynamic_routing_edges` theo đúng query bạn đã set ở DB step 4.
+      // 2. Chạy pgRouting pgr_bdAstar và build GeoJSON trực tiếp từ SQL
       const routingSql = `
         WITH route AS (
-          SELECT * FROM pgr_dijkstra(
-            'SELECT id, source, target, cost, reverse_cost FROM view_dynamic_routing_edges',
+          SELECT * FROM pgr_bdAstar(
+            'SELECT id, source, target, cost, reverse_cost, ST_X(ST_StartPoint(geom)) as x1, ST_Y(ST_StartPoint(geom)) as y1, ST_X(ST_EndPoint(geom)) as x2, ST_Y(ST_EndPoint(geom)) as y2 FROM view_dynamic_routing_edges',
             $1::integer, $2::integer, directed := true
           )
+        ),
+        route_features AS (
+          SELECT 
+            r.cost as edge_time,
+            ST_Length(ds.geometry_linestring::geography) as edge_distance,
+            json_build_object(
+              'type', 'Feature',
+              'geometry', ST_AsGeoJSON(ds.geometry_linestring)::json,
+              'properties', jsonb_build_object(
+                'route_seq', r.seq,
+                'route_node', r.node,
+                'route_edge', r.edge,
+                'route_cost', r.cost,
+                'route_agg_cost', r.agg_cost
+              ) || (to_jsonb(ds.*) - 'geometry_linestring')
+            ) AS feature
+          FROM route r
+          INNER JOIN dim_segment ds ON r.edge = ds.segment_key
+          ORDER BY r.seq
         )
         SELECT 
-          ST_AsGeoJSON(ST_Union(v.geom_way)) as geojson_route,
-          SUM(v.distance_m) as total_distance_m,
-          SUM(r.cost) as total_time_seconds,
-          COUNT(v.id) as segment_count
-        FROM route r
-        JOIN routing_edges v ON r.edge = v.id;
+          json_build_object(
+            'type', 'FeatureCollection',
+            'features', COALESCE(json_agg(feature), '[]'::json)
+          ) AS geojson,
+          SUM(edge_distance) as total_distance_m,
+          SUM(edge_time) as total_time_seconds,
+          COUNT(feature) as segment_count
+        FROM route_features;
       `;
 
       const routeRes = await query(routingSql, [startNode, endNode]);
 
-      if (!routeRes.rows.length || !routeRes.rows[0].geojson_route) {
+      if (!routeRes.rows.length || !routeRes.rows[0].geojson) {
         throw new Error('No route could be found between the given points.');
       }
 
-      const geoJsonGeom = JSON.parse(routeRes.rows[0].geojson_route);
-      const totalDistanceM = parseFloat(routeRes.rows[0].total_distance_m || '0');
-      const totalTimeSec = parseFloat(routeRes.rows[0].total_time_seconds || '0');
-      const segmentCount = parseInt(routeRes.rows[0].segment_count || '0', 10);
-
-      return {
-        type: 'FeatureCollection',
-        features: [
-          {
-            type: 'Feature',
-            geometry: geoJsonGeom,
-            properties: {
-              startNode,
-              endNode,
-              isDynamicRoute: true,
-              totalDistanceM,
-              totalTimeSec,
-              segmentCount,
-              startSnapped,
-              endSnapped
-            }
-          }
-        ]
+      const { geojson, total_distance_m, total_time_seconds, segment_count } = routeRes.rows[0];
+      
+      // Inject metadata vào cấp cao nhất của FeatureCollection mà không dùng vòng lặp
+      geojson.properties = {
+        startNode,
+        endNode,
+        startSnapped,
+        endSnapped,
+        isDynamicRoute: true,
+        totalDistanceM: total_distance_m,
+        totalTimeSec: total_time_seconds,
+        segmentCount: parseInt(segment_count || '0', 10)
       };
+
+      return geojson;
     } catch (error) {
       logger.error('Error querying dynamic route', error);
       throw error;

@@ -373,14 +373,14 @@ export const RoutingPanel: React.FC<RoutingPanelProps> = ({
               }}
             >
               {(() => {
-                const props = routeGeoJSON.features[0].properties
+                const props = routeGeoJSON?.properties || routeGeoJSON?.features?.[0]?.properties || {}
                 const sec = props.totalTimeSec || 0
                 const mins = Math.ceil(sec / 60)
                 const durationText =
                   mins >= 60
                     ? `${Math.floor(mins / 60)}h ${mins % 60}m`
                     : `${mins}m`
-                const durationTextCompact = `${mins}m`
+                const durationTextCompact = durationText
                 const distanceText = `${(props.totalDistanceM / 1000).toFixed(1)}km`
 
                 if (isCompactMode) {
