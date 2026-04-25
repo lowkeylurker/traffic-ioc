@@ -353,424 +353,463 @@ export const HistoricalQueryPage: React.FC = () => {
   }
 
   return (
-    <div
-      style={{
-        padding: 16,
-        height: '100%', // Use viewport height minus news ticker
-        minHeight: 0,
-        boxSizing: 'border-box',
-        overflow: 'hidden',
-      }}
-    >
+    <>
+      <style>
+        {`
+      .ant-spin-nested-loading {
+  height: 100%;
+}
+
+.ant-spin-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.ant-table {
+  flex: 1;
+  min-height: 0 !important;
+  overflow-y: hidden;
+}
+
+.ant-table-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ant-table-body {
+  flex: 1;
+  overflow-y: auto !important;
+  max-height: 100% !important;
+  height: 100%;
+}
+      `}
+      </style>
       <div
         style={{
-          width: '100%',
-          height: '100%',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
+          padding: 16,
+          height: '100%', // Use viewport height minus news ticker
           minHeight: 0,
+          boxSizing: 'border-box',
+          overflow: 'hidden',
         }}
       >
         <div
           style={{
+            width: '100%',
+            height: '100%',
+            overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            gap: 2,
-          }}
-        >
-          <Title level={4} style={{ marginBottom: 0 }}>
-            Tra cứu Lịch sử tình trạng giao thông
-          </Title>
-          <Text type="secondary">
-            Cung cấp báo cáo lịch sử tình trạng giao thông, cho phép truy vấn và
-            phân tích dữ liệu giao thông trong quá khứ, bao gồm tốc độ trung
-            bình, chỉ số giao thông, và trạng thái tắc nghẽn.
-          </Text>
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gap: 8,
-            flex: 1,
-            gridTemplateColumns: screens.lg
-              ? 'minmax(260px, 1fr) minmax(0, 4fr)'
-              : 'minmax(0, 1fr)',
-            alignItems: 'stretch', // Ensure cards stretch to fill row height
+            gap: 12,
             minHeight: 0,
-            overflow: 'hidden',
           }}
         >
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: 8,
-              minHeight: 0,
-              height: '100%',
-              maxHeight: '100%',
-              overflowY: screens.lg ? 'auto' : 'visible',
-              overflowX: 'hidden',
-              paddingRight: screens.lg ? 4 : 0,
-              alignItems: 'stretch',
-              justifyContent: 'flex-start',
+              gap: 2,
             }}
           >
-            <Card
-              title="Phân bổ Trạng thái"
-              size="small"
-              style={{
-                borderRadius: 12,
-                boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
-              }}
-              bodyStyle={{ padding: 10 }}
-            >
-              {chartsLoading ? (
-                <div
-                  style={{
-                    width: '100%',
-                    height: 150,
-                    display: 'grid',
-                    placeItems: 'center',
-                  }}
-                >
-                  <Spin tip="Đang tải biểu đồ" />
-                </div>
-              ) : chartsReady ? (
-                <>
-                  <div style={{ width: '100%', height: 150 }}>
-                    <ResponsiveContainer>
-                      <PieChart>
-                        <Pie
-                          data={DONUT_DATA}
-                          dataKey="value"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={44}
-                          outerRadius={64}
-                          paddingAngle={3}
-                        >
-                          {DONUT_DATA.map((entry) => (
-                            <Cell key={entry.name} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value) => `${value}%`} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div
-                    style={{
-                      marginTop: -92,
-                      textAlign: 'center',
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    <Text strong style={{ fontSize: 14 }}>
-                      Tổng: 430k
-                    </Text>
-                    <br />
-                    <Text type="secondary">segments</Text>
-                  </div>
-                  <Space wrap size={6} style={{ marginTop: 4 }}>
-                    {DONUT_DATA.map((item) => (
-                      <Tag key={item.name} color={item.color}>
-                        {item.label}: {item.value}%
-                      </Tag>
-                    ))}
-                  </Space>
-                </>
-              ) : (
-                <div
-                  style={{
-                    width: '100%',
-                    height: 150,
-                    display: 'grid',
-                    placeItems: 'center',
-                    color: '#8c8c8c',
-                    textAlign: 'center',
-                    padding: 12,
-                  }}
-                >
-                  Chưa có dữ liệu biểu đồ.
-                </div>
-              )}
-            </Card>
+            <Title level={4} style={{ marginBottom: 0 }}>
+              Tra cứu Lịch sử tình trạng giao thông
+            </Title>
+            <Text type="secondary">
+              Cung cấp báo cáo lịch sử tình trạng giao thông, cho phép truy vấn
+              và phân tích dữ liệu giao thông trong quá khứ, bao gồm tốc độ
+              trung bình, chỉ số giao thông, và trạng thái tắc nghẽn.
+            </Text>
+          </div>
 
-            <Card
-              title="Top 5 điểm nóng"
-              size="small"
+          <div
+            style={{
+              display: 'grid',
+              gap: 8,
+              flex: 1,
+              gridTemplateColumns: screens.lg
+                ? 'minmax(260px, 1fr) minmax(0, 4fr)'
+                : 'minmax(0, 1fr)',
+              alignItems: 'stretch', // Ensure cards stretch to fill row height
+              minHeight: 0,
+              overflow: 'hidden',
+            }}
+          >
+            <div
               style={{
-                borderRadius: 12,
-                boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
-              }}
-              bodyStyle={{ padding: 10 }}
-            >
-              {hotspotsQuery.isLoading ? (
-                <div
-                  style={{
-                    width: '100%',
-                    height: 156,
-                    display: 'grid',
-                    placeItems: 'center',
-                  }}
-                >
-                  <Spin tip="Đang tải điểm nóng" />
-                </div>
-              ) : topHotspots.length > 0 ? (
-                <div style={{ width: '100%', height: 156 }}>
-                  <ResponsiveContainer>
-                    <BarChart
-                      layout="vertical"
-                      data={topHotspots}
-                      margin={{ top: 4, right: 4, left: 4, bottom: 4 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                      <XAxis
-                        type="number"
-                        domain={[0, 1]}
-                        tickFormatter={(value) => value.toFixed(2)}
-                      />
-                      <YAxis
-                        type="category"
-                        dataKey="roadName"
-                        width={120}
-                        tick={{ fontSize: 12 }}
-                        interval={0}
-                      />
-                      <Tooltip
-                        formatter={(value) => Number(value ?? 0).toFixed(2)}
-                      />
-                      <Bar dataKey="trafficIndex" radius={[0, 8, 8, 0]}>
-                        {topHotspots.map((item) => (
-                          <Cell
-                            key={item.roadName}
-                            fill={getHotspotColor(item.trafficIndex)}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div
-                  style={{
-                    width: '100%',
-                    height: 156,
-                    display: 'grid',
-                    placeItems: 'center',
-                    color: '#8c8c8c',
-                    textAlign: 'center',
-                    padding: 12,
-                  }}
-                >
-                  Chưa có dữ liệu điểm nóng phù hợp bộ lọc hiện tại.
-                </div>
-              )}
-            </Card>
-
-            <Card
-              title="Bản đồ nhiệt"
-              size="small"
-              style={{
-                borderRadius: 12,
-                boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
-                flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
+                gap: 8,
+                minHeight: 0,
+                height: '100%',
+                maxHeight: '100%',
+                overflowY: screens.lg ? 'auto' : 'visible',
+                overflowX: 'hidden',
+                paddingRight: screens.lg ? 4 : 0,
+                alignItems: 'stretch',
+                justifyContent: 'flex-start',
               }}
-              extra={
-                <Select
-                  size="small"
-                  style={{ width: 180 }}
-                  placeholder="Chọn mốc giờ"
-                  loading={snapshotsQuery.isFetching}
-                  value={activeSnapshotTime}
-                  allowClear
-                  options={historySnapshotOptions}
-                  onChange={(value) => {
-                    setSelectedSnapshotTime(value ?? undefined)
-                  }}
-                />
-              }
+            >
+              <Card
+                title="Phân bổ Trạng thái"
+                size="small"
+                style={{
+                  borderRadius: 12,
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
+                }}
+                bodyStyle={{ padding: 10 }}
+              >
+                {chartsLoading ? (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: 150,
+                      display: 'grid',
+                      placeItems: 'center',
+                    }}
+                  >
+                    <Spin tip="Đang tải biểu đồ" />
+                  </div>
+                ) : chartsReady ? (
+                  <>
+                    <div style={{ width: '100%', height: 150 }}>
+                      <ResponsiveContainer>
+                        <PieChart>
+                          <Pie
+                            data={DONUT_DATA}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={44}
+                            outerRadius={64}
+                            paddingAngle={3}
+                          >
+                            {DONUT_DATA.map((entry) => (
+                              <Cell key={entry.name} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value) => `${value}%`} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div
+                      style={{
+                        marginTop: -92,
+                        textAlign: 'center',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <Text strong style={{ fontSize: 14 }}>
+                        Tổng: 430k
+                      </Text>
+                      <br />
+                      <Text type="secondary">segments</Text>
+                    </div>
+                    <Space wrap size={6} style={{ marginTop: 4 }}>
+                      {DONUT_DATA.map((item) => (
+                        <Tag key={item.name} color={item.color}>
+                          {item.label}: {item.value}%
+                        </Tag>
+                      ))}
+                    </Space>
+                  </>
+                ) : (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: 150,
+                      display: 'grid',
+                      placeItems: 'center',
+                      color: '#8c8c8c',
+                      textAlign: 'center',
+                      padding: 12,
+                    }}
+                  >
+                    Chưa có dữ liệu biểu đồ.
+                  </div>
+                )}
+              </Card>
+
+              <Card
+                title="Top 5 điểm nóng"
+                size="small"
+                style={{
+                  borderRadius: 12,
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
+                }}
+                bodyStyle={{ padding: 10 }}
+              >
+                {hotspotsQuery.isLoading ? (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: 156,
+                      display: 'grid',
+                      placeItems: 'center',
+                    }}
+                  >
+                    <Spin tip="Đang tải điểm nóng" />
+                  </div>
+                ) : topHotspots.length > 0 ? (
+                  <div style={{ width: '100%', height: 156 }}>
+                    <ResponsiveContainer>
+                      <BarChart
+                        layout="vertical"
+                        data={topHotspots}
+                        margin={{ top: 4, right: 4, left: 4, bottom: 4 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          horizontal={false}
+                        />
+                        <XAxis
+                          type="number"
+                          domain={[0, 1]}
+                          tickFormatter={(value) => value.toFixed(2)}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="roadName"
+                          width={120}
+                          tick={{ fontSize: 12 }}
+                          interval={0}
+                        />
+                        <Tooltip
+                          formatter={(value) => Number(value ?? 0).toFixed(2)}
+                        />
+                        <Bar dataKey="trafficIndex" radius={[0, 8, 8, 0]}>
+                          {topHotspots.map((item) => (
+                            <Cell
+                              key={item.roadName}
+                              fill={getHotspotColor(item.trafficIndex)}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: 156,
+                      display: 'grid',
+                      placeItems: 'center',
+                      color: '#8c8c8c',
+                      textAlign: 'center',
+                      padding: 12,
+                    }}
+                  >
+                    Chưa có dữ liệu điểm nóng phù hợp bộ lọc hiện tại.
+                  </div>
+                )}
+              </Card>
+
+              <Card
+                title="Bản đồ nhiệt"
+                size="small"
+                style={{
+                  borderRadius: 12,
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+                extra={
+                  <Select
+                    size="small"
+                    style={{ width: 180 }}
+                    placeholder="Chọn mốc giờ"
+                    loading={snapshotsQuery.isFetching}
+                    value={activeSnapshotTime}
+                    allowClear
+                    options={historySnapshotOptions}
+                    onChange={(value) => {
+                      setSelectedSnapshotTime(value ?? undefined)
+                    }}
+                  />
+                }
+                bodyStyle={{
+                  padding: 10,
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  minHeight: 0,
+                }}
+              >
+                {mapCardLoading ? (
+                  <div
+                    style={{
+                      flex: 1,
+                      borderRadius: 12,
+                      display: 'grid',
+                      placeItems: 'center',
+                    }}
+                  >
+                    <Spin tip="Đang tải bản đồ theo mốc giờ" />
+                  </div>
+                ) : snapshotMapData ? (
+                  <div style={{ flex: 1, width: '100%', position: 'relative' }}>
+                    <TrafficMap
+                      segmentData={snapshotMapData}
+                      style={{ height: '100%', width: '100%' }}
+                      segmentStatusLayerEnabled
+                      useTomTomFlowTiles={false}
+                      useTomTomIncidentTiles={false}
+                      showHoverPopup={false}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      flex: 1,
+                      borderRadius: 12,
+                      display: 'grid',
+                      placeItems: 'center',
+                      color: '#8c8c8c',
+                      textAlign: 'center',
+                      padding: 12,
+                    }}
+                  >
+                    Chưa có dữ liệu bản đồ cho mốc giờ này.
+                  </div>
+                )}
+              </Card>
+            </div>
+
+            <Card
+              title="Bảng dữ liệu chính"
+              style={{
+                borderRadius: 12,
+                boxShadow: '0 8px 22px rgba(0,0,0,0.08)',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+              }}
               bodyStyle={{
                 padding: 10,
                 flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
-                minHeight: 0,
-              }}
-            >
-              {mapCardLoading ? (
-                <div
-                  style={{
-                    flex: 1,
-                    borderRadius: 12,
-                    display: 'grid',
-                    placeItems: 'center',
-                  }}
-                >
-                  <Spin tip="Đang tải bản đồ theo mốc giờ" />
-                </div>
-              ) : snapshotMapData ? (
-                <div style={{ flex: 1, width: '100%', position: 'relative' }}>
-                  <TrafficMap
-                    segmentData={snapshotMapData}
-                    style={{ height: '100%', width: '100%' }}
-                    segmentStatusLayerEnabled
-                    useTomTomFlowTiles={false}
-                    useTomTomIncidentTiles={false}
-                    showHoverPopup={false}
-                  />
-                </div>
-              ) : (
-                <div
-                  style={{
-                    flex: 1,
-                    borderRadius: 12,
-                    display: 'grid',
-                    placeItems: 'center',
-                    color: '#8c8c8c',
-                    textAlign: 'center',
-                    padding: 12,
-                  }}
-                >
-                  Chưa có dữ liệu bản đồ cho mốc giờ này.
-                </div>
-              )}
-            </Card>
-          </div>
-
-          <Card
-            title="Bảng dữ liệu chính"
-            style={{
-              borderRadius: 12,
-              boxShadow: '0 8px 22px rgba(0,0,0,0.08)',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-            }}
-            bodyStyle={{
-              padding: 10,
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-              minHeight: 0,
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
                 gap: 12,
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <Space wrap>
-                <RangePicker
-                  value={dateRange}
-                  showTime={{ format: 'HH:mm' }}
-                  format="DD/MM/YYYY HH:mm"
-                  onChange={(value) => {
-                    if (!value || !value[0] || !value[1]) {
-                      return
-                    }
-                    const start = value[0]
-                    const end = value[1]
-                    setDateRange([start, end])
-                    setFilters((prev) => ({
-                      ...prev,
-                      startDateTime: start.format('YYYY-MM-DDTHH:mm:ss'),
-                      endDateTime: end.format('YYYY-MM-DDTHH:mm:ss'),
-                    }))
-                    setPage(1)
-                  }}
-                />
-                <Tag color="blue">
-                  {historyQuery.isFetching ? 'Đang tải dữ liệu' : 'Đã cập nhật'}
-                </Tag>
-                <Tag>Tổng bản ghi: {totalItems}</Tag>
-              </Space>
-
-              <Space wrap style={{ marginLeft: screens.md ? 'auto' : 0 }}>
-                <AutoComplete
-                  allowClear
-                  options={roadOptions}
-                  value={quickSearch}
-                  filterOption={(inputValue, option) =>
-                    String(option?.label ?? '')
-                      .toLowerCase()
-                      .includes(inputValue.toLowerCase())
-                  }
-                  onChange={(value) => {
-                    setQuickSearch(value)
-                    setSelectedRoadKey(undefined)
-                    setPage(1)
-                  }}
-                  onSelect={(_, option) => {
-                    setQuickSearch(String(option.label ?? ''))
-                    setSelectedRoadKey(
-                      String((option as { roadKey?: string }).roadKey ?? '')
-                    )
-                    setPage(1)
-                  }}
-                >
-                  <Input
-                    allowClear
-                    prefix={<SearchOutlined />}
-                    placeholder="Tìm đường..."
-                    style={{ width: screens.md ? 280 : 220 }}
-                  />
-                </AutoComplete>
-                <Button
-                  type="default"
-                  icon={<ExportOutlined />}
-                  loading={exporting}
-                  onClick={() => {
-                    void handleExport()
-                  }}
-                >
-                  Xuất CSV
-                </Button>
-              </Space>
-            </div>
-
-            <div
-              style={{
-                flex: 1,
                 minHeight: 0,
                 overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
               }}
             >
-              <Table<HistoryRecord>
-                rowKey={(record) => `${record.timestamp}-${record.segmentId}`}
-                loading={historyQuery.isFetching}
-                columns={columns}
-                dataSource={tableData}
-                pagination={pagination}
-                style={{ height: '100%' }}
-                scroll={{ x: 1100, y: 'calc(100% - 240px)' }}
-                onChange={(nextPagination) => {
-                  if (nextPagination.current) {
-                    setPage(nextPagination.current)
-                  }
-                  if (nextPagination.pageSize) {
-                    setPageSize(nextPagination.pageSize)
-                  }
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                 }}
-              />
-            </div>
-          </Card>
+              >
+                <Space wrap>
+                  <RangePicker
+                    value={dateRange}
+                    showTime={{ format: 'HH:mm' }}
+                    format="DD/MM/YYYY HH:mm"
+                    onChange={(value) => {
+                      if (!value || !value[0] || !value[1]) {
+                        return
+                      }
+                      const start = value[0]
+                      const end = value[1]
+                      setDateRange([start, end])
+                      setFilters((prev) => ({
+                        ...prev,
+                        startDateTime: start.format('YYYY-MM-DDTHH:mm:ss'),
+                        endDateTime: end.format('YYYY-MM-DDTHH:mm:ss'),
+                      }))
+                      setPage(1)
+                    }}
+                  />
+                  <Tag color="blue">
+                    {historyQuery.isFetching
+                      ? 'Đang tải dữ liệu'
+                      : 'Đã cập nhật'}
+                  </Tag>
+                  <Tag>Tổng bản ghi: {totalItems}</Tag>
+                </Space>
+
+                <Space wrap style={{ marginLeft: screens.md ? 'auto' : 0 }}>
+                  <AutoComplete
+                    allowClear
+                    options={roadOptions}
+                    value={quickSearch}
+                    filterOption={(inputValue, option) =>
+                      String(option?.label ?? '')
+                        .toLowerCase()
+                        .includes(inputValue.toLowerCase())
+                    }
+                    onChange={(value) => {
+                      setQuickSearch(value)
+                      setSelectedRoadKey(undefined)
+                      setPage(1)
+                    }}
+                    onSelect={(_, option) => {
+                      setQuickSearch(String(option.label ?? ''))
+                      setSelectedRoadKey(
+                        String((option as { roadKey?: string }).roadKey ?? '')
+                      )
+                      setPage(1)
+                    }}
+                  >
+                    <Input
+                      allowClear
+                      prefix={<SearchOutlined />}
+                      placeholder="Tìm đường..."
+                      style={{ width: screens.md ? 280 : 220 }}
+                    />
+                  </AutoComplete>
+                  <Button
+                    type="default"
+                    icon={<ExportOutlined />}
+                    loading={exporting}
+                    onClick={() => {
+                      void handleExport()
+                    }}
+                  >
+                    Xuất CSV
+                  </Button>
+                </Space>
+              </div>
+
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <Table<HistoryRecord>
+                  rowKey={(record) => `${record.timestamp}-${record.segmentId}`}
+                  loading={historyQuery.isFetching}
+                  columns={columns}
+                  dataSource={tableData}
+                  pagination={pagination}
+                  style={{ height: '100%' }}
+                  scroll={{ x: 1100, y: 'calc(100% - 240px)' }}
+                  onChange={(nextPagination) => {
+                    if (nextPagination.current) {
+                      setPage(nextPagination.current)
+                    }
+                    if (nextPagination.pageSize) {
+                      setPageSize(nextPagination.pageSize)
+                    }
+                  }}
+                />
+              </div>
+            </Card>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
