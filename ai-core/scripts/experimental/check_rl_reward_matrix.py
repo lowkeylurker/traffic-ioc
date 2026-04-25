@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
@@ -13,20 +13,20 @@ from src.rl.environments.traffic_env import TrafficForecastingEnv
 
 
 def main() -> None:
-    print("--- KIỂM TRA BẢNG ĐIỂM THƯỞNG/PHẠT TOÀN DIỆN (36 TRƯỜNG HỢP) ---")
+    print("--- KIEM TRA BANG DIEM THUONG/PHAT TOAN DIEN (36 TRUONG HOP) ---")
 
     env_mock = TrafficForecastingEnv(dataloader=[])
 
     level_names = {
-        0: "Mức 0 (Rất thoáng)",
-        1: "Mức 1 (Thoáng)",
-        2: "Mức 2 (Hơi đông)",
-        3: "Mức 3 (Ùn ứ)",
-        4: "Mức 4 (Kẹt nặng)",
-        5: "Mức 5 (Tê liệt)",
+        0: "Muc 0 (Rat thoang)",
+        1: "Muc 1 (Thoang)",
+        2: "Muc 2 (Hoi dong)",
+        3: "Muc 3 (Un u)",
+        4: "Muc 4 (Ket nang)",
+        5: "Muc 5 (Te liet)",
     }
 
-    print(f"{'Thực tế (Target)':<20} | {'Dự báo (Action)':<20} | {'Điểm (Reward)':<15} | {'Phân tích logic'}")
+    print(f"{'Thuc te (Target)':<20} | {'Du bao (Action)':<20} | {'Diem (Reward)':<15} | {'Phan tich logic'}")
     print("=" * 90)
 
     for target in range(6):
@@ -35,15 +35,15 @@ def main() -> None:
             diff = abs(action - target)
 
             if diff == 0:
-                category = "✅ Chính xác tuyệt đối"
+                category = "Chinh xac tuyet doi"
             elif diff == 1:
-                category = "⚠️ Lệch nhẹ (Chấp nhận được)"
+                category = "Lech nhe (Chap nhan duoc)"
             elif target >= 4 and action <= 2:
-                category = "🚨 THẢM HỌA: Bỏ lọt kẹt xe (Phạt cực nặng)"
+                category = "THAM HOA: Bo lot ket xe (Phat cuc nang)"
             elif target <= 2 and action >= 4:
-                category = "🤡 DỌA NGƯỜI DÂN: Báo động giả (Phạt nặng)"
+                category = "DOA NGUOI DAN: Bao dong gia (Phat nang)"
             else:
-                category = "❌ Sai số lớn (Phạt theo độ lệch)"
+                category = "Sai so lon (Phat theo do lech)"
 
             print(f"{level_names[target]:<20} | {level_names[action]:<20} | {reward:<15} | {category}")
 

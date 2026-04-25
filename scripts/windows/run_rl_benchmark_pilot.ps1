@@ -45,7 +45,7 @@ Write-Host " Output: $output"
 Write-Host '========================================'
 
 $cmd = @(
-    'docker', 'compose', 'exec', '-T', 'ai-core', 'python', '-m', 'scripts.run_rl_benchmark_pilot',
+    'docker', 'compose', 'exec', '-T', 'ai-core', 'python', '-m', 'scripts.experimental.run_rl_benchmark_pilot',
     '--seeds', $seeds,
     '--episodes', $episodes,
     '--batch-size', $batchSize,

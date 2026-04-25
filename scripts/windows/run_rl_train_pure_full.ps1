@@ -1,3 +1,8 @@
+param(
+    [ValidateSet('fast', 'balanced', 'full')]
+    [string]$Preset = 'full'
+)
+
 $ErrorActionPreference = 'Stop'
 
 $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
@@ -31,6 +36,7 @@ $env:RL_DEVICE = $rlDevice
 Write-Host '========================================'
 Write-Host ' RL Full Pure Training'
 Write-Host '========================================'
+Write-Host " Profile: $Preset"
 Write-Host " Episodes: $episodes"
 Write-Host " Seed: $seed"
 Write-Host " Metrics: $outputMetrics"
@@ -93,14 +99,14 @@ if ($useGpu -eq '1') {
         'docker', 'compose', '-f', 'docker-compose.yml', '-f', 'docker-compose.gpu.yml', 'run', '--rm'
     )
     $cmd += $envArgs
-    $cmd += @('ai-core', 'python', '-m', 'scripts.run_rl_train_pure_full')
+    $cmd += @('ai-core', 'python', '-m', 'scripts.run_rl_train_pure', '--profile', $Preset, '--device', $rlDevice)
 }
 else {
     $cmd = @(
         'docker', 'compose', 'exec', '-T'
     )
     $cmd += $envArgs
-    $cmd += @('ai-core', 'python', '-m', 'scripts.run_rl_train_pure_full')
+    $cmd += @('ai-core', 'python', '-m', 'scripts.run_rl_train_pure', '--profile', $Preset, '--device', $rlDevice)
 }
 
 & $cmd[0] $cmd[1..($cmd.Length - 1)]

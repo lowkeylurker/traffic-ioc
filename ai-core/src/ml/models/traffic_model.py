@@ -5,6 +5,7 @@ from src.ml.feature_contract import (
     CATEGORICAL_FEATURE_COLS,
     NUM_CLASSES,
     STATIC_MODEL_FEATURE_COLS,
+    DYNAMIC_FEATURE_COLS,
 )
 
 
@@ -36,7 +37,7 @@ class TrafficCongestionModel(nn.Module):
             nn.Dropout(dropout_rate),
         )
 
-        num_dynamic_features = 5
+        num_dynamic_features = len(DYNAMIC_FEATURE_COLS)
         self.lstm = nn.LSTM(
             input_size=num_dynamic_features,
             hidden_size=hidden_dim,

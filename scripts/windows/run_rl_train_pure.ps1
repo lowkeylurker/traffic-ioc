@@ -1,6 +1,6 @@
 param(
     [ValidateSet('fast', 'balanced', 'full')]
-    [string]$Profile = 'balanced',
+    [string]$TrainingPreset = 'balanced',
     [ValidateSet('0', '1')]
     [string]$UseGpu = '1'
 )
@@ -35,7 +35,7 @@ Set-EnvDefault -Name 'RL_USE_CLASS_AWARE_REWARD' -Value '1'
 Set-EnvDefault -Name 'RL_REWARD_SCALE' -Value '1.0'
 Set-EnvDefault -Name 'RL_REWARD_CLIP' -Value '25.0'
 
-switch ($Profile) {
+switch ($TrainingPreset) {
     'fast' {
         Set-EnvDefault -Name 'RL_RUN_ID' -Value 'pure_fast_gpu'
         Set-EnvDefault -Name 'RL_EPISODES' -Value '30'
@@ -95,7 +95,7 @@ switch ($Profile) {
 Write-Host '========================================'
 Write-Host ' RL Pure Training Preset Launcher'
 Write-Host '========================================'
-Write-Host " Profile: $Profile"
+Write-Host " Preset: $TrainingPreset"
 Write-Host " Use GPU: $UseGpu"
 Write-Host " Run ID: $env:RL_RUN_ID"
 Write-Host " Episodes: $env:RL_EPISODES"
@@ -105,4 +105,4 @@ Write-Host " Epsilon decay: $env:RL_EPSILON_DECAY"
 Write-Host " Early-stop patience: $env:RL_EARLY_STOP_PATIENCE"
 Write-Host '========================================'
 
-powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'run_rl_train_pure_full.ps1')
+powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'run_rl_train_pure_full.ps1') -Preset $TrainingPreset

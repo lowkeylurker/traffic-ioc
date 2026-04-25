@@ -7,7 +7,9 @@ import sys
 from pathlib import Path
 from statistics import mean, pstdev
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from src.rl.artifacts import (
     get_rl_benchmark_summary_path,
@@ -40,7 +42,7 @@ def _parse_seeds(raw_value: str | None) -> list[int]:
             continue
         seeds.append(int(value))
     if not seeds:
-        raise ValueError("RL_BENCHMARK_SEEDS không hợp lệ")
+        raise ValueError("RL_BENCHMARK_SEEDS khong hop le")
     return seeds
 
 
@@ -200,7 +202,7 @@ def main() -> None:
 
     print("\n=== RL PILOT BENCHMARK SUMMARY ===")
     print(json.dumps(summary["aggregate"], indent=2, ensure_ascii=False))
-    print(f"\n📝 Pilot summary saved to: {output_path}")
+    print(f"\nPilot summary saved to: {output_path}")
 
 
 if __name__ == "__main__":

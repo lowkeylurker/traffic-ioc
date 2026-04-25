@@ -10,6 +10,7 @@ from src.ml.feature_contract import (
     CATEGORICAL_FEATURE_COLS,
     CLASS_MAPPING,
     DYNAMIC_FEATURE_COLS,
+    NUM_CLASSES,
     STATIC_MODEL_FEATURE_COLS,
 )
 from src.ml.models.traffic_model import TrafficCongestionModel
@@ -31,7 +32,7 @@ class TrafficPredictor:
             vocab_sizes=vocab_sizes,
             embedding_dim=8,
             hidden_dim=64,
-            num_classes=6,
+            num_classes=NUM_CLASSES,
         ).to(self.device)
 
         self.model.load_state_dict(torch.load(model_path, map_location=self.device))

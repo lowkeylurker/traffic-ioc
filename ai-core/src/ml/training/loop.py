@@ -243,7 +243,7 @@ def train_model(
         "best_val_loss": float(best_val_loss),
         "best_train_loss": float(best_train_loss),
         "train_val_gap": float(best_val_loss - best_train_loss),
-        "minority_recall_45": float(best_minority_recall),
+        "minority_recall_last_class": float(best_minority_recall),  # Recall of the last (most critical) class
         "avg_time_per_epoch_sec": float(np.mean(history.get("epoch_time_sec", []))) if history.get("epoch_time_sec") else 0.0,
         "per_class_metrics": per_class_summary,
         "confusion_matrix": cm.tolist(),

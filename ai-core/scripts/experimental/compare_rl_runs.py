@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from statistics import mean, pstdev
+from statistics import mean
 
 
 def _load_json(path: Path) -> dict:
@@ -114,7 +114,7 @@ def main() -> None:
     print("\n=== DELTAS (pure - warmstart) ===")
     for key, value in comparison["deltas"].items():
         print(f"{key}: {value:+.6f}")
-    print(f"\n📝 Comparison JSON saved to: {args.output}")
+    print(f"\nComparison JSON saved to: {args.output}")
 
 
 if __name__ == "__main__":

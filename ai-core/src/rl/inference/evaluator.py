@@ -6,8 +6,10 @@ import numpy as np
 import torch
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_recall_fscore_support
 
+from src.ml.feature_contract import NUM_CLASSES
 
-FOCUS_LABELS = [0, 1, 2, 3]
+
+FOCUS_LABELS = list(range(NUM_CLASSES))
 
 
 def evaluate_policy_net(policy_net, dataloader, device: str = "cpu") -> dict:
@@ -45,7 +47,7 @@ def evaluate_policy_net(policy_net, dataloader, device: str = "cpu") -> dict:
     precision, recall, f1, support = precision_recall_fscore_support(
         all_targets,
         all_preds,
-        labels=[0, 1, 2, 3, 4, 5],
+        labels=list(range(NUM_CLASSES)),
         average=None,
         zero_division=0,
     )
@@ -53,7 +55,7 @@ def evaluate_policy_net(policy_net, dataloader, device: str = "cpu") -> dict:
     macro_f1_0_3 = float(f1_score(all_targets, all_preds, labels=FOCUS_LABELS, average="macro", zero_division=0))
 
     per_class = {}
-    for cls_idx in range(6):
+    for cls_idx in range(NUM_CLASSES):
         per_class[f"class_{cls_idx}"] = {
             "precision": float(precision[cls_idx]),
             "recall": float(recall[cls_idx]),
@@ -61,15 +63,19 @@ def evaluate_policy_net(policy_net, dataloader, device: str = "cpu") -> dict:
             "support": int(support[cls_idx]),
         }
 
-    cm = confusion_matrix(all_targets, all_preds, labels=[0, 1, 2, 3, 4, 5])
+    cm = confusion_matrix(all_targets, all_preds, labels=list(range(NUM_CLASSES)))
+
+    # Focus recall: recall of the last (most critical) class
+    last_class_idx = NUM_CLASSES - 1
+    focus_recall_last = float(recall[last_class_idx])
 
     return {
         "num_samples": int(len(all_targets)),
         "accuracy": float(accuracy_score(all_targets, all_preds)),
         "macro_f1": macro_f1_0_3,
         "macro_f1_0_3": macro_f1_0_3,
-        "focus_recall_3": float(recall[3]),
-        "minority_recall_35": float(recall[3]),
+        "focus_recall_3": focus_recall_last,  # For backward compatibility
+        "minority_recall_35": focus_recall_last,  # For backward compatibility
         "per_class_metrics": per_class,
         "confusion_matrix": cm.tolist(),
     }

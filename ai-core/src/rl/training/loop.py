@@ -7,6 +7,8 @@ import numpy as np
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 import torch
 
+from src.ml.feature_contract import NUM_CLASSES
+
 
 def train_rl_agent(
     env,
@@ -32,9 +34,9 @@ def train_rl_agent(
         "focus_recall_3": [],
         "eval_macro_f1": [],
         "eval_events": [],
-        "per_class_precision": [[] for _ in range(6)],
-        "per_class_recall": [[] for _ in range(6)],
-        "per_class_f1": [[] for _ in range(6)],
+        "per_class_precision": [[] for _ in range(NUM_CLASSES)],
+        "per_class_recall": [[] for _ in range(NUM_CLASSES)],
+        "per_class_f1": [[] for _ in range(NUM_CLASSES)],
     }
 
     best_reward = -float("inf")
@@ -85,15 +87,15 @@ def train_rl_agent(
             ep_precision, ep_recall, ep_f1, _ = precision_recall_fscore_support(
                 episode_targets,
                 episode_preds,
-                labels=[0, 1, 2, 3, 4, 5],
+                labels=list(range(NUM_CLASSES)),
                 average=None,
                 zero_division=0,
             )
-            focus_recall_3 = float(ep_recall[3])
+            focus_recall_3 = float(ep_recall[NUM_CLASSES - 1])
         else:
-            ep_precision = np.zeros(6, dtype=np.float32)
-            ep_recall = np.zeros(6, dtype=np.float32)
-            ep_f1 = np.zeros(6, dtype=np.float32)
+            ep_precision = np.zeros(NUM_CLASSES, dtype=np.float32)
+            ep_recall = np.zeros(NUM_CLASSES, dtype=np.float32)
+            ep_f1 = np.zeros(NUM_CLASSES, dtype=np.float32)
             focus_recall_3 = 0.0
 
         agent.update_epsilon()
@@ -108,7 +110,7 @@ def train_rl_agent(
         history["epsilons"].append(agent.epsilon)
         history["minority_recall_35"].append(focus_recall_3)
         history["focus_recall_3"].append(focus_recall_3)
-        for cls_idx in range(6):
+        for cls_idx in range(NUM_CLASSES):
             history["per_class_precision"][cls_idx].append(float(ep_precision[cls_idx]))
             history["per_class_recall"][cls_idx].append(float(ep_recall[cls_idx]))
             history["per_class_f1"][cls_idx].append(float(ep_f1[cls_idx]))
@@ -172,27 +174,30 @@ def train_rl_agent(
     print("\n✅ HUẤN LUYỆN RL HOÀN TẤT!")
 
     if all_targets:
-        cm = confusion_matrix(all_targets, all_preds, labels=[0, 1, 2, 3, 4, 5])
+        cm = confusion_matrix(all_targets, all_preds, labels=list(range(NUM_CLASSES)))
         precision, recall, f1, support = precision_recall_fscore_support(
             all_targets,
             all_preds,
-            labels=[0, 1, 2, 3, 4, 5],
+            labels=list(range(NUM_CLASSES)),
             average=None,
             zero_division=0,
         )
         final_per_class = {}
-        for cls_idx in range(6):
+        for cls_idx in range(NUM_CLASSES):
             final_per_class[f"class_{cls_idx}"] = {
                 "precision": float(precision[cls_idx]),
                 "recall": float(recall[cls_idx]),
                 "f1": float(f1[cls_idx]),
                 "support": int(support[cls_idx]),
             }
+        
+        last_class_idx = NUM_CLASSES - 1
+        final_focus_recall = float(recall[last_class_idx])
         history["final_summary"] = {
             "confusion_matrix": cm.tolist(),
             "per_class_metrics": final_per_class,
-            "minority_recall_35": float(recall[3]),
-            "focus_recall_3": float(recall[3]),
+            "minority_recall_35": final_focus_recall,
+            "focus_recall_3": final_focus_recall,
             "best_reward": float(best_reward),
             "best_eval_macro_f1": float(best_eval_macro_f1 if best_eval_macro_f1 > -float("inf") else 0.0),
             "stopped_early": bool(stopped_early),

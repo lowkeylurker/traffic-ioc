@@ -8,6 +8,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.ml.feature_contract import NUM_CLASSES
+
 
 class PredictionStatus(str, Enum):
 	OK = "ok"
@@ -37,7 +39,7 @@ class CongestionPredictionItem(BaseModel):
 	model_config = ConfigDict(protected_namespaces=())
 
 	segment_id: int
-	congestion_level: Optional[int] = Field(default=None, ge=0, le=5)
+	congestion_level: Optional[int] = Field(default=None, ge=0, le=NUM_CLASSES - 1)
 	status: PredictionStatus = Field(default=PredictionStatus.OK, description="Prediction status")
 	status_description: Optional[str] = None
 	forecast_for_time: Optional[datetime] = None
