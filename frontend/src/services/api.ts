@@ -96,6 +96,8 @@ export const mapApi = {
   getStatusSnapshots: (params?: {
     limit?: number
     before?: string
+    start?: string
+    end?: string
   }): Promise<ApiResponse<string[]>> =>
     axiosInstance.get('/map/status/snapshots', { params }),
   getSegmentStatus: (

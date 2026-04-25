@@ -68,11 +68,13 @@ export class MapController {
     try {
       logger.log('GET /status/snapshots');
 
-      const limitValue = typeof req.query.limit === 'string' ? Number(req.query.limit) : 12;
-      const limit = Number.isFinite(limitValue) && limitValue > 0 ? Math.min(Math.floor(limitValue), 48) : 12;
+      const limitValue = typeof req.query.limit === 'string' ? Number(req.query.limit) : 100;
+      const limit = Number.isFinite(limitValue) && limitValue > 0 ? Math.min(Math.floor(limitValue), 500) : 100;
       const before = typeof req.query.before === 'string' ? req.query.before : undefined;
+      const start = typeof req.query.start === 'string' ? req.query.start : undefined;
+      const end = typeof req.query.end === 'string' ? req.query.end : undefined;
 
-      const snapshots = await mapService.getTrafficStatusSnapshots(limit, before);
+      const snapshots = await mapService.getTrafficStatusSnapshots({ limit, before, start, end });
       res.json(ResponseUtil.success(snapshots, 'Traffic status snapshots retrieved successfully'));
     } catch (error) {
       next(error);

@@ -441,7 +441,7 @@ export class MapService {
       const asOfCondition = asOf
         ? (() => {
             queryParams.push(asOf);
-            return `AND timestamp <= $${queryParams.length}::timestamp`;
+            return `AND DATE_TRUNC('minute', timestamp) = DATE_TRUNC('minute', $${queryParams.length}::timestamptz AT TIME ZONE 'Asia/Ho_Chi_Minh')`;
           })()
         : `AND timestamp >= NOW() - INTERVAL '15 minutes' AND timestamp::date = CURRENT_DATE`;
 
@@ -540,26 +540,41 @@ export class MapService {
   /**
    * Lấy danh sách mốc giờ snapshot có dữ liệu
    */
-  async getTrafficStatusSnapshots(limit = 12, before?: string): Promise<string[]> {
+  async getTrafficStatusSnapshots(params: {
+    limit?: number;
+    before?: string;
+    start?: string;
+    end?: string;
+  }): Promise<string[]> {
     try {
-      logger.log('Fetching traffic status snapshots');
+      const { limit = 12, before, start, end } = params;
+      logger.log(`Fetching traffic status snapshots (limit: ${limit}, before: ${before}, start: ${start}, end: ${end})`);
 
       const values: Array<string | number> = [];
-      const beforeCondition = before
-        ? (() => {
-            values.push(before);
-            return `AND timestamp <= $${values.length}::timestamp`;
-          })()
-        : '';
+      let whereClause = 'WHERE timestamp IS NOT NULL';
+
+      if (before) {
+        values.push(before);
+        whereClause += ` AND timestamp <= $${values.length}::timestamp`;
+      }
+
+      if (start) {
+        values.push(start);
+        whereClause += ` AND timestamp >= $${values.length}::timestamp`;
+      }
+
+      if (end) {
+        values.push(end);
+        whereClause += ` AND timestamp <= $${values.length}::timestamp`;
+      }
 
       values.push(limit);
 
       const result = await query(
         `
-        SELECT DISTINCT DATE_TRUNC('hour', timestamp) AS snapshot_time
+        SELECT DISTINCT timestamp AS snapshot_time
         FROM fact_traffic_flow
-        WHERE timestamp IS NOT NULL
-        ${beforeCondition}
+        ${whereClause}
         ORDER BY snapshot_time DESC
         LIMIT $${values.length}
         `,

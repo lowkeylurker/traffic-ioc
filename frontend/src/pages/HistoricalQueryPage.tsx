@@ -188,21 +188,25 @@ export const HistoricalQueryPage: React.FC = () => {
     placeholderData: (previous) => previous,
   })
 
+  const snapshotsQuery = useQuery({
+    queryKey: ['history-snapshots', filters.startDateTime, filters.endDateTime],
+    queryFn: async () => {
+      const response = await mapApi.getStatusSnapshots({
+        start: filters.startDateTime,
+        end: filters.endDateTime,
+        limit: 500, // Show up to 500 points in range
+      })
+      return response.data ?? []
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+
   const historySnapshotOptions = useMemo(() => {
-    const uniqueTimestampSet = new Set<string>()
-
-    for (const item of historyQuery.data?.items ?? []) {
-      const exactTimestamp = dayjs(item.timestamp).format('YYYY-MM-DDTHH:mm:ss')
-      uniqueTimestampSet.add(exactTimestamp)
-    }
-
-    return Array.from(uniqueTimestampSet)
-      .sort((a, b) => dayjs(b).valueOf() - dayjs(a).valueOf())
-      .map((value) => ({
-        value,
-        label: dayjs(value).format('DD/MM/YYYY HH:mm'),
-      }))
-  }, [historyQuery.data?.items])
+    return (snapshotsQuery.data ?? []).map((value) => ({
+      value,
+      label: dayjs(value).format('DD/MM/YYYY HH:mm:ss'),
+    }))
+  }, [snapshotsQuery.data])
 
   const activeSnapshotTime = useMemo(() => {
     const optionValues = new Set(historySnapshotOptions.map((opt) => opt.value))
@@ -348,20 +352,11 @@ export const HistoricalQueryPage: React.FC = () => {
     pageSizeOptions: [10, 20, 50, 100],
   }
 
-  // Reserve space for fixed ticker/footer and page chrome to keep internal scrolling stable.
-  const tableScrollY = screens.xxl
-    ? 'calc(100% - 264px)'
-    : screens.xl
-      ? 'calc(100% - 288px)'
-      : screens.lg
-        ? 'calc(100% - 332px)'
-        : 'calc(100% - 380px)'
-
   return (
     <div
       style={{
         padding: 16,
-        height: '100%',
+        height: '100%', // Use viewport height minus news ticker
         minHeight: 0,
         boxSizing: 'border-box',
         overflow: 'hidden',
@@ -378,23 +373,32 @@ export const HistoricalQueryPage: React.FC = () => {
           minHeight: 0,
         }}
       >
-        <Title level={4} style={{ marginBottom: 0 }}>
-          Tra cứu Lịch sử (Historical Query)
-        </Title>
-        <Text type="secondary">
-          Bảng điều khiển gồm cột trái cho biểu đồ phụ và cột phải cho bảng dữ
-          liệu chính.
-        </Text>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          <Title level={4} style={{ marginBottom: 0 }}>
+            Tra cứu Lịch sử tình trạng giao thông
+          </Title>
+          <Text type="secondary">
+            Cung cấp báo cáo lịch sử tình trạng giao thông, cho phép truy vấn và
+            phân tích dữ liệu giao thông trong quá khứ, bao gồm tốc độ trung
+            bình, chỉ số giao thông, và trạng thái tắc nghẽn.
+          </Text>
+        </div>
 
         <div
           style={{
             display: 'grid',
-            gap: 16,
+            gap: 8,
             flex: 1,
             gridTemplateColumns: screens.lg
               ? 'minmax(260px, 1fr) minmax(0, 4fr)'
               : 'minmax(0, 1fr)',
-            alignItems: 'start',
+            alignItems: 'stretch', // Ensure cards stretch to fill row height
             minHeight: 0,
             overflow: 'hidden',
           }}
@@ -403,7 +407,7 @@ export const HistoricalQueryPage: React.FC = () => {
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: 10,
+              gap: 8,
               minHeight: 0,
               height: '100%',
               maxHeight: '100%',
@@ -573,13 +577,16 @@ export const HistoricalQueryPage: React.FC = () => {
               style={{
                 borderRadius: 12,
                 boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
               }}
               extra={
                 <Select
                   size="small"
                   style={{ width: 180 }}
                   placeholder="Chọn mốc giờ"
-                  loading={historyQuery.isFetching}
+                  loading={snapshotsQuery.isFetching}
                   value={activeSnapshotTime}
                   allowClear
                   options={historySnapshotOptions}
@@ -588,12 +595,18 @@ export const HistoricalQueryPage: React.FC = () => {
                   }}
                 />
               }
-              bodyStyle={{ padding: 10 }}
+              bodyStyle={{
+                padding: 10,
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0,
+              }}
             >
               {mapCardLoading ? (
                 <div
                   style={{
-                    height: 220,
+                    flex: 1,
                     borderRadius: 12,
                     display: 'grid',
                     placeItems: 'center',
@@ -602,9 +615,7 @@ export const HistoricalQueryPage: React.FC = () => {
                   <Spin tip="Đang tải bản đồ theo mốc giờ" />
                 </div>
               ) : snapshotMapData ? (
-                <div
-                  style={{ height: 220, width: '100%', position: 'relative' }}
-                >
+                <div style={{ flex: 1, width: '100%', position: 'relative' }}>
                   <TrafficMap
                     segmentData={snapshotMapData}
                     style={{ height: '100%', width: '100%' }}
@@ -617,7 +628,7 @@ export const HistoricalQueryPage: React.FC = () => {
               ) : (
                 <div
                   style={{
-                    height: 220,
+                    flex: 1,
                     borderRadius: 12,
                     display: 'grid',
                     placeItems: 'center',
@@ -637,12 +648,17 @@ export const HistoricalQueryPage: React.FC = () => {
             style={{
               borderRadius: 12,
               boxShadow: '0 8px 22px rgba(0,0,0,0.08)',
-            }}
-            bodyStyle={{
+              height: '100%',
               display: 'flex',
               flexDirection: 'column',
-              gap: 16,
-              height: '100%',
+              overflow: 'hidden',
+            }}
+            bodyStyle={{
+              padding: 10,
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
               minHeight: 0,
               overflow: 'hidden',
             }}
@@ -708,7 +724,7 @@ export const HistoricalQueryPage: React.FC = () => {
                   <Input
                     allowClear
                     prefix={<SearchOutlined />}
-                    placeholder="Tìm đường (autocomplete)"
+                    placeholder="Tìm đường..."
                     style={{ width: screens.md ? 280 : 220 }}
                   />
                 </AutoComplete>
@@ -725,23 +741,33 @@ export const HistoricalQueryPage: React.FC = () => {
               </Space>
             </div>
 
-            <Table<HistoryRecord>
-              rowKey={(record) => `${record.timestamp}-${record.segmentId}`}
-              loading={historyQuery.isFetching}
-              columns={columns}
-              dataSource={tableData}
-              pagination={pagination}
-              style={{ minHeight: 0 }}
-              scroll={{ x: 1100, y: tableScrollY }}
-              onChange={(nextPagination) => {
-                if (nextPagination.current) {
-                  setPage(nextPagination.current)
-                }
-                if (nextPagination.pageSize) {
-                  setPageSize(nextPagination.pageSize)
-                }
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
               }}
-            />
+            >
+              <Table<HistoryRecord>
+                rowKey={(record) => `${record.timestamp}-${record.segmentId}`}
+                loading={historyQuery.isFetching}
+                columns={columns}
+                dataSource={tableData}
+                pagination={pagination}
+                style={{ height: '100%' }}
+                scroll={{ x: 1100, y: 'calc(100% - 240px)' }}
+                onChange={(nextPagination) => {
+                  if (nextPagination.current) {
+                    setPage(nextPagination.current)
+                  }
+                  if (nextPagination.pageSize) {
+                    setPageSize(nextPagination.pageSize)
+                  }
+                }}
+              />
+            </div>
           </Card>
         </div>
       </div>
