@@ -36,6 +36,39 @@ class TrafficForecastingEnv(gym.Env):
             }
         )
 
+    def _calculate_reward_details(self, action, target):
+        target_weight = float(self.class_weights[int(target)])
+        severe_class_idx = NUM_CLASSES - 1
+        components = {
+            "match_bonus": 0.0,
+            "near_miss_penalty": 0.0,
+            "far_miss_penalty": 0.0,
+            "severe_mismatch_penalty": 0.0,
+        }
+
+        if action == target:
+            components["match_bonus"] = 10.0 * target_weight
+        else:
+            diff = action - target
+            if abs(diff) == 1:
+                components["near_miss_penalty"] = -2.0 * target_weight
+            elif abs(diff) >= 2:
+                components["far_miss_penalty"] = -5.0 * abs(diff) * target_weight
+                if target == severe_class_idx and action <= severe_class_idx - 1:
+                    components["severe_mismatch_penalty"] = -20.0 * target_weight
+                elif target <= severe_class_idx - 1 and action == severe_class_idx:
+                    components["severe_mismatch_penalty"] = -5.0
+
+        raw_reward = float(sum(components.values()))
+        scaled_reward = float(np.clip(self.reward_scale * raw_reward, -self.reward_clip, self.reward_clip))
+        breakdown = {
+            **components,
+            "target_weight": target_weight,
+            "raw_reward": raw_reward,
+            "scaled_reward": scaled_reward,
+        }
+        return scaled_reward, breakdown
+
     def _get_next_sample(self):
         if self.current_batch is None or self.batch_idx >= len(self.current_batch[0]):
             try:
@@ -73,34 +106,12 @@ class TrafficForecastingEnv(gym.Env):
         return self.current_obs, {}
 
     def calculate_reward(self, action, target):
-        target_weight = float(self.class_weights[int(target)])
-
-        if action == target:
-            reward = 10.0 * target_weight
-            return float(np.clip(self.reward_scale * reward, -self.reward_clip, self.reward_clip))
-
-        diff = action - target
-
-        if abs(diff) == 1:
-            reward = -2.0 * target_weight
-            return float(np.clip(self.reward_scale * reward, -self.reward_clip, self.reward_clip))
-
-        if abs(diff) >= 2:
-            base_penalty = -5.0 * abs(diff) * target_weight
-
-            if target >= 4 and action <= 2:
-                reward = base_penalty - (20.0 * target_weight)
-                return float(np.clip(self.reward_scale * reward, -self.reward_clip, self.reward_clip))
-            if target <= 2 and action >= 4:
-                reward = base_penalty - 5.0
-                return float(np.clip(self.reward_scale * reward, -self.reward_clip, self.reward_clip))
-
-            reward = base_penalty
-            return float(np.clip(self.reward_scale * reward, -self.reward_clip, self.reward_clip))
+        reward, _ = self._calculate_reward_details(action, target)
+        return reward
 
     def step(self, action):
         target_for_reward = self.current_target
-        reward = self.calculate_reward(action, target_for_reward)
+        reward, reward_breakdown = self._calculate_reward_details(action, target_for_reward)
 
         sample = self._get_next_sample()
 
@@ -115,4 +126,7 @@ class TrafficForecastingEnv(gym.Env):
             self.current_obs = obs
             self.current_target = target
 
-        return obs, reward, terminated, truncated, {"actual_label": target_for_reward}
+        return obs, reward, terminated, truncated, {
+            "actual_label": target_for_reward,
+            "reward_breakdown": reward_breakdown,
+        }

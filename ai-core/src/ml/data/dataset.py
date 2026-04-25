@@ -12,7 +12,9 @@ from src.ml.feature_contract import (
     DYNAMIC_FEATURE_COLS,
     STATIC_MODEL_FEATURE_COLS,
     TARGET_COL,
+    NUM_CLASSES,
     WINDOW_SIZE_DEFAULT,
+    WINDOW_STEP_MINUTES,
 )
 from src.utils.preprocessing import TrafficScaler
 
@@ -20,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class TrafficDataset(Dataset):
-    def __init__(self, df: pd.DataFrame, window_size: int = 12, target_offset_steps: int = 1):
+    def __init__(self, df: pd.DataFrame, window_size: int = WINDOW_SIZE_DEFAULT, target_offset_steps: int = 1):
         self.df = df
         self.window_size = window_size
         self.target_offset_steps = target_offset_steps
@@ -37,14 +39,14 @@ class TrafficDataset(Dataset):
         self.dynamic_features = self.df[self.dynamic_cols].astype(np.float32).values
         self.static_features = self.df[self.static_cols].astype(np.float32).values
         self.cat_features = self.df[self.cat_cols].astype(np.int64).values
-        self.targets = self.df[TARGET_COL].clip(0, 5).astype(np.int64).values
+        self.targets = self.df[TARGET_COL].clip(0, NUM_CLASSES - 1).astype(np.int64).values
 
         continuity_window_size = self.window_size + self.target_offset_steps - 1
         self.valid_indices = find_valid_window_starts(
             timestamps=self.timestamps,
             segment_keys=self.segment_keys,
             window_size=continuity_window_size,
-            step_minutes=15,
+            step_minutes=WINDOW_STEP_MINUTES,
         )
 
         print(f"Tổng số dòng dữ liệu thô: {len(self.df)}")
@@ -140,7 +142,7 @@ def prepare_dataloaders(
     train_sampler = None
     if use_weighted_sampler:
         train_targets = train_dataset.get_training_targets()
-        class_counts = np.bincount(train_targets, minlength=6)
+        class_counts = np.bincount(train_targets, minlength=NUM_CLASSES)
         sample_weights = np.array(
             [1.0 / class_counts[target] if class_counts[target] > 0 else 0.0 for target in train_targets],
             dtype=np.float64,

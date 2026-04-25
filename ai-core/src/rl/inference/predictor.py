@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 
+from src.ml.feature_contract import CLASS_MAPPING, WINDOW_SIZE_DEFAULT, WINDOW_STEP_MINUTES
 from src.ml.models.traffic_model import TrafficCongestionModel
 from src.utils.data_loader import load_bulk_segment_data
 
@@ -17,12 +18,12 @@ def is_within_forecast_window(ts: pd.Timestamp) -> bool:
     return FORECAST_WINDOW_START <= local_time <= FORECAST_WINDOW_END
 
 
-def is_continuous_12_steps(df_window: pd.DataFrame) -> bool:
-    if len(df_window) != 12:
+def is_continuous_window(df_window: pd.DataFrame, expected_steps: int = WINDOW_SIZE_DEFAULT) -> bool:
+    if len(df_window) != expected_steps:
         return False
     start_time = pd.to_datetime(df_window["timestamp"]).iloc[0]
     end_time = pd.to_datetime(df_window["timestamp"]).iloc[-1]
-    return (end_time - start_time) == pd.Timedelta(minutes=165)
+    return (end_time - start_time) == pd.Timedelta(minutes=(expected_steps - 1) * WINDOW_STEP_MINUTES)
 
 
 class RLTrafficPredictor:
@@ -50,22 +51,15 @@ class RLTrafficPredictor:
         except FileNotFoundError as exc:
             raise Exception(f"❌ Không tìm thấy file {model_path}. Hãy chắc chắn bạn đã huấn luyện xong RL.") from exc
 
-        self.level_names = {
-            0: "Mức 0 (Rất thoáng)",
-            1: "Mức 1 (Thoáng)",
-            2: "Mức 2 (Hơi đông)",
-            3: "Mức 3 (Ùn ứ)",
-            4: "Mức 4 (Kẹt nặng)",
-            5: "Mức 5 (Tê liệt)",
-        }
+        self.level_names = CLASS_MAPPING
 
         self.dynamic_cols = ["current_speed_kmh", "pcu_volume", "traffic_index", "delay_seconds", "quality_flag"]
         self.static_cols = ["default_lane_count", "static_free_flow", "time_sin", "time_cos", "weather_severity"]
         self.cat_cols = ["osm_highway_type", "district", "shift_code", "day_of_week"]
 
     def preprocess_window(self, df_window):
-        if len(df_window) != 12:
-            raise ValueError(f"Cần đúng 12 timesteps để inference, nhận được {len(df_window)} dòng.")
+        if len(df_window) != WINDOW_SIZE_DEFAULT:
+            raise ValueError(f"Cần đúng {WINDOW_SIZE_DEFAULT} timesteps để inference, nhận được {len(df_window)} dòng.")
 
         df_processed = df_window.copy()
 
@@ -102,8 +96,8 @@ def forecast_for_request(
     predictor: RLTrafficPredictor,
     segment_ids: list,
     request_time,
-    lookback_steps: int = 12,
-    resample_minutes: int = 15,
+    lookback_steps: int = WINDOW_SIZE_DEFAULT,
+    resample_minutes: int = WINDOW_STEP_MINUTES,
 ) -> pd.DataFrame:
     request_ts = pd.to_datetime(request_time)
 
@@ -115,7 +109,7 @@ def forecast_for_request(
 
     print(f"\n🛰️ Nhận yêu cầu dự báo tại thời điểm: {request_ts}")
     print(f"📍 Danh sách segments cần dự báo: {segment_ids}")
-    print("📡 Đang tải dữ liệu lịch sử gần nhất để dựng cửa sổ 12 timestep...")
+    print(f"📡 Đang tải dữ liệu lịch sử gần nhất để dựng cửa sổ {lookback_steps} timestep...")
 
     segment_data = load_bulk_segment_data(
         segment_ids=segment_ids,
@@ -142,7 +136,7 @@ def forecast_for_request(
             continue
 
         df_input = df_hist.tail(lookback_steps).copy()
-        if not is_continuous_12_steps(df_input):
+        if not is_continuous_window(df_input, expected_steps=lookback_steps):
             skipped_not_continuous += 1
             continue
 

@@ -14,6 +14,7 @@ import numpy as np
 import torch
 from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 from src.features.sliding_window import find_valid_window_starts
 from src.ml.data.dataset import TrafficDataset
@@ -326,7 +327,7 @@ def _balance_majority_windows(
 
     timestamps = pd.to_datetime(df_train["timestamp"]).to_numpy()
     segment_keys = df_train["segment_key"].to_numpy()
-    targets = df_train[TARGET_COL].clip(0, 5).astype(np.int64).to_numpy()
+    targets = df_train[TARGET_COL].clip(0, NUM_CLASSES - 1).astype(np.int64).to_numpy()
 
     continuity_window_size = window_size + target_offset_steps - 1
     valid_starts = find_valid_window_starts(
@@ -342,8 +343,9 @@ def _balance_majority_windows(
     target_indices = starts + window_size + target_offset_steps - 1
     window_labels = targets[target_indices]
 
-    counts = np.bincount(window_labels, minlength=6).astype(np.int64)
-    minority_total = int(counts[3] + counts[4] + counts[5])
+    counts = np.bincount(window_labels, minlength=NUM_CLASSES).astype(np.int64)
+    minority_class_idx = NUM_CLASSES - 1
+    minority_total = int(counts[minority_class_idx])
     if minority_total <= 0:
         return df_train, {
             "applied": False,
@@ -357,7 +359,7 @@ def _balance_majority_windows(
     target_counts[2] = min(float(counts[2]), float(4 * minority_total))
 
     keep_probs = np.ones(6, dtype=np.float64)
-    for cls in (0, 1, 2):
+    for cls in range(NUM_CLASSES - 1):
         if counts[cls] > 0:
             keep_probs[cls] = min(1.0, float(target_counts[cls]) / float(counts[cls]))
 
@@ -406,7 +408,7 @@ def _balance_majority_windows(
         target_idx = int(target_indices[idx])
         label = int(window_labels[idx])
 
-        if label >= 3:
+        if label >= minority_class_idx:
             kept_starts.append(int(start_idx))
             seen_signatures.add(_window_signature(target_idx))
             continue
@@ -453,13 +455,13 @@ def _balance_majority_windows(
             "before_window_counts": counts.tolist(),
         }
 
-    post_targets = balanced_df[TARGET_COL].clip(0, 5).astype(np.int64).to_numpy()
+    post_targets = balanced_df[TARGET_COL].clip(0, NUM_CLASSES - 1).astype(np.int64).to_numpy()
     post_target_indices = np.asarray(post_valid, dtype=np.int64) + window_size + target_offset_steps - 1
-    after_counts = np.bincount(post_targets[post_target_indices], minlength=6).astype(np.int64)
+    after_counts = np.bincount(post_targets[post_target_indices], minlength=NUM_CLASSES).astype(np.int64)
 
     stats = {
         "applied": True,
-        "rule": "T0=2M, T1=3M, T2=4M, keep all labels 3-5",
+        "rule": f"T0=2M, T1=3M, T2=4M, keep all labels >= {minority_class_idx}",
         "before_window_counts": counts.tolist(),
         "after_window_counts": after_counts.tolist(),
         "keep_probs": [float(round(v, 4)) for v in keep_probs.tolist()],
@@ -620,7 +622,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
                 f"{balance_stats.get('after_window_counts')}"
             )
             print(
-                "🎛️ Keep probs [0..5]: "
+                f"🎛️ Keep probs [0..{NUM_CLASSES - 1}]: "
                 f"{balance_stats.get('keep_probs')}"
             )
         else:
@@ -679,6 +681,33 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
     print(f"💻 Thiết bị xử lý: {str(device).upper()}")
     print(f"✅ Đã tạo môi trường train với {len(train_dataset)} state hợp lệ")
 
+    tensorboard_log_dir = str(Path(checkpoint_path).resolve().parent / "tensorboard" / run_id)
+    writer = SummaryWriter(log_dir=tensorboard_log_dir)
+    writer.add_text(
+        "rl/run/config",
+        json.dumps(
+            {
+                "mode": mode,
+                "run_id": run_id,
+                "corridor_ids": corridor_ids,
+                "start_date": start_date,
+                "end_date": end_date,
+                "episodes": episodes,
+                "batch_size": batch_size,
+                "window_size": window_size,
+                "prediction_horizon_minutes": prediction_horizon_minutes,
+                "target_offset_steps": target_offset_steps,
+                "eval_ratio": eval_ratio,
+                "use_window_balancing": use_window_balancing,
+                "use_class_aware_reward": use_class_aware_reward,
+                "tensorboard_log_dir": tensorboard_log_dir,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        0,
+    )
+
     reward_class_weights = None
     if use_class_aware_reward:
         reward_class_weights = _build_reward_class_weights(train_dataset)
@@ -731,6 +760,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
         early_stop_min_delta=early_stop_min_delta,
         early_stop_eval_interval=early_stop_eval_interval,
         early_stop_warmup_episodes=early_stop_warmup_episodes,
+        writer=writer,
     )
 
     eval_summary = {}
@@ -742,7 +772,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
             f"✅ Eval | samples={eval_summary.get('num_samples', 0)} | "
             f"acc={eval_summary.get('accuracy', 0.0):.4f} | "
             f"macro_f1={eval_summary.get('macro_f1', 0.0):.4f} | "
-            f"recall[3]={eval_summary.get('focus_recall_3', eval_summary.get('minority_recall_35', 0.0)):.4f}"
+            f"recall[{NUM_CLASSES - 1}]={eval_summary.get('focus_recall_3', eval_summary.get('minority_recall_35', 0.0)):.4f}"
         )
 
         checkpoint_file = Path(checkpoint_path)
@@ -755,12 +785,19 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
                 f"✅ Best Checkpoint Eval | samples={eval_summary_best_checkpoint.get('num_samples', 0)} | "
                 f"acc={eval_summary_best_checkpoint.get('accuracy', 0.0):.4f} | "
                 f"macro_f1={eval_summary_best_checkpoint.get('macro_f1', 0.0):.4f} | "
-                f"recall[3]={eval_summary_best_checkpoint.get('focus_recall_3', eval_summary_best_checkpoint.get('minority_recall_35', 0.0)):.4f}"
+                f"recall[{NUM_CLASSES - 1}]={eval_summary_best_checkpoint.get('focus_recall_3', eval_summary_best_checkpoint.get('minority_recall_35', 0.0)):.4f}"
             )
         else:
             print(f"⚠️ Không tìm thấy checkpoint để evaluate lại: {checkpoint_path}")
     else:
         print("⚠️ Bỏ qua holdout evaluation vì eval split không đủ valid windows.")
+
+    writer.add_scalar("rl/final/best_reward", float(history.get("final_summary", {}).get("best_reward", 0.0)), 0)
+    writer.add_scalar("rl/final/best_eval_macro_f1", float(history.get("final_summary", {}).get("best_eval_macro_f1", 0.0)), 0)
+    writer.add_scalar("rl/final/mean_q_value", float(history.get("final_summary", {}).get("mean_q_value", 0.0)), 0)
+    writer.add_scalar("rl/final/mean_td_error", float(history.get("final_summary", {}).get("mean_td_error", 0.0)), 0)
+    writer.flush()
+    writer.close()
 
     history_path = config.history_path or str(get_rl_history_path(mode=mode, run_id=run_id))
     joblib.dump(history, history_path)
@@ -797,6 +834,11 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
             "avg_losses": history.get("avg_losses", []),
             "epsilons": history.get("epsilons", []),
             "minority_recall_35": history.get("minority_recall_35", []),
+            "action_distribution": history.get("action_distribution", []),
+            "mean_q_value": history.get("mean_q_value", []),
+            "mean_target_q_value": history.get("mean_target_q_value", []),
+            "mean_td_error": history.get("mean_td_error", []),
+            "reward_breakdown": history.get("reward_breakdown", []),
             "eval_macro_f1": history.get("eval_macro_f1", []),
             "eval_events": history.get("eval_events", []),
         },
@@ -805,6 +847,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
             "eval": eval_snapshot,
         },
         "window_balancing": balance_stats,
+        "tensorboard_log_dir": tensorboard_log_dir,
         "final_summary": history.get("final_summary", {}),
         "eval_summary": eval_summary,
         "eval_summary_best_checkpoint": eval_summary_best_checkpoint,

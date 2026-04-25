@@ -10,6 +10,7 @@ from src.ml.feature_contract import (
     CATEGORICAL_FEATURE_COLS,
     CLASS_MAPPING,
     DYNAMIC_FEATURE_COLS,
+    WINDOW_SIZE_DEFAULT,
     NUM_CLASSES,
     STATIC_MODEL_FEATURE_COLS,
 )
@@ -80,9 +81,9 @@ class TrafficPredictor:
         return x_dynamic, x_static, x_cat
 
     def predict_next_15_mins(self, df_recent: pd.DataFrame) -> dict:
-        if len(df_recent) != 12:
+        if len(df_recent) != WINDOW_SIZE_DEFAULT:
             raise ValueError(
-                f"Dữ liệu đầu vào cần chính xác 12 timesteps (có {len(df_recent)}). Hãy kiểm tra lại Data Loader."
+                f"Dữ liệu đầu vào cần chính xác {WINDOW_SIZE_DEFAULT} timesteps (có {len(df_recent)}). Hãy kiểm tra lại Data Loader."
             )
 
         x_dynamic, x_static, x_cat = self.preprocess_streaming_data(df_recent)

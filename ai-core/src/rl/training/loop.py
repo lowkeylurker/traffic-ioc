@@ -20,6 +20,7 @@ def train_rl_agent(
     early_stop_min_delta: float = 0.0,
     early_stop_eval_interval: int = 1,
     early_stop_warmup_episodes: int = 0,
+    writer=None,
 ):
     """Main DQN training loop."""
     print("\n" + "=" * 50)
@@ -34,6 +35,12 @@ def train_rl_agent(
         "focus_recall_3": [],
         "eval_macro_f1": [],
         "eval_events": [],
+        "action_distribution": [],
+        "action_counts": [],
+        "mean_q_value": [],
+        "mean_target_q_value": [],
+        "mean_td_error": [],
+        "reward_breakdown": [],
         "per_class_precision": [[] for _ in range(NUM_CLASSES)],
         "per_class_recall": [[] for _ in range(NUM_CLASSES)],
         "per_class_f1": [[] for _ in range(NUM_CLASSES)],
@@ -57,20 +64,38 @@ def train_rl_agent(
         step_count = 0
         episode_preds = []
         episode_targets = []
+        episode_reward_breakdown = {
+            "match_bonus": 0.0,
+            "near_miss_penalty": 0.0,
+            "far_miss_penalty": 0.0,
+            "severe_mismatch_penalty": 0.0,
+        }
+        q_values_buffer = []
+        target_q_values_buffer = []
+        td_error_buffer = []
 
         start_time = time.time()
 
         for _ in range(max_steps_per_episode):
             target_label = env.current_target
             action = agent.select_action(state)
-            next_state, reward, terminated, truncated, _ = env.step(action)
+            next_state, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
 
             episode_preds.append(int(action))
             episode_targets.append(int(target_label))
 
+            reward_breakdown = info.get("reward_breakdown", {}) if isinstance(info, dict) else {}
+            for key in episode_reward_breakdown:
+                episode_reward_breakdown[key] += float(reward_breakdown.get(key, 0.0))
+
             agent.memory.push(state, action, reward, next_state, done)
-            loss = agent.optimize_model()
+            optimize_stats = agent.optimize_model()
+            loss = float(optimize_stats.get("loss", 0.0))
+            if loss > 0.0 or optimize_stats.get("current_q_mean", 0.0) != 0.0:
+                q_values_buffer.append(float(optimize_stats.get("current_q_mean", 0.0)))
+                target_q_values_buffer.append(float(optimize_stats.get("target_q_mean", 0.0)))
+                td_error_buffer.append(float(optimize_stats.get("td_error_mean", 0.0)))
 
             state = next_state
             total_reward += reward
@@ -98,6 +123,12 @@ def train_rl_agent(
             ep_f1 = np.zeros(NUM_CLASSES, dtype=np.float32)
             focus_recall_3 = 0.0
 
+        action_counts = np.bincount(np.asarray(episode_preds, dtype=np.int64), minlength=NUM_CLASSES).astype(np.float32)
+        action_distribution = action_counts / max(1.0, float(action_counts.sum()))
+        mean_q_value = float(np.mean(q_values_buffer)) if q_values_buffer else 0.0
+        mean_target_q_value = float(np.mean(target_q_values_buffer)) if target_q_values_buffer else 0.0
+        mean_td_error = float(np.mean(td_error_buffer)) if td_error_buffer else 0.0
+
         agent.update_epsilon()
 
         if episode % agent.target_update == 0:
@@ -110,6 +141,12 @@ def train_rl_agent(
         history["epsilons"].append(agent.epsilon)
         history["minority_recall_35"].append(focus_recall_3)
         history["focus_recall_3"].append(focus_recall_3)
+        history["action_counts"].append(action_counts.tolist())
+        history["action_distribution"].append(action_distribution.tolist())
+        history["mean_q_value"].append(mean_q_value)
+        history["mean_target_q_value"].append(mean_target_q_value)
+        history["mean_td_error"].append(mean_td_error)
+        history["reward_breakdown"].append({k: float(v) for k, v in episode_reward_breakdown.items()})
         for cls_idx in range(NUM_CLASSES):
             history["per_class_precision"][cls_idx].append(float(ep_precision[cls_idx]))
             history["per_class_recall"][cls_idx].append(float(ep_recall[cls_idx]))
@@ -121,8 +158,22 @@ def train_rl_agent(
             f"🎬 Episode {episode + 1:03d}/{num_episodes} | Steps: {step_count} | "
             f"Time: {ep_time:.1f}s | Reward: {total_reward:8.1f} | "
             f"Avg Loss: {avg_loss:.4f} | Epsilon: {agent.epsilon:.3f} | "
-            f"Recall[3]: {focus_recall_3:.4f}"
+            f"Recall[{NUM_CLASSES - 1}]: {focus_recall_3:.4f} | Q: {mean_q_value:.4f} | TD: {mean_td_error:.4f}"
         )
+
+        if writer is not None:
+            writer.add_scalar("rl/train/episode_reward", total_reward, episode + 1)
+            writer.add_scalar("rl/train/avg_loss", avg_loss, episode + 1)
+            writer.add_scalar("rl/train/epsilon", agent.epsilon, episode + 1)
+            writer.add_scalar("rl/train/focus_recall_3", focus_recall_3, episode + 1)
+            writer.add_scalar("rl/train/mean_q_value", mean_q_value, episode + 1)
+            writer.add_scalar("rl/train/mean_target_q_value", mean_target_q_value, episode + 1)
+            writer.add_scalar("rl/train/mean_td_error", mean_td_error, episode + 1)
+            writer.add_scalar("rl/train/action_entropy", float(-np.sum(action_distribution * np.log(action_distribution + 1e-12))), episode + 1)
+            for cls_idx in range(NUM_CLASSES):
+                writer.add_scalar(f"rl/train/action_distribution/class_{cls_idx}", float(action_distribution[cls_idx]), episode + 1)
+            for key, value in episode_reward_breakdown.items():
+                writer.add_scalar(f"rl/train/reward_breakdown/{key}", float(value), episode + 1)
 
         if total_reward > best_reward:
             best_reward = total_reward
@@ -148,6 +199,11 @@ def train_rl_agent(
                     "num_samples": int(eval_summary.get("num_samples", 0)),
                 }
             )
+
+            if writer is not None:
+                writer.add_scalar("rl/eval/macro_f1", eval_macro_f1, episode + 1)
+                writer.add_scalar("rl/eval/accuracy", float(eval_summary.get("accuracy", 0.0)), episode + 1)
+                writer.add_scalar("rl/eval/focus_recall_3", float(eval_summary.get("focus_recall_3", eval_summary.get("minority_recall_35", 0.0))), episode + 1)
 
             if eval_macro_f1 > (best_eval_macro_f1 + early_stop_min_delta):
                 best_eval_macro_f1 = eval_macro_f1
@@ -203,6 +259,9 @@ def train_rl_agent(
             "stopped_early": bool(stopped_early),
             "early_stop_no_improve_count": int(no_improve_eval_count),
             "num_episodes": int(len(history["episode_rewards"])),
+            "mean_q_value": float(np.mean(history["mean_q_value"])) if history["mean_q_value"] else 0.0,
+            "mean_target_q_value": float(np.mean(history["mean_target_q_value"])) if history["mean_target_q_value"] else 0.0,
+            "mean_td_error": float(np.mean(history["mean_td_error"])) if history["mean_td_error"] else 0.0,
         }
     else:
         history["final_summary"] = {
@@ -215,6 +274,12 @@ def train_rl_agent(
             "stopped_early": bool(stopped_early),
             "early_stop_no_improve_count": int(no_improve_eval_count),
             "num_episodes": int(len(history["episode_rewards"])),
+            "mean_q_value": 0.0,
+            "mean_target_q_value": 0.0,
+            "mean_td_error": 0.0,
         }
+
+    if writer is not None:
+        writer.flush()
 
     return history

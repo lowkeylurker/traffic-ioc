@@ -92,7 +92,12 @@ class DQNAgent:
     def optimize_model(self):
         min_required = max(self.batch_size, self.warmup_steps)
         if len(self.memory) < min_required:
-            return 0.0
+            return {
+                "loss": 0.0,
+                "current_q_mean": 0.0,
+                "target_q_mean": 0.0,
+                "td_error_mean": 0.0,
+            }
 
         transitions = self.memory.sample(self.batch_size)
         batch_state, batch_action, batch_reward, batch_next_state, batch_done = zip(*transitions)
@@ -126,7 +131,13 @@ class DQNAgent:
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), max_norm=1.0)
         self.optimizer.step()
 
-        return loss.item()
+        td_error = torch.abs(expected_q_values - current_q_values)
+        return {
+            "loss": float(loss.item()),
+            "current_q_mean": float(current_q_values.mean().item()),
+            "target_q_mean": float(expected_q_values.mean().item()),
+            "td_error_mean": float(td_error.mean().item()),
+        }
 
     def update_epsilon(self):
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
