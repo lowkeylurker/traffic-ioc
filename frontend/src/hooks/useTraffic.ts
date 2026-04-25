@@ -98,12 +98,12 @@ export const useRoads = () => {
 }
 
 // Get data of road segments with speed color (GeoJSON FeatureCollection) with polling
-export const useTrafficMap = () => {
+export const useTrafficMap = (asOf?: string | null) => {
   const segmentData = useSegments()
   const [trafficMap, setTrafficMap] = useState<SegmentResponse | null>(null)
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>
+    let interval: ReturnType<typeof setInterval> | undefined
     let mounted = true
 
     const fetchTrafficStatus = async () => {
@@ -155,22 +155,26 @@ export const useTrafficMap = () => {
           }
         }
 
-        const cachedStatuses = await getCachedTrafficStatusWithMeta(
-          TRAFFIC_STATUS_CACHE_MAX_AGE_MS
-        )
+        if (!asOf) {
+          const cachedStatuses = await getCachedTrafficStatusWithMeta(
+            TRAFFIC_STATUS_CACHE_MAX_AGE_MS
+          )
 
-        if (cachedStatuses) {
-          // Always keep existing render using cache; revalidate only when stale.
-          mergeAndSetTrafficMap(cachedStatuses.data)
-          if (cachedStatuses.isFresh) {
-            return
+          if (cachedStatuses) {
+            // Always keep existing render using cache; revalidate only when stale.
+            mergeAndSetTrafficMap(cachedStatuses.data)
+            if (cachedStatuses.isFresh) {
+              return
+            }
           }
         }
 
-        const response = await mapApi.getStatus()
+        const response = await mapApi.getStatus(asOf ? { asOf } : undefined)
         if (response.success && response.data) {
           const statuses = response.data as TrafficStatus[]
-          await setCachedTrafficStatus(statuses)
+          if (!asOf) {
+            await setCachedTrafficStatus(statuses)
+          }
           mergeAndSetTrafficMap(statuses)
         }
       } catch (error) {
@@ -181,45 +185,53 @@ export const useTrafficMap = () => {
     // Fetch immediately if segmentData is ready
     fetchTrafficStatus()
 
-    // Poll status every 5 minutes to reduce unnecessary network load.
-    interval = setInterval(
-      fetchTrafficStatus,
-      POLLING_INTERVALS.TRAFFIC_MAP_STATUS
-    )
+    if (!asOf) {
+      // Poll status every 5 minutes to reduce unnecessary network load.
+      interval = setInterval(
+        fetchTrafficStatus,
+        POLLING_INTERVALS.TRAFFIC_MAP_STATUS
+      )
+    }
 
     return () => {
       mounted = false
-      clearInterval(interval)
+      if (interval) {
+        clearInterval(interval)
+      }
     }
-  }, [segmentData])
+  }, [asOf, segmentData])
 
   return trafficMap ?? segmentData
 }
 
 // Fetch traffic status hook
-export const useTrafficStatus = () => {
+export const useTrafficStatus = (asOf?: string | null) => {
   const { trafficStatus, setTrafficStatus, setError } = useAppStore()
 
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const cachedStatus = await getCachedTrafficStatusWithMeta(
-          TRAFFIC_STATUS_CACHE_MAX_AGE_MS
-        )
+        if (!asOf) {
+          const cachedStatus = await getCachedTrafficStatusWithMeta(
+            TRAFFIC_STATUS_CACHE_MAX_AGE_MS
+          )
 
-        if (cachedStatus) {
-          // Keep old data while revalidating in background when stale.
-          setTrafficStatus(cachedStatus.data)
-          if (cachedStatus.isFresh) {
-            return
+          if (cachedStatus) {
+            // Keep old data while revalidating in background when stale.
+            setTrafficStatus(cachedStatus.data)
+            if (cachedStatus.isFresh) {
+              return
+            }
           }
         }
 
-        const response = await mapApi.getStatus()
+        const response = await mapApi.getStatus(asOf ? { asOf } : undefined)
         if (response.success && response.data) {
           const statuses = response.data as TrafficStatus[]
           setTrafficStatus(statuses)
-          await setCachedTrafficStatus(statuses)
+          if (!asOf) {
+            await setCachedTrafficStatus(statuses)
+          }
         }
       } catch (error) {
         console.error('Error fetching traffic status:', error)
@@ -232,11 +244,15 @@ export const useTrafficStatus = () => {
     }
 
     fetchStatus()
-    // Polling every 2 minutes
-    const interval = setInterval(fetchStatus, 120000)
+    // Polling every 2 minutes for live mode only.
+    const interval = asOf ? undefined : setInterval(fetchStatus, 120000)
 
-    return () => clearInterval(interval)
-  }, [setTrafficStatus, setError])
+    return () => {
+      if (interval) {
+        clearInterval(interval)
+      }
+    }
+  }, [asOf, setTrafficStatus, setError])
 
   return trafficStatus
 }

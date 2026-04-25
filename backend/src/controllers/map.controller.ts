@@ -53,8 +53,27 @@ export class MapController {
   async getTrafficStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       logger.log('GET /status');
-      const status = await mapService.getTrafficStatus();
+      const asOf = typeof req.query.asOf === 'string' ? req.query.asOf : undefined;
+      const status = await mapService.getTrafficStatus(asOf);
       res.json(ResponseUtil.success(status, 'Traffic status retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /status/snapshots - Danh sách mốc giờ có dữ liệu traffic
+   */
+  async getTrafficStatusSnapshots(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      logger.log('GET /status/snapshots');
+
+      const limitValue = typeof req.query.limit === 'string' ? Number(req.query.limit) : 12;
+      const limit = Number.isFinite(limitValue) && limitValue > 0 ? Math.min(Math.floor(limitValue), 48) : 12;
+      const before = typeof req.query.before === 'string' ? req.query.before : undefined;
+
+      const snapshots = await mapService.getTrafficStatusSnapshots(limit, before);
+      res.json(ResponseUtil.success(snapshots, 'Traffic status snapshots retrieved successfully'));
     } catch (error) {
       next(error);
     }

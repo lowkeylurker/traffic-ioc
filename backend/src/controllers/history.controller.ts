@@ -46,6 +46,26 @@ export class HistoryController {
       next(error);
     }
   }
+
+  /**
+   * GET /api/v1/history/hotspots
+   * Lấy top các điểm nóng trên toàn bộ dữ liệu đã lọc
+   */
+  async getHotspots(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      logger.log('GET /history/hotspots');
+
+      const parsed = HistoryExportQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        throw new AppError(400, 'Invalid history hotspots params', 'BAD_REQUEST');
+      }
+
+      const hotspots = await historyService.getTopHotspots(parsed.data, 8);
+      res.json(ResponseUtil.success(hotspots, 'History hotspots retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const historyController = new HistoryController();

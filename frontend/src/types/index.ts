@@ -415,7 +415,9 @@ export interface HistoryQueryParams {
 export interface HistoryRecord {
   timestamp: string
   roadName: string | null
+  district: string | null
   segmentId: string
+  avgSpeedKmh: number | null
   pcuVolume: number | null
   delaySeconds: number | null
   trafficIndex: number | null
@@ -427,6 +429,11 @@ export interface HistoryResponse {
   limit: number
   totalItems: number
   totalPages: number
+}
+
+export interface HistoryHotspotPoint {
+  roadName: string
+  trafficIndex: number
 }
 
 export interface ForecastData {

@@ -17,4 +17,10 @@ router.get('/', authMiddleware, adminOnly, (req, res, next) => historyController
  */
 router.get('/export', authMiddleware, adminOnly, (req, res, next) => historyController.exportHistory(req, res, next));
 
+/**
+ * GET /api/v1/history/hotspots
+ * Lấy top điểm nóng trên toàn bộ dữ liệu đã lọc
+ */
+router.get('/hotspots', authMiddleware, adminOnly, (req, res, next) => historyController.getHotspots(req, res, next));
+
 export default router;

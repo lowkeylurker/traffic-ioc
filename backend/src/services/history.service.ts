@@ -25,7 +25,9 @@ export interface HistoryExportParams {
 export interface HistoryRecord {
   timestamp: string;
   roadName: string | null;
+  district: string | null;
   segmentId: string;
+  avgSpeedKmh: number | null;
   pcuVolume: number | null;
   delaySeconds: number | null;
   trafficIndex: number | null;
@@ -37,6 +39,11 @@ export interface HistoryPageResult {
   limit: number;
   totalItems: number;
   totalPages: number;
+}
+
+export interface HistoryHotspotPoint {
+  roadName: string;
+  trafficIndex: number;
 }
 
 const logger = new Logger('HistoryService');
@@ -81,11 +88,14 @@ export class HistoryService {
         SELECT
           f.timestamp AS "timestamp",
           r.name AS "roadName",
+          l.district AS "district",
           s.segment_key::text AS "segmentId",
+          f.current_speed_kmh AS "avgSpeedKmh",
           f.pcu_volume AS "pcuVolume",
           f.delay_seconds AS "delaySeconds",
           f.traffic_index AS "trafficIndex"
         ${BASE_JOIN}
+        LEFT JOIN dim_location l ON l.location_key = s.location_key
         ${where}
       )
       SELECT
@@ -117,11 +127,14 @@ export class HistoryService {
       SELECT
         f.timestamp AS "timestamp",
         r.name AS "roadName",
+        l.district AS "district",
         s.segment_key::text AS "segmentId",
+        f.current_speed_kmh AS "avgSpeedKmh",
         f.pcu_volume AS "pcuVolume",
         f.delay_seconds AS "delaySeconds",
         f.traffic_index AS "trafficIndex"
       ${BASE_JOIN}
+      LEFT JOIN dim_location l ON l.location_key = s.location_key
       ${where}
       ORDER BY f.timestamp DESC
     `;
@@ -135,7 +148,16 @@ export class HistoryService {
 
     // Stream trực tiếp DB -> CSV -> HTTP để tránh tải toàn bộ dữ liệu vào RAM.
     const csvStream = format({
-      headers: ['timestamp', 'roadName', 'segmentId', 'pcuVolume', 'delaySeconds', 'trafficIndex'],
+      headers: [
+        'timestamp',
+        'roadName',
+        'district',
+        'segmentId',
+        'avgSpeedKmh',
+        'pcuVolume',
+        'delaySeconds',
+        'trafficIndex',
+      ],
     });
 
     let released = false;
@@ -167,6 +189,36 @@ export class HistoryService {
     });
 
     dbStream.pipe(csvStream).pipe(res);
+  }
+
+  async getTopHotspots(params: HistoryExportParams, limit = 8): Promise<HistoryHotspotPoint[]> {
+    const { values, where } = buildFilters(params);
+
+    const result = await query(
+      `
+      WITH filtered_history AS (
+        SELECT
+          COALESCE(r.name, CONCAT('Segment ', s.segment_key::text)) AS road_name,
+          f.traffic_index AS traffic_index
+        ${BASE_JOIN}
+        ${where}
+      )
+      SELECT
+        road_name AS "roadName",
+        AVG(traffic_index)::float8 AS "trafficIndex"
+      FROM filtered_history
+      WHERE traffic_index IS NOT NULL
+      GROUP BY road_name
+      ORDER BY "trafficIndex" DESC, "roadName" ASC
+      LIMIT $${values.length + 1}
+      `,
+      [...values, limit]
+    );
+
+    return result.rows.map((row) => ({
+      roadName: row.roadName as string,
+      trafficIndex: Number(row.trafficIndex ?? 0),
+    }));
   }
 }
 

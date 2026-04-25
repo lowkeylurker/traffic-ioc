@@ -161,8 +161,6 @@ const renderCountUp = (
 }
 
 export const DashboardPage: React.FC = () => {
-  const segmentData = useTrafficMap()
-  const trafficStatus = useTrafficStatus()
   const location = useLocation()
   const { error } = useAppStore()
 
@@ -178,6 +176,9 @@ export const DashboardPage: React.FC = () => {
     useState<IncidentFeature | null>(null)
   const [mapFullscreen, setMapFullscreen] = useState(false)
   const lastHandledDeepLinkRef = useRef<string | null>(null)
+
+  const segmentData = useTrafficMap()
+  const trafficStatus = useTrafficStatus()
 
   useEffect(() => {
     const contentEl = document.querySelector(
