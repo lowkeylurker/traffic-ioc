@@ -6,13 +6,15 @@ import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
 import { RoutingPanel } from '@/components/widgets/RoutingPanel'
 import { simulationApi } from '@/services/api'
+import { PlaceSearchResult } from '@/types'
 import { useAuth, useUser } from '@clerk/clerk-react'
 import { message } from 'antd'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Marker } from 'react-map-gl'
 import { DashboardPage } from './DashboardPage'
 
 const RealTimeMapOnly: React.FC = () => {
+  const MY_LOCATION_LABEL = 'Vị trí của tôi'
   const segmentData = null
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
   const apiOrigin = useMemo(() => {
@@ -44,29 +46,46 @@ const RealTimeMapOnly: React.FC = () => {
   const [routingDataGeoJSON, setRoutingDataGeoJSON] =
     useState<GeoJSON.FeatureCollection | null>(null)
   const [isRoutingLoading, setIsRoutingLoading] = useState(false)
+  const [shouldAutoRoute, setShouldAutoRoute] = useState(false)
+  const [isEditingRoutePoints, setIsEditingRoutePoints] = useState(true)
+  const [initialUserLocation, setInitialUserLocation] = useState<
+    [number, number] | null
+  >(null)
+  const [hasAutoFlyToUser, setHasAutoFlyToUser] = useState(false)
   const [activeRoutingInput, setActiveRoutingInput] = useState<'start' | 'end'>(
     'start'
   )
 
-  const handleGetCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords
-          const coordStr = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
-          setRoutingStartPoint(coordStr)
-          setRawStartPos([longitude, latitude])
-          message.success('Đã lấy vị trí hiện tại')
-        },
-        (error) => {
-          console.warn('Geolocation error', error)
-          message.error(
-            'Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập.'
-          )
-        }
-      )
-    }
-  }
+  const handleGetCurrentLocation = useCallback(
+    (target: 'start' | 'end') => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords
+
+            if (target === 'start') {
+              setRoutingStartPoint(MY_LOCATION_LABEL)
+              setRawStartPos([longitude, latitude])
+              setActiveRoutingInput('end')
+            } else {
+              setRoutingEndPoint(MY_LOCATION_LABEL)
+              setRawEndPos([longitude, latitude])
+            }
+
+            setShouldAutoRoute(true)
+            message.success('Đã lấy vị trí hiện tại')
+          },
+          (error) => {
+            console.warn('Geolocation error', error)
+            message.error(
+              'Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập.'
+            )
+          }
+        )
+      }
+    },
+    [MY_LOCATION_LABEL]
+  )
 
   useEffect(() => {
     const contentEl = document.querySelector(
@@ -88,6 +107,64 @@ const RealTimeMapOnly: React.FC = () => {
       document.body.style.overflow = prevBodyOverflow
     }
   }, [])
+
+  // Auto-center map to current location once when opening RealTimePage.
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setInitialUserLocation([
+          position.coords.longitude,
+          position.coords.latitude,
+        ])
+      },
+      (error) => {
+        console.warn('Cannot resolve current location on initial load', error)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      }
+    )
+  }, [])
+
+  useEffect(() => {
+    if (!initialUserLocation || hasAutoFlyToUser) {
+      return
+    }
+
+    let attempts = 0
+    const maxAttempts = 30
+    const waitForMapReady = window.setInterval(() => {
+      const map = mapRef.current
+
+      if (map?.flyTo) {
+        const currentZoom = Number(map.getZoom?.() ?? 0)
+        map.flyTo({
+          center: initialUserLocation,
+          zoom: Math.max(currentZoom, 14),
+          duration: 1200,
+          essential: true,
+        })
+        setHasAutoFlyToUser(true)
+        window.clearInterval(waitForMapReady)
+        return
+      }
+
+      attempts += 1
+      if (attempts >= maxAttempts) {
+        window.clearInterval(waitForMapReady)
+      }
+    }, 150)
+
+    return () => {
+      window.clearInterval(waitForMapReady)
+    }
+  }, [hasAutoFlyToUser, initialUserLocation])
 
   const handleZoomIn = () => {
     if (mapRef.current) {
@@ -117,9 +194,12 @@ const RealTimeMapOnly: React.FC = () => {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (position) => {
-            setRoutingStartPoint(
-              `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`
-            )
+            setRoutingStartPoint(MY_LOCATION_LABEL)
+            setRawStartPos([
+              position.coords.longitude,
+              position.coords.latitude,
+            ])
+            setActiveRoutingInput('end')
           },
           (error) => {
             console.warn('Geolocation disabled or denied', error)
@@ -127,9 +207,9 @@ const RealTimeMapOnly: React.FC = () => {
         )
       }
     }
-  }, [routingLayerEnabled, routingStartPoint])
+  }, [MY_LOCATION_LABEL, routingLayerEnabled, routingStartPoint])
 
-  const handleComputeRoute = async () => {
+  const handleComputeRoute = useCallback(async () => {
     try {
       let startLat, startLng, endLat, endLng
 
@@ -183,10 +263,133 @@ const RealTimeMapOnly: React.FC = () => {
     } finally {
       setIsRoutingLoading(false)
     }
-  }
+  }, [rawEndPos, rawStartPos, routingEndPoint, routingStartPoint])
+
+  const handlePlaceSelect = useCallback(
+    (target: 'start' | 'end', place: PlaceSearchResult) => {
+      if (target === 'start') {
+        setRoutingStartPoint(place.name)
+        setRawStartPos([place.lon, place.lat])
+        setActiveRoutingInput('end')
+      } else {
+        setRoutingEndPoint(place.name)
+        setRawEndPos([place.lon, place.lat])
+      }
+
+      setShouldAutoRoute(true)
+      message.success(`Đã chọn: ${place.name}`)
+    },
+    []
+  )
+
+  useEffect(() => {
+    if (
+      !routingLayerEnabled ||
+      !shouldAutoRoute ||
+      !rawStartPos ||
+      !rawEndPos
+    ) {
+      return
+    }
+
+    setShouldAutoRoute(false)
+    void handleComputeRoute()
+  }, [
+    handleComputeRoute,
+    rawEndPos,
+    rawStartPos,
+    routingLayerEnabled,
+    shouldAutoRoute,
+  ])
+
+  useEffect(() => {
+    if (
+      !routingLayerEnabled ||
+      !routingDataGeoJSON?.features?.length ||
+      !mapRef.current
+    ) {
+      return
+    }
+
+    const coordinates: Array<[number, number]> = []
+
+    const collectCoordinates = (
+      geometry: GeoJSON.Geometry | null | undefined
+    ) => {
+      if (!geometry) return
+
+      switch (geometry.type) {
+        case 'Point': {
+          const [lng, lat] = geometry.coordinates
+          coordinates.push([lng, lat])
+          break
+        }
+        case 'MultiPoint':
+        case 'LineString': {
+          geometry.coordinates.forEach(([lng, lat]) =>
+            coordinates.push([lng, lat])
+          )
+          break
+        }
+        case 'MultiLineString':
+        case 'Polygon': {
+          geometry.coordinates.forEach((ring) => {
+            ring.forEach(([lng, lat]) => coordinates.push([lng, lat]))
+          })
+          break
+        }
+        case 'MultiPolygon': {
+          geometry.coordinates.forEach((polygon) => {
+            polygon.forEach((ring) => {
+              ring.forEach(([lng, lat]) => coordinates.push([lng, lat]))
+            })
+          })
+          break
+        }
+        case 'GeometryCollection': {
+          geometry.geometries.forEach((geom) => collectCoordinates(geom))
+          break
+        }
+      }
+    }
+
+    routingDataGeoJSON.features.forEach((feature) => {
+      collectCoordinates(feature.geometry)
+    })
+
+    if (coordinates.length === 0) return
+
+    let minLng = Infinity
+    let minLat = Infinity
+    let maxLng = -Infinity
+    let maxLat = -Infinity
+
+    coordinates.forEach(([lng, lat]) => {
+      minLng = Math.min(minLng, lng)
+      minLat = Math.min(minLat, lat)
+      maxLng = Math.max(maxLng, lng)
+      maxLat = Math.max(maxLat, lat)
+    })
+
+    const isMobile = window.matchMedia('(max-width: 768px)').matches
+
+    mapRef.current.fitBounds(
+      [
+        [minLng, minLat],
+        [maxLng, maxLat],
+      ],
+      {
+        padding: isMobile
+          ? { top: 180, right: 80, bottom: 120, left: 40 }
+          : { top: 80, right: 100, bottom: 80, left: 80 },
+        duration: 1100,
+        maxZoom: 15,
+      }
+    )
+  }, [routingDataGeoJSON, routingLayerEnabled])
 
   const handleMapClickForRouting = (event: mapboxgl.MapLayerMouseEvent) => {
-    if (!routingLayerEnabled) return
+    if (!routingLayerEnabled || !isEditingRoutePoints) return
     const { lng, lat } = event.lngLat
     const coordStr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`
     if (activeRoutingInput === 'start') {
@@ -218,6 +421,40 @@ const RealTimeMapOnly: React.FC = () => {
             mapRef={mapRef}
             onLoadingChange={setWeatherLayerLoading}
           />
+        )}
+
+        {initialUserLocation && (
+          <Marker
+            longitude={initialUserLocation[0]}
+            latitude={initialUserLocation[1]}
+            anchor="bottom"
+          >
+            <div
+              style={{
+                cursor: 'pointer',
+                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.28))',
+              }}
+              title="Vị trí hiện tại"
+            >
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 21C12 21 5 14.7 5 9.75C5 5.48 8.13 2 12 2C15.87 2 19 5.48 19 9.75C19 14.7 12 21 12 21Z"
+                  fill="#2563eb"
+                  stroke="white"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle cx="12" cy="9.75" r="2.6" fill="white" />
+              </svg>
+            </div>
+          </Marker>
         )}
 
         {routingLayerEnabled && (
@@ -295,19 +532,32 @@ const RealTimeMapOnly: React.FC = () => {
 
       <RoutingPanel
         visible={routingLayerEnabled}
+        isEditingRoutePoints={isEditingRoutePoints}
         startPoint={routingStartPoint}
         endPoint={routingEndPoint}
         loading={isRoutingLoading}
         activeInput={activeRoutingInput}
         routeGeoJSON={routingDataGeoJSON}
-        onStartChange={setRoutingStartPoint}
-        onEndChange={setRoutingEndPoint}
+        onStartChange={(value) => {
+          setRoutingStartPoint(value)
+          setRawStartPos(null)
+          setRoutingDataGeoJSON(null)
+        }}
+        onEndChange={(value) => {
+          setRoutingEndPoint(value)
+          setRawEndPos(null)
+          setRoutingDataGeoJSON(null)
+        }}
+        onStartPlaceSelect={(place) => handlePlaceSelect('start', place)}
+        onEndPlaceSelect={(place) => handlePlaceSelect('end', place)}
         onActiveInputSet={setActiveRoutingInput}
         onComputeRoute={handleComputeRoute}
         onGetCurrentLocation={handleGetCurrentLocation}
+        onEditingRoutePointsChange={setIsEditingRoutePoints}
         onClose={() => {
           setRoutingLayerEnabled(false)
           setRoutingDataGeoJSON(null)
+          setIsEditingRoutePoints(true)
         }}
         onSwap={() => {
           const sText = routingStartPoint
@@ -316,6 +566,7 @@ const RealTimeMapOnly: React.FC = () => {
           setRawStartPos(rawEndPos)
           setRoutingEndPoint(sText)
           setRawEndPos(sRaw)
+          setShouldAutoRoute(true)
         }}
       />
 
@@ -330,7 +581,10 @@ const RealTimeMapOnly: React.FC = () => {
         }}
         onRoutingToggle={(enabled) => {
           setRoutingLayerEnabled(enabled)
-          if (!enabled) setRoutingDataGeoJSON(null)
+          if (!enabled) {
+            setRoutingDataGeoJSON(null)
+          }
+          setIsEditingRoutePoints(enabled)
         }}
         showCamera={false}
         defaultSegmentStatusLayerEnabled={segmentStatusLayerEnabled}

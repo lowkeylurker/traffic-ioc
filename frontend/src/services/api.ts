@@ -31,6 +31,7 @@ import {
   WeatherData,
   PredictionRequestBody,
   PredictionResponse,
+  PlaceSearchResult,
 } from '@/types'
 import axios, { AxiosError, AxiosInstance } from 'axios'
 
@@ -201,6 +202,17 @@ export const simulationApi = {
   ): Promise<ApiResponse<any>> =>
     axiosInstance.get('/simulation/routes', {
       params: { startLat, startLng, endLat, endLng },
+    }),
+}
+
+export const searchApi = {
+  searchPlaces: (
+    q: string,
+    signal?: AbortSignal
+  ): Promise<PlaceSearchResult[]> =>
+    axiosInstance.get('/search/places', {
+      params: { q },
+      signal,
     }),
 }
 

@@ -76,3 +76,17 @@ body,
   flex-direction: column;
   height: 100%;
 }
+
+/* Routing place search dropdown: keep scroll but hide visual scrollbar */
+.routing-place-dropdown .rc-virtual-list-holder,
+.routing-place-dropdown .ant-select-item-option-content {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.routing-place-dropdown .rc-virtual-list-holder::-webkit-scrollbar,
+.routing-place-dropdown .ant-select-item-option-content::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
