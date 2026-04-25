@@ -13,6 +13,9 @@ import {
   IncidentCollection,
   IncidentImpactResponse,
   IncidentReportCreateResponse,
+  HistoryQueryParams,
+  HistoryHotspotPoint,
+  HistoryResponse,
   NewsFeedResponse,
   OlapDrilldownParams,
   OlapDrilldownResponse,
@@ -86,10 +89,22 @@ export const mapApi = {
     axiosInstance.get('/map/segments'),
   getRoads: (): Promise<ApiResponse<RoadOption[]>> =>
     axiosInstance.get('/map/roads'),
-  getStatus: (): Promise<ApiResponse<TrafficStatus[]>> =>
-    axiosInstance.get('/map/status'),
-  getSegmentStatus: (segmentId: number): Promise<ApiResponse<TrafficStatus>> =>
-    axiosInstance.get(`/map/status/${segmentId}`),
+  getStatus: (params?: {
+    asOf?: string
+  }): Promise<ApiResponse<TrafficStatus[]>> =>
+    axiosInstance.get('/map/status', { params }),
+  getStatusSnapshots: (params?: {
+    limit?: number
+    before?: string
+    start?: string
+    end?: string
+  }): Promise<ApiResponse<string[]>> =>
+    axiosInstance.get('/map/status/snapshots', { params }),
+  getSegmentStatus: (
+    segmentId: number,
+    params?: { asOf?: string }
+  ): Promise<ApiResponse<TrafficStatus>> =>
+    axiosInstance.get(`/map/status/${segmentId}`, { params }),
   getIncidents: (
     status: string,
     bbox?: string
@@ -161,6 +176,28 @@ export const olapApi = {
     signal?: AbortSignal
   ): Promise<ApiResponse<OlapDrilldownResponse>> =>
     axiosInstance.get('/olap/drilldown', { params, signal }),
+}
+
+export const historyApi = {
+  getHistory: (
+    params: HistoryQueryParams,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<HistoryResponse>> =>
+    axiosInstance.get('/history', { params, signal }),
+  getHotspots: (
+    params: Omit<HistoryQueryParams, 'page' | 'limit'>,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<HistoryHotspotPoint[]>> =>
+    axiosInstance.get('/history/hotspots', { params, signal }),
+  exportHistory: (
+    params: Omit<HistoryQueryParams, 'page' | 'limit'>,
+    signal?: AbortSignal
+  ): Promise<Blob> =>
+    axiosInstance.get('/history/export', {
+      params,
+      signal,
+      responseType: 'blob',
+    }),
 }
 
 // Simulation API

@@ -10,6 +10,7 @@ import {
   DatabaseOutlined,
   ExperimentOutlined,
   EyeOutlined,
+  FileSearchOutlined,
   LogoutOutlined,
   MenuOutlined,
   NotificationOutlined,
@@ -91,6 +92,11 @@ export const MainLayout: React.FC = () => {
             label: 'BI & OLAP Dashboard',
           },
           {
+            key: '/history',
+            icon: <FileSearchOutlined />,
+            label: 'Tra cứu Lịch sử',
+          },
+          {
             key: '/incident-reports',
             icon: <AuditOutlined />,
             label: 'Duyệt báo cáo công dân',
@@ -123,6 +129,7 @@ export const MainLayout: React.FC = () => {
         borderTop: '1px solid #f0f0f0',
         display: 'flex',
         flexDirection: 'column',
+        alignItems: isCollapsed && !isDrawer ? 'center' : 'stretch',
         gap: '8px',
         transition: 'all 0.2s',
       }}
@@ -138,7 +145,11 @@ export const MainLayout: React.FC = () => {
             }
           }}
           icon={isCollapsed && !isDrawer ? <UserOutlined /> : undefined}
-          style={{ padding: isCollapsed && !isDrawer ? 0 : undefined }}
+          style={{
+            padding: isCollapsed && !isDrawer ? 0 : undefined,
+            width: isCollapsed && !isDrawer ? 36 : undefined,
+            minWidth: isCollapsed && !isDrawer ? 36 : undefined,
+          }}
         >
           {(!isCollapsed || isDrawer) && 'Đăng nhập / Đăng ký'}
         </Button>
@@ -168,12 +179,14 @@ export const MainLayout: React.FC = () => {
               await handleLogout()
             }}
             size="small"
-            block
+            block={!isCollapsed || isDrawer}
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent:
                 isCollapsed && !isDrawer ? 'center' : 'flex-start',
+              width: isCollapsed && !isDrawer ? 36 : undefined,
+              minWidth: isCollapsed && !isDrawer ? 36 : undefined,
             }}
           >
             {(!isCollapsed || isDrawer) && 'Đăng xuất'}
@@ -188,6 +201,7 @@ export const MainLayout: React.FC = () => {
       {!isMobileUserView && (
         <Sider
           width={LAYOUT_SIDER_WIDTH}
+          collapsedWidth={56}
           theme="light"
           collapsible
           collapsed={collapsed}

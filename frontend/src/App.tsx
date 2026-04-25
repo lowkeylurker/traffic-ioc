@@ -3,6 +3,7 @@ import { MainLayout } from '@/layouts/MainLayout'
 import { AnalyticsPage } from '@/pages/AnalyticsPage'
 import { BiOlapDashboardPage } from '@/pages/BiOlapDashboardPage'
 import { CitizenReportsAdminPage } from '@/pages/CitizenReportsAdminPage'
+import { HistoricalQueryPage } from '@/pages/HistoricalQueryPage'
 import { NewsPage } from '@/pages/NewsPage'
 import { RealTimePage } from '@/pages/RealTimePage'
 import { SimulationPage } from '@/pages/SimulationPage'
@@ -66,6 +67,14 @@ function App() {
             element={
               <RoleGuard requiredRole="admin">
                 <BiOlapDashboardPage />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="history"
+            element={
+              <RoleGuard requiredRole="admin">
+                <HistoricalQueryPage />
               </RoleGuard>
             }
           />

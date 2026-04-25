@@ -24,6 +24,12 @@ router.get('/roads', (req, res, next) => mapController.getRoads(req, res, next))
 router.get('/status', (req, res, next) => mapController.getTrafficStatus(req, res, next));
 
 /**
+ * GET /api/v1/map/status/snapshots
+ * Lấy danh sách mốc giờ có dữ liệu traffic
+ */
+router.get('/status/snapshots', (req, res, next) => mapController.getTrafficStatusSnapshots(req, res, next));
+
+/**
  * GET /api/v1/map/status/:segmentId
  * Lấy trạng thái của một đoạn đường cụ thể
  */

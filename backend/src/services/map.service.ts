@@ -433,17 +433,26 @@ export class MapService {
   /**
    * Lấy trạng thái giao thông hiện tại của tất cả đoạn đường
    */
-  async getTrafficStatus(): Promise<TrafficStatus[]> {
+  async getTrafficStatus(asOf?: string): Promise<TrafficStatus[]> {
     try {
-      logger.log('Fetching traffic status (dynamic flow)');
+      logger.log(asOf ? `Fetching traffic status snapshot as of ${asOf}` : 'Fetching traffic status (dynamic flow)');
 
-      const result = await query(`
+      const queryParams: Array<string> = [];
+      const asOfCondition = asOf
+        ? (() => {
+            queryParams.push(asOf);
+            return `AND DATE_TRUNC('minute', timestamp) = DATE_TRUNC('minute', $${queryParams.length}::timestamptz AT TIME ZONE 'Asia/Ho_Chi_Minh')`;
+          })()
+        : `AND timestamp >= NOW() - INTERVAL '15 minutes' AND timestamp::date = CURRENT_DATE`;
+
+      const result = await query(
+        `
         WITH latest_flow AS (
           SELECT DISTINCT ON (segment_key)
             segment_key, current_speed_kmh, los_level, traffic_index, pcu_volume, timestamp
           FROM fact_traffic_flow
-          WHERE timestamp >= NOW() - INTERVAL '15 minutes'
-            AND timestamp::date = CURRENT_DATE
+          WHERE timestamp IS NOT NULL
+          ${asOfCondition}
           ORDER BY segment_key, timestamp DESC
         )
         SELECT
@@ -466,7 +475,9 @@ export class MapService {
         LEFT JOIN dim_way w ON w.way_key = s.way_key
         LEFT JOIN dim_road r ON r.road_key = w.road_key
         WHERE s.geometry_linestring IS NOT NULL
-      `);
+      `,
+        queryParams
+      );
 
       logger.log(`Retrieved traffic status for ${result.rows.length} segments`);
 
@@ -522,6 +533,60 @@ export class MapService {
       return result_row as TrafficStatus | null;
     } catch (error) {
       logger.error(`Error fetching status for segment ${segmentId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy danh sách mốc giờ snapshot có dữ liệu
+   */
+  async getTrafficStatusSnapshots(params: {
+    limit?: number;
+    before?: string;
+    start?: string;
+    end?: string;
+  }): Promise<string[]> {
+    try {
+      const { limit = 12, before, start, end } = params;
+      logger.log(`Fetching traffic status snapshots (limit: ${limit}, before: ${before}, start: ${start}, end: ${end})`);
+
+      const values: Array<string | number> = [];
+      let whereClause = 'WHERE timestamp IS NOT NULL';
+
+      if (before) {
+        values.push(before);
+        whereClause += ` AND timestamp <= $${values.length}::timestamp`;
+      }
+
+      if (start) {
+        values.push(start);
+        whereClause += ` AND timestamp >= $${values.length}::timestamp`;
+      }
+
+      if (end) {
+        values.push(end);
+        whereClause += ` AND timestamp <= $${values.length}::timestamp`;
+      }
+
+      values.push(limit);
+
+      const result = await query(
+        `
+        SELECT DISTINCT timestamp AS snapshot_time
+        FROM fact_traffic_flow
+        ${whereClause}
+        ORDER BY snapshot_time DESC
+        LIMIT $${values.length}
+        `,
+        values
+      );
+
+      return result.rows
+        .map((row) => row.snapshot_time)
+        .filter(Boolean)
+        .map((value) => new Date(value).toISOString());
+    } catch (error) {
+      logger.error('Error fetching traffic status snapshots', error);
       throw error;
     }
   }

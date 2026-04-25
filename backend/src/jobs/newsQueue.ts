@@ -10,15 +10,23 @@ export const NEWS_QUEUE_NAME = 'trafficNewsQueue';
 export const newsQueue = new Queue(NEWS_QUEUE_NAME, {
   connection: getRedisConnection(),
   defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 5000,
-    },
+    attempts: 1,
     removeOnComplete: 10,
-    removeOnFail: 50,
+    removeOnFail: true,
   },
 });
+
+/**
+ * Xóa toàn bộ job còn lưu trong Redis của queue khi khởi động lại server
+ */
+export async function clearTrafficNewsQueueOnStartup() {
+  try {
+    await newsQueue.obliterate({ force: true });
+    logger.log('Traffic News Queue cleared on startup.');
+  } catch (error) {
+    logger.error('Failed to clear Traffic News Queue on startup', error);
+  }
+}
 
 /**
  * Thêm job khởi chạy News Worker định kỳ mỗi 5 phút
@@ -30,7 +38,7 @@ export async function scheduleTrafficNewsJob() {
       {},
       {
         repeat: {
-          pattern: '*/3 * * * *', // Chạy mỗi 3 phút
+          pattern: '*/5 * * * *', // Chạy mỗi 5 phút
         },
       }
     );

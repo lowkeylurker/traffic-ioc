@@ -8,7 +8,7 @@ import { olapJobService } from './jobs/olap-job.service';
 import { reliabilityJobService } from './jobs/reliability-job.service';
 import { routingRefreshJobService } from './jobs/routing-refresh-job.service';
 import { Logger } from './utils/logger';
-import { scheduleTrafficNewsJob } from './jobs/newsQueue';
+import { clearTrafficNewsQueueOnStartup, scheduleTrafficNewsJob } from './jobs/newsQueue';
 import { trafficNewsWorker } from './jobs/trafficNewsWorker';
 
 const logger = new Logger('Server');
@@ -29,9 +29,10 @@ async function main() {
     await olapJobService.start();
     await reliabilityJobService.start();
     await routingRefreshJobService.start();
-    
+
     // Khởi tạo News Ticker Job
-    // await scheduleTrafficNewsJob();
+    await clearTrafficNewsQueueOnStartup();
+    await scheduleTrafficNewsJob();
 
     // Start server
     const server = app.listen(PORT, () => {

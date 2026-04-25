@@ -12,6 +12,7 @@ import { Logger } from './utils/logger';
 import { clerkMiddleware } from '@clerk/express';
 import compression from 'compression';
 import analyticsRoutes from './routes/analytics.routes';
+import historyRoutes from './routes/history.routes';
 import incidentRoutes from './routes/incident.routes';
 import mapRoutes from './routes/map.routes';
 import olapRoutes from './routes/olap.routes';
@@ -65,6 +66,7 @@ export const createApp = (): Express => {
 
   // Alias without version for BI/OLAP compatibility
   app.use('/api/olap', olapRoutes);
+  app.use('/api/history', historyRoutes);
   app.use('/api/traffic', trafficRoutes);
   app.use('/api/search', searchRoutes);
 
@@ -72,6 +74,7 @@ export const createApp = (): Express => {
   app.use(`${apiV1}${ROUTE_PATHS.TRAFFIC}`, trafficRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.SEARCH}`, searchRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.ANALYTICS}`, analyticsRoutes);
+  app.use(`${apiV1}${ROUTE_PATHS.HISTORY}`, historyRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.OLAP}`, olapRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.SIMULATION}`, simulationRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.INCIDENT}`, incidentRoutes);
@@ -84,6 +87,7 @@ export const createApp = (): Express => {
     traffic: `${apiV1}${ROUTE_PATHS.TRAFFIC}`,
     search: `${apiV1}${ROUTE_PATHS.SEARCH}`,
     analytics: `${apiV1}${ROUTE_PATHS.ANALYTICS}`,
+    history: `${apiV1}${ROUTE_PATHS.HISTORY}`,
     olap: `${apiV1}${ROUTE_PATHS.OLAP}`,
     simulation: `${apiV1}${ROUTE_PATHS.SIMULATION}`,
     incident: `${apiV1}${ROUTE_PATHS.INCIDENT}`,

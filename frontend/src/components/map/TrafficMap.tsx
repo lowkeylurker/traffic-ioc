@@ -6,11 +6,7 @@ import {
   TRAFFIC_COLORS,
 } from '@/config/constants'
 import { GeoJSONFeature, SegmentResponse } from '@/types'
-import {
-  AlertTriangle,
-  ShieldAlert,
-  TrafficCone,
-} from 'lucide-react'
+import { AlertTriangle, ShieldAlert, TrafficCone } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -224,6 +220,7 @@ interface TrafficMapProps {
   tomTomFlowTilesUrl?: string
   useTomTomIncidentTiles?: boolean
   tomTomIncidentTilesUrl?: string
+  showHoverPopup?: boolean
   children?: React.ReactNode
 }
 
@@ -237,6 +234,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   tomTomFlowTilesUrl,
   useTomTomIncidentTiles = false,
   tomTomIncidentTilesUrl,
+  showHoverPopup = true,
   children,
 }) => {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
@@ -1266,14 +1264,15 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
                     width: '28px',
                     height: '28px',
                     borderRadius: '8px',
-                    background:
-                      [7, 8].includes(tomTomIncidentPopup.iconCategory || -1)
-                        ? '#000000' // Black for closures
-                        : [1, 3, 11].includes(
+                    background: [7, 8].includes(
+                      tomTomIncidentPopup.iconCategory || -1
+                    )
+                      ? '#000000' // Black for closures
+                      : [1, 3, 11].includes(
                             tomTomIncidentPopup.iconCategory || -1
                           )
-                          ? '#FEE2E2' // Red for accidents/danger
-                          : '#FEF3C7', // Amber for works/jams
+                        ? '#FEE2E2' // Red for accidents/danger
+                        : '#FEF3C7', // Amber for works/jams
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1303,9 +1302,15 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
               </div>
 
               {/* Body */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
+              >
                 <div
-                  style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: '6px',
+                  }}
                 >
                   <div
                     style={{
@@ -1348,7 +1353,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         )}
       </Map>
 
-      {tomTomHoverPopup.visible && (
+      {showHoverPopup && tomTomHoverPopup.visible && (
         <div
           style={{
             position: 'absolute',
@@ -1499,7 +1504,8 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
       )}
 
       {/* Hover Popup */}
-      {hoveredFeature &&
+      {showHoverPopup &&
+        hoveredFeature &&
         (() => {
           const getPopUpData = (feature: GeoJSONFeature['properties']) => {
             const los = (feature.losIndex || 'N/A').toUpperCase()

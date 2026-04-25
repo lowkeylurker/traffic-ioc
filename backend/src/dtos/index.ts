@@ -84,3 +84,65 @@ export const ReliabilityQuerySchema = z.object({
 });
 
 export type ReliabilityQueryDto = z.infer<typeof ReliabilityQuerySchema>;
+
+const HistoryDateTimeSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/, 'Thời gian phải đúng định dạng YYYY-MM-DDTHH:mm[:ss]');
+
+const refineHistoryDateRange = (value: { startDateTime: string; endDateTime: string }, ctx: z.RefinementCtx) => {
+  const start = new Date(value.startDateTime);
+  const end = new Date(value.endDateTime);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'startDateTime/endDateTime phải là thời gian hợp lệ',
+      path: ['startDateTime'],
+    });
+    return;
+  }
+
+  if (end < start) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'endDateTime phải lớn hơn hoặc bằng startDateTime',
+      path: ['endDateTime'],
+    });
+    return;
+  }
+
+  const diffDays = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+  if (diffDays > 7) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Khoảng thời gian không được vượt quá 7 ngày',
+      path: ['endDateTime'],
+    });
+  }
+};
+
+export const HistoryQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(1000).default(50),
+    startDateTime: HistoryDateTimeSchema,
+    endDateTime: HistoryDateTimeSchema,
+    roadKey: z.string().min(1).optional(),
+    roadName: z.string().min(1).optional(),
+    minTrafficIndex: z.coerce.number().min(0).optional(),
+  })
+  .superRefine(refineHistoryDateRange);
+
+export type HistoryQueryDto = z.infer<typeof HistoryQuerySchema>;
+
+export const HistoryExportQuerySchema = z
+  .object({
+    startDateTime: HistoryDateTimeSchema,
+    endDateTime: HistoryDateTimeSchema,
+    roadKey: z.string().min(1).optional(),
+    roadName: z.string().min(1).optional(),
+    minTrafficIndex: z.coerce.number().min(0).optional(),
+  })
+  .superRefine(refineHistoryDateRange);
+
+export type HistoryExportQueryDto = z.infer<typeof HistoryExportQuerySchema>;

@@ -4,6 +4,7 @@ import { Card, Typography } from 'antd'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import React, { useMemo, useState } from 'react'
 import MapGL, { Layer, LayerProps, Source } from 'react-map-gl'
+import * as turf from '@turf/turf'
 
 const { Text } = Typography
 
@@ -41,6 +42,8 @@ export const SelectionMap: React.FC<SelectionMapProps> = ({
 
   const [hoveredRoadKey, setHoveredRoadKey] = useState<string | null>(null)
   const [hoveredRoadName, setHoveredRoadName] = useState<string | null>(null)
+  const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
+  const [hoveredSegmentIds, setHoveredSegmentIds] = useState<number[]>([])
 
   // Merge status into GeoJSON for coloring
   const processedGeoJson = useMemo(() => {
@@ -83,6 +86,8 @@ export const SelectionMap: React.FC<SelectionMapProps> = ({
     if (!disabled) return
     setHoveredRoadKey(null)
     setHoveredRoadName(null)
+    setHoveredDistrict(null)
+    setHoveredSegmentIds([])
     if (onHover) onHover(null)
   }, [disabled, onHover])
 
@@ -123,11 +128,7 @@ export const SelectionMap: React.FC<SelectionMapProps> = ({
         'line-color': '#1890ff',
         'line-opacity': [
           'case',
-          [
-            'any',
-            ['==', ['get', 'roadKey'], hoveredRoadKey || ''],
-            ['==', ['get', 'roadName'], hoveredRoadName || ''],
-          ],
+          ['in', ['get', 'segmentId'], ['literal', hoveredSegmentIds]],
           0.8,
           0,
         ],
@@ -139,7 +140,7 @@ export const SelectionMap: React.FC<SelectionMapProps> = ({
     }
 
     return { baseLayer, outlineLayer, highlightLayer }
-  }, [hoveredRoadKey, hoveredRoadName])
+  }, [hoveredSegmentIds])
 
   const handleMouseMove = (e: any) => {
     if (disabled) return
@@ -147,26 +148,44 @@ export const SelectionMap: React.FC<SelectionMapProps> = ({
     if (feature && segmentData) {
       const roadKey = (feature.properties?.roadKey as string) || null
       const roadName = (feature.properties?.roadName as string) || null
+      const district = (feature.properties?.district as string) || null
 
       setHoveredRoadKey(roadKey)
       setHoveredRoadName(roadName)
+      setHoveredDistrict(district)
 
       if (roadName && onHover) {
-        const relatedSegments = segmentData.features.filter(
-          (f) =>
-            (roadKey && f.properties.roadKey === roadKey) ||
-            (!roadKey && f.properties.roadName === roadName)
-        )
+        const point = [e.lngLat.lng, e.lngLat.lat]
+        const relatedSegments = segmentData.features.filter((f) => {
+          const isSameRoad = roadKey
+            ? f.properties.roadKey === roadKey
+            : f.properties.roadName === roadName
+
+          if (!isSameRoad) return false
+
+          try {
+            const featCoords = f.geometry.coordinates[0]
+            const distance = turf.distance(point, featCoords)
+            return distance < 3.0
+          } catch {
+            return false
+          }
+        })
+
+        const ids = relatedSegments.map((f) => f.properties.segmentId)
+        setHoveredSegmentIds(ids)
+
         onHover({
-          roadName,
+          roadName: district ? `${roadName} (${district})` : roadName,
           roadKey: roadKey || undefined,
           segmentCount: relatedSegments.length,
-          segmentIds: relatedSegments.map((f) => f.properties.segmentId),
+          segmentIds: ids,
         })
       }
     } else {
       setHoveredRoadKey(null)
       setHoveredRoadName(null)
+      setHoveredDistrict(null)
       if (onHover) onHover(null)
     }
   }
@@ -178,15 +197,27 @@ export const SelectionMap: React.FC<SelectionMapProps> = ({
       const roadName =
         (feature.properties?.roadName as string) || 'Đường không tên'
       const roadKey = feature.properties?.roadKey as string | undefined
+      const district = feature.properties?.district as string | null
 
-      const relatedSegments = segmentData.features.filter(
-        (f) =>
-          (roadKey && f.properties.roadKey === roadKey) ||
-          (!roadKey && f.properties.roadName === roadName)
-      )
+      const point = [e.lngLat.lng, e.lngLat.lat]
+      const relatedSegments = segmentData.features.filter((f) => {
+        const isSameRoad = roadKey
+          ? f.properties.roadKey === roadKey
+          : f.properties.roadName === roadName
+
+        if (!isSameRoad) return false
+
+        try {
+          const featCoords = f.geometry.coordinates[0]
+          const distance = turf.distance(point, featCoords)
+          return distance < 3.0
+        } catch {
+          return false
+        }
+      })
 
       onSelect({
-        roadName,
+        roadName: district ? `${roadName} (${district})` : roadName,
         roadKey,
         segmentCount: relatedSegments.length,
         segmentIds: relatedSegments.map((f: any) => f.properties.segmentId),
@@ -250,7 +281,7 @@ export const SelectionMap: React.FC<SelectionMapProps> = ({
             {disabled
               ? 'Đang khóa chọn đường. Vui lòng bấm Quay lại Hiện tại để chọn lại.'
               : hoveredRoadName
-                ? `Đang chọn: ${hoveredRoadName}`
+                ? `Đang chọn: ${hoveredRoadName}${hoveredDistrict ? ` (${hoveredDistrict})` : ''}`
                 : 'Click để chọn đoạn đường/trục đường'}
           </Text>
         </Card>

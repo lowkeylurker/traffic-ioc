@@ -26,9 +26,9 @@ async function fetchTrafficData() {
         WHERE timestamp >= NOW() - INTERVAL '15 minutes'
           AND timestamp::date = CURRENT_DATE
       )
-      SELECT 
-        dc.corridor_name as corridor, 
-        f.travel_time_index as tti, 
+      SELECT
+        dc.corridor_name as corridor,
+        f.travel_time_index as tti,
         f.total_delay_seconds as delay,
         dc.total_length_m as length,
         dc.target_avg_speed as target_speed
@@ -40,17 +40,17 @@ async function fetchTrafficData() {
     `;
     if (ttiRaw && ttiRaw.length > 0 && ttiRaw[0].corridor) {
       const row = ttiRaw[0];
-      // Tính toán delay chính xác hơn cho 1 hành trình: 
+      // Tính toán delay chính xác hơn cho 1 hành trình:
       // Delay (s) = (TTI - 1) * Free_Flow_Time(s)
       // Free_Flow_Time = (Length/1000 km) / (Target_Speed km/h) * 3600 (s/h)
       const freeFlowTime = (row.length * 3.6) / row.target_speed;
       const calculatedDelay = Math.round((row.tti - 1) * freeFlowTime);
-      
+
       // Sử dụng giá trị tính toán, nếu vô lý thì fallback về giá trị từ DB
-      highestTTI = { 
-        road: row.corridor, 
-        value: row.tti, 
-        delaySeconds: calculatedDelay > 0 ? calculatedDelay : (row.delay || 0) 
+      highestTTI = {
+        road: row.corridor,
+        value: row.tti,
+        delaySeconds: calculatedDelay > 0 ? calculatedDelay : row.delay || 0,
       };
     }
   } catch (e) {
@@ -126,7 +126,7 @@ async function processGenerateNews(job: Job) {
     const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite-preview' });
 
     const prompt = `[SYSTEM INSTRUCTION]
-Bạn là một Biên tập viên Kênh Truyền hình Giao thông Quốc gia (VTV Giao thông). 
+Bạn là một Biên tập viên Kênh Truyền hình Giao thông Quốc gia (VTV Giao thông).
 Nhiệm vụ của bạn là tổng hợp dữ liệu khô khan thành một câu tin tức chạy dưới màn hình (News Ticker).
 
 LUẬT BẮT BUỘC (CRITICAL RULES):
@@ -185,4 +185,10 @@ trafficNewsWorker.on('completed', (job) => {
 
 trafficNewsWorker.on('failed', (job, err) => {
   logger.error(`Job ${job?.id} failed in TrafficNewsWorker`, err);
+
+  if (job) {
+    void job.remove().catch((removeError) => {
+      logger.warn(`Could not remove failed job ${job.id}`, removeError);
+    });
+  }
 });

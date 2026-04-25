@@ -16,6 +16,7 @@ export interface GeoJSONFeature {
     losIndex?: string
     color?: string
     lastUpdated?: string
+    district?: string
   }
 }
 
@@ -400,6 +401,40 @@ export interface OlapDrilldownResponse {
   level: OlapDrillLevel
   roadName?: string
   points: OlapDrilldownPoint[]
+}
+
+export interface HistoryQueryParams {
+  page: number
+  limit: number
+  startDateTime: string
+  endDateTime: string
+  roadKey?: string
+  roadName?: string
+  minTrafficIndex?: number
+}
+
+export interface HistoryRecord {
+  timestamp: string
+  roadName: string | null
+  district: string | null
+  segmentId: string
+  avgSpeedKmh: number | null
+  pcuVolume: number | null
+  delaySeconds: number | null
+  trafficIndex: number | null
+}
+
+export interface HistoryResponse {
+  items: HistoryRecord[]
+  page: number
+  limit: number
+  totalItems: number
+  totalPages: number
+}
+
+export interface HistoryHotspotPoint {
+  roadName: string
+  trafficIndex: number
 }
 
 export interface ForecastData {

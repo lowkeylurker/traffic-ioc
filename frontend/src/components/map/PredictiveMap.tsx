@@ -7,6 +7,8 @@ import Map from 'react-map-gl'
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/config/constants'
 import { useSegments } from '@/hooks/useTraffic'
 import { GeoJSONFeature, SegmentResponse, PredictionItem } from '@/types'
+import { WebMercatorViewport } from '@deck.gl/core'
+import * as turf from '@turf/turf'
 
 const { Text, Title } = Typography
 
@@ -132,6 +134,8 @@ export const PredictiveMap: React.FC<PredictiveMapProps> = ({
     object: GeoJSONFeature | null
   } | null>(null)
 
+  const containerRef = React.useRef<HTMLDivElement>(null)
+
   const [viewState, setViewState] = useState({
     longitude: DEFAULT_MAP_CENTER[0],
     latitude: DEFAULT_MAP_CENTER[1],
@@ -144,7 +148,7 @@ export const PredictiveMap: React.FC<PredictiveMapProps> = ({
 
   // Fly-to effect when selectedRoad changes
   useEffect(() => {
-    if (!selectedRoad || !segmentData) return
+    if (!selectedRoad || !segmentData || !containerRef.current) return
 
     const selectedSegmentIds = new Set(
       selectedRoad.segmentIds.map((id) => Number(id))
@@ -155,66 +159,47 @@ export const PredictiveMap: React.FC<PredictiveMapProps> = ({
 
     if (selectedSegments.length === 0) return
 
-    // Calculate center for each segment and finding the overall centroid
-    const centers = selectedSegments
-      .map((f) => {
-        const validCoords = extractLineCoordinates(f.geometry?.coordinates)
-        if (validCoords.length === 0) return null
+    // Collect all points for the selected segments to calculate bbox
+    const allPoints: number[][] = []
+    selectedSegments.forEach((f) => {
+      const coords = extractLineCoordinates(f.geometry?.coordinates)
+      allPoints.push(...coords)
+    })
 
-        const midIdx = Math.floor(validCoords.length / 2)
-        const [lng, lat] = validCoords[midIdx]
+    if (allPoints.length === 0) return
 
-        return { lng, lat }
-      })
-      .filter((c): c is { lng: number; lat: number } => c !== null)
+    // Calculate bbox using turf
+    const line = turf.lineString(allPoints)
+    const [minX, minY, maxX, maxY] = turf.bbox(line)
 
-    if (centers.length > 0) {
-      // Calculate overall centroid of the centers
-      const centroid = centers.reduce(
-        (acc, c) => ({
-          lng: acc.lng + c.lng,
-          lat: acc.lat + c.lat,
-        }),
-        { lng: 0, lat: 0 }
-      )
+    const { width, height } = containerRef.current.getBoundingClientRect()
 
-      centroid.lng /= centers.length
-      centroid.lat /= centers.length
+    if (width > 0 && height > 0) {
+      try {
+        // Use WebMercatorViewport to calculate zoom/center that fits the bbox
+        const viewport = new WebMercatorViewport({ width, height })
+        const { longitude, latitude, zoom } = viewport.fitBounds(
+          [
+            [minX, minY],
+            [maxX, maxY],
+          ],
+          {
+            padding: 40, // Padding in pixels
+            maxZoom: 17,
+          }
+        )
 
-      // Pick the segment closest to the centroid as the representative fly-to target
-      const representative = centers.reduce((best, current) => {
-        const bestDist =
-          Math.pow(best.lng - centroid.lng, 2) +
-          Math.pow(best.lat - centroid.lat, 2)
-        const currentDist =
-          Math.pow(current.lng - centroid.lng, 2) +
-          Math.pow(current.lat - centroid.lat, 2)
-        return currentDist < bestDist ? current : best
-      })
-
-      if (
-        !Number.isFinite(representative.lng) ||
-        !Number.isFinite(representative.lat)
-      )
-        return
-
-      setViewState((prev) => {
-        const isSame =
-          Math.abs(prev.longitude - representative.lng) < 0.0001 &&
-          Math.abs(prev.latitude - representative.lat) < 0.0001 &&
-          prev.zoom === 14
-
-        if (isSame) return prev
-
-        return {
+        setViewState((prev) => ({
           ...prev,
-          longitude: representative.lng,
-          latitude: representative.lat,
-          zoom: 14,
+          longitude,
+          latitude,
+          zoom,
           transitionDuration: 1000,
           transitionInterpolator: new FlyToInterpolator(),
-        }
-      })
+        }))
+      } catch (error) {
+        console.error('Error fitting bounds:', error)
+      }
     }
   }, [selectedRoad, segmentData])
 
@@ -489,6 +474,7 @@ export const PredictiveMap: React.FC<PredictiveMapProps> = ({
 
   return (
     <div
+      ref={containerRef}
       style={{ position: 'relative', width: '100%', height: '100%', ...style }}
     >
       <DeckGL
