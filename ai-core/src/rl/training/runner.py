@@ -741,14 +741,14 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
 
     train_eval_fn = None
     if eval_loader is not None and len(eval_dataset) > 0 and early_stop_patience > 0:
-        print("🧪 Early-stop sẽ theo dõi macro_f1 trên holdout split cho classes 0-3 trong lúc train.")
+        print("🧪 Early-stop sẽ theo dõi macro_f1 trên holdout split cho tất cả classes trong lúc train.")
 
         def _eval_macro_f1_snapshot() -> dict:
             return evaluate_policy_net(agent.policy_net, eval_loader, device=device)
 
         train_eval_fn = _eval_macro_f1_snapshot
     elif early_stop_patience > 0:
-        print("⚠️ Early-stop bị tắt vì eval split không đủ valid windows để tính macro_f1 cho classes 0-3.")
+        print("⚠️ Early-stop bị tắt vì eval split không đủ valid windows để tính macro_f1 cho tất cả classes.")
 
     history = train_rl_agent(
         env=env,
@@ -771,8 +771,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
         print(
             f"✅ Eval | samples={eval_summary.get('num_samples', 0)} | "
             f"acc={eval_summary.get('accuracy', 0.0):.4f} | "
-            f"macro_f1={eval_summary.get('macro_f1', 0.0):.4f} | "
-            f"recall[{NUM_CLASSES - 1}]={eval_summary.get('focus_recall_3', eval_summary.get('minority_recall_35', 0.0)):.4f}"
+            f"macro_f1={eval_summary.get('macro_f1', 0.0):.4f}"
         )
 
         checkpoint_file = Path(checkpoint_path)
@@ -784,8 +783,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
             print(
                 f"✅ Best Checkpoint Eval | samples={eval_summary_best_checkpoint.get('num_samples', 0)} | "
                 f"acc={eval_summary_best_checkpoint.get('accuracy', 0.0):.4f} | "
-                f"macro_f1={eval_summary_best_checkpoint.get('macro_f1', 0.0):.4f} | "
-                f"recall[{NUM_CLASSES - 1}]={eval_summary_best_checkpoint.get('focus_recall_3', eval_summary_best_checkpoint.get('minority_recall_35', 0.0)):.4f}"
+                f"macro_f1={eval_summary_best_checkpoint.get('macro_f1', 0.0):.4f}"
             )
         else:
             print(f"⚠️ Không tìm thấy checkpoint để evaluate lại: {checkpoint_path}")
@@ -833,7 +831,9 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
             "episode_rewards": history.get("episode_rewards", []),
             "avg_losses": history.get("avg_losses", []),
             "epsilons": history.get("epsilons", []),
-            "minority_recall_35": history.get("minority_recall_35", []),
+            "per_class_recall": history.get("per_class_recall", []),
+            "per_class_precision": history.get("per_class_precision", []),
+            "per_class_f1": history.get("per_class_f1", []),
             "action_distribution": history.get("action_distribution", []),
             "mean_q_value": history.get("mean_q_value", []),
             "mean_target_q_value": history.get("mean_target_q_value", []),

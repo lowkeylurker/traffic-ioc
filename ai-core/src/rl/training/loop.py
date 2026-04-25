@@ -31,8 +31,6 @@ def train_rl_agent(
         "episode_rewards": [],
         "avg_losses": [],
         "epsilons": [],
-        "minority_recall_35": [],
-        "focus_recall_3": [],
         "eval_macro_f1": [],
         "eval_events": [],
         "action_distribution": [],
@@ -116,12 +114,10 @@ def train_rl_agent(
                 average=None,
                 zero_division=0,
             )
-            focus_recall_3 = float(ep_recall[NUM_CLASSES - 1])
         else:
             ep_precision = np.zeros(NUM_CLASSES, dtype=np.float32)
             ep_recall = np.zeros(NUM_CLASSES, dtype=np.float32)
             ep_f1 = np.zeros(NUM_CLASSES, dtype=np.float32)
-            focus_recall_3 = 0.0
 
         action_counts = np.bincount(np.asarray(episode_preds, dtype=np.int64), minlength=NUM_CLASSES).astype(np.float32)
         action_distribution = action_counts / max(1.0, float(action_counts.sum()))
@@ -139,8 +135,6 @@ def train_rl_agent(
         history["episode_rewards"].append(total_reward)
         history["avg_losses"].append(avg_loss)
         history["epsilons"].append(agent.epsilon)
-        history["minority_recall_35"].append(focus_recall_3)
-        history["focus_recall_3"].append(focus_recall_3)
         history["action_counts"].append(action_counts.tolist())
         history["action_distribution"].append(action_distribution.tolist())
         history["mean_q_value"].append(mean_q_value)
@@ -158,20 +152,22 @@ def train_rl_agent(
             f"🎬 Episode {episode + 1:03d}/{num_episodes} | Steps: {step_count} | "
             f"Time: {ep_time:.1f}s | Reward: {total_reward:8.1f} | "
             f"Avg Loss: {avg_loss:.4f} | Epsilon: {agent.epsilon:.3f} | "
-            f"Recall[{NUM_CLASSES - 1}]: {focus_recall_3:.4f} | Q: {mean_q_value:.4f} | TD: {mean_td_error:.4f}"
+            f"Q: {mean_q_value:.4f} | TD: {mean_td_error:.4f}"
         )
 
         if writer is not None:
             writer.add_scalar("rl/train/episode_reward", total_reward, episode + 1)
             writer.add_scalar("rl/train/avg_loss", avg_loss, episode + 1)
             writer.add_scalar("rl/train/epsilon", agent.epsilon, episode + 1)
-            writer.add_scalar("rl/train/focus_recall_3", focus_recall_3, episode + 1)
             writer.add_scalar("rl/train/mean_q_value", mean_q_value, episode + 1)
             writer.add_scalar("rl/train/mean_target_q_value", mean_target_q_value, episode + 1)
             writer.add_scalar("rl/train/mean_td_error", mean_td_error, episode + 1)
             writer.add_scalar("rl/train/action_entropy", float(-np.sum(action_distribution * np.log(action_distribution + 1e-12))), episode + 1)
             for cls_idx in range(NUM_CLASSES):
                 writer.add_scalar(f"rl/train/action_distribution/class_{cls_idx}", float(action_distribution[cls_idx]), episode + 1)
+                writer.add_scalar(f"rl/train/per_class_recall/class_{cls_idx}", float(ep_recall[cls_idx]), episode + 1)
+                writer.add_scalar(f"rl/train/per_class_precision/class_{cls_idx}", float(ep_precision[cls_idx]), episode + 1)
+                writer.add_scalar(f"rl/train/per_class_f1/class_{cls_idx}", float(ep_f1[cls_idx]), episode + 1)
             for key, value in episode_reward_breakdown.items():
                 writer.add_scalar(f"rl/train/reward_breakdown/{key}", float(value), episode + 1)
 
@@ -195,15 +191,20 @@ def train_rl_agent(
                     "episode": int(episode + 1),
                     "macro_f1": eval_macro_f1,
                     "accuracy": float(eval_summary.get("accuracy", 0.0)),
-                    "focus_recall_3": float(eval_summary.get("focus_recall_3", eval_summary.get("minority_recall_35", 0.0))),
                     "num_samples": int(eval_summary.get("num_samples", 0)),
+                    "per_class_metrics": eval_summary.get("per_class_metrics", {}),
                 }
             )
 
             if writer is not None:
                 writer.add_scalar("rl/eval/macro_f1", eval_macro_f1, episode + 1)
                 writer.add_scalar("rl/eval/accuracy", float(eval_summary.get("accuracy", 0.0)), episode + 1)
-                writer.add_scalar("rl/eval/focus_recall_3", float(eval_summary.get("focus_recall_3", eval_summary.get("minority_recall_35", 0.0))), episode + 1)
+                eval_per_class = eval_summary.get("per_class_metrics", {})
+                for cls_idx in range(NUM_CLASSES):
+                    cls_metrics = eval_per_class.get(f"class_{cls_idx}", {})
+                    writer.add_scalar(f"rl/eval/per_class_recall/class_{cls_idx}", float(cls_metrics.get("recall", 0.0)), episode + 1)
+                    writer.add_scalar(f"rl/eval/per_class_precision/class_{cls_idx}", float(cls_metrics.get("precision", 0.0)), episode + 1)
+                    writer.add_scalar(f"rl/eval/per_class_f1/class_{cls_idx}", float(cls_metrics.get("f1", 0.0)), episode + 1)
 
             if eval_macro_f1 > (best_eval_macro_f1 + early_stop_min_delta):
                 best_eval_macro_f1 = eval_macro_f1
@@ -247,13 +248,9 @@ def train_rl_agent(
                 "support": int(support[cls_idx]),
             }
         
-        last_class_idx = NUM_CLASSES - 1
-        final_focus_recall = float(recall[last_class_idx])
         history["final_summary"] = {
             "confusion_matrix": cm.tolist(),
             "per_class_metrics": final_per_class,
-            "minority_recall_35": final_focus_recall,
-            "focus_recall_3": final_focus_recall,
             "best_reward": float(best_reward),
             "best_eval_macro_f1": float(best_eval_macro_f1 if best_eval_macro_f1 > -float("inf") else 0.0),
             "stopped_early": bool(stopped_early),
@@ -267,8 +264,6 @@ def train_rl_agent(
         history["final_summary"] = {
             "confusion_matrix": [],
             "per_class_metrics": {},
-            "minority_recall_35": 0.0,
-            "focus_recall_3": 0.0,
             "best_reward": float(best_reward),
             "best_eval_macro_f1": float(best_eval_macro_f1 if best_eval_macro_f1 > -float("inf") else 0.0),
             "stopped_early": bool(stopped_early),

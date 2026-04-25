@@ -9,9 +9,6 @@ from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precisio
 from src.ml.feature_contract import NUM_CLASSES
 
 
-FOCUS_LABELS = list(range(NUM_CLASSES))
-
-
 def evaluate_policy_net(policy_net, dataloader, device: str = "cpu") -> dict:
     """Evaluate a trained policy network against ground-truth labels from dataloader."""
     was_training = bool(policy_net.training)
@@ -37,9 +34,6 @@ def evaluate_policy_net(policy_net, dataloader, device: str = "cpu") -> dict:
             "num_samples": 0,
             "accuracy": 0.0,
             "macro_f1": 0.0,
-            "macro_f1_0_3": 0.0,
-            "focus_recall_3": 0.0,
-            "minority_recall_35": 0.0,
             "per_class_metrics": {},
             "confusion_matrix": [],
         }
@@ -52,7 +46,7 @@ def evaluate_policy_net(policy_net, dataloader, device: str = "cpu") -> dict:
         zero_division=0,
     )
 
-    macro_f1_0_3 = float(f1_score(all_targets, all_preds, labels=FOCUS_LABELS, average="macro", zero_division=0))
+    macro_f1 = float(f1_score(all_targets, all_preds, labels=list(range(NUM_CLASSES)), average="macro", zero_division=0))
 
     per_class = {}
     for cls_idx in range(NUM_CLASSES):
@@ -65,17 +59,10 @@ def evaluate_policy_net(policy_net, dataloader, device: str = "cpu") -> dict:
 
     cm = confusion_matrix(all_targets, all_preds, labels=list(range(NUM_CLASSES)))
 
-    # Focus recall: recall of the last (most critical) class
-    last_class_idx = NUM_CLASSES - 1
-    focus_recall_last = float(recall[last_class_idx])
-
     return {
         "num_samples": int(len(all_targets)),
         "accuracy": float(accuracy_score(all_targets, all_preds)),
-        "macro_f1": macro_f1_0_3,
-        "macro_f1_0_3": macro_f1_0_3,
-        "focus_recall_3": focus_recall_last,  # For backward compatibility
-        "minority_recall_35": focus_recall_last,  # For backward compatibility
+        "macro_f1": macro_f1,
         "per_class_metrics": per_class,
         "confusion_matrix": cm.tolist(),
     }
