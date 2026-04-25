@@ -15,8 +15,8 @@ const { RangePicker } = DatePicker
 const { Text } = Typography
 
 export interface HistoryFilterValues {
-  dateRange: [Dayjs, Dayjs]
-  roadName?: string
+  dateTimeRange: [Dayjs, Dayjs]
+  roadKey?: string
   minTrafficIndex?: number
 }
 
@@ -27,7 +27,7 @@ interface HistoryFilterBarProps {
   initialRange: [Dayjs, Dayjs]
   onSearch: (values: HistoryFilterValues) => void
   onExport: (values: HistoryFilterValues) => void
-  onRoadNameChange?: (roadName?: string) => void
+  onRoadKeyChange?: (roadKey?: string) => void
 }
 
 export const HistoryFilterBar: React.FC<HistoryFilterBarProps> = ({
@@ -37,7 +37,7 @@ export const HistoryFilterBar: React.FC<HistoryFilterBarProps> = ({
   initialRange,
   onSearch,
   onExport,
-  onRoadNameChange,
+  onRoadKeyChange,
 }) => {
   const [form] = Form.useForm<HistoryFilterValues>()
   const [calendarRange, setCalendarRange] = useState<
@@ -48,7 +48,7 @@ export const HistoryFilterBar: React.FC<HistoryFilterBarProps> = ({
     () =>
       roads.map((road) => ({
         label: road.roadName,
-        value: road.roadName,
+        value: road.roadKey,
       })),
     [roads]
   )
@@ -74,17 +74,19 @@ export const HistoryFilterBar: React.FC<HistoryFilterBarProps> = ({
     <Form
       form={form}
       layout="vertical"
-      initialValues={{ dateRange: initialRange }}
+      initialValues={{ dateTimeRange: initialRange }}
       onFinish={onSearch}
       onValuesChange={(_, allValues) => {
-        onRoadNameChange?.(allValues.roadName?.trim() || undefined)
+        onRoadKeyChange?.(allValues.roadKey?.trim() || undefined)
       }}
     >
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
         <Space direction="vertical" size={4} style={{ width: '100%' }}>
-          <Text strong>Khoảng thời gian tra cứu (tối đa 7 ngày)</Text>
+          <Text strong>
+            Khoảng thời gian tra cứu (tối đa 7 ngày, chọn giờ/phút)
+          </Text>
           <Form.Item
-            name="dateRange"
+            name="dateTimeRange"
             rules={[
               { required: true, message: 'Vui lòng chọn khoảng thời gian' },
             ]}
@@ -93,6 +95,8 @@ export const HistoryFilterBar: React.FC<HistoryFilterBarProps> = ({
               style={{ width: '100%' }}
               allowClear={false}
               disabledDate={disabledDate}
+              showTime={{ format: 'HH:mm' }}
+              format="DD/MM/YYYY HH:mm"
               onCalendarChange={(values) =>
                 setCalendarRange(values ?? [null, null])
               }
@@ -103,7 +107,7 @@ export const HistoryFilterBar: React.FC<HistoryFilterBarProps> = ({
         <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space wrap>
             <Form.Item
-              name="roadName"
+              name="roadKey"
               label="Tên đường"
               style={{ minWidth: 220 }}
             >

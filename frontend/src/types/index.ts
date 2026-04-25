@@ -405,8 +405,9 @@ export interface OlapDrilldownResponse {
 export interface HistoryQueryParams {
   page: number
   limit: number
-  startDate: string
-  endDate: string
+  startDateTime: string
+  endDateTime: string
+  roadKey?: string
   roadName?: string
   minTrafficIndex?: number
 }

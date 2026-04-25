@@ -85,17 +85,19 @@ export const ReliabilityQuerySchema = z.object({
 
 export type ReliabilityQueryDto = z.infer<typeof ReliabilityQuerySchema>;
 
-const HistoryDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày phải đúng định dạng YYYY-MM-DD');
+const HistoryDateTimeSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/, 'Thời gian phải đúng định dạng YYYY-MM-DDTHH:mm[:ss]');
 
-const refineHistoryDateRange = (value: { startDate: string; endDate: string }, ctx: z.RefinementCtx) => {
-  const start = new Date(value.startDate);
-  const end = new Date(value.endDate);
+const refineHistoryDateRange = (value: { startDateTime: string; endDateTime: string }, ctx: z.RefinementCtx) => {
+  const start = new Date(value.startDateTime);
+  const end = new Date(value.endDateTime);
 
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'startDate/endDate phải là ngày hợp lệ',
-      path: ['startDate'],
+      message: 'startDateTime/endDateTime phải là thời gian hợp lệ',
+      path: ['startDateTime'],
     });
     return;
   }
@@ -103,8 +105,8 @@ const refineHistoryDateRange = (value: { startDate: string; endDate: string }, c
   if (end < start) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'endDate phải lớn hơn hoặc bằng startDate',
-      path: ['endDate'],
+      message: 'endDateTime phải lớn hơn hoặc bằng startDateTime',
+      path: ['endDateTime'],
     });
     return;
   }
@@ -114,7 +116,7 @@ const refineHistoryDateRange = (value: { startDate: string; endDate: string }, c
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'Khoảng thời gian không được vượt quá 7 ngày',
-      path: ['endDate'],
+      path: ['endDateTime'],
     });
   }
 };
@@ -123,8 +125,9 @@ export const HistoryQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(1000).default(50),
-    startDate: HistoryDateSchema,
-    endDate: HistoryDateSchema,
+    startDateTime: HistoryDateTimeSchema,
+    endDateTime: HistoryDateTimeSchema,
+    roadKey: z.string().min(1).optional(),
     roadName: z.string().min(1).optional(),
     minTrafficIndex: z.coerce.number().min(0).optional(),
   })
@@ -134,8 +137,9 @@ export type HistoryQueryDto = z.infer<typeof HistoryQuerySchema>;
 
 export const HistoryExportQuerySchema = z
   .object({
-    startDate: HistoryDateSchema,
-    endDate: HistoryDateSchema,
+    startDateTime: HistoryDateTimeSchema,
+    endDateTime: HistoryDateTimeSchema,
+    roadKey: z.string().min(1).optional(),
     roadName: z.string().min(1).optional(),
     minTrafficIndex: z.coerce.number().min(0).optional(),
   })

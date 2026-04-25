@@ -19,9 +19,9 @@ const DEFAULT_RANGE: [Dayjs, Dayjs] = [dayjs().subtract(1, 'day'), dayjs()]
 const buildQueryParams = (
   values: HistoryFilterValues
 ): Omit<HistoryQueryParams, 'page' | 'limit'> => ({
-  startDate: values.dateRange[0].format('YYYY-MM-DD'),
-  endDate: values.dateRange[1].format('YYYY-MM-DD'),
-  roadName: values.roadName?.trim() || undefined,
+  startDateTime: values.dateTimeRange[0].format('YYYY-MM-DDTHH:mm:ss'),
+  endDateTime: values.dateTimeRange[1].format('YYYY-MM-DDTHH:mm:ss'),
+  roadKey: values.roadKey?.trim() || undefined,
   minTrafficIndex:
     values.minTrafficIndex === undefined ? undefined : values.minTrafficIndex,
 })
@@ -32,11 +32,16 @@ export const HistoricalQueryPage: React.FC = () => {
   const [filters, setFilters] = useState<
     Omit<HistoryQueryParams, 'page' | 'limit'>
   >({
-    startDate: DEFAULT_RANGE[0].format('YYYY-MM-DD'),
-    endDate: DEFAULT_RANGE[1].format('YYYY-MM-DD'),
+    startDateTime: DEFAULT_RANGE[0]
+      .startOf('hour')
+      .format('YYYY-MM-DDTHH:mm:ss'),
+    endDateTime: DEFAULT_RANGE[1].startOf('hour').format('YYYY-MM-DDTHH:mm:ss'),
   })
   const [selectedRoadName, setSelectedRoadName] = useState<string | undefined>()
   const [exporting, setExporting] = useState(false)
+
+  const resolveRoadName = (roadKey?: string) =>
+    roadsQuery.data?.find((road) => road.roadKey === roadKey)?.roadName
 
   const roadsQuery = useQuery({
     queryKey: ['history-roads'],
@@ -77,7 +82,7 @@ export const HistoricalQueryPage: React.FC = () => {
   const handleSearch = (values: HistoryFilterValues) => {
     const nextFilters = buildQueryParams(values)
     setFilters(nextFilters)
-    setSelectedRoadName(nextFilters.roadName)
+    setSelectedRoadName(resolveRoadName(nextFilters.roadKey))
     setPage(1)
   }
 
@@ -113,7 +118,7 @@ export const HistoricalQueryPage: React.FC = () => {
           </Title>
           <Text type="secondary">
             Tra cứu dữ liệu giao thông từ bảng Raw Data theo khoảng thời gian
-            tối đa 7 ngày.
+            chính xác đến phút, tối đa 7 ngày.
           </Text>
           <div style={{ marginTop: 16 }}>
             <HistoryFilterBar
@@ -123,7 +128,9 @@ export const HistoricalQueryPage: React.FC = () => {
               initialRange={DEFAULT_RANGE}
               onSearch={handleSearch}
               onExport={handleExport}
-              onRoadNameChange={setSelectedRoadName}
+              onRoadKeyChange={(roadKey) =>
+                setSelectedRoadName(resolveRoadName(roadKey))
+              }
             />
           </div>
         </Card>

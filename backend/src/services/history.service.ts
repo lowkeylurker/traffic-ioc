@@ -7,15 +7,17 @@ import { Logger } from '../utils/logger';
 export interface HistoryQueryParams {
   page: number;
   limit: number;
-  startDate: string;
-  endDate: string;
+  startDateTime: string;
+  endDateTime: string;
+  roadKey?: string;
   roadName?: string;
   minTrafficIndex?: number;
 }
 
 export interface HistoryExportParams {
-  startDate: string;
-  endDate: string;
+  startDateTime: string;
+  endDateTime: string;
+  roadKey?: string;
   roadName?: string;
   minTrafficIndex?: number;
 }
@@ -41,16 +43,18 @@ const logger = new Logger('HistoryService');
 
 const BASE_JOIN = `
   FROM fact_traffic_flow f
-  JOIN dim_segment s ON s.segment_key = f.segment_key
-  LEFT JOIN dim_way w ON w.way_key = s.way_key
-  LEFT JOIN dim_road r ON r.road_key = w.road_key
+  JOIN mv_dim_segment_with_road_key s ON s.segment_key = f.segment_key
+  LEFT JOIN dim_road r ON r.road_key = s.road_key
 `;
 
 const buildFilters = (params: HistoryExportParams) => {
-  const conditions: string[] = ['f.timestamp >= $1::date', "f.timestamp < ($2::date + interval '1 day')"];
-  const values: Array<string | number> = [params.startDate, params.endDate];
+  const conditions: string[] = ['f.timestamp >= $1::timestamp', 'f.timestamp <= $2::timestamp'];
+  const values: Array<string | number> = [params.startDateTime, params.endDateTime];
 
-  if (params.roadName) {
+  if (params.roadKey) {
+    values.push(params.roadKey);
+    conditions.push(`s.road_key = $${values.length}::bigint`);
+  } else if (params.roadName) {
     values.push(params.roadName);
     conditions.push(`r.name = $${values.length}`);
   }
@@ -69,36 +73,36 @@ const buildFilters = (params: HistoryExportParams) => {
 export class HistoryService {
   async getHistory(params: HistoryQueryParams): Promise<HistoryPageResult> {
     const { values, where } = buildFilters(params);
-
-    const countResult = await query(`SELECT COUNT(*)::int AS "totalItems" ${BASE_JOIN} ${where}`, values);
-
-    const totalItems = Number(countResult.rows?.[0]?.totalItems ?? 0);
-    const totalPages = params.limit > 0 ? Math.ceil(totalItems / params.limit) : 0;
     const offset = (params.page - 1) * params.limit;
-
-    const dataValues = [...values, params.limit, offset];
-    const limitIndex = values.length + 1;
-    const offsetIndex = values.length + 2;
 
     const dataResult = await query(
       `
+      WITH filtered_history AS (
+        SELECT
+          f.timestamp AS "timestamp",
+          r.name AS "roadName",
+          s.segment_key::text AS "segmentId",
+          f.pcu_volume AS "pcuVolume",
+          f.delay_seconds AS "delaySeconds",
+          f.traffic_index AS "trafficIndex"
+        ${BASE_JOIN}
+        ${where}
+      )
       SELECT
-        f.timestamp AS "timestamp",
-        r.name AS "roadName",
-        s.segment_key::text AS "segmentId",
-        f.pcu_volume AS "pcuVolume",
-        f.delay_seconds AS "delaySeconds",
-        f.traffic_index AS "trafficIndex"
-      ${BASE_JOIN}
-      ${where}
-      ORDER BY f.timestamp DESC
-      LIMIT $${limitIndex} OFFSET $${offsetIndex}
+        filtered_history.*,
+        COUNT(*) OVER()::int AS "totalItems"
+      FROM filtered_history
+      ORDER BY "timestamp" DESC
+      LIMIT $${values.length + 1} OFFSET $${values.length + 2}
       `,
-      dataValues
+      [...values, params.limit, offset]
     );
 
+    const totalItems = Number(dataResult.rows?.[0]?.totalItems ?? 0);
+    const totalPages = params.limit > 0 ? Math.ceil(totalItems / params.limit) : 0;
+
     return {
-      items: dataResult.rows as HistoryRecord[],
+      items: dataResult.rows.map(({ totalItems: _totalItems, ...row }) => row) as HistoryRecord[],
       page: params.page,
       limit: params.limit,
       totalItems,
