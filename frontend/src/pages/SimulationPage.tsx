@@ -58,7 +58,6 @@ export const SimulationPage: React.FC = () => {
 
   const [forecastLoading, setForecastLoading] = useState(false)
   const [chartLoading, setChartLoading] = useState(false)
-  const [routingLoading, setRoutingLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'real-time' | 'forecast'>(
     'real-time'
   )
@@ -177,21 +176,6 @@ export const SimulationPage: React.FC = () => {
     setMapResetVersion((v) => v + 1)
   }
 
-  const handleRouting = async () => {
-    if (!selectedRoad) return
-    setRoutingLoading(true)
-    try {
-      // Logic for alternative routing could go here
-      message.info('Đang tính toán lộ trình thay thế dựa trên dự báo kẹt xe...')
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      message.success('Đã đề xuất lộ trình thay thế tối ưu.')
-    } catch {
-      message.error('Lỗi khi tính toán lộ trình')
-    } finally {
-      setRoutingLoading(false)
-    }
-  }
-
   const displayRoad = selectedRoad || hoveredRoad
   const inputValue = displayRoad
     ? `${displayRoad.roadName} (${displayRoad.segmentCount} segments)`
@@ -201,7 +185,7 @@ export const SimulationPage: React.FC = () => {
     <Row
       gutter={[16, 16]}
       style={{
-        height: 'calc(100vh - 16px)',
+        height: '100%',
         padding: '16px',
         overflow: 'hidden',
       }}
@@ -256,12 +240,20 @@ export const SimulationPage: React.FC = () => {
           flexDirection: 'column',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            height: '100%',
+          }}
+        >
           {/* Selection Map (Small) */}
           <Card
             title="Chọn trục đường / Đoạn đường"
             size="small"
-            bodyStyle={{ height: 280, padding: 4 }}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+            bodyStyle={{ flex: 1, padding: 4, minHeight: 0 }}
           >
             <SelectionMap
               key={`selection-map-${mapResetVersion}`}
@@ -314,15 +306,6 @@ export const SimulationPage: React.FC = () => {
                   <Button icon={<ReloadOutlined />} onClick={handleReset} />
                 )}
               </div>
-
-              <Button
-                loading={routingLoading}
-                onClick={handleRouting}
-                block
-                disabled={!selectedRoad}
-              >
-                Tính toán lộ trình thay thế
-              </Button>
             </Space>
           </Card>
 

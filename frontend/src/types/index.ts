@@ -16,6 +16,7 @@ export interface GeoJSONFeature {
     losIndex?: string
     color?: string
     lastUpdated?: string
+    district?: string
   }
 }
 
