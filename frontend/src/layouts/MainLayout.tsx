@@ -5,7 +5,6 @@ import { LiveNewsTicker } from '@/components/LiveNewsTicker'
 import { LAYOUT_SIDER_WIDTH } from '@/config/constants'
 import { setAccessTokenGetter } from '@/services/api'
 import {
-  AuditOutlined,
   BarChartOutlined,
   DatabaseOutlined,
   ExperimentOutlined,
@@ -13,7 +12,6 @@ import {
   FileSearchOutlined,
   LogoutOutlined,
   MenuOutlined,
-  NotificationOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import { useAuth, useUser } from '@clerk/clerk-react'
@@ -65,11 +63,11 @@ export const MainLayout: React.FC = () => {
     },
     ...(isSignedIn && !isAdmin
       ? [
-          {
-            key: '/news',
-            icon: <NotificationOutlined />,
-            label: 'Tin tức giao thông',
-          },
+          // {
+          //   key: '/news',
+          //   icon: <NotificationOutlined />,
+          //   label: 'Tin tức giao thông',
+          // },
         ]
       : []),
 
@@ -96,11 +94,11 @@ export const MainLayout: React.FC = () => {
             icon: <FileSearchOutlined />,
             label: 'Tra cứu Lịch sử',
           },
-          {
-            key: '/incident-reports',
-            icon: <AuditOutlined />,
-            label: 'Duyệt báo cáo công dân',
-          },
+          // {
+          //   key: '/incident-reports',
+          //   icon: <AuditOutlined />,
+          //   label: 'Duyệt báo cáo công dân',
+          // },
         ]
       : []),
 
