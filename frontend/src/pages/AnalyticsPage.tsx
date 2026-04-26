@@ -2,10 +2,7 @@
 
 import { CorridorAnalyticsTab } from '@/pages/analytics/CorridorAnalyticsTab'
 import { CorridorReliabilityTab } from '@/pages/analytics/CorridorReliabilityTab'
-import {
-  ApartmentOutlined,
-  SafetyCertificateOutlined,
-} from '@ant-design/icons'
+import { ApartmentOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import { Tabs, Typography } from 'antd'
 import React from 'react'
 
@@ -13,65 +10,90 @@ const { Title, Text } = Typography
 
 export const AnalyticsPage: React.FC = () => {
   return (
-    <div
-      style={{
-        maxWidth: '100%',
-        overflowX: 'hidden',
-        padding: '0 0 16px',
-      }}
-    >
+    <>
       <div
         style={{
-          padding: '16px 20px 12px',
-          borderBottom: '1px solid #f0f0f0',
-          background: '#fff',
-          marginBottom: 4,
+          maxWidth: '100%',
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        <Title level={4} style={{ marginBottom: 4, color: '#0f1b37' }}>
-          Trung tâm Phân tích Giao thông Hành lang
-        </Title>
-        <Text type="secondary" style={{ fontSize: 13 }}>
-          Theo dõi hiệu năng vận hành, phát hiện điểm nghẽn và đánh giá độ tin
-          cậy các hành lang giao thông trọng yếu trên địa bàn.
-        </Text>
-      </div>
+        <div
+          style={{
+            padding: '16px 20px 12px',
+            borderBottom: '1px solid #f0f0f0',
+            background: '#fff',
+            marginBottom: 4,
+          }}
+        >
+          <Title level={4} style={{ marginBottom: 4, color: '#0f1b37' }}>
+            Trung tâm Phân tích Giao thông Hành lang
+          </Title>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            Theo dõi hiệu năng vận hành, phát hiện điểm nghẽn và đánh giá độ tin
+            cậy các hành lang giao thông trọng yếu trên địa bàn.
+          </Text>
+        </div>
 
-      <Tabs
-        defaultActiveKey="corridor"
-        tabBarStyle={{ marginBottom: 0, marginLeft: 16, marginTop: 8 }}
-        size="large"
-        items={[
-          {
-            key: 'corridor',
-            label: (
-              <span>
-                <ApartmentOutlined style={{ marginRight: 6 }} />
-                Tổng quan Hành lang
-              </span>
-            ),
-            children: (
-              <div style={{ padding: '16px 16px 0' }}>
-                <CorridorAnalyticsTab />
-              </div>
-            ),
-          },
-          {
-            key: 'corridor-reliability',
-            label: (
-              <span>
-                <SafetyCertificateOutlined style={{ marginRight: 6 }} />
-                Phân tích Độ tin cậy
-              </span>
-            ),
-            children: (
-              <div style={{ padding: '16px 16px 0' }}>
-                <CorridorReliabilityTab />
-              </div>
-            ),
-          },
-        ]}
-      />
-    </div>
+        <Tabs
+          defaultActiveKey="corridor"
+          tabBarStyle={{ marginBottom: 0, marginLeft: 16, marginTop: 8 }}
+          size="middle"
+          items={[
+            {
+              key: 'corridor',
+              label: (
+                <span>
+                  <ApartmentOutlined style={{ marginRight: 6 }} />
+                  Tổng quan Hành lang
+                </span>
+              ),
+              children: (
+                <div style={{ padding: '16px' }}>
+                  <CorridorAnalyticsTab />
+                </div>
+              ),
+            },
+            {
+              key: 'corridor-reliability',
+              label: (
+                <span>
+                  <SafetyCertificateOutlined style={{ marginRight: 6 }} />
+                  Phân tích Độ tin cậy
+                </span>
+              ),
+              children: (
+                <div style={{ padding: '16px', height: '100%' }}>
+                  <CorridorReliabilityTab />
+                </div>
+              ),
+            },
+          ]}
+        />
+      </div>
+      <style>
+        {`
+        .ant-tabs, .ant-tabs-top, .ant-tabs-middle {
+          height: calc(100vh - 120px) !important;
+          flex: 1 !important;
+        }
+        .ant-tabs-content-holder {
+          height: 100% !important;
+        }
+
+        .ant-tabs-content {
+          height: 100% !important;
+        }
+
+        .ant-layout-content {
+          height: 100vh !important;
+        }
+          .ant-tabs-tabpane, .ant-tabs-tabpane-active {
+            height: 100% !important;
+          }
+      `}
+      </style>
+    </>
   )
 }
