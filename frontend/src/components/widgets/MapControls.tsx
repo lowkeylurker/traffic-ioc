@@ -24,6 +24,7 @@ interface MapControlsProps {
   onRoutingToggle?: (enabled: boolean) => void
   showCamera?: boolean
   showRouting?: boolean
+  showWeather?: boolean
 
   defaultSegmentStatusLayerEnabled?: boolean
   defaultWeatherLayerEnabled?: boolean
@@ -41,6 +42,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
   onRoutingToggle,
   showCamera = true,
   showRouting = true,
+  showWeather = true,
 
   defaultSegmentStatusLayerEnabled = true,
   defaultWeatherLayerEnabled = false,
@@ -190,20 +192,22 @@ export const MapControls: React.FC<MapControlsProps> = ({
             />
           </Tooltip>
 
-          <Tooltip
-            placement="left"
-            title={
-              weatherLayerEnabled ? 'Tắt lớp thời tiết' : 'Bật lớp thời tiết'
-            }
-          >
-            <Button
-              type={weatherLayerEnabled ? 'primary' : 'text'}
-              size="small"
-              icon={<CloudOutlined style={{ fontSize: 18 }} />}
-              onClick={handleWeatherToggle}
-              style={{ width: '100%', textAlign: 'center' }}
-            />
-          </Tooltip>
+          {showWeather && (
+            <Tooltip
+              placement="left"
+              title={
+                weatherLayerEnabled ? 'Tắt lớp thời tiết' : 'Bật lớp thời tiết'
+              }
+            >
+              <Button
+                type={weatherLayerEnabled ? 'primary' : 'text'}
+                size="small"
+                icon={<CloudOutlined style={{ fontSize: 18 }} />}
+                onClick={handleWeatherToggle}
+                style={{ width: '100%', textAlign: 'center' }}
+              />
+            </Tooltip>
+          )}
 
           <Tooltip
             placement="left"

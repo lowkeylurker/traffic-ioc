@@ -13,7 +13,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Marker } from 'react-map-gl'
 import { DashboardPage } from './DashboardPage'
 
-const RealTimeMapOnly: React.FC = () => {
+const RealTimeMapOnly: React.FC<{ isSignedIn: boolean }> = ({
+  isSignedIn,
+}) => {
   const MY_LOCATION_LABEL = 'Vị trí của tôi'
   const segmentData = null
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
@@ -587,6 +589,8 @@ const RealTimeMapOnly: React.FC = () => {
           setIsEditingRoutePoints(enabled)
         }}
         showCamera={false}
+        showRouting={isSignedIn}
+        showWeather={isSignedIn}
         defaultSegmentStatusLayerEnabled={segmentStatusLayerEnabled}
         defaultWeatherLayerEnabled={weatherLayerEnabled}
         defaultIncidentLayerEnabled={incidentLayerEnabled}
@@ -645,5 +649,5 @@ export const RealTimePage: React.FC = () => {
   ) as string | undefined
   const isAdmin = userRole === 'admin'
 
-  return isAdmin ? <DashboardPage /> : <RealTimeMapOnly />
+  return isAdmin ? <DashboardPage /> : <RealTimeMapOnly isSignedIn={isSignedIn} />
 }
