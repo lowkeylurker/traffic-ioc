@@ -7,7 +7,9 @@ Load    : UPSERT → fact_traffic_flow (partitioned by date_key)
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+import os
 from typing import Any
 
 from pydantic import ValidationError
@@ -50,6 +52,42 @@ class TrafficExtractor(BaseExtractor):
         # key_pool: TomTomKeyPool instance (optional).  When supplied,
         # each request draws the key with the most remaining daily budget.
         self._key_pool = key_pool
+        self._max_workers = max(1, int(os.getenv("MAX_WORKERS_PHASE3", "8")))
+
+    def _extract_one_point(
+        self,
+        idx: int,
+        lat: float,
+        lon: float,
+        pool,
+    ) -> tuple[int, dict | None]:
+        """Extract a single point, retrying with next key if current key is blocked (403)."""
+        while True:
+            key = pool.get_next_key() if pool else self.api_key
+            if key is None:
+                return idx, None
+
+            url = f"{self.BASE_URL}/absolute/10/json"
+            params = {
+                "key": key,
+                "point": f"{lat},{lon}",
+                "unit": "KMPH",
+            }
+            try:
+                data = self._get(url, params=params)
+                if pool:
+                    pool.record_success(key)
+                return idx, data
+            except DataExtractionError as e:
+                message = e.message or ""
+                if pool and "403" in message:
+                    pool.mark_blocked(key)
+                    self.logger.warning(
+                        "Retry point (%s,%s) with next key after 403", lat, lon
+                    )
+                    continue
+                self.logger.debug("Skip point (%s,%s): %s", lat, lon, message)
+                return idx, None
 
     def extract(self, **kwargs: Any) -> list[dict]:
         """Gọi API cho danh sách tọa độ (lat, lon).
@@ -61,61 +99,48 @@ class TrafficExtractor(BaseExtractor):
             list[dict]: Raw JSON responses (1 per point).
         """
         points: list[tuple[float, float]] = kwargs.get("points", [])
-        results = []
+        results_by_idx: dict[int, dict] = {}
         pool = self._key_pool
 
         pool_desc = f"pool({pool.pool_size} keys)" if pool else "single-key"
         self.logger.info(
-            "Extracting traffic flow for %d segments [%s]", len(points), pool_desc
+            "Extracting traffic flow for %d segments [%s, max_workers=%d]",
+            len(points),
+            pool_desc,
+            self._max_workers,
         )
 
-        for lat, lon in points:
-            # Retry the same point with another key when a key gets blocked (403).
-            while True:
-                # Pick key: pool mode selects the key with lowest usage today
-                key = pool.get_next_key() if pool else self.api_key
-                if key is None:
-                    if pool:
-                        self.logger.error(
-                            "All TomTom API keys exhausted/blocked for today — stopping extraction"
-                        )
-                        return results
-                    self.logger.warning("Skip point (%s,%s): no API key configured", lat, lon)
-                    break
+        skipped_points = 0
+        with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
+            future_map = {
+                executor.submit(self._extract_one_point, idx, lat, lon, pool): idx
+                for idx, (lat, lon) in enumerate(points)
+            }
+            for future in as_completed(future_map):
+                idx, data = future.result()
+                if data is None:
+                    skipped_points += 1
+                    continue
+                results_by_idx[idx] = data
 
-                url = f"{self.BASE_URL}/absolute/10/json"
-                params = {
-                    "key": key,
-                    "point": f"{lat},{lon}",
-                    "unit": "KMPH",
-                }
-                try:
-                    data = self._get(url, params=params)
-                    if pool:
-                        pool.record_success(key)
-                    results.append(data)
-                    break
-                except DataExtractionError as e:
-                    message = e.message or ""
-                    # 403 = key is forbidden/blocked (entitlement / quota limit hit).
-                    # Mark blocked then retry this same point with the next usable key.
-                    if pool and "403" in message:
-                        pool.mark_blocked(key)
-                        self.logger.warning(
-                            "Retry point (%s,%s) with next key after 403", lat, lon
-                        )
-                        continue
-
-                    self.logger.warning("Skip point (%s,%s): %s", lat, lon, message)
-                    break
+        # Keep deterministic ordering by original point index.
+        results = [results_by_idx[i] for i in sorted(results_by_idx.keys())]
 
         if pool:
             self.logger.info(
-                "Extracted %d/%d responses | pool status: %s",
-                len(results), len(points), pool.status(),
+                "Extracted %d/%d responses (skipped=%d) | pool status: %s",
+                len(results),
+                len(points),
+                skipped_points,
+                pool.status(),
             )
         else:
-            self.logger.info("Extracted %d/%d responses", len(results), len(points))
+            self.logger.info(
+                "Extracted %d/%d responses (skipped=%d)",
+                len(results),
+                len(points),
+                skipped_points,
+            )
         return results
 
 
@@ -198,7 +223,7 @@ class TrafficTransformer(BaseTransformer):
                     f"Skip record {idx}: invalid free_flow_speed={free_flow_speed}"
                 )
                 continue
-            
+
             if current_speed < 0:
                 self.logger.warning(
                     f"Skip record {idx}: invalid current_speed={current_speed}"
@@ -250,6 +275,7 @@ class TrafficTransformer(BaseTransformer):
                     "los_level": los,
                     "congestion_level": congestion,
                     "is_closed": is_closed,
+                    "is_incident_triggered": False,
                     # inserted_at: không set (dùng DB DEFAULT CURRENT_TIMESTAMP)
                     "quality_flag": quality,
                 }
@@ -276,6 +302,7 @@ class TrafficLoader(BaseLoader):
         "los_level",
         "congestion_level",
         "is_closed",
+        "is_incident_triggered",
         "quality_flag",
         # Không include inserted_at - lần insert đầu tiên dùng DB DEFAULT
     ]

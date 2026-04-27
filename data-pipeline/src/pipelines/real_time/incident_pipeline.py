@@ -172,9 +172,10 @@ class IncidentTransformer(BaseTransformer):
                 continue
 
             # Incident type & severity
-            icon_cat = props.icon_category if props.icon_category is not None else 0
-            incident_type = get_icon_category_type(icon_cat)
-            severity = normalize_magnitude(props.magnitude_of_delay)
+            icon_category = int(props.icon_category or 0)
+            magnitude_of_delay = int(props.magnitude_of_delay or 0)
+            incident_type = get_icon_category_type(icon_category)
+            severity = normalize_magnitude(magnitude_of_delay)
             delay_seconds = props.delay if props.delay is not None else 0
 
             is_active = derive_is_active(props.end_time)
@@ -187,6 +188,8 @@ class IncidentTransformer(BaseTransformer):
                     "segment_key": segment_key,
                     "location_key": location_key,
                     "incident_type": incident_type,
+                    "icon_category": icon_category,
+                    "magnitude_of_delay": magnitude_of_delay,
                     "timestamp": ts.replace(tzinfo=None),
                     "severity_level": severity,
                     "delay_seconds": delay_seconds,
@@ -224,15 +227,19 @@ class IncidentLoader(BaseLoader):
     _SQL = """
         INSERT INTO fact_incident (
             incident_key, time_key, date_key, segment_key, location_key,
-            incident_type, timestamp, severity_level, delay_seconds,
-            geometry, is_simulated, is_active, quality_flag
+            incident_type, icon_category, magnitude_of_delay, timestamp,
+            severity_level, delay_seconds, geometry, is_simulated, is_active,
+            quality_flag
         ) VALUES (
             :incident_key, :time_key, :date_key, :segment_key, :location_key,
-            :incident_type, :timestamp, :severity_level, :delay_seconds,
+            :incident_type, :icon_category, :magnitude_of_delay, :timestamp,
+            :severity_level, :delay_seconds,
             ST_GeomFromText(:geometry_wkt, 4326), :is_simulated, :is_active,
             :quality_flag
         )
         ON CONFLICT (incident_key, date_key) DO UPDATE SET
+            icon_category = EXCLUDED.icon_category,
+            magnitude_of_delay = EXCLUDED.magnitude_of_delay,
             severity_level = EXCLUDED.severity_level,
             delay_seconds = EXCLUDED.delay_seconds,
             is_active = EXCLUDED.is_active,

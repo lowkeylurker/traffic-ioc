@@ -47,7 +47,7 @@ class TomTomKeyPool:
         self._usage: dict[str, int] = {k: 0 for k in self._keys}
         self._blocked: set[str] = set()          # 403-blocked keys, cleared next day
         self._current_date: date = date.today()
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._state_file = Path(
             os.getenv("TOMTOM_KEY_POOL_STATE_FILE", "/app/cache/tomtom_key_pool_state.json")
         )
@@ -64,38 +64,40 @@ class TomTomKeyPool:
     def _save_state(self) -> None:
         """Persist current pool state to disk for cross-process continuity."""
         try:
-            self._state_file.parent.mkdir(parents=True, exist_ok=True)
-            payload = {
-                "date": self._current_date.isoformat(),
-                "usage": self._usage,
-                "blocked": sorted(self._blocked),
-            }
-            self._state_file.write_text(
-                json.dumps(payload, ensure_ascii=True), encoding="utf-8"
-            )
+            with self._lock:
+                self._state_file.parent.mkdir(parents=True, exist_ok=True)
+                payload = {
+                    "date": self._current_date.isoformat(),
+                    "usage": self._usage,
+                    "blocked": sorted(self._blocked),
+                }
+                self._state_file.write_text(
+                    json.dumps(payload, ensure_ascii=True), encoding="utf-8"
+                )
         except Exception as e:
             logger.warning("TomTomKeyPool: failed to persist state: %s", e)
 
     def _load_state(self) -> None:
         """Load persisted state when available and still for the same day."""
         try:
-            if not self._state_file.exists():
-                return
+            with self._lock:
+                if not self._state_file.exists():
+                    return
 
-            payload = json.loads(self._state_file.read_text(encoding="utf-8"))
-            state_date = payload.get("date")
-            if state_date != self._current_date.isoformat():
-                return
+                payload = json.loads(self._state_file.read_text(encoding="utf-8"))
+                state_date = payload.get("date")
+                if state_date != self._current_date.isoformat():
+                    return
 
-            usage = payload.get("usage") or {}
-            blocked = payload.get("blocked") or []
+                usage = payload.get("usage") or {}
+                blocked = payload.get("blocked") or []
 
-            # Keep only keys that still exist in current config.
-            self._usage = {
-                k: int(usage.get(k, 0))
-                for k in self._keys
-            }
-            self._blocked = {k for k in blocked if k in self._usage}
+                # Keep only keys that still exist in current config.
+                self._usage = {
+                    k: int(usage.get(k, 0))
+                    for k in self._keys
+                }
+                self._blocked = {k for k in blocked if k in self._usage}
             logger.info(
                 "TomTomKeyPool: restored state from %s (blocked=%d)",
                 self._state_file,

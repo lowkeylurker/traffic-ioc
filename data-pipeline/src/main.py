@@ -514,6 +514,27 @@ _SEGMENT_QUERY_WITH_BBOX = text("""
         LIMIT  :limit
 """)
 
+_SEGMENT_QUERY_DYNAMIC_Q1 = text("""
+        SELECT
+                q1.segment_key,
+                ST_Y(q1.geometry_center) AS lat,
+                ST_X(q1.geometry_center) AS lon,
+                COALESCE(w.default_lane_count, 2) AS lane_count
+        FROM dim_segment_q1 q1
+        JOIN dim_segment s ON s.segment_key = q1.segment_key
+        LEFT JOIN dim_way w ON w.way_key = s.way_key
+        WHERE q1.geometry_center IS NOT NULL
+            AND NOT EXISTS (
+                    SELECT 1
+                    FROM fact_traffic_flow f
+                    WHERE f.segment_key = q1.segment_key
+                        AND f.is_incident_triggered = TRUE
+                        AND f.timestamp >= (NOW() - INTERVAL '15 minutes')
+            )
+        ORDER BY q1.segment_key
+        LIMIT :limit
+""")
+
 _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
         WITH active_corridors AS (
             SELECT c.corridor_key,
@@ -925,6 +946,7 @@ def _load_segment_points(
     limit: int = _MAX_SEGMENTS_PER_CYCLE,
     bbox: Optional[dict] = None,
     target_corridor_mode: bool = False,
+    dynamic_q1_mode: bool = False,
     full_target_coverage: bool = True,
     overfetch_factor: int = _OVERFETCH_FACTOR,
 ) -> Tuple[list, list, dict, dict]:
@@ -940,6 +962,7 @@ def _load_segment_points(
         limit: Max segments to load (default 25 for TomTom free tier)
         bbox: Optional bounding box dict {min_lon, max_lon, min_lat, max_lat} to filter segments
         target_corridor_mode: If True, use priority corridor critical-segment selection
+        dynamic_q1_mode: If True, load from dim_segment_q1 and exclude recent incident-triggered flows
         full_target_coverage: If True, force full target-corridor coverage.
         overfetch_factor: Fetch extra candidates to compensate invalid/duplicate points
     """
@@ -959,7 +982,9 @@ def _load_segment_points(
         query_limit = max(limit, int(limit * max(1, overfetch_factor)))
 
     with engine.connect() as conn:
-        if target_corridor_mode:
+        if dynamic_q1_mode:
+            rows = conn.execute(_SEGMENT_QUERY_DYNAMIC_Q1, {"limit": query_limit}).fetchall()
+        elif target_corridor_mode:
             try:
                 rows = conn.execute(_SEGMENT_QUERY_BY_TARGET_CORRIDORS).fetchall()
             except ProgrammingError as exc:
@@ -991,11 +1016,15 @@ def _load_segment_points(
     seen_segment_keys: set[int] = set()
     duplicate_count = 0
     for row in rows:
-        if target_corridor_mode:
-            seg_key = int(row["segment_key"])
-            lat = float(row["lat"])
-            lon = float(row["lon"])
-            lane_count = int(row["lane_count"])
+        if target_corridor_mode or dynamic_q1_mode:
+            mapping = row._mapping if hasattr(row, "_mapping") else None
+            if mapping is not None:
+                seg_key = int(mapping["segment_key"])
+                lat = float(mapping["lat"])
+                lon = float(mapping["lon"])
+                lane_count = int(mapping["lane_count"])
+            else:
+                seg_key, lat, lon, lane_count = row
         else:
             seg_key, lat, lon, lane_count = row
         if int(seg_key) in seen_segment_keys:
@@ -1015,7 +1044,15 @@ def _load_segment_points(
         if len(points) >= actual_limit:
             break
 
-    mode_label = "priority_corridors_critical" if target_corridor_mode else (f"bbox: {bbox}" if bbox else "all")
+    mode_label = (
+        "dynamic_q1_view"
+        if dynamic_q1_mode
+        else (
+            "priority_corridors_critical"
+            if target_corridor_mode
+            else (f"bbox: {bbox}" if bbox else "all")
+        )
+    )
     logger.info(
         f"[run-realtime] Loaded {len(points)} segment points from DB ({mode_label}) "
         f"(query_limit={query_limit}, duplicates_skipped={duplicate_count})"
@@ -1072,14 +1109,54 @@ def run_realtime(
             TimeElapsedColumn(),
             console=console,
         ) as progress:
-            # Load segment coordinates from DB (priority corridors + critical segments)
+            # Incidents (run first for hybrid flow)
+            task0 = progress.add_task("[cyan]Traffic incidents...", total=None)
+            try:
+                from src.pipelines.real_time.incident_pipeline import run as run_incident
+
+                count = run_incident(engine)
+                logger.info(f"[run-realtime] incident_pipeline: {count} records")
+                total += count
+                results.append(("Traffic Incidents", count, "✓"))
+                progress.update(task0, completed=True)
+            except (PipelineError, Exception) as e:
+                logger.exception("[run-realtime] incident_pipeline failed: %s", e)
+                results.append(("Traffic Incidents", 0, "✗"))
+                success = False
+                progress.update(task0, completed=True)
+
+            # Cross-update mapper: label recent flow rows impacted by Jam incidents
+            task0b = progress.add_task("[cyan]Incident-flow mapper...", total=None)
+            try:
+                from src.pipelines.spatial_net.incident_flow_mapper import (
+                    mark_incident_triggered_flow,
+                    refresh_dim_segment_q1,
+                )
+
+                refresh_dim_segment_q1(engine, concurrently=True)
+                mapped = mark_incident_triggered_flow(
+                    engine,
+                    lookback_hours=2,
+                    distance_deg=0.0002,
+                    icon_category=6,
+                    time_tolerance_minutes=30,
+                )
+                logger.info(f"[run-realtime] incident_flow_mapper: {mapped} rows updated")
+                results.append(("Incident-Flow Mapper", mapped, "✓"))
+                progress.update(task0b, completed=True)
+            except (PipelineError, Exception) as e:
+                logger.exception("[run-realtime] incident_flow_mapper failed: %s", e)
+                results.append(("Incident-Flow Mapper", 0, "✗"))
+                success = False
+                progress.update(task0b, completed=True)
+
+            # Load segment coordinates from DB (dynamic Q1 view, excluding recent incident-triggered rows)
             task1 = progress.add_task("[cyan]Loading critical segment points...", total=None)
             try:
                 points, segment_keys, segment_key_map, lane_count_map = _load_segment_points(
                     engine,
                     limit=segment_limit,
-                    target_corridor_mode=True,
-                    full_target_coverage=not budget_mode,
+                    dynamic_q1_mode=True,
                 )
                 progress.update(task1, completed=True)
             except Exception as e:
@@ -1147,22 +1224,6 @@ def run_realtime(
                 results.append(("Traffic Flow", 0, "✗"))
                 success = False
                 progress.update(task3, completed=True)
-
-            # Incidents
-            task4 = progress.add_task("[cyan]Traffic incidents...", total=None)
-            try:
-                from src.pipelines.real_time.incident_pipeline import run as run_incident
-
-                count = run_incident(engine)
-                logger.info(f"[run-realtime] incident_pipeline: {count} records")
-                total += count
-                results.append(("Traffic Incidents", count, "✓"))
-                progress.update(task4, completed=True)
-            except (PipelineError, Exception) as e:
-                logger.exception("[run-realtime] incident_pipeline failed: %s", e)
-                results.append(("Traffic Incidents", 0, "✗"))
-                success = False
-                progress.update(task4, completed=True)
     except Exception as e:
         logger.exception("[run-realtime] unhandled cycle error: %s", e)
         success = False

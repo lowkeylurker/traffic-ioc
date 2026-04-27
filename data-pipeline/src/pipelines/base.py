@@ -22,6 +22,7 @@ from tenacity import (
     retry_if_exception_type,
     stop_after_attempt,
     wait_fixed,
+    wait_random,
 )
 
 from src.core.exceptions import (
@@ -98,7 +99,7 @@ class BaseExtractor(ABC):
     # ── HTTP GET helper ───────────────────────────────────────
     @retry(
         stop=stop_after_attempt(3),
-        wait=wait_fixed(2),
+        wait=wait_fixed(1) + wait_random(0, 1.5),
         retry=retry_if_exception_type(
             (requests.ConnectionError, requests.Timeout, requests.HTTPError)
         ),
