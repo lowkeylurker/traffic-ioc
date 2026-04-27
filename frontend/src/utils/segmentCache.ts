@@ -1,10 +1,11 @@
-import { SegmentResponse, TrafficStatus } from '@/types'
+import { CorridorAnalyticsOption, SegmentResponse, TrafficStatus } from '@/types'
 
 const DB_NAME = 'traffic-ioc-cache'
 const DB_VERSION = 1
 const STORE_NAME = 'app-cache'
 const SEGMENTS_KEY = 'segments'
 const TRAFFIC_STATUS_KEY = 'traffic-status'
+const CORRIDORS_KEY = 'corridors'
 
 type TimestampedCache<T> = {
   cachedAt: number
@@ -189,5 +190,65 @@ export const setCachedTrafficStatus = async (
     })
   } catch (error) {
     console.warn('Unable to write traffic status cache to IndexedDB:', error)
+  }
+}
+
+const isValidCorridorArray = (data: unknown): data is CorridorAnalyticsOption[] => {
+  return Array.isArray(data)
+}
+
+export const getCachedCorridors = async (): Promise<
+  CorridorAnalyticsOption[] | null
+> => {
+  if (typeof window === 'undefined' || !window.indexedDB) {
+    return null
+  }
+
+  try {
+    const db = await openCacheDb()
+    return await new Promise<CorridorAnalyticsOption[] | null>(
+      (resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly')
+        const store = tx.objectStore(STORE_NAME)
+        const request = store.get(CORRIDORS_KEY)
+
+        request.onsuccess = () => {
+          const value = request.result
+          resolve(isValidCorridorArray(value) ? value : null)
+        }
+        request.onerror = () => reject(request.error)
+        tx.oncomplete = () => db.close()
+        tx.onerror = () => reject(tx.error)
+      }
+    )
+  } catch (error) {
+    console.warn('Unable to read corridor cache from IndexedDB:', error)
+    return null
+  }
+}
+
+export const setCachedCorridors = async (
+  corridors: CorridorAnalyticsOption[]
+): Promise<void> => {
+  if (typeof window === 'undefined' || !window.indexedDB) {
+    return
+  }
+
+  try {
+    const db = await openCacheDb()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      const store = tx.objectStore(STORE_NAME)
+      store.put(corridors, CORRIDORS_KEY)
+
+      tx.oncomplete = () => {
+        db.close()
+        resolve()
+      }
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
+    })
+  } catch (error) {
+    console.warn('Unable to write corridor cache to IndexedDB:', error)
   }
 }

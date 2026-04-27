@@ -42,12 +42,21 @@ export const ErrorState: React.FC<ErrorStateProps> = ({ message, onRetry }) => {
 
 interface EmptyStateProps {
   message?: string
+  description?: string
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({ message = 'Không có dữ liệu' }) => {
+export const EmptyState: React.FC<EmptyStateProps> = ({
+  message = 'Không có dữ liệu',
+  description,
+}) => {
   return (
     <div style={{ textAlign: 'center', padding: '50px 20px' }}>
-      <p style={{ color: '#8c8c8c', fontSize: 14 }}>{message}</p>
+      <p style={{ color: '#8c8c8c', fontSize: 16, fontWeight: 500, marginBottom: description ? 8 : 0 }}>
+        {message}
+      </p>
+      {description && (
+        <p style={{ color: '#bfbfbf', fontSize: 14, margin: 0 }}>{description}</p>
+      )}
     </div>
   )
 }

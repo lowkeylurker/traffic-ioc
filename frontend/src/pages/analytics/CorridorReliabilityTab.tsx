@@ -1,8 +1,7 @@
 import { EmptyState, ErrorState, Loading } from '@/components/common'
-import { LineChart } from '@/components/charts/ChartComponents'
+import { useCorridorOptions } from '@/hooks/useTraffic'
 import { analyticsApi, mapApi } from '@/services/api'
 import {
-  CorridorAnalyticsOption,
   CorridorDashboardData,
   CorridorReliabilityData,
   GeoJSONFeature,
@@ -233,13 +232,12 @@ export const CorridorReliabilityTab: React.FC = () => {
     useState<ReliabilitySortOption>('buffer_index')
   const [corridorSortBy, setCorridorSortBy] =
     useState<ReliabilitySortOption>('buffer_index')
-  const [corridorLimit, setCorridorLimit] = useState<CorridorLimitOption>(10)
-  const [corridorOptions, setCorridorOptions] = useState<
-    CorridorAnalyticsOption[]
-  >([])
   const [selectedCorridorKey, setSelectedCorridorKey] = useState<
     string | 'all'
   >('all')
+  const [corridorLimit, setCorridorLimit] = useState<CorridorLimitOption>(10)
+  const { corridors: corridorOptions, loading: corridorOptionsLoading } =
+    useCorridorOptions()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<CorridorReliabilityItem[]>([])
@@ -252,8 +250,6 @@ export const CorridorReliabilityTab: React.FC = () => {
     useState<CorridorSummaryRow | null>(null)
   const [selectedCorridorDashboard, setSelectedCorridorDashboard] =
     useState<CorridorDashboardData | null>(null)
-  const [selectedCorridorDashboardLoading, setSelectedCorridorDashboardLoading] =
-    useState(false)
   const [availableViewportHeight, setAvailableViewportHeight] = useState<
     number | null
   >(null)
@@ -309,31 +305,6 @@ export const CorridorReliabilityTab: React.FC = () => {
       window.clearInterval(intervalId)
     }
   }, [shouldAnimatePulse])
-
-  useEffect(() => {
-    const controller = new AbortController()
-
-    const loadCorridors = async () => {
-      try {
-        const response = await analyticsApi.getCorridors()
-        if (!controller.signal.aborted) {
-          setCorridorOptions(
-            response.success && response.data ? response.data : []
-          )
-        }
-      } catch {
-        if (!controller.signal.aborted) {
-          setCorridorOptions([])
-        }
-      }
-    }
-
-    loadCorridors()
-
-    return () => {
-      controller.abort()
-    }
-  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -417,11 +388,9 @@ export const CorridorReliabilityTab: React.FC = () => {
     const loadSelectedCorridorDashboard = async () => {
       if (!selectedCorridorAnalysis) {
         setSelectedCorridorDashboard(null)
-        setSelectedCorridorDashboardLoading(false)
         return
       }
 
-      setSelectedCorridorDashboardLoading(true)
       try {
         const response = await analyticsApi.getCorridorDashboard(
           {
@@ -449,7 +418,7 @@ export const CorridorReliabilityTab: React.FC = () => {
         }
       } finally {
         if (!controller.signal.aborted) {
-          setSelectedCorridorDashboardLoading(false)
+          // Dashboard loading finished
         }
       }
     }
@@ -1112,7 +1081,7 @@ export const CorridorReliabilityTab: React.FC = () => {
     }, selectedCorridorSegments[0]);
   }, [selectedCorridorSegments])
 
-  if (loading || corridorOptions.length === 0) {
+  if (loading || corridorOptionsLoading || corridorOptions.length === 0) {
     return (
       <div
         style={{

@@ -228,6 +228,11 @@ export interface CorridorDelayRankingItem {
   totalDelaySeconds: number;
 }
 
+export interface CorridorSegmentDelayItem {
+  segmentId: string;
+  totalDelay: number;
+}
+
 export interface CorridorHeatmapCell {
   corridorKey: string;
   corridorName: string;
@@ -256,6 +261,7 @@ export interface CorridorDashboardData {
   speedVsTarget: CorridorSpeedTargetPoint[];
   ttiHourly: CorridorTtiPoint[];
   topDelayCorridors: CorridorDelayRankingItem[];
+  topDelaySegments: CorridorSegmentDelayItem[];
   heatmap: CorridorHeatmapCell[];
   topBottlenecks: CorridorBottleneckItem[];
   alerts: CorridorAlerts;

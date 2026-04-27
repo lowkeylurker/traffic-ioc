@@ -482,7 +482,7 @@ export class AnalyticsService {
     try {
       const corridorKey = query.corridorKey ? BigInt(query.corridorKey) : null;
 
-      const rows = await prisma.$queryRawUnsafe<
+      const rowsPromise = prisma.$queryRawUnsafe<
         Array<{
           corridorKey: bigint;
           corridorName: string;
@@ -525,7 +525,7 @@ export class AnalyticsService {
         corridorKey
       );
 
-      const baselineRows = await prisma.$queryRawUnsafe<
+      const baselineRowsPromise = prisma.$queryRawUnsafe<
         Array<{
           avgSpeedBaseline: number | null;
           delayBaseline: number | null;
@@ -544,6 +544,61 @@ export class AnalyticsService {
         query.date,
         corridorKey
       );
+
+      const topDelaySegmentsRowsPromise = corridorKey
+        ? prisma.$queryRawUnsafe<
+            Array<{
+              segmentId: string;
+              totalDelay: number | null;
+            }>
+          >(
+            `
+            WITH target_segments AS (
+              SELECT DISTINCT bcs.segment_key
+              FROM bridge_corridor_segment bcs
+              WHERE bcs.corridor_key = $2::bigint
+            )
+            SELECT
+              COALESCE(s.segment_id_source::text, f.segment_key::text) AS "segmentId",
+              SUM(COALESCE(f.delay_seconds, 0))::numeric AS "totalDelay"
+            FROM fact_traffic_flow f
+            INNER JOIN target_segments ts ON ts.segment_key = f.segment_key
+            INNER JOIN dim_segment s ON s.segment_key = f.segment_key
+            WHERE f.timestamp >= $1::date
+              AND f.timestamp < ($1::date + INTERVAL '1 day')
+            GROUP BY COALESCE(s.segment_id_source::text, f.segment_key::text)
+            ORDER BY "totalDelay" DESC
+            LIMIT 10
+          `,
+            query.date,
+            corridorKey
+          )
+        : prisma.$queryRawUnsafe<
+            Array<{
+              segmentId: string;
+              totalDelay: number | null;
+            }>
+          >(
+            `
+            SELECT
+              COALESCE(s.segment_id_source::text, f.segment_key::text) AS "segmentId",
+              SUM(COALESCE(f.delay_seconds, 0))::numeric AS "totalDelay"
+            FROM fact_traffic_flow f
+            INNER JOIN dim_segment s ON s.segment_key = f.segment_key
+            WHERE f.timestamp >= $1::date
+              AND f.timestamp < ($1::date + INTERVAL '1 day')
+            GROUP BY COALESCE(s.segment_id_source::text, f.segment_key::text)
+            ORDER BY "totalDelay" DESC
+            LIMIT 10
+          `,
+            query.date
+          );
+
+      const [rows, baselineRows, topDelaySegmentsRows] = await Promise.all([
+        rowsPromise,
+        baselineRowsPromise,
+        topDelaySegmentsRowsPromise,
+      ]);
 
       const kpiSource = rows;
       const avg = (values: Array<number | null>) => {
@@ -632,6 +687,11 @@ export class AnalyticsService {
         .sort((a, b) => b.totalDelaySeconds - a.totalDelaySeconds)
         .slice(0, 10);
 
+      const topDelaySegments = topDelaySegmentsRows.map((row) => ({
+        segmentId: row.segmentId,
+        totalDelay: Math.max(0, Number(row.totalDelay ?? 0)),
+      }));
+
       const heatmap = rows.map((row) => ({
         corridorKey: row.corridorKey.toString(),
         corridorName: row.corridorName,
@@ -670,6 +730,7 @@ export class AnalyticsService {
         speedVsTarget,
         ttiHourly,
         topDelayCorridors,
+        topDelaySegments,
         heatmap,
         topBottlenecks,
         alerts: {
