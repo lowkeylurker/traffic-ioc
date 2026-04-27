@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ -d /workspaces/traffic-ioc/ai-core ]; then
+if [ -d /workspace/ai-core ]; then
+	cd /workspace/ai-core
+elif [ -d /workspaces/traffic-ioc/ai-core ]; then
 	cd /workspaces/traffic-ioc/ai-core
 elif [ -d /app ]; then
 	cd /app

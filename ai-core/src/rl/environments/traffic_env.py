@@ -117,7 +117,7 @@ class TrafficForecastingEnv(gym.Env):
 
         terminated = False
         truncated = False
-
+    
         if sample is None:
             terminated = True
             obs = self.reset()[0]

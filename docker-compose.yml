@@ -119,6 +119,7 @@ services:
         INSTALL_ML: "true"
     container_name: ai-core
     volumes:
+      - .:/workspace
       - ./ai-core:/app
       - ./ai-core/models:/app/models
       - ./ai-core/cache:/app/cache
