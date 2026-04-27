@@ -354,9 +354,12 @@ def _balance_majority_windows(
         }
 
     target_counts = counts.copy().astype(np.float64)
-    target_counts[0] = min(float(counts[0]), float(2 * minority_total))
-    target_counts[1] = min(float(counts[1]), float(3 * minority_total))
-    target_counts[2] = min(float(counts[2]), float(4 * minority_total))
+    # FIX: Replace skewed 2M, 3M, 4M rule with balanced 2.5M, 2.5M, 2.5M
+    # to prevent Mức 2 from becoming the peak class (4x vs 1x for Mức 3)
+    balanced_target = float(2.5 * minority_total)
+    target_counts[0] = min(float(counts[0]), balanced_target)
+    target_counts[1] = min(float(counts[1]), balanced_target)
+    target_counts[2] = min(float(counts[2]), balanced_target)
 
     keep_probs = np.ones(6, dtype=np.float64)
     for cls in range(NUM_CLASSES - 1):
@@ -389,17 +392,38 @@ def _balance_majority_windows(
     if "day_of_week" in df_train.columns:
         day_of_week_arr = df_train["day_of_week"].to_numpy()
 
-    def _window_signature(target_idx: int) -> tuple:
-        ts = pd.Timestamp(timestamps[target_idx])
-        parts: list = [int(segment_keys[target_idx]), int(ts.hour)]
-        if day_of_week_arr is not None:
-            parts.append(str(day_of_week_arr[target_idx]))
-        for col in signature_cols:
-            parts.append(round(float(signature_arrays[col][target_idx]), 2))
-        return tuple(parts)
+    def _compute_feature_vector(target_idx: int) -> np.ndarray:
+        """Extract feature vector for cosine similarity (normalized to [0,1])."""
+        vec = np.array(
+            [
+                float(signature_arrays[col][target_idx])
+                for col in signature_cols
+            ],
+            dtype=np.float32,
+        )
+        # Normalize to prevent bias from absolute values
+        norm = np.linalg.norm(vec)
+        return vec / (norm + 1e-8)
+
+    def _cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
+        """Compute cosine similarity between two normalized vectors."""
+        return float(np.dot(vec1, vec2))
+
+    def _is_duplicate_window(target_idx: int, seen_vectors: list[np.ndarray]) -> bool:
+        """
+        FIX #2: Check for duplicate using cosine similarity > 0.95 (not exact float match).
+        This handles float precision issues in dynamic features.
+        """
+        if not seen_vectors:
+            return False
+        current_vec = _compute_feature_vector(target_idx)
+        for seen_vec in seen_vectors:
+            if _cosine_similarity(current_vec, seen_vec) > 0.95:
+                return True
+        return False
 
     rng = np.random.default_rng(seed)
-    seen_signatures: set[tuple] = set()
+    seen_vectors: list[np.ndarray] = []  # Store feature vectors instead of signatures
     kept_starts: list[int] = []
     dropped_duplicates = 0
     dropped_probability = 0
@@ -410,20 +434,21 @@ def _balance_majority_windows(
 
         if label >= minority_class_idx:
             kept_starts.append(int(start_idx))
-            seen_signatures.add(_window_signature(target_idx))
+            seen_vectors.append(_compute_feature_vector(target_idx))
             continue
 
         keep_prob = float(keep_probs[label])
-        signature = _window_signature(target_idx)
-        is_duplicate = signature in seen_signatures
+        is_duplicate = _is_duplicate_window(target_idx, seen_vectors)
+        
+        # FIX #1: Wrap probability before AND after modifiers to prevent overflow > 1.0
         if is_duplicate:
-            keep_prob *= 0.20
+            keep_prob = min(1.0, keep_prob * 0.20)  # Duplicate penalty: reduce by 80%
         if transitions[idx]:
-            keep_prob = min(1.0, keep_prob * 1.30)
+            keep_prob = min(1.0, keep_prob * 1.30)  # Transition bonus: +30% (capped at 1.0)
 
         if rng.random() <= keep_prob:
             kept_starts.append(int(start_idx))
-            seen_signatures.add(signature)
+            seen_vectors.append(_compute_feature_vector(target_idx))
         else:
             if is_duplicate:
                 dropped_duplicates += 1
@@ -461,7 +486,10 @@ def _balance_majority_windows(
 
     stats = {
         "applied": True,
-        "rule": f"T0=2M, T1=3M, T2=4M, keep all labels >= {minority_class_idx}",
+        "rule": f"Balanced: T0=2.5M, T1=2.5M, T2=2.5M (instead of skewed 2M,3M,4M), keep all labels >= {minority_class_idx}",
+        "balance_fix": "FIX: Prevent Mức 2 from becoming peak class (was 4x minority → now 2.5x)",
+        "duplicate_fix": "FIX: Use cosine_similarity > 0.95 instead of exact float comparison",
+        "probability_fix": "FIX: Wrap keep_prob with min(1.0, ...) after every modifier",
         "before_window_counts": counts.tolist(),
         "after_window_counts": after_counts.tolist(),
         "keep_probs": [float(round(v, 4)) for v in keep_probs.tolist()],
