@@ -28,6 +28,7 @@ export const API_VERSIONS = {
 
 export const ROUTE_PATHS = {
   MAP: '/map',
+  ROUTES: '/routes',
   TRAFFIC: '/traffic',
   SEARCH: '/search',
   ANALYTICS: '/analytics',

@@ -33,6 +33,8 @@ import {
   PredictionRequestBody,
   PredictionResponse,
   PlaceSearchResult,
+  SmartDepartureRequestBody,
+  SmartDepartureResponse,
 } from '@/types'
 import axios, { AxiosError, AxiosInstance } from 'axios'
 
@@ -221,6 +223,10 @@ export const simulationApi = {
     axiosInstance.get('/simulation/routes', {
       params: { startLat, startLng, endLat, endLng },
     }),
+  getSmartDeparture: (
+    payload: SmartDepartureRequestBody
+  ): Promise<ApiResponse<SmartDepartureResponse>> =>
+    axiosInstance.post('/routes/smart-departure', payload),
 }
 
 export const searchApi = {

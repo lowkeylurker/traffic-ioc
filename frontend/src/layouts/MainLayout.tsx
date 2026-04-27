@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 // Main Layout Component
 
 import { SignInSignUpDialog } from '@/components'
@@ -6,6 +7,7 @@ import { LAYOUT_SIDER_WIDTH } from '@/config/constants'
 import { setAccessTokenGetter } from '@/services/api'
 import {
   BarChartOutlined,
+  ClockCircleOutlined,
   DatabaseOutlined,
   ExperimentOutlined,
   EyeOutlined,
@@ -61,6 +63,7 @@ export const MainLayout: React.FC = () => {
       icon: <EyeOutlined />,
       label: 'Giám sát Vận hành',
     },
+
     ...(isSignedIn && !isAdmin
       ? [
           // {
@@ -68,6 +71,11 @@ export const MainLayout: React.FC = () => {
           //   icon: <NotificationOutlined />,
           //   label: 'Tin tức giao thông',
           // },
+          {
+            key: '/smart-departure',
+            icon: <ClockCircleOutlined />,
+            label: 'Giờ khởi hành thông minh',
+          },
         ]
       : []),
 

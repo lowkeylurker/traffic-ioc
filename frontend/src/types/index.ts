@@ -500,3 +500,20 @@ export interface PredictionResponse {
   no_data_count: number
   items: PredictionItem[]
 }
+
+export interface SmartDepartureRequestBody {
+  segment_ids: string[]
+  target_arrival_time: string
+  day_of_week: number
+}
+
+export interface SmartDepartureSuggestion {
+  departure_time: string
+  estimated_duration_minutes: number
+  is_optimal: boolean
+}
+
+export interface SmartDepartureResponse {
+  target_arrival_time: string
+  suggestions: SmartDepartureSuggestion[]
+}

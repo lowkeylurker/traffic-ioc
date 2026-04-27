@@ -17,6 +17,24 @@ export const RoutingSchema = z.object({
 
 export type RoutingDto = z.infer<typeof RoutingSchema>;
 
+const SmartDepartureSegmentIdSchema = z.union([
+  z.string().regex(/^\d+$/, 'segment_ids must contain only numeric characters'),
+  z.number().int().positive(),
+]);
+
+export const SmartDepartureSchema = z.object({
+  segment_ids: z
+    .array(SmartDepartureSegmentIdSchema)
+    .min(1)
+    .transform((values) => values.map((value) => String(value))),
+  target_arrival_time: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'target_arrival_time must be in HH:mm format'),
+  day_of_week: z.number().int().min(1).max(7),
+});
+
+export type SmartDepartureDto = z.infer<typeof SmartDepartureSchema>;
+
 export const SegmentQuerySchema = z.object({
   limit: z.number().int().default(100),
   offset: z.number().int().default(0),

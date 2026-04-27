@@ -7,6 +7,7 @@ import { HistoricalQueryPage } from '@/pages/HistoricalQueryPage'
 import { NewsPage } from '@/pages/NewsPage'
 import { RealTimePage } from '@/pages/RealTimePage'
 import { SimulationPage } from '@/pages/SimulationPage'
+import { SmartDeparturePage } from '@/pages/SmartDeparturePage'
 import { UserProfilePage } from '@/pages/UserProfilePage'
 import { Button, Result } from 'antd'
 import {
@@ -62,6 +63,7 @@ function App() {
               </RoleGuard>
             }
           />
+          <Route path="smart-departure" element={<SmartDeparturePage />} />
           <Route
             path="bi-olap"
             element={
