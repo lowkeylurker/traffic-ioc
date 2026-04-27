@@ -87,7 +87,7 @@ export const MOCK_ALERTS: Alert[] = [
     incidentType: 'congestion' as const,
     severity: 3,
     description: 'Tắc đường do lượng xe cao',
-    timestamp: new Date(Date.now() - 300000),
+    timestamp: new Date(Date.now() - 30000),
   },
   {
     id: 2,
@@ -96,7 +96,7 @@ export const MOCK_ALERTS: Alert[] = [
     incidentType: 'accident' as const,
     severity: 4,
     description: 'Tai nạn giao thông 2 chiếc xe',
-    timestamp: new Date(Date.now() - 600000),
+    timestamp: new Date(Date.now() - 5 * 60 * 1000),
   },
   {
     id: 3,
@@ -105,7 +105,7 @@ export const MOCK_ALERTS: Alert[] = [
     incidentType: 'roadwork' as const,
     severity: 2,
     description: 'Sửa chữa đường, 2 làn chạy',
-    timestamp: new Date(Date.now() - 900000),
+    timestamp: new Date(Date.now() - 12 * 60 * 1000),
   },
 ]
 

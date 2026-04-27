@@ -8,7 +8,6 @@ import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
 import {
   CHART_COLORS,
-  LOS_COLORS,
   POLLING_INTERVALS,
   TRAFFIC_COLORS,
 } from '@/config/constants'
@@ -72,15 +71,23 @@ const defaultLosDistribution = (): LosDistribution => ({
   'N/A': 0,
 })
 
-const losLabel: Record<LosBucket, string> = {
-  A: 'LOS A • Thông thoáng',
-  B: 'LOS B • Khá thông thoáng',
-  C: 'LOS C • Trung bình',
-  D: 'LOS D • Mật độ cao',
-  E: 'LOS E • Đông xe',
-  F: 'LOS F • Ùn tắc nghiêm trọng',
-  'N/A': 'Chưa có dữ liệu',
+const LOS_COLORS: Record<`LOS ${'A' | 'B' | 'C' | 'D' | 'E' | 'F'}`, string> = {
+  'LOS A': '#52c41a',
+  'LOS B': '#a0d911',
+  'LOS C': '#fadb14',
+  'LOS D': '#fa8c16',
+  'LOS E': '#f5222d',
+  'LOS F': '#820014',
 }
+
+const LOS_LEGEND_ITEMS = [
+  { label: 'LOS A', description: 'Thông thoáng', bucket: 'A' as const },
+  { label: 'LOS B', description: 'Khá thông thoáng', bucket: 'B' as const },
+  { label: 'LOS C', description: 'Trung bình', bucket: 'C' as const },
+  { label: 'LOS D', description: 'Mật độ cao', bucket: 'D' as const },
+  { label: 'LOS E', description: 'Đông xe', bucket: 'E' as const },
+  { label: 'LOS F', description: 'Ùn tắc nghiêm trọng', bucket: 'F' as const },
+] as const
 
 const severityColor: Record<string, string> = {
   CRITICAL: 'red',
@@ -135,6 +142,42 @@ const getSegmentCenter = (segment: GeoJSONFeature) => {
   const centerIdx = Math.floor(coords.length / 2)
   const [lng, lat] = coords[centerIdx]
   return { lng, lat }
+}
+
+const formatRelativeTime = (value: string | Date | null | undefined) => {
+  if (!value) {
+    return ''
+  }
+
+  const time = dayjs(value)
+  const diffMinutes = dayjs().diff(time, 'minute')
+
+  if (diffMinutes < 1) {
+    return 'Vừa xong'
+  }
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes} phút trước`
+  }
+
+  const diffHours = dayjs().diff(time, 'hour')
+  if (diffHours < 24) {
+    return `${diffHours} giờ trước`
+  }
+
+  return time.fromNow()
+}
+
+const getSpeedBarColor = (speed: number) => {
+  if (speed < 15) {
+    return '#cf1322'
+  }
+
+  if (speed <= 25) {
+    return '#d48806'
+  }
+
+  return '#8c8c8c'
 }
 
 const renderCountUp = (
@@ -217,7 +260,7 @@ export const DashboardPage: React.FC = () => {
     staleTime: 0,
   })
 
-  const incidents = incidentData?.features || []
+  const incidents = useMemo(() => incidentData?.features ?? [], [incidentData])
 
   const {
     data: impactResponse,
@@ -558,22 +601,17 @@ export const DashboardPage: React.FC = () => {
   }, [location.search, segmentData])
 
   const losDonutData = useMemo(() => {
-    const buckets: LosBucket[] = ['A', 'B', 'C', 'D', 'E', 'F']
+    const buckets = LOS_LEGEND_ITEMS.map((item) => item.bucket)
 
     return {
-      labels: buckets.map((b) => losLabel[b]),
+      labels: LOS_LEGEND_ITEMS.map((item) => item.label),
       datasets: [
         {
           label: 'Số đoạn',
           data: buckets.map((b) => derived.losDist[b] ?? 0),
-          backgroundColor: [
-            LOS_COLORS.A,
-            LOS_COLORS.B,
-            LOS_COLORS.C,
-            LOS_COLORS.D,
-            LOS_COLORS.E,
-            LOS_COLORS.F,
-          ],
+          backgroundColor: LOS_LEGEND_ITEMS.map(
+            (item) => LOS_COLORS[item.label]
+          ),
           borderColor: 'rgba(255,255,255,0.9)',
           borderWidth: 2,
         },
@@ -587,11 +625,7 @@ export const DashboardPage: React.FC = () => {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          position: 'right' as const,
-          labels: {
-            boxWidth: 10,
-            padding: 12,
-          },
+          display: false,
         },
         tooltip: {
           callbacks: {
@@ -621,8 +655,12 @@ export const DashboardPage: React.FC = () => {
           {
             label: 'Vận tốc TB (km/h) — thấp hơn là kẹt hơn',
             data: items.map((g) => Number(g.avgSpeed ?? 0)),
-            backgroundColor: 'rgba(255, 77, 79, 0.55)',
-            borderColor: CHART_COLORS.error,
+            backgroundColor: items.map((item) =>
+              getSpeedBarColor(Number(item.avgSpeed ?? 0))
+            ),
+            borderColor: items.map((item) =>
+              getSpeedBarColor(Number(item.avgSpeed ?? 0))
+            ),
             borderWidth: 1,
             borderRadius: 6,
           },
@@ -655,6 +693,15 @@ export const DashboardPage: React.FC = () => {
         scales: {
           x: {
             beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Vận tốc (km/h)',
+              color: 'rgba(0,0,0,0.72)',
+              font: {
+                size: 12,
+                weight: 'bold' as const,
+              },
+            },
             grid: {
               color: 'rgba(148,163,184,0.2)',
             },
@@ -716,7 +763,7 @@ export const DashboardPage: React.FC = () => {
             style={{ marginTop: 8, fontSize: 12, color: 'rgba(0,0,0,0.45)' }}
           >
             {derived.lastUpdated
-              ? `Cập nhật ${dayjs(derived.lastUpdated).fromNow()}`
+              ? `Cập nhật ${formatRelativeTime(derived.lastUpdated)}`
               : derived.segmentStatusCount > 0
                 ? 'Đang đồng bộ dữ liệu...'
                 : 'Chưa có dữ liệu realtime từ /map/status'}
@@ -776,6 +823,7 @@ export const DashboardPage: React.FC = () => {
               >
                 Sự cố đang mở
               </div>
+              <Badge status="processing" text="Live" />
               <div
                 style={{
                   fontSize: 28,
@@ -847,6 +895,7 @@ export const DashboardPage: React.FC = () => {
           <FireOutlined />
           <span style={{ fontWeight: 700 }}>Tóm tắt sự cố</span>
           <Badge count={incidents.length} showZero />
+          <Badge status="processing" text="Live" />
         </Space>
       }
       bodyStyle={{
@@ -951,14 +1000,17 @@ export const DashboardPage: React.FC = () => {
             >
               Danh sách sự cố (mới nhất)
             </div>
-            <Tag
-              color={incidentLayerEnabled ? 'green' : 'default'}
-              style={{ margin: 0 }}
-            >
-              {incidentLayerEnabled
-                ? 'Đang hiển thị trên bản đồ'
-                : 'Ẩn trên bản đồ'}
-            </Tag>
+            <Space size={8}>
+              <Badge status="processing" text="Live" />
+              <Tag
+                color={incidentLayerEnabled ? 'green' : 'default'}
+                style={{ margin: 0 }}
+              >
+                {incidentLayerEnabled
+                  ? 'Đang hiển thị trên bản đồ'
+                  : 'Ẩn trên bản đồ'}
+              </Tag>
+            </Space>
           </div>
 
           <div style={{ marginTop: 8, maxHeight: 320, overflow: 'auto' }}>
@@ -1035,7 +1087,7 @@ export const DashboardPage: React.FC = () => {
                         <div
                           style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}
                         >
-                          {type} • {dayjs(timestamp).fromNow()}
+                          {type} • {formatRelativeTime(timestamp)}
                         </div>
                       }
                     />
@@ -1344,7 +1396,7 @@ export const DashboardPage: React.FC = () => {
           Dashboard Giám sát giao thông
         </Typography.Title>
         <Typography.Text type="secondary">
-          Góc nhìn vận hành cho cán bộ Sở GTVT (thời gian thực)
+          Góc nhìn vận hành cho cán bộ Sở GTVT
         </Typography.Text>
       </div>
 
@@ -1392,27 +1444,76 @@ export const DashboardPage: React.FC = () => {
                   </Space>
                 }
                 extra={
-                  <Tag
-                    color={derived.segmentStatusCount > 0 ? 'green' : 'default'}
-                    style={{ margin: 0 }}
-                  >
-                    Realtime:{' '}
-                    {derived.segmentStatusCount.toLocaleString('vi-VN')}/
-                    {derived.totalSegments.toLocaleString('vi-VN')}
-                  </Tag>
+                  <Space size={8}>
+                    <Badge status="processing" text="Live" />
+                    <Tag
+                      color={
+                        derived.segmentStatusCount > 0 ? 'green' : 'default'
+                      }
+                      style={{ margin: 0 }}
+                    >
+                      Realtime:{' '}
+                      {derived.segmentStatusCount.toLocaleString('vi-VN')}/
+                      {derived.totalSegments.toLocaleString('vi-VN')}
+                    </Tag>
+                  </Space>
                 }
                 bodyStyle={{ height: 'calc(100% - 48px)' }}
               >
                 {derived.segmentStatusCount === 0 ? (
                   <div style={{ padding: 12, color: 'rgba(0,0,0,0.45)' }}>
-                    Chưa có dữ liệu realtime (LOS) từ /map/status.
+                    Chưa có dữ liệu LOS từ /map/status.
                   </div>
                 ) : (
-                  <div style={{ height: '100%', minHeight: 220 }}>
-                    <DoughnutChart
-                      data={losDonutData}
-                      options={losDonutOptions}
-                    />
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12,
+                      height: '100%',
+                    }}
+                  >
+                    <div style={{ height: 220 }}>
+                      <DoughnutChart
+                        data={losDonutData}
+                        options={losDonutOptions}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns:
+                          'repeat(auto-fit, minmax(160px, 1fr))',
+                        gap: 8,
+                        padding: '0 6px 4px',
+                      }}
+                    >
+                      {LOS_LEGEND_ITEMS.map((item) => (
+                        <div
+                          key={item.label}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            minWidth: 0,
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: 999,
+                              background: LOS_COLORS[item.label],
+                              boxShadow: '0 0 0 3px rgba(255,255,255,0.72)',
+                              flex: '0 0 auto',
+                            }}
+                          />
+                          <span style={{ fontSize: 12, minWidth: 0 }}>
+                            <strong>{item.label}</strong> • {item.description}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </Card>

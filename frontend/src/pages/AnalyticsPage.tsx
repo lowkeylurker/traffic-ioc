@@ -4,11 +4,20 @@ import { CorridorAnalyticsTab } from '@/pages/analytics/CorridorAnalyticsTab'
 import { CorridorReliabilityTab } from '@/pages/analytics/CorridorReliabilityTab'
 import { ApartmentOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import { Tabs, Typography } from 'antd'
+import { useSearchParams } from 'react-router-dom'
 import React from 'react'
 
 const { Title, Text } = Typography
 
 export const AnalyticsPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = searchParams.get('tab') || 'corridor'
+
+  const handleTabChange = (key: string) => {
+    // Clear existing params and only set the new tab
+    setSearchParams({ tab: key })
+  }
+
   return (
     <>
       <div
@@ -37,7 +46,9 @@ export const AnalyticsPage: React.FC = () => {
         </div>
 
         <Tabs
-          defaultActiveKey="corridor"
+          activeKey={activeTab}
+          onChange={handleTabChange}
+          destroyInactiveTabPane
           tabBarStyle={{ marginBottom: 0, marginLeft: 16, marginTop: 8 }}
           size="middle"
           items={[

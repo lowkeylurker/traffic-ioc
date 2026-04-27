@@ -16,8 +16,10 @@ import {
   WeatherData,
 } from '@/types'
 import {
+  getCachedCorridors,
   getCachedSegments,
   getCachedTrafficStatusWithMeta,
+  setCachedCorridors,
   setCachedSegments,
   setCachedTrafficStatus,
 } from '@/utils/segmentCache'
@@ -405,6 +407,12 @@ interface CorridorDashboardParams {
   corridorKey?: string
 }
 
+const CORRIDOR_DASHBOARD_CACHE_TTL_MS = 60 * 1000
+const corridorDashboardCache = new Map<
+  string,
+  { data: CorridorDashboardData; timestamp: number }
+>()
+
 const emptyCorridorDashboard: CorridorDashboardData = {
   kpis: {
     avgCorridorSpeed: null,
@@ -436,24 +444,42 @@ export const useCorridorOptions = () => {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let mounted = true
     const fetchCorridors = async () => {
       setLoading(true)
       try {
+        // Try reading from cache first
+        const cached = await getCachedCorridors()
+        if (mounted && cached && cached.length > 0) {
+          setCorridors(cached)
+          setLoading(false)
+          return // Return early if we have cache for static data
+        }
+
         const response = await analyticsApi.getCorridors()
-        if (response.success && response.data) {
+        if (response.success && response.data && mounted) {
           setCorridors(response.data)
+          await setCachedCorridors(response.data)
           setError(null)
         }
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to fetch corridors'
-        )
+        if (mounted) {
+          setError(
+            err instanceof Error ? err.message : 'Failed to fetch corridors'
+          )
+        }
       } finally {
-        setLoading(false)
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
     fetchCorridors()
+
+    return () => {
+      mounted = false
+    }
   }, [])
 
   return { corridors, loading, error }
@@ -468,6 +494,17 @@ export const useCorridorDashboard = (params: CorridorDashboardParams) => {
   const abortRef = useRef<AbortController | null>(null)
 
   const fetchCorridorDashboard = useCallback(async () => {
+    const cacheKey = `${params.date}::${params.corridorKey ?? 'ALL'}`
+    const cached = corridorDashboardCache.get(cacheKey)
+    if (
+      cached &&
+      Date.now() - cached.timestamp <= CORRIDOR_DASHBOARD_CACHE_TTL_MS
+    ) {
+      setData(cached.data)
+      setError(null)
+      return
+    }
+
     if (abortRef.current) {
       abortRef.current.abort()
     }
@@ -487,6 +524,10 @@ export const useCorridorDashboard = (params: CorridorDashboardParams) => {
 
       if (response.success && response.data) {
         setData(response.data)
+        corridorDashboardCache.set(cacheKey, {
+          data: response.data,
+          timestamp: Date.now(),
+        })
         setError(null)
       } else {
         setData(emptyCorridorDashboard)

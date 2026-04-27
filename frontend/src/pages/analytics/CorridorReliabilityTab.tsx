@@ -1,8 +1,7 @@
 import { EmptyState, ErrorState, Loading } from '@/components/common'
-import { LineChart } from '@/components/charts/ChartComponents'
+import { useCorridorOptions } from '@/hooks/useTraffic'
 import { analyticsApi, mapApi } from '@/services/api'
 import {
-  CorridorAnalyticsOption,
   CorridorDashboardData,
   CorridorReliabilityData,
   GeoJSONFeature,
@@ -20,10 +19,10 @@ import {
   Card,
   Col,
   Modal,
+  Progress,
   Row,
   Select,
   Space,
-  Progress,
   Table,
   Tag,
   Typography,
@@ -233,13 +232,12 @@ export const CorridorReliabilityTab: React.FC = () => {
     useState<ReliabilitySortOption>('buffer_index')
   const [corridorSortBy, setCorridorSortBy] =
     useState<ReliabilitySortOption>('buffer_index')
-  const [corridorLimit, setCorridorLimit] = useState<CorridorLimitOption>(10)
-  const [corridorOptions, setCorridorOptions] = useState<
-    CorridorAnalyticsOption[]
-  >([])
   const [selectedCorridorKey, setSelectedCorridorKey] = useState<
     string | 'all'
   >('all')
+  const [corridorLimit, setCorridorLimit] = useState<CorridorLimitOption>(10)
+  const { corridors: corridorOptions, loading: corridorOptionsLoading } =
+    useCorridorOptions()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<CorridorReliabilityItem[]>([])
@@ -252,8 +250,6 @@ export const CorridorReliabilityTab: React.FC = () => {
     useState<CorridorSummaryRow | null>(null)
   const [selectedCorridorDashboard, setSelectedCorridorDashboard] =
     useState<CorridorDashboardData | null>(null)
-  const [selectedCorridorDashboardLoading, setSelectedCorridorDashboardLoading] =
-    useState(false)
   const [availableViewportHeight, setAvailableViewportHeight] = useState<
     number | null
   >(null)
@@ -309,31 +305,6 @@ export const CorridorReliabilityTab: React.FC = () => {
       window.clearInterval(intervalId)
     }
   }, [shouldAnimatePulse])
-
-  useEffect(() => {
-    const controller = new AbortController()
-
-    const loadCorridors = async () => {
-      try {
-        const response = await analyticsApi.getCorridors()
-        if (!controller.signal.aborted) {
-          setCorridorOptions(
-            response.success && response.data ? response.data : []
-          )
-        }
-      } catch {
-        if (!controller.signal.aborted) {
-          setCorridorOptions([])
-        }
-      }
-    }
-
-    loadCorridors()
-
-    return () => {
-      controller.abort()
-    }
-  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -417,11 +388,9 @@ export const CorridorReliabilityTab: React.FC = () => {
     const loadSelectedCorridorDashboard = async () => {
       if (!selectedCorridorAnalysis) {
         setSelectedCorridorDashboard(null)
-        setSelectedCorridorDashboardLoading(false)
         return
       }
 
-      setSelectedCorridorDashboardLoading(true)
       try {
         const response = await analyticsApi.getCorridorDashboard(
           {
@@ -449,7 +418,7 @@ export const CorridorReliabilityTab: React.FC = () => {
         }
       } finally {
         if (!controller.signal.aborted) {
-          setSelectedCorridorDashboardLoading(false)
+          // Dashboard loading finished
         }
       }
     }
@@ -747,8 +716,6 @@ export const CorridorReliabilityTab: React.FC = () => {
     [selectedPulseFactor]
   )
 
-
-
   const corridorSummaryRows = useMemo<CorridorSummaryRow[]>(() => {
     const baseRows =
       selectedCorridorKey === 'all'
@@ -788,18 +755,20 @@ export const CorridorReliabilityTab: React.FC = () => {
           (item) => item.corridorKey === corridorKey
         )
 
+        const tAvgSum = sumOrZero(corridorSegments.map((item) => item.tAvg))
+        const t95Sum = sumOrZero(corridorSegments.map((item) => item.t95))
+        const tFreeflowSum = sumOrZero(
+          corridorSegments.map((item) => item.tFreeflow)
+        )
+
         return {
           corridorKey,
           corridorName: value.corridorName,
           segmentCount: value.segmentCount,
-          bufferIndexAvg:
-            value.segmentCount > 0 ? value.bufferSum / value.segmentCount : 0,
-          ptiAvg:
-            value.segmentCount > 0 ? value.ptiSum / value.segmentCount : 0,
-          tAvgSeconds: sumOrZero(corridorSegments.map((item) => item.tAvg)),
-          tFreeflowSeconds: sumOrZero(
-            corridorSegments.map((item) => item.tFreeflow)
-          ),
+          bufferIndexAvg: tAvgSum > 0 ? (t95Sum - tAvgSum) / tAvgSum : 0,
+          ptiAvg: tFreeflowSum > 0 ? t95Sum / tFreeflowSum : 0,
+          tAvgSeconds: tAvgSum,
+          tFreeflowSeconds: tFreeflowSum,
           rootCauses: {
             accident: corridorSegments.reduce(
               (sum, item) => sum + (item.rootCauses?.accident ?? 0),
@@ -914,8 +883,14 @@ export const CorridorReliabilityTab: React.FC = () => {
       title: 'Mã đoạn',
       dataIndex: 'segmentKey',
       key: 'segmentKey',
+      width: 120,
       render: (value: string) => (
-        <Text type="secondary" style={{ fontSize: 11 }}>
+        <Text
+          type="secondary"
+          copyable
+          ellipsis={{ tooltip: true }}
+          style={{ fontSize: 11, fontFamily: 'monospace' }}
+        >
           {value}
         </Text>
       ),
@@ -1038,60 +1013,65 @@ export const CorridorReliabilityTab: React.FC = () => {
 
     const avgSeconds = selectedCorridorAnalysis.tAvgSeconds
     const freeflowSeconds = selectedCorridorAnalysis.tFreeflowSeconds
-    const extraAvgSeconds = Math.max(0, avgSeconds - freeflowSeconds)
-    const delayPct =
-      freeflowSeconds > 0 ? (extraAvgSeconds / freeflowSeconds) * 100 : null
 
     const t95TotalSeconds = sumOrZero(
       selectedCorridorSegments.map((segment) => segment.t95)
     )
-    const recommendedBuffer95Seconds =
-      t95TotalSeconds > 0
-        ? Math.max(0, t95TotalSeconds - freeflowSeconds)
-        : extraAvgSeconds
+    const t95Seconds = t95TotalSeconds > 0 ? t95TotalSeconds : avgSeconds
+
+    const delayPct =
+      avgSeconds > 0 ? ((t95Seconds - avgSeconds) / avgSeconds) * 100 : null
 
     return {
       avgSeconds,
       freeflowSeconds,
       delayPct,
-      recommendedBuffer95Seconds,
+      t95Seconds,
     }
   }, [selectedCorridorAnalysis, selectedCorridorSegments])
 
   const reliabilityTrendData = useMemo(() => {
-    if (!selectedCorridorDashboard?.ttiHourly || selectedCorridorDashboard.ttiHourly.length === 0) return null;
-    
+    if (
+      !selectedCorridorDashboard?.ttiHourly ||
+      selectedCorridorDashboard.ttiHourly.length === 0
+    )
+      return null
+
     return {
-      labels: selectedCorridorDashboard.ttiHourly.map((item) => `${item.hour}:00`),
+      labels: selectedCorridorDashboard.ttiHourly.map(
+        (item) => `${item.hour}:00`
+      ),
       datasets: [
         {
           label: 'Chỉ số PTI / TTI',
-          data: selectedCorridorDashboard.ttiHourly.map((item) => item.travelTimeIndex),
+          data: selectedCorridorDashboard.ttiHourly.map(
+            (item) => item.travelTimeIndex
+          ),
           borderColor: '#1677ff',
           backgroundColor: 'rgba(22, 119, 255, 0.1)',
           fill: true,
           tension: 0.4,
-        }
-      ]
+        },
+      ],
     }
   }, [selectedCorridorDashboard])
 
   const ptiDistributionData = useMemo(() => {
-    if (!selectedCorridorSegments.length) return null;
-    
-    let bin1 = 0;
-    let bin2 = 0;
-    let bin3 = 0;
-    let bin4 = 0;
-    
+    if (!selectedCorridorSegments.length) return null
+
+    let bin1 = 0
+    let bin2 = 0
+    let bin3 = 0
+    let bin4 = 0
+
     selectedCorridorSegments.forEach((seg) => {
-      const pti = seg.pti ?? 0;
-      if (pti <= 1.25) bin1++;
-      else if (pti <= 1.5) bin2++;
-      else if (pti <= 2.0) bin3++;
-      else bin4++;
-    });
-    
+      const pti = seg.pti ?? 0
+      if (pti <= 1.25) bin1++
+      else if (pti <= 1.5) bin2++
+      else if (pti <= 2.0) bin3++
+      else bin4++
+    })
+
     return {
       labels: ['≤ 1.25', '1.25 - 1.5', '1.5 - 2.0', '> 2.0'],
       datasets: [
@@ -1100,19 +1080,19 @@ export const CorridorReliabilityTab: React.FC = () => {
           data: [bin1, bin2, bin3, bin4],
           backgroundColor: ['#52c41a', '#faad14', '#ff4d4f', '#a8071a'],
           borderRadius: 4,
-        }
-      ]
+        },
+      ],
     }
   }, [selectedCorridorSegments])
 
   const worstSegment = useMemo(() => {
-    if (!selectedCorridorSegments.length) return null;
+    if (!selectedCorridorSegments.length) return null
     return selectedCorridorSegments.reduce((worst, current) => {
-      return (current.pti ?? 0) > (worst.pti ?? 0) ? current : worst;
-    }, selectedCorridorSegments[0]);
+      return (current.pti ?? 0) > (worst.pti ?? 0) ? current : worst
+    }, selectedCorridorSegments[0])
   }, [selectedCorridorSegments])
 
-  if (loading || corridorOptions.length === 0) {
+  if (loading || corridorOptionsLoading || corridorOptions.length === 0) {
     return (
       <div
         style={{
@@ -1189,11 +1169,11 @@ export const CorridorReliabilityTab: React.FC = () => {
       <div
         style={{
           width: '100%',
-          height: "calc(100% - 16px)",
+          height: 'calc(100% - 16px)',
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          gap: 16
+          gap: 16,
         }}
       >
         <Card
@@ -1278,33 +1258,6 @@ export const CorridorReliabilityTab: React.FC = () => {
               </Space>
             </Col>
           </Row>
-          <div style={{ marginTop: 12 }}>
-            {viewMode === 'buffer_index' ? (
-              <Space size={8} wrap>
-                <Tag color="green" style={{ borderRadius: 6 }}>
-                  BI: Ổn định (&lt; 0.2)
-                </Tag>
-                <Tag color="orange" style={{ borderRadius: 6 }}>
-                  BI: Thất thường (0.2 - 0.4)
-                </Tag>
-                <Tag color="red" style={{ borderRadius: 6 }}>
-                  BI: Báo động (&gt; 0.4)
-                </Tag>
-              </Space>
-            ) : (
-              <Space size={8} wrap>
-                <Tag color="green" style={{ borderRadius: 6 }}>
-                  PTI: Ổn định (≤ 1.25)
-                </Tag>
-                <Tag color="orange" style={{ borderRadius: 6 }}>
-                  PTI: Cần theo dõi (1.25 - 1.5)
-                </Tag>
-                <Tag color="red" style={{ borderRadius: 6 }}>
-                  PTI: Biến động cao (&gt; 1.5)
-                </Tag>
-              </Space>
-            )}
-          </div>
         </Card>
 
         {rows.length === 0 ? (
@@ -1397,10 +1350,10 @@ export const CorridorReliabilityTab: React.FC = () => {
                     title={
                       <Space size={8}>
                         <DatabaseOutlined />
-                        <span>
-                          Tổng hợp mức độ tin cậy theo hành lang (trung bình
-                          từng đoạn)
-                        </span>
+                        <Text strong>
+                          Tổng hợp mức độ tin cậy theo hành lang (Corridor
+                          Aggregate)
+                        </Text>
                       </Space>
                     }
                     extra={
@@ -1433,7 +1386,7 @@ export const CorridorReliabilityTab: React.FC = () => {
                       dataSource={corridorSummaryRows}
                       pagination={false}
                       size="small"
-                      scroll={{ y: 360 }}
+                      scroll={{ y: 500 }}
                       onRow={(record) => ({
                         onClick: () => {
                           focusCorridorOnMap(record.corridorKey)
@@ -1448,182 +1401,276 @@ export const CorridorReliabilityTab: React.FC = () => {
             </Row>
           </>
         )}
-
       </div>
-        <Modal
-          open={Boolean(selectedCorridorAnalysis)}
-          width={1100}
-          style={{ top: 50 }}
-          bodyStyle={{ maxHeight: 'calc(100vh - 140px)', overflowY: 'auto', overflowX: 'hidden' }}
-          title={
-            selectedCorridorAnalysis
-              ? `Chi tiết độ tin cậy - ${selectedCorridorAnalysis.corridorName}`
-              : 'Chi tiết độ tin cậy'
-          }
-          onCancel={() => setSelectedCorridorAnalysis(null)}
-          footer={null}
-          destroyOnClose
-        >
-          {selectedCorridorAnalysis ? (
-            <Row gutter={[16, 16]} style={{ display: 'flex', alignItems: 'stretch' }}>
-              <Col xs={24} md={12} style={{ display: 'flex' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 12 }}>
-                  {selectedCorridorInsight && (
-                    <Card size="small" title="Tóm tắt nhanh">
-                      <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                        <Text>
-                          Thời gian di chuyển trung bình:{' '}
-                          <Text strong>
-                            {formatTravelTime(selectedCorridorInsight.avgSeconds)}
-                          </Text>
+      <Modal
+        open={Boolean(selectedCorridorAnalysis)}
+        width={1100}
+        style={{ top: 50 }}
+        bodyStyle={{
+          maxHeight: 'calc(100vh - 140px)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+        }}
+        title={
+          selectedCorridorAnalysis
+            ? `Chi tiết độ tin cậy - ${selectedCorridorAnalysis.corridorName}`
+            : 'Chi tiết độ tin cậy'
+        }
+        onCancel={() => setSelectedCorridorAnalysis(null)}
+        footer={null}
+        destroyOnClose
+      >
+        {selectedCorridorAnalysis ? (
+          <Row
+            gutter={[16, 16]}
+            style={{ display: 'flex', alignItems: 'stretch' }}
+          >
+            <Col xs={24} md={12} style={{ display: 'flex' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  width: '100%',
+                  gap: 12,
+                }}
+              >
+                {selectedCorridorInsight && (
+                  <Card size="small" title="Tóm tắt nhanh">
+                    <Space
+                      direction="vertical"
+                      size={4}
+                      style={{ width: '100%' }}
+                    >
+                      <Text>
+                        Thời gian di chuyển trung bình:{' '}
+                        <Text strong>
+                          {formatTravelTime(selectedCorridorInsight.avgSeconds)}
                         </Text>
-                        <Text>
-                          Độ trễ do biến động giao thông:{' '}
-                          <Text strong>
-                            {formatPercent(selectedCorridorInsight.delayPct)}
-                          </Text>
+                      </Text>
+                      <Text>
+                        Độ trễ do biến động giao thông:{' '}
+                        <Text strong>
+                          {formatPercent(selectedCorridorInsight.delayPct)}
                         </Text>
-                        <Text>
-                          Thời gian dự phòng (95%):{' '}
-                          <Text strong>
-                            ~{formatTravelTime(selectedCorridorInsight.recommendedBuffer95Seconds)}
-                          </Text>
+                      </Text>
+                      <Text>
+                        Thời gian dự phòng 95% (T95):{' '}
+                        <Text strong>
+                          {formatTravelTime(selectedCorridorInsight.t95Seconds)}
                         </Text>
-                      </Space>
-                    </Card>
-                  )}
-
-                  <Card size="small" title="Xu hướng độ tin cậy (24h qua)" style={{ height: 260 }}>
-                    {reliabilityTrendData ? (
-                      <div style={{ height: 200 }}>
-                        <Line
-                          data={reliabilityTrendData}
-                          options={{
-                            maintainAspectRatio: false,
-                            plugins: {
-                              legend: { display: false },
-                              tooltip: {
-                                callbacks: {
-                                  label: (context) => `Chỉ số: ${context.parsed.y.toFixed(2)}`
-                                }
-                              }
-                            },
-                            scales: {
-                              y: { beginAtZero: false, suggestedMin: 1 }
-                            }
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <EmptyState message="Chưa có dữ liệu xu hướng 24h" />
-                    )}
-                  </Card>
-                  
-                  <Card size="small" title="Phân phối thời gian di chuyển (PTI)" style={{ flex: 1, display: 'flex', flexDirection: 'column' }} bodyStyle={{ flex: 1 }}>
-                    {ptiDistributionData ? (
-                      <div style={{ height: '100%', minHeight: 160 }}>
-                        <Bar
-                          data={ptiDistributionData}
-                          options={{
-                            maintainAspectRatio: false,
-                            plugins: {
-                              legend: { display: false }
-                            },
-                            scales: {
-                              y: { beginAtZero: true, ticks: { precision: 0 } }
-                            }
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <EmptyState message="Không có dữ liệu phân phối" />
-                    )}
-                  </Card>
-                </div>
-              </Col>
-              
-              <Col xs={24} md={12} style={{ display: 'flex' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 12 }}>
-                  <Card size="small" title="So sánh với KPI/Mục tiêu (Benchmark)">
-                    <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <Text>PTI trung bình hành lang:</Text>
-                        <Text strong>{selectedCorridorAnalysis.ptiAvg.toFixed(2)}</Text>
-                      </div>
-                      <Progress 
-                        percent={Math.min(100, (selectedCorridorAnalysis.ptiAvg / 3.0) * 100)} 
-                        showInfo={false}
-                        strokeColor={selectedCorridorAnalysis.ptiAvg > TARGET_PTI_KPI ? '#ff4d4f' : '#52c41a'}
-                        trailColor="#f5f5f5"
-                      />
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                        <Text type="secondary" style={{ fontSize: 12 }}>Mục tiêu: &lt; {TARGET_PTI_KPI}</Text>
-                        {selectedCorridorAnalysis.ptiAvg > TARGET_PTI_KPI ? (
-                           <Text type="danger" style={{ fontSize: 12 }}>Vượt ngưỡng cho phép</Text>
-                        ) : (
-                           <Text type="success" style={{ fontSize: 12 }}>Đạt tiêu chuẩn</Text>
-                        )}
-                      </div>
+                      </Text>
                     </Space>
                   </Card>
+                )}
 
-                  {worstSegment && (
-                    <Card size="small" title="Phân đoạn nghẽn (Bottleneck)">
-                      <div style={{ padding: '8px 12px', background: '#fff1f0', border: '1px solid #ffa39e', borderRadius: 6 }}>
-                        <Space direction="vertical" size={4}>
-                          <Space>
-                            <Tag color="red">Phân đoạn biến động nhất</Tag>
-                          </Space>
-                          <Text>
-                            Đoạn <Text strong>{worstSegment.segmentName}</Text> có chỉ số PTI cao nhất (<Text strong type="danger">{worstSegment.pti?.toFixed(2)}</Text>), đóng góp đáng kể vào sự chậm trễ của toàn hành lang.
-                          </Text>
-                        </Space>
-                      </div>
-                    </Card>
-                  )}
-
-                  <Card
-                    size="small"
-                    title="Danh sách segment"
-                    style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
-                    bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 0 }}
-                    extra={
-                      <Select
-                        style={{ width: 140 }}
-                        value={segmentSortBy}
-                        onChange={(value: ReliabilitySortBy) =>
-                          setSegmentSortBy(value)
-                        }
-                        options={[
-                          { label: 'Sort theo BI', value: 'buffer_index' },
-                          { label: 'Sort theo PTI', value: 'pti' },
-                        ]}
+                <Card
+                  size="small"
+                  title="Xu hướng độ tin cậy (24h qua)"
+                  style={{ height: 260 }}
+                >
+                  {reliabilityTrendData ? (
+                    <div style={{ height: 200 }}>
+                      <Line
+                        data={reliabilityTrendData}
+                        options={{
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                              callbacks: {
+                                label: (context) =>
+                                  `Chỉ số: ${context.parsed.y?.toFixed(2) ?? '--'}`,
+                              },
+                            },
+                          },
+                          scales: {
+                            y: { beginAtZero: false, suggestedMin: 1 },
+                          },
+                        }}
                       />
-                    }
+                    </div>
+                  ) : (
+                    <EmptyState message="Chưa có dữ liệu xu hướng 24h" />
+                  )}
+                </Card>
+
+                <Card
+                  size="small"
+                  title="Phân phối thời gian di chuyển (PTI)"
+                  style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+                  bodyStyle={{ flex: 1 }}
+                >
+                  {ptiDistributionData ? (
+                    <div style={{ height: '100%', minHeight: 160 }}>
+                      <Bar
+                        data={ptiDistributionData}
+                        options={{
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: { display: false },
+                          },
+                          scales: {
+                            y: {
+                              beginAtZero: true,
+                              ticks: { precision: 0 },
+                              title: {
+                                display: true,
+                                text: 'Số lượng đoạn (Segment)',
+                              },
+                            },
+                          },
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <EmptyState message="Không có dữ liệu phân phối" />
+                  )}
+                </Card>
+              </div>
+            </Col>
+
+            <Col xs={24} md={12} style={{ display: 'flex' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  width: '100%',
+                  gap: 12,
+                }}
+              >
+                <Card size="small" title="So sánh với KPI/Mục tiêu (Benchmark)">
+                  <Space
+                    direction="vertical"
+                    size={4}
+                    style={{ width: '100%' }}
                   >
-                    <Table<CorridorReliabilityItem>
-                      rowKey={(record, index) =>
-                        `${record.segmentKey}-${record.corridorKey}-${record.timeWindow}-${record.periodEnd}-${index}`
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: 4,
+                      }}
+                    >
+                      <Text>PTI trung bình hành lang:</Text>
+                      <Text strong>
+                        {selectedCorridorAnalysis.ptiAvg.toFixed(2)}
+                      </Text>
+                    </div>
+                    <Progress
+                      percent={Math.min(
+                        100,
+                        (selectedCorridorAnalysis.ptiAvg / 3.0) * 100
+                      )}
+                      showInfo={false}
+                      strokeColor={
+                        selectedCorridorAnalysis.ptiAvg > TARGET_PTI_KPI
+                          ? '#ff4d4f'
+                          : '#52c41a'
                       }
-                      columns={modalSegmentColumns}
-                      dataSource={selectedCorridorSegments}
-                      size="small"
-                      pagination={{ pageSize: 5 }}
-                      scroll={{ y: 180 }}
-                      style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
-                      onRow={(record) => ({
-                        onClick: () => toggleSegmentSelection(record),
-                      })}
-                      sortDirections={['descend', 'ascend']}
+                      trailColor="#f5f5f5"
                     />
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginTop: 4,
+                      }}
+                    >
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        Mục tiêu: &lt; {TARGET_PTI_KPI}
+                      </Text>
+                      {selectedCorridorAnalysis.ptiAvg > TARGET_PTI_KPI ? (
+                        <Text type="danger" style={{ fontSize: 12 }}>
+                          Vượt ngưỡng cho phép
+                        </Text>
+                      ) : (
+                        <Text type="success" style={{ fontSize: 12 }}>
+                          Đạt tiêu chuẩn
+                        </Text>
+                      )}
+                    </div>
+                  </Space>
+                </Card>
+
+                {worstSegment && (
+                  <Card size="small" title="Phân đoạn nghẽn (Bottleneck)">
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        background: '#fff1f0',
+                        border: '1px solid #ffa39e',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <Space direction="vertical" size={4}>
+                        <Space>
+                          <Tag color="red">Phân đoạn biến động nhất</Tag>
+                        </Space>
+                        <Text>
+                          Đoạn <Text strong>{worstSegment.segmentName}</Text> có
+                          chỉ số PTI cao nhất (
+                          <Text strong type="danger">
+                            {worstSegment.pti?.toFixed(2)}
+                          </Text>
+                          ), đóng góp đáng kể vào sự chậm trễ của toàn hành
+                          lang.
+                        </Text>
+                      </Space>
+                    </div>
                   </Card>
-                </div>
-              </Col>
-            </Row>
-          ) : (
-            <EmptyState message="Chưa có dữ liệu cho corridor này" />
-          )}
-        </Modal>
+                )}
+
+                <Card
+                  size="small"
+                  title="Danh sách segment"
+                  style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+                  bodyStyle={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    padding: 0,
+                  }}
+                  extra={
+                    <Select
+                      style={{ width: 140 }}
+                      value={segmentSortBy}
+                      onChange={(value: ReliabilitySortBy) =>
+                        setSegmentSortBy(value)
+                      }
+                      options={[
+                        { label: 'Sort theo BI', value: 'buffer_index' },
+                        { label: 'Sort theo PTI', value: 'pti' },
+                      ]}
+                    />
+                  }
+                >
+                  <Table<CorridorReliabilityItem>
+                    rowKey={(record, index) =>
+                      `${record.segmentKey}-${record.corridorKey}-${record.timeWindow}-${record.periodEnd}-${index}`
+                    }
+                    columns={modalSegmentColumns}
+                    dataSource={selectedCorridorSegments}
+                    size="small"
+                    pagination={{ pageSize: 5 }}
+                    scroll={{ y: 180 }}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                    onRow={(record) => ({
+                      onClick: () => toggleSegmentSelection(record),
+                    })}
+                    sortDirections={['descend', 'ascend']}
+                  />
+                </Card>
+              </div>
+            </Col>
+          </Row>
+        ) : (
+          <EmptyState message="Chưa có dữ liệu cho corridor này" />
+        )}
+      </Modal>
     </div>
   )
 }
