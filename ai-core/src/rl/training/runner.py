@@ -31,6 +31,7 @@ from src.rl.agents.dqn_agent import DQNAgent
 from src.rl.environments.traffic_env import TrafficForecastingEnv
 from src.rl.inference.evaluator import evaluate_policy_net
 from src.rl.training.loop import train_rl_agent
+from src.rl.data_balance import ClassBalanceConfig, build_balanced_dataset
 from src.utils.data_loader import load_bulk_corridor_data, load_bulk_segment_data
 from src.utils.preprocessing import TrafficScaler
 
@@ -64,6 +65,13 @@ class RLTrainingConfig:
     use_double_dqn: bool = True
     use_class_aware_reward: bool = True
     use_window_balancing: bool = False
+    use_class_balance_pipeline: bool = False
+    class_balance_output_path: str | None = None
+    class_balance_report_path: str | None = None
+    class_balance_seed: int = 42
+    class_balance_synthetic_rows_class4: int = 50_000
+    class_balance_synthetic_rows_class5: int = 20_000
+    class_balance_enable_ctgan: bool = True
     reward_scale: float = 1.0
     reward_clip: float = 30.0
     run_id: str | None = None
@@ -99,6 +107,7 @@ def _load_default_rl_training_config(mode: str) -> RLTrainingConfig:
     replay_capacity_default = "200000" if mode == "pure" else "100000"
     use_class_aware_reward_default = "1" if mode == "pure" else "0"
     use_window_balancing_default = "1" if mode == "pure" else "0"
+    use_class_balance_pipeline_default = "1" if mode == "pure" else "0"
 
     epsilon_min = float(os.getenv("RL_EPSILON_MIN", epsilon_min_default))
     epsilon_decay = float(os.getenv("RL_EPSILON_DECAY", epsilon_decay_default))
@@ -113,6 +122,13 @@ def _load_default_rl_training_config(mode: str) -> RLTrainingConfig:
     use_double_dqn = os.getenv("RL_USE_DOUBLE_DQN", "1") == "1"
     use_class_aware_reward = os.getenv("RL_USE_CLASS_AWARE_REWARD", use_class_aware_reward_default) == "1"
     use_window_balancing = os.getenv("RL_USE_WINDOW_BALANCING", use_window_balancing_default) == "1"
+    use_class_balance_pipeline = os.getenv("RL_USE_CLASS_BALANCE_PIPELINE", use_class_balance_pipeline_default) == "1"
+    class_balance_output_path = os.getenv("RL_CLASS_BALANCE_OUT")
+    class_balance_report_path = os.getenv("RL_CLASS_BALANCE_REPORT")
+    class_balance_seed = int(os.getenv("RL_CLASS_BALANCE_SEED", str(seed)))
+    class_balance_synthetic_rows_class4 = int(os.getenv("RL_CLASS_BALANCE_SYNTHETIC_ROWS_CLASS4", "50000"))
+    class_balance_synthetic_rows_class5 = int(os.getenv("RL_CLASS_BALANCE_SYNTHETIC_ROWS_CLASS5", "20000"))
+    class_balance_enable_ctgan = os.getenv("RL_CLASS_BALANCE_ENABLE_CTGAN", "1") == "1"
     reward_scale = float(os.getenv("RL_REWARD_SCALE", "1.0"))
     reward_clip = float(os.getenv("RL_REWARD_CLIP", "30.0"))
     prediction_horizon_minutes = int(os.getenv("RL_PREDICTION_HORIZON_MINUTES", "15"))
@@ -153,6 +169,13 @@ def _load_default_rl_training_config(mode: str) -> RLTrainingConfig:
         use_double_dqn=use_double_dqn,
         use_class_aware_reward=use_class_aware_reward,
         use_window_balancing=use_window_balancing,
+        use_class_balance_pipeline=use_class_balance_pipeline,
+        class_balance_output_path=class_balance_output_path,
+        class_balance_report_path=class_balance_report_path,
+        class_balance_seed=class_balance_seed,
+        class_balance_synthetic_rows_class4=class_balance_synthetic_rows_class4,
+        class_balance_synthetic_rows_class5=class_balance_synthetic_rows_class5,
+        class_balance_enable_ctgan=class_balance_enable_ctgan,
         reward_scale=reward_scale,
         reward_clip=reward_clip,
         run_id=run_id,
@@ -573,6 +596,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
     use_double_dqn = config.use_double_dqn
     use_class_aware_reward = config.use_class_aware_reward
     use_window_balancing = config.use_window_balancing
+    use_class_balance_pipeline = config.use_class_balance_pipeline
     reward_scale = config.reward_scale
     reward_clip = config.reward_clip
     prediction_horizon_minutes = int(config.prediction_horizon_minutes)
@@ -628,7 +652,37 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
     )
 
     balance_stats = {"applied": False, "reason": "disabled"}
-    if mode == "pure" and use_window_balancing:
+    class_balance_stats = {"applied": False, "reason": "disabled"}
+
+    if use_class_balance_pipeline:
+        print("🧩 Applying full class-balance pipeline (undersample + synthetic oversample + parquet export)...")
+        output_path = config.class_balance_output_path or str(Path(get_rl_preprocessing_artifacts_path(mode="pure", run_id=run_id)).with_suffix(".parquet"))
+        report_path = config.class_balance_report_path or str(Path(output_path).with_suffix(".json"))
+        class_balance_cfg = ClassBalanceConfig(
+            random_seed=config.class_balance_seed,
+            window_size=window_size,
+            synthetic_rows_class4=config.class_balance_synthetic_rows_class4,
+            synthetic_rows_class5=config.class_balance_synthetic_rows_class5,
+            use_ctgan=config.class_balance_enable_ctgan,
+            output_path=output_path,
+            report_path=report_path,
+        )
+        train_raw, class_balance_report = build_balanced_dataset(
+            train_raw,
+            config=class_balance_cfg,
+            output_path=output_path,
+            report_path=report_path,
+        )
+        class_balance_stats = class_balance_report.to_dict()
+        print(
+            "✅ Class-balance pipeline applied | "
+            f"rows: {class_balance_stats.get('stage_counts', {}).get('stage1_rows', 'NA')} -> {len(train_raw)} | "
+            f"after_counts={class_balance_stats.get('after_counts')}"
+        )
+        print(f"💾 Balanced parquet: {class_balance_stats.get('output_path')}")
+        if class_balance_stats.get("report_path"):
+            print(f"📝 Balance report: {class_balance_stats.get('report_path')}")
+    elif mode == "pure" and use_window_balancing:
         print("⚖️ Applying window-level majority undersampling for pure RL train set...")
         train_raw, balance_stats = _balance_majority_windows(
             df_train=train_raw,
@@ -728,6 +782,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
                 "target_offset_steps": target_offset_steps,
                 "eval_ratio": eval_ratio,
                 "use_window_balancing": use_window_balancing,
+                    "use_class_balance_pipeline": use_class_balance_pipeline,
                 "use_class_aware_reward": use_class_aware_reward,
                 "tensorboard_log_dir": tensorboard_log_dir,
             },
@@ -855,6 +910,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
             "early_stop_eval_interval": early_stop_eval_interval,
             "early_stop_warmup_episodes": early_stop_warmup_episodes,
             "use_window_balancing": use_window_balancing,
+            "use_class_balance_pipeline": use_class_balance_pipeline,
         },
         "train_history": {
             "episode_rewards": history.get("episode_rewards", []),
@@ -876,6 +932,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
             "eval": eval_snapshot,
         },
         "window_balancing": balance_stats,
+        "class_balance_pipeline": class_balance_stats,
         "tensorboard_log_dir": tensorboard_log_dir,
         "final_summary": history.get("final_summary", {}),
         "eval_summary": eval_summary,
