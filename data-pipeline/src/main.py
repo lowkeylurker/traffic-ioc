@@ -59,6 +59,7 @@ Commands:
     run-osm-district1              Download OSM for District 1 only (fast, MVP)
     run-osm-central-districts      Download OSM for central districts (expanded)
     run-realtime                   Weather → Traffic Flow → Incident (Quận 1 only) [OFFICIAL]
+    run-flow-tile-scan             Adaptive Flow Tile → Hotspot → Detail scan (HCM full city)
     run-cycle                      One-shot cycle: run-realtime → run-batch
     run-realtime-central-districts Weather → Traffic Flow → Incident (central districts)
     run-batch                      Nightly: baseline (all) + corridor perf (Quận 1) [OFFICIAL]
@@ -1423,6 +1424,87 @@ def run_batch() -> bool:
     logger.info("[run-batch] rows_total=%s status=%s", total, "success" if success else "failed")
     typer.echo("")
     return success
+
+
+@app.command("run-flow-tile-scan")
+def run_flow_tile_scan() -> None:
+    """Flow Tile → Hotspot → Detail Scan pipeline (experimental adaptive scanning).
+
+    Coarse-to-detail strategy:
+      1. Scan all HCM with Flow Tile API (zoom 15)
+      2. Detect hotspots (traffic_index > threshold)
+      3. Map hotspots to detail segments
+      4. Run detail Traffic Flow scan on hotspot segments only
+      5. Mark non-hotspots as free_flow (no detail API call)
+
+    This approach can reduce API calls by 60-80% while maintaining detection accuracy.
+    """
+    start_time = time.time()
+    engine = get_engine()
+
+    console.print("\n" + "═" * 80)
+    console.print(Panel.fit(
+        "[bold green]🗺️ FLOW TILE ADAPTIVE SCAN[/bold green]\n"
+        "[dim]Coarse tiles → Hotspots → Detail segments[/dim]",
+        border_style="green"
+    ))
+    console.print("═" * 80 + "\n")
+
+    logger.info("[run-flow-tile-scan] starting adaptive flow tile scan pipeline")
+
+    try:
+        from src.core.api_key_pool import TomTomKeyPool
+        from src.pipelines.real_time.flow_tile_pipeline import FlowTileOrchestrator
+
+        # Initialize key pool
+        keys = settings.get_tomtom_keys()
+        key_pool = TomTomKeyPool(keys=keys, daily_limit_per_key=settings.tomtom_daily_limit_per_key)
+
+        # Run orchestrator
+        orchestrator = FlowTileOrchestrator(
+            engine=engine,
+            key_pool=key_pool,
+            api_key=keys[0] if keys else "",
+        )
+
+        stats = orchestrator.run()
+
+        elapsed = time.time() - start_time
+
+        # Print results
+        console.print(Panel.fit(
+            f"[bold green]✅ FLOW TILE SCAN COMPLETE ({elapsed:.1f}s)[/bold green]\n"
+            f"[cyan]Tiles extracted:[/cyan] {stats['tiles_extracted']}\n"
+            f"[cyan]Hotspots detected:[/cyan] {stats['hotspots_detected']}\n"
+            f"[cyan]Incident-promoted segments:[/cyan] {stats.get('incident_promoted_segments', 0)}\n"
+            f"[cyan]Detail segments scanned:[/cyan] {stats['segments_detail_scanned']}\n"
+            f"[cyan]Baseline sampled segments:[/cyan] {stats.get('baseline_sampled_segments', 0)}\n"
+            f"[cyan]Non-hotspots marked free_flow:[/cyan] {stats['segments_freeflow_marked']}\n"
+            f"[cyan]Traffic rows upserted:[/cyan] {stats.get('traffic_rows_upserted', 0)}\n"
+            f"[cyan]Detection latency (min):[/cyan] {stats.get('detection_latency_minutes')}\n"
+            f"[cyan]API calls estimated:[/cyan] {stats.get('api_calls_estimated', 0)}\n"
+            f"[cyan]Errors:[/cyan] {len(stats.get('errors', []))}",
+            border_style="green"
+        ))
+
+        logger.info(
+            "[run-flow-tile-scan] completed in %.1fs stats=%s",
+            elapsed,
+            stats,
+        )
+
+        if stats.get("errors"):
+            typer.echo("[red]⚠️ Errors occurred during scan:[/red]")
+            for err in stats["errors"]:
+                typer.echo(f"  - {err}")
+
+    except Exception as exc:
+        logger.exception("[run-flow-tile-scan] pipeline crashed: %s", exc)
+        console.print(Panel.fit(
+            f"[bold red]❌ FLOW TILE SCAN FAILED[/bold red]\n[dim]{str(exc)[:100]}[/dim]",
+            border_style="red"
+        ))
+        raise typer.Exit(code=1)
 
 
 @app.command("run-cycle")

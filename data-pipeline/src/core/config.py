@@ -31,6 +31,22 @@ class Settings(BaseSettings):
     openweather_api_key: str = ""
     serpapi_key: str = ""
 
+    # ── Flow Tile Scanner (Coarse-to-Detail Adaptive Scanning) ──────
+    # Zoom level for coarse tile scan (15=high resolution, easy segment mapping)
+    flow_tile_zoom: int = 15
+    # Hotspot detection: tile traffic_index > threshold → trigger detail scan
+    flow_tile_threshold: float = 0.10
+    # Buffer (meters) when mapping tiles to nearby segments (PostGIS ST_DWithin)
+    flow_tile_buffer_m: int = 50
+    # Max segments to detail-scan per hotspot tile (rate-limit per cycle)
+    flow_tile_max_segments_per_tile: int = 50
+    # Baseline rotation: fraction of non-hotspot segments sampled per cycle
+    flow_tile_baseline_ratio: float = 0.10
+    # Emergency budget: fraction reserved for incident-triggered scans
+    flow_tile_emergency_quota: float = 0.10
+    # HCM bounding box: [min_lat, min_lon, max_lat, max_lon] for coarse scan
+    flow_tile_hcm_bbox: str = "10.71,106.62,10.85,106.78"
+
     # ── PCU Estimation (BPR inverse tuning) ───────────────
     # Safer runtime defaults to reduce early saturation at lane capacity.
     pcu_bpr_alpha: float = 0.35
@@ -61,6 +77,13 @@ class Settings(BaseSettings):
         if not self.gold_corridor_names:
             return []
         return [name.strip() for name in self.gold_corridor_names.split(",") if name.strip()]
+
+    def get_hcm_bbox(self) -> tuple[float, float, float, float]:
+        """Parse HCM bbox string (min_lat,min_lon,max_lat,max_lon) → (min_lat, min_lon, max_lat, max_lon)."""
+        parts = [float(x.strip()) for x in self.flow_tile_hcm_bbox.split(",")]
+        if len(parts) != 4:
+            raise ValueError(f"Invalid bbox format: {self.flow_tile_hcm_bbox}. Expected: min_lat,min_lon,max_lat,max_lon")
+        return tuple(parts)
 
     @model_validator(mode="after")
     def validate_required_database_url(self) -> "Settings":

@@ -33,6 +33,10 @@ from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from dotenv import load_dotenv
+
+# Load environment variables from .env file (passed by docker-compose env_file)
+load_dotenv()
 
 # ═══════════════════════════════════════════════════════════
 # LOGGING SETUP
@@ -64,6 +68,12 @@ SAFE_TRAFFIC_SEGMENT_LIMIT = max(
     1,
     int(_traffic_budget_raw * (1.0 - max(0.0, min(0.5, TRAFFIC_REQ_HEADROOM_PCT)))),
 )
+USE_FLOW_TILE_ADAPTIVE = os.getenv("USE_FLOW_TILE_ADAPTIVE", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 
 class VietnamTimeFormatter(logging.Formatter):
@@ -147,6 +157,7 @@ class ETLJob:
         """Execute the ETL command and return structured result."""
         cycle_prefix = f"[{cycle_id}] " if cycle_id else ""
         logger.info(f"{cycle_prefix}[{self.name}] START")
+        logger.debug(f"{cycle_prefix}Command: {' '.join(self.command)}")
         start_time = time.time()
         started_at = datetime.utcnow().isoformat() + "Z"
 
@@ -242,18 +253,30 @@ class ETLJob:
 # Job definitions
 REALTIME_JOB = ETLJob(
     name="Real-time ETL",
-    command=[
-        "docker",
-        "exec",
-        "data-pipeline",
-        "python",
-        "-m",
-        "src.main",
-        "run-realtime",
-        "--budget-mode",
-        "--segment-limit",
-        str(SAFE_TRAFFIC_SEGMENT_LIMIT),
-    ],
+    command=(
+        [
+            "docker",
+            "exec",
+            "data-pipeline",
+            "python",
+            "-m",
+            "src.main",
+            "run-flow-tile-scan",
+        ]
+        if USE_FLOW_TILE_ADAPTIVE
+        else [
+            "docker",
+            "exec",
+            "data-pipeline",
+            "python",
+            "-m",
+            "src.main",
+            "run-realtime",
+            "--budget-mode",
+            "--segment-limit",
+            str(SAFE_TRAFFIC_SEGMENT_LIMIT),
+        ]
+    ),
     timeout=300  # 5 minutes
 )
 
@@ -316,7 +339,8 @@ def run_realtime_then_batch():
 
     try:
         # Run realtime
-        logger.info(f"[{cycle_id}] Step 1/2: run-realtime")
+        pipeline_mode = "run-flow-tile-scan (adaptive)" if USE_FLOW_TILE_ADAPTIVE else "run-realtime (traditional)"
+        logger.info(f"[{cycle_id}] Step 1/2: {pipeline_mode}")
         realtime_result = REALTIME_JOB.run(cycle_id=cycle_id)
         realtime_success = bool(realtime_result.get("success"))
 
@@ -471,13 +495,19 @@ def setup_scheduler():
     )
     logger.info("     ⏱️  Timeout: 5 min (realtime) + 30 min (batch)")
     logger.info("     📦 Pipeline:")
-    logger.info(
-        "        → Real-time: Weather → Traffic Flow (budget-capped) → Incidents"
-    )
-    logger.info(
-        "        → Request budget: "
-        f"{REQ_BUDGET_PER_CYCLE}/cycle, traffic limit={SAFE_TRAFFIC_SEGMENT_LIMIT} segments"
-    )
+    if USE_FLOW_TILE_ADAPTIVE:
+        logger.info("        → Real-time: Flow Tile Adaptive Scan (HCM full city)")
+        logger.info(
+            "        → Mode: hotspots + incident-promoted detail + inferred free-flow"
+        )
+    else:
+        logger.info(
+            "        → Real-time: Weather → Traffic Flow (budget-capped) → Incidents"
+        )
+        logger.info(
+            "        → Request budget: "
+            f"{REQ_BUDGET_PER_CYCLE}/cycle, traffic limit={SAFE_TRAFFIC_SEGMENT_LIMIT} segments"
+        )
     logger.info("        → Batch: Baseline Speed (All) + Corridor Performance (Q1)")
     logger.info("     ✨ Batch runs IMMEDIATELY after realtime completes successfully")
     logger.info("  2. TomTom Key Healthcheck")

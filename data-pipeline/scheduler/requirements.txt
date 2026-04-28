@@ -2,3 +2,4 @@
 # Only APScheduler is needed, the actual ETL runs in data-pipeline container
 
 APScheduler>=3.10.0
+python-dotenv>=1.0.0

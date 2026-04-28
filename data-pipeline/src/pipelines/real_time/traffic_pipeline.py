@@ -18,6 +18,7 @@ from sqlalchemy import Engine
 from src.core.config import settings
 from src.core.exceptions import DataExtractionError
 from src.core.logger import get_logger
+import time
 from src.domain.math import (
     TZ_HCM,
     calculate_congestion_level,
@@ -52,7 +53,9 @@ class TrafficExtractor(BaseExtractor):
         # key_pool: TomTomKeyPool instance (optional).  When supplied,
         # each request draws the key with the most remaining daily budget.
         self._key_pool = key_pool
-        self._max_workers = max(1, int(os.getenv("MAX_WORKERS_PHASE3", "8")))
+        # Reduced from 8 to 3 to avoid rate-limiting with 130 keys pool
+        # 8 concurrent workers can cause "all keys exhausted" under high load
+        self._max_workers = max(1, int(os.getenv("MAX_WORKERS_PHASE3", "3")))
 
     def _extract_one_point(
         self,
@@ -80,10 +83,31 @@ class TrafficExtractor(BaseExtractor):
                 return idx, data
             except DataExtractionError as e:
                 message = e.message or ""
+                detail = (e.detail or "").lower()
                 if pool and "403" in message:
-                    pool.mark_blocked(key)
+                    if "developer inactive" in detail or "over quota" in detail:
+                        pool.mark_blocked(key)
+                        self.logger.warning(
+                            "Blocking key after permanent 403 for point (%s,%s): %s",
+                            lat,
+                            lon,
+                            detail[:120],
+                        )
+                        continue
+                    if "over qps" in detail or "rate limit" in detail or "qps" in detail:
+                        self.logger.warning(
+                            "Transient rate-limit for key on point (%s,%s), sleeping 1s then retrying: %s",
+                            lat,
+                            lon,
+                            detail[:120],
+                        )
+                        time.sleep(1)
+                        continue
                     self.logger.warning(
-                        "Retry point (%s,%s) with next key after 403", lat, lon
+                        "403 for point (%s,%s) with unknown reason, rotating key: %s",
+                        lat,
+                        lon,
+                        detail[:120],
                     )
                     continue
                 self.logger.debug("Skip point (%s,%s): %s", lat, lon, message)
@@ -112,10 +136,15 @@ class TrafficExtractor(BaseExtractor):
 
         skipped_points = 0
         with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
-            future_map = {
-                executor.submit(self._extract_one_point, idx, lat, lon, pool): idx
-                for idx, (lat, lon) in enumerate(points)
-            }
+            # Submit tasks with small stagger delay to avoid thundering herd on key pool
+            future_map = {}
+            for idx, (lat, lon) in enumerate(points):
+                future = executor.submit(self._extract_one_point, idx, lat, lon, pool)
+                future_map[future] = idx
+                # Small stagger: 10ms between submissions to spread concurrent requests
+                if (idx + 1) % 10 == 0:
+                    time.sleep(0.01)
+
             for future in as_completed(future_map):
                 idx, data = future.result()
                 if data is None:
