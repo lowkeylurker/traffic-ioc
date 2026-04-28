@@ -129,24 +129,41 @@ def load_warehouse_rows_by_segments(
             f.segment_key,
             f.timestamp,
             f.current_speed_kmh,
-            f.pcu_volume,
             f.traffic_index,
             f.delay_seconds,
             f.quality_flag,
-            CASE
-                WHEN f.traffic_index IS NULL THEN NULL
-                WHEN f.traffic_index <= 0.10 THEN 0
-                WHEN f.traffic_index <= 0.25 THEN 1
-                WHEN f.traffic_index <= 0.42 THEN 2
-                ELSE 3
-            END AS target_label,
+            f.congestion_level,
             w_dim.default_lane_count,
-            f.free_flow_speed_kmh AS static_free_flow,
-            w_dim.osm_highway_type,
-            loc.district,
+            f.free_flow_speed_kmh,
+            COALESCE(w_dim.tomtom_frc, 6) AS tomtom_frc,
+            (
+                COALESCE(NULLIF(TRIM(loc.district), ''), 'unknown')
+                || '::' ||
+                COALESCE(NULLIF(TRIM(loc.ward), ''), 'unknown')
+            ) AS ward_district_id,
+            f.weather_key,
             d_date.day_of_week,
             shift.shift_code,
-            w_weather.severity_level AS weather_severity
+            COALESCE(s_dim.is_one_way, FALSE)::INT AS is_one_way,
+                        CASE
+                                WHEN EXTRACT(HOUR FROM f.timestamp) BETWEEN 6 AND 10
+                                    OR EXTRACT(HOUR FROM f.timestamp) BETWEEN 16 AND 20 THEN 1
+                                ELSE 0
+                        END AS is_peak_hour,
+            CASE
+                WHEN EXTRACT(ISODOW FROM f.timestamp) IN (6, 7) THEN 1
+                ELSE 0
+            END AS is_weekend,
+            CASE
+                WHEN EXTRACT(HOUR FROM f.timestamp) BETWEEN 8 AND 17 THEN 1
+                ELSE 0
+            END AS is_business_hours,
+            COALESCE(f.current_speed_kmh / NULLIF(f.free_flow_speed_kmh, 0), 0.0) AS speed_ratio,
+            COALESCE(
+                f.current_speed_kmh
+                - LAG(f.current_speed_kmh) OVER (PARTITION BY f.segment_key ORDER BY f.timestamp),
+                0.0
+            ) AS speed_delta
         FROM fact_traffic_flow f
         JOIN dim_segment s_dim ON f.segment_key = s_dim.segment_key
         JOIN dim_way w_dim ON s_dim.way_key = w_dim.way_key
@@ -154,8 +171,8 @@ def load_warehouse_rows_by_segments(
         JOIN dim_time_of_day d_time ON f.time_key = d_time.time_key
         JOIN dim_date d_date ON f.date_key = d_date.date_key
         LEFT JOIN dim_shift shift ON d_time.default_shift_key = shift.shift_key
-        LEFT JOIN dim_weather w_weather ON f.weather_key = w_weather.weather_key
         WHERE f.segment_key IN ({segment_ids_sql})
+          AND COALESCE(s_dim.is_closed, FALSE) = FALSE
           AND f.timestamp >= '{start_date}'
           AND f.timestamp <= '{end_date}'
         ORDER BY f.segment_key, f.timestamp ASC;

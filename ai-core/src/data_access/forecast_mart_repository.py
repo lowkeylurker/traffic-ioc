@@ -39,18 +39,23 @@ _MART_DDL = text(
         time_key INTEGER NOT NULL,
         timestamp TIMESTAMP NOT NULL,
         current_speed_kmh DOUBLE PRECISION NULL,
-        pcu_volume DOUBLE PRECISION NULL,
         traffic_index DOUBLE PRECISION NULL,
         delay_seconds DOUBLE PRECISION NULL,
         quality_flag INTEGER NULL,
-        target_label INTEGER NULL,
+        congestion_level INTEGER NULL,
         default_lane_count INTEGER NULL,
-        static_free_flow DOUBLE PRECISION NULL,
-        osm_highway_type TEXT NULL,
-        district TEXT NULL,
+        free_flow_speed_kmh DOUBLE PRECISION NULL,
+        tomtom_frc INTEGER NULL,
+        ward_district_id TEXT NULL,
+        weather_key INTEGER NULL,
         day_of_week TEXT NULL,
         shift_code TEXT NULL,
-        weather_severity INTEGER NULL,
+        is_one_way INTEGER NULL,
+        is_peak_hour INTEGER NULL,
+        is_business_hours INTEGER NULL,
+        is_weekend INTEGER NULL,
+        speed_ratio DOUBLE PRECISION NULL,
+        speed_delta DOUBLE PRECISION NULL,
         time_sin DOUBLE PRECISION NULL,
         time_cos DOUBLE PRECISION NULL,
         inserted_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -58,6 +63,20 @@ _MART_DDL = text(
     )
     """
 )
+
+_MART_ALTER_DDL = [
+    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS congestion_level INTEGER NULL",
+    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS free_flow_speed_kmh DOUBLE PRECISION NULL",
+    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS tomtom_frc INTEGER NULL",
+    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS ward_district_id TEXT NULL",
+    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS weather_key INTEGER NULL",
+    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS is_one_way INTEGER NULL",
+    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS is_peak_hour INTEGER NULL",
+    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS is_business_hours INTEGER NULL",
+    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS is_weekend INTEGER NULL",
+    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS speed_ratio DOUBLE PRECISION NULL",
+    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS speed_delta DOUBLE PRECISION NULL",
+]
 
 
 def _use_forecast_mart() -> bool:
@@ -92,6 +111,8 @@ def _segment_refresh_key(segment_ids: list[int]) -> str:
 def _ensure_forecast_mart_table(engine) -> None:
     with engine.begin() as conn:
         conn.execute(_MART_DDL)
+        for statement in _MART_ALTER_DDL:
+            conn.execute(text(statement))
 
 
 def _get_mart_max_timestamp_for_segments(engine, segment_ids: list[int]):
@@ -136,18 +157,23 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
         time_key,
         timestamp,
         current_speed_kmh,
-        pcu_volume,
         traffic_index,
         delay_seconds,
         quality_flag,
-        target_label,
+        congestion_level,
         default_lane_count,
-        static_free_flow,
-        osm_highway_type,
-        district,
+        free_flow_speed_kmh,
+        tomtom_frc,
+        ward_district_id,
+        weather_key,
         day_of_week,
         shift_code,
-        weather_severity,
+        is_one_way,
+        is_peak_hour,
+        is_business_hours,
+        is_weekend,
+        speed_ratio,
+        speed_delta,
         time_sin,
         time_cos,
         inserted_at
@@ -159,24 +185,41 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
         f.time_key,
         f.timestamp,
         f.current_speed_kmh,
-        f.pcu_volume,
         f.traffic_index,
         f.delay_seconds,
         f.quality_flag,
-        CASE
-            WHEN f.traffic_index IS NULL THEN NULL
-            WHEN f.traffic_index <= 0.10 THEN 0
-            WHEN f.traffic_index <= 0.25 THEN 1
-            WHEN f.traffic_index <= 0.42 THEN 2
-            ELSE 3
-        END AS target_label,
+        f.congestion_level,
         w_dim.default_lane_count,
-        f.free_flow_speed_kmh AS static_free_flow,
-        w_dim.osm_highway_type,
-        loc.district,
+        f.free_flow_speed_kmh,
+        COALESCE(w_dim.tomtom_frc, 6) AS tomtom_frc,
+        (
+            COALESCE(NULLIF(TRIM(loc.district), ''), 'unknown')
+            || '::' ||
+            COALESCE(NULLIF(TRIM(loc.ward), ''), 'unknown')
+        ) AS ward_district_id,
+        f.weather_key,
         d_date.day_of_week,
         shift.shift_code,
-        w_weather.severity_level AS weather_severity,
+        COALESCE(s_dim.is_one_way, FALSE)::INT AS is_one_way,
+                CASE
+                        WHEN EXTRACT(HOUR FROM f.timestamp) BETWEEN 6 AND 10
+                            OR EXTRACT(HOUR FROM f.timestamp) BETWEEN 16 AND 20 THEN 1
+                        ELSE 0
+                END AS is_peak_hour,
+        CASE
+            WHEN EXTRACT(HOUR FROM f.timestamp) BETWEEN 8 AND 17 THEN 1
+            ELSE 0
+        END AS is_business_hours,
+        CASE
+            WHEN EXTRACT(ISODOW FROM f.timestamp) IN (6, 7) THEN 1
+            ELSE 0
+        END AS is_weekend,
+        COALESCE(f.current_speed_kmh / NULLIF(f.free_flow_speed_kmh, 0), 0.0) AS speed_ratio,
+        COALESCE(
+            f.current_speed_kmh
+            - LAG(f.current_speed_kmh) OVER (PARTITION BY f.segment_key ORDER BY f.timestamp),
+            0.0
+        ) AS speed_delta,
         SIN(2 * PI() * (f.time_key::DOUBLE PRECISION / 1440.0)) AS time_sin,
         COS(2 * PI() * (f.time_key::DOUBLE PRECISION / 1440.0)) AS time_cos,
         NOW() AS inserted_at
@@ -188,8 +231,8 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
     JOIN dim_time_of_day d_time ON f.time_key = d_time.time_key
     JOIN dim_date d_date ON f.date_key = d_date.date_key
     LEFT JOIN dim_shift shift ON d_time.default_shift_key = shift.shift_key
-    LEFT JOIN dim_weather w_weather ON f.weather_key = w_weather.weather_key
     WHERE f.segment_key IN ({segment_ids_str})
+            AND COALESCE(s_dim.is_closed, FALSE) = FALSE
       AND f.date_key BETWEEN {start_date_key} AND {end_date_key}
       AND f.timestamp >= '{refresh_start_ts}'
       AND f.timestamp <= '{refresh_end_ts}'
@@ -198,26 +241,31 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
         corridor_key = EXCLUDED.corridor_key,
         timestamp = EXCLUDED.timestamp,
         current_speed_kmh = EXCLUDED.current_speed_kmh,
-        pcu_volume = EXCLUDED.pcu_volume,
         traffic_index = EXCLUDED.traffic_index,
         delay_seconds = EXCLUDED.delay_seconds,
         quality_flag = EXCLUDED.quality_flag,
-        target_label = EXCLUDED.target_label,
+        congestion_level = EXCLUDED.congestion_level,
         default_lane_count = EXCLUDED.default_lane_count,
-        static_free_flow = EXCLUDED.static_free_flow,
-        osm_highway_type = EXCLUDED.osm_highway_type,
-        district = EXCLUDED.district,
+        free_flow_speed_kmh = EXCLUDED.free_flow_speed_kmh,
+        tomtom_frc = EXCLUDED.tomtom_frc,
+        ward_district_id = EXCLUDED.ward_district_id,
+        weather_key = EXCLUDED.weather_key,
         day_of_week = EXCLUDED.day_of_week,
         shift_code = EXCLUDED.shift_code,
-        weather_severity = EXCLUDED.weather_severity,
+        is_one_way = EXCLUDED.is_one_way,
+        is_peak_hour = EXCLUDED.is_peak_hour,
+        is_business_hours = EXCLUDED.is_business_hours,
+        is_weekend = EXCLUDED.is_weekend,
+        speed_ratio = EXCLUDED.speed_ratio,
+        speed_delta = EXCLUDED.speed_delta,
         time_sin = EXCLUDED.time_sin,
         time_cos = EXCLUDED.time_cos,
         inserted_at = NOW()
     """
 
     try:
+        _ensure_forecast_mart_table(engine)
         with engine.begin() as conn:
-            conn.execute(_MART_DDL)
             conn.execute(text(query))
         return True
     except Exception as exc:
@@ -273,18 +321,23 @@ def load_forecast_mart_by_segments(
             segment_key,
             timestamp,
             current_speed_kmh,
-            pcu_volume,
             traffic_index,
             delay_seconds,
             quality_flag,
-            target_label,
+            congestion_level,
             default_lane_count,
-            static_free_flow,
-            osm_highway_type,
-            district,
+            free_flow_speed_kmh,
+            tomtom_frc,
+            ward_district_id,
+            weather_key,
             day_of_week,
             shift_code,
-            weather_severity
+            is_one_way,
+            is_peak_hour,
+            is_business_hours,
+            is_weekend,
+            speed_ratio,
+            speed_delta
         FROM fact_forecast_segment_mart
         WHERE segment_key IN ({segment_ids_str})
           AND timestamp >= '{start_date}'

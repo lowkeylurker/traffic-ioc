@@ -6,43 +6,48 @@ from typing import Any
 
 DYNAMIC_FEATURE_COLS = [
     "current_speed_kmh",
-    "pcu_volume",
     "traffic_index",
     "delay_seconds",
     "quality_flag",
+    "speed_ratio",
+    "speed_delta",
 ]
 
 STATIC_MODEL_FEATURE_COLS = [
     "default_lane_count",
-    "static_free_flow",
+    "free_flow_speed_kmh",
     "time_sin",
     "time_cos",
-    "weather_severity",
+    "is_one_way",
+    "is_peak_hour",
+    "is_business_hours",
+    "is_weekend",
 ]
 
 STATIC_SCALER_FEATURE_COLS = [
-    "default_lane_count",
-    "static_free_flow",
-    "weather_severity",
+    *STATIC_MODEL_FEATURE_COLS,
 ]
 
 CATEGORICAL_FEATURE_COLS = [
-    "osm_highway_type",
-    "district",
+    "tomtom_frc",
+    "ward_district_id",
+    "weather_key",
     "shift_code",
     "day_of_week",
 ]
 
-TARGET_COL = "target_label"
+TARGET_COL = "congestion_level"
 WINDOW_SIZE_DEFAULT = 12
-NUM_CLASSES = 4
+NUM_CLASSES = 6
 WINDOW_STEP_MINUTES = 15
 
 CLASS_MAPPING = {
-    0: "A - Thông thoáng",
-    1: "B - Lưu thông ổn định",
-    2: "C - Đông đúc",
-    3: "D - Ùn tắc cao",
+    0: "Mức 0 (Thông thoáng)",
+    1: "Mức 1 (Lưu thông ổn định)",
+    2: "Mức 2 (Đông đúc)",
+    3: "Mức 3 (Kẹt)",
+    4: "Mức 4 (Kẹt nặng)",
+    5: "Mức 5 (Vỡ trận)",
 }
 
 

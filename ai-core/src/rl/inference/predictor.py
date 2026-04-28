@@ -5,7 +5,14 @@ import numpy as np
 import pandas as pd
 import torch
 
-from src.ml.feature_contract import CLASS_MAPPING, WINDOW_SIZE_DEFAULT, WINDOW_STEP_MINUTES
+from src.ml.feature_contract import (
+    CATEGORICAL_FEATURE_COLS,
+    CLASS_MAPPING,
+    DYNAMIC_FEATURE_COLS,
+    STATIC_MODEL_FEATURE_COLS,
+    WINDOW_SIZE_DEFAULT,
+    WINDOW_STEP_MINUTES,
+)
 from src.ml.models.traffic_model import TrafficCongestionModel
 from src.utils.data_loader import load_bulk_segment_data
 
@@ -53,9 +60,9 @@ class RLTrafficPredictor:
 
         self.level_names = CLASS_MAPPING
 
-        self.dynamic_cols = ["current_speed_kmh", "pcu_volume", "traffic_index", "delay_seconds", "quality_flag"]
-        self.static_cols = ["default_lane_count", "static_free_flow", "time_sin", "time_cos", "weather_severity"]
-        self.cat_cols = ["osm_highway_type", "district", "shift_code", "day_of_week"]
+        self.dynamic_cols = DYNAMIC_FEATURE_COLS
+        self.static_cols = STATIC_MODEL_FEATURE_COLS
+        self.cat_cols = CATEGORICAL_FEATURE_COLS
 
     def preprocess_window(self, df_window):
         if len(df_window) != WINDOW_SIZE_DEFAULT:

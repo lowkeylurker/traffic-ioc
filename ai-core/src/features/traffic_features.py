@@ -20,11 +20,15 @@ def classify_los(traffic_index):
 		return None
 	if traffic_index <= 0.10:
 		return "A"
-	if traffic_index <= 0.25:
+	if traffic_index <= 0.20:
 		return "B"
-	if traffic_index <= 0.42:
+	if traffic_index <= 0.35:
 		return "C"
-	return "D"
+	if traffic_index <= 0.50:
+		return "D"
+	if traffic_index <= 0.70:
+		return "E"
+	return "F"
 
 
 def classify_congestion_level(traffic_index):
@@ -32,20 +36,25 @@ def classify_congestion_level(traffic_index):
 		return np.nan
 	if traffic_index <= 0.10:
 		return 0
-	if traffic_index <= 0.25:
+	if traffic_index <= 0.20:
 		return 1
-	if traffic_index <= 0.42:
+	if traffic_index <= 0.35:
 		return 2
-	return 3
+	if traffic_index <= 0.50:
+		return 3
+	if traffic_index <= 0.70:
+		return 4
+	return 5
 
 
 def extract_traffic_features(
 	data: pd.DataFrame,
 	current_speed_col: str = "current_speed_kmh",
-	free_flow_col: str = "static_free_flow",
+	free_flow_col: str = "free_flow_speed_kmh",
 	traffic_index_col: str = "traffic_index",
+	derive_aux_levels: bool = False,
 ) -> pd.DataFrame:
-	"""Derive traffic index, LOS and congestion level from a traffic DataFrame."""
+	"""Normalize traffic index and optionally derive LOS / congestion levels."""
 	if data.empty:
 		return data.copy()
 
@@ -64,6 +73,14 @@ def extract_traffic_features(
 		)
 
 	df[traffic_index_col] = traffic_index
-	df["los_level"] = df[traffic_index_col].apply(classify_los)
-	df["congestion_level"] = df[traffic_index_col].apply(classify_congestion_level)
+
+	# Training label must come from DW/Data Mart when available.
+	if "congestion_level" in df.columns:
+		df["congestion_level"] = pd.to_numeric(df["congestion_level"], errors="coerce")
+		df.loc[~df["congestion_level"].between(0, 5, inclusive="both"), "congestion_level"] = np.nan
+
+	if derive_aux_levels:
+		df["los_level"] = df[traffic_index_col].apply(classify_los)
+		if "congestion_level" not in df.columns:
+			df["congestion_level"] = df[traffic_index_col].apply(classify_congestion_level)
 	return df

@@ -354,14 +354,11 @@ def _balance_majority_windows(
         }
 
     target_counts = counts.copy().astype(np.float64)
-    # FIX: Replace skewed 2M, 3M, 4M rule with balanced 2.5M, 2.5M, 2.5M
-    # to prevent Mức 2 from becoming the peak class (4x vs 1x for Mức 3)
     balanced_target = float(2.5 * minority_total)
-    target_counts[0] = min(float(counts[0]), balanced_target)
-    target_counts[1] = min(float(counts[1]), balanced_target)
-    target_counts[2] = min(float(counts[2]), balanced_target)
+    for cls in range(minority_class_idx):
+        target_counts[cls] = min(float(counts[cls]), balanced_target)
 
-    keep_probs = np.ones(6, dtype=np.float64)
+    keep_probs = np.ones(NUM_CLASSES, dtype=np.float64)
     for cls in range(NUM_CLASSES - 1):
         if counts[cls] > 0:
             keep_probs[cls] = min(1.0, float(target_counts[cls]) / float(counts[cls]))
@@ -376,9 +373,14 @@ def _balance_majority_windows(
         for col in (
             "traffic_index",
             "current_speed_kmh",
-            "pcu_volume",
             "delay_seconds",
-            "weather_severity",
+            "quality_flag",
+            "speed_ratio",
+            "speed_delta",
+            "free_flow_speed_kmh",
+            "is_one_way",
+            "is_business_hours",
+            "is_weekend",
             "time_sin",
             "time_cos",
         )
@@ -387,10 +389,6 @@ def _balance_majority_windows(
     signature_arrays: dict[str, np.ndarray] = {}
     for col in signature_cols:
         signature_arrays[col] = pd.to_numeric(df_train[col], errors="coerce").fillna(0.0).to_numpy(dtype=np.float32)
-
-    day_of_week_arr = None
-    if "day_of_week" in df_train.columns:
-        day_of_week_arr = df_train["day_of_week"].to_numpy()
 
     def _compute_feature_vector(target_idx: int) -> np.ndarray:
         """Extract feature vector for cosine similarity (normalized to [0,1])."""
@@ -486,8 +484,11 @@ def _balance_majority_windows(
 
     stats = {
         "applied": True,
-        "rule": f"Balanced: T0=2.5M, T1=2.5M, T2=2.5M (instead of skewed 2M,3M,4M), keep all labels >= {minority_class_idx}",
-        "balance_fix": "FIX: Prevent Mức 2 from becoming peak class (was 4x minority → now 2.5x)",
+        "rule": (
+            f"Balanced: each class in [0..{minority_class_idx - 1}] capped at 2.5x class_{minority_class_idx}; "
+            f"keep all class_{minority_class_idx} windows"
+        ),
+        "balance_fix": "Cap all majority classes equally to avoid creating artificial peak class",
         "duplicate_fix": "FIX: Use cosine_similarity > 0.95 instead of exact float comparison",
         "probability_fix": "FIX: Wrap keep_prob with min(1.0, ...) after every modifier",
         "before_window_counts": counts.tolist(),

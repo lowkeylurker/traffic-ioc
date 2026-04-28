@@ -38,15 +38,31 @@ def test_extract_traffic_features_classifies_congestion() -> None:
 	df = pd.DataFrame(
 		{
 			"current_speed_kmh": [30.0, 10.0],
-			"static_free_flow": [60.0, 60.0],
+			"free_flow_speed_kmh": [60.0, 60.0],
+			"congestion_level": [2, 4],
 		}
 	)
 
 	enriched = extract_traffic_features(df)
 
 	assert np.isclose(enriched.loc[0, "traffic_index"], 0.5)
+	assert int(enriched.loc[0, "congestion_level"]) == 2
+	assert int(enriched.loc[1, "congestion_level"]) == 4
+	assert "los_level" not in enriched.columns
+
+
+def test_extract_traffic_features_optional_aux_levels() -> None:
+	df = pd.DataFrame(
+		{
+			"current_speed_kmh": [30.0],
+			"free_flow_speed_kmh": [60.0],
+		}
+	)
+
+	enriched = extract_traffic_features(df, derive_aux_levels=True)
+
 	assert classify_los(enriched.loc[0, "traffic_index"]) == "D"
-	assert classify_congestion_level(0.75) == 3
+	assert classify_congestion_level(0.75) == 5
 
 
 def test_calculate_traffic_index_handles_invalid_free_flow() -> None:

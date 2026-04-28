@@ -1,7 +1,13 @@
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
-from src.ml.feature_contract import NUM_CLASSES
+from src.ml.feature_contract import (
+    CATEGORICAL_FEATURE_COLS,
+    DYNAMIC_FEATURE_COLS,
+    NUM_CLASSES,
+    STATIC_MODEL_FEATURE_COLS,
+    WINDOW_SIZE_DEFAULT,
+)
 
 
 class TrafficForecastingEnv(gym.Env):
@@ -30,9 +36,14 @@ class TrafficForecastingEnv(gym.Env):
         self.action_space = spaces.Discrete(NUM_CLASSES)
         self.observation_space = spaces.Dict(
             {
-                "dynamic": spaces.Box(low=0, high=1, shape=(12, 5), dtype=np.float32),
-                "static": spaces.Box(low=0, high=1, shape=(5,), dtype=np.float32),
-                "categorical": spaces.Box(low=0, high=100, shape=(4,), dtype=np.int64),
+                "dynamic": spaces.Box(
+                    low=0,
+                    high=1,
+                    shape=(WINDOW_SIZE_DEFAULT, len(DYNAMIC_FEATURE_COLS)),
+                    dtype=np.float32,
+                ),
+                "static": spaces.Box(low=0, high=1, shape=(len(STATIC_MODEL_FEATURE_COLS),), dtype=np.float32),
+                "categorical": spaces.Box(low=0, high=1000000, shape=(len(CATEGORICAL_FEATURE_COLS),), dtype=np.int64),
             }
         )
 
