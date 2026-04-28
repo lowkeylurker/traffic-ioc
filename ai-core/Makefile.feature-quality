@@ -1,0 +1,25 @@
+# Feature Quality Assessment targets
+# Add these to your main Makefile or use as a standalone include
+
+.PHONY: feature-quality-tier1 feature-quality-tier2 feature-quality-tier3 feature-quality-test
+
+feature-quality-test:
+	python -m pytest tests/test_feature_quality.py -v
+
+feature-quality-tier1:
+	@mkdir -p reports/feature_qc
+	python feature_quality_main.py run --tier 1 --source data/sample.csv --out reports/feature_qc/$$(date +%F) || true
+	@echo "✓ Tier 1 EDA complete; check reports/feature_qc/$$(date +%F)/report.csv"
+
+feature-quality-tier2:
+	@mkdir -p reports/feature_qc
+	python feature_quality_main.py run --tier 2 --source data/sample.csv --out reports/feature_qc/$$(date +%F) --sample 100000 || true
+	@echo "✓ Tier 2 importance complete; check reports/feature_qc/$$(date +%F)/importance/feature_ranking.csv"
+
+feature-quality-tier3:
+	@echo "Tier 3 requires a model checkpoint. See docs/FEATURE_QA_RUNBOOK.md"
+
+feature-quality-demo:
+	@echo "Running demo: Tier 1 on synthetic data..."
+	python -c "from tools.feature_quality import eda; import pandas as pd; import numpy as np; df = pd.DataFrame({'f1': np.random.normal(size=500), 'f2': np.random.normal(size=500), 'congestion_level': np.random.randint(0, 3, 500)}); eda.run_eda(df=df, out_dir='reports/feature_qc/demo')"
+	@echo "✓ Demo output in reports/feature_qc/demo/"
