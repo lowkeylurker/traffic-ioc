@@ -232,7 +232,7 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
     JOIN dim_date d_date ON f.date_key = d_date.date_key
     LEFT JOIN dim_shift shift ON d_time.default_shift_key = shift.shift_key
     WHERE f.segment_key IN ({segment_ids_str})
-            AND COALESCE(s_dim.is_closed, FALSE) = FALSE
+            AND COALESCE(f.is_closed, FALSE) = FALSE
       AND f.date_key BETWEEN {start_date_key} AND {end_date_key}
       AND f.timestamp >= '{refresh_start_ts}'
       AND f.timestamp <= '{refresh_end_ts}'

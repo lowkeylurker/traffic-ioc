@@ -172,7 +172,7 @@ def load_warehouse_rows_by_segments(
         JOIN dim_date d_date ON f.date_key = d_date.date_key
         LEFT JOIN dim_shift shift ON d_time.default_shift_key = shift.shift_key
         WHERE f.segment_key IN ({segment_ids_sql})
-          AND COALESCE(s_dim.is_closed, FALSE) = FALSE
+          AND COALESCE(f.is_closed, FALSE) = FALSE
           AND f.timestamp >= '{start_date}'
           AND f.timestamp <= '{end_date}'
         ORDER BY f.segment_key, f.timestamp ASC;

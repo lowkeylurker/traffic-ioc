@@ -1,32 +1,40 @@
-# Spec Task: Triển khai A-Z Pipeline Jupyter (00-06) cho ML + RL
+# Spec Task: Triển khai A-Z Pipeline Jupyter (00-06) theo hướng Reuse-First cho ML + RL
 
-Mục tiêu: tạo và hoàn thiện toàn bộ pipeline notebook theo kế hoạch tại `ai-core/docs/PIPELINE_JUPYTER_NOTEBOOK.md`, bảo đảm có thể chạy tuần tự từ tiền xử lý dữ liệu đến huấn luyện, đánh giá, và xuất báo cáo phục vụ triển khai thực tế.
+Mục tiêu: hoàn thiện pipeline notebook 00-06 theo nguyên tắc ưu tiên tái sử dụng module Python đã có. Notebook chỉ đóng vai trò orchestration, cấu hình, và trực quan kết quả; không chứa business logic dài hoặc logic train cốt lõi bị copy/paste.
 
-## Kết quả kỳ vọng
+## Nguyên tắc kiến trúc bắt buộc
 
-- Có đầy đủ 7 notebook theo đúng vai trò: 00 (sandbox, tùy chọn), 01-06 (luồng chính).
-- Luồng dữ liệu nhất quán qua các mốc:
-  - `01_processed_features.parquet`
-  - `02_balanced_training_data.parquet`
-  - `preprocessing_artifacts.pkl`
-  - `best_traffic_model_baseline.pt`
-  - `dqn_traffic_best_model.pth`
-  - bộ báo cáo đánh giá cuối (metrics/plots/report).
-- Notebook 05 hỗ trợ rõ 2 chế độ:
-  - pure RL (không cần baseline checkpoint)
-  - warmstart RL (bắt buộc có baseline checkpoint)
-- Notebook 06 đánh giá theo hướng vận hành thực tế: fatal errors, near-miss, PR/Recall lớp hiếm, SHAP, latency.
+1. Reuse-first:
+- Mọi bước ETL, balancing, train, evaluate phải ưu tiên gọi module/script hiện có trong codebase.
+- Chỉ viết module mới khi xác nhận chưa có implementation phù hợp.
+
+2. Notebook-thin:
+- Notebook chỉ gồm: config, gọi hàm/entrypoint, kiểm tra output, visualize/report.
+- Logic nghiệp vụ chính phải nằm trong module dưới `src/` hoặc script dưới `scripts/`.
+
+3. Production parity:
+- Đầu vào/đầu ra notebook phải cùng contract với luồng production (path, schema, artifact name).
+- Notebook chạy được không đồng nghĩa xong nếu script production không chạy cùng contract.
+
+4. Không hardcode secrets:
+- Chỉ dùng biến môi trường cho DB/API/credentials.
+
+## Trạng thái thực thi hiện tại
+
+- [x] Đã có khung notebook 01-06 và validate format JSON/metadata cơ bản.
+- [ ] Chưa hoàn tất refactor theo hướng notebook chỉ gọi module.
+- [ ] Chưa có bảng mapping chính thức notebook -> module/script tái sử dụng.
+- [ ] Chưa đóng các khoảng trống module còn thiếu cho toàn bộ pipeline.
+- [ ] Chưa nghiệm thu end-to-end trên dữ liệu thật.
 
 ## Phạm vi thực hiện
 
 - Trong phạm vi `ai-core`:
-  - `ai-core/notebooks/`
-  - `ai-core/docs/PIPELINE_JUPYTER_NOTEBOOK.md`
-  - `ai-core/specs/task/`
-- Tận dụng entrypoint production đã có khi phù hợp:
-  - `ai-core/scripts/run_ml_train.py`
-  - `ai-core/src/rl/training/runner.py`
-- Không hardcode secrets; dùng biến môi trường.
+  - `notebooks/`
+  - `src/`
+  - `scripts/`
+  - `docs/PIPELINE_JUPYTER_NOTEBOOK.md`
+  - `specs/task/`
 
 ## Danh sách notebook mục tiêu
 
@@ -38,128 +46,143 @@ Mục tiêu: tạo và hoàn thiện toàn bộ pipeline notebook theo kế ho�
 - `05_Double_DQN_Training_Loop.ipynb`
 - `06_Model_Evaluation_Error_Analysis_XAI.ipynb`
 
-## A-Z Steps triển khai
+## Artifacts chuẩn cần tạo
 
-### 1) Chuẩn hóa tài liệu và hợp đồng dữ liệu
+- `01_processed_features.parquet`
+- `02_balanced_training_data.parquet`
+- `preprocessing_artifacts.pkl`
+- `best_traffic_model_baseline.pt`
+- `dqn_traffic_best_model.pth`
+- metrics + plots + report tổng hợp cuối.
 
-- Chốt rõ đầu vào/đầu ra của từng notebook theo tài liệu pipeline.
-- Chuẩn hóa naming và artifact path để tránh lệch giữa notebook và script production.
-- Xác nhận rõ logic warmstart/pure trong notebook 05 trùng với runner hiện tại.
+## A-Z Steps triển khai (phiên bản Reuse-First)
 
-### 2) Hoàn thiện notebook 01 (Data Extraction + Feature Engineering)
+### 1) Lập bản đồ tái sử dụng module (Module Reuse Map)
 
-- Kết nối DW, lọc `is_closed = false`, trích xuất đúng khung thời gian.
-- Tạo và chuẩn hóa feature cốt lõi (`speed_ratio`, `speed_delta`, `ward_district_id`, các cột static/dynamic liên quan).
-- Ràng buộc chất lượng dữ liệu:
-  - label `congestion_level` trong miền `0..5`
-  - xử lý missing có kiểm soát
-  - validate schema trước khi export.
-- Xuất `01_processed_features.parquet`.
+- Tạo ma trận mapping cho từng notebook:
+  - bước nghiệp vụ,
+  - module/script hiện có có thể dùng,
+  - khoảng trống chưa có module.
+- Chốt nguyên tắc: không viết logic dài trong cell nếu đã có hàm/module tương đương.
 
-### 3) Hoàn thiện notebook 02 (Hybrid Resampling + CTGAN)
+### 2) Chuẩn hóa contract dữ liệu và artifact
 
-- Áp dụng undersampling cho lớp 0/1/2 theo luật phạt-thưởng.
-- Giữ nguyên lớp 3.
-- Sinh thêm dữ liệu lớp 4/5 bằng CTGAN; có fallback khi CTGAN không khả dụng.
-- Áp dụng sanity check vật lý cho dữ liệu synthetic trước khi merge.
-- Xuất `02_balanced_training_data.parquet` và báo cáo class counts trước/sau.
+- Chốt schema đầu vào/đầu ra cho từng stage 01->06.
+- Đồng bộ naming/path artifacts giữa notebook và script production.
+- Chuẩn hóa warmstart/pure contract theo runner RL hiện tại.
 
-### 4) Tạo/hoàn thiện notebook 03 (Baseline + Preprocessing Artifacts)
+### 3) Refactor notebook 01 theo hướng gọi module ETL
 
-- Huấn luyện supervised baseline để có mốc đối chiếu.
-- Xuất đồng thời:
+- Notebook 01 chỉ gọi hàm ETL/feature engineering từ module.
+- Nếu chưa có module ETL chuẩn, tạo module mới (ví dụ trong `src/data_access` hoặc `src/features`) rồi notebook gọi lại.
+- Đảm bảo output chuẩn: `01_processed_features.parquet`.
+
+### 4) Refactor notebook 02 theo hướng gọi module balancing
+
+- Tái sử dụng pipeline balancing hiện có trước.
+- Nếu còn thiếu cho CTGAN/fallback/sanity-check, bổ sung module riêng trong `src/rl/data_balance` (hoặc vị trí phù hợp).
+- Notebook 02 chỉ điều phối và hiển thị phân phối class trước/sau.
+
+### 5) Refactor notebook 03 theo hướng gọi training entrypoint
+
+- Ưu tiên dùng script/module train baseline hiện có.
+- Notebook 03 thực hiện gọi train + hiển thị metrics + xác nhận artifact:
   - `best_traffic_model_baseline.pt`
   - `preprocessing_artifacts.pkl`
   - `ml_metrics.json`
-- Đảm bảo artifact có thể được nạp lại bởi pipeline inference và RL warmstart.
-- Có thể gọi `scripts/run_ml_train.py` làm đường chạy production tương đương.
 
-### 5) Tạo/hoàn thiện notebook 04 (RL Environment + Model Prototype)
+### 6) Refactor notebook 04 theo hướng gọi module env/model
 
-- Định nghĩa `TrafficEnvironment` với reward logic rõ ràng.
-- Khởi tạo `TrafficDQN` theo đúng input contract.
-- Chạy dummy/mini-batch test để bắt lỗi shape/dtype/device sớm.
-- Chốt cấu hình môi trường và mô hình sẵn sàng cho notebook 05.
+- Notebook 04 chỉ gọi module tạo environment và model prototype.
+- Giữ lại test tối thiểu shape/dtype/device ở mức orchestration.
 
-### 6) Tạo/hoàn thiện notebook 05 (Double DQN Training Loop)
+### 7) Refactor notebook 05 theo hướng gọi RL runner
 
-- Nạp dữ liệu cân bằng và artifacts.
-- Hỗ trợ 2 chế độ huấn luyện:
-  - pure mode: train RL từ đầu
-  - warmstart mode: nạp trọng số từ `best_traffic_model_baseline.pt`
-- Tích hợp logging/monitoring (metrics/history/checkpoint).
-- Xuất `dqn_traffic_best_model.pth` và metrics đi kèm.
+- Dùng RL runner/module train hiện có làm trục chính.
+- Notebook chỉ quản lý config và gọi train ở 2 mode:
+  - pure RL
+  - warmstart RL
+- Xác nhận warmstart thực sự nạp baseline checkpoint đúng contract.
 
-### 7) Tạo/hoàn thiện notebook 06 (Evaluation + XAI + System Metrics)
+### 8) Refactor notebook 06 theo hướng gọi module evaluation/XAI
 
-- Đánh giá mô hình theo yêu cầu vận hành:
-  - confusion matrix chuẩn hóa + truy lỗi tử vong
-  - near-miss accuracy
-  - PR curve + recall lớp 4/5
-  - SHAP cho mẫu mức 5
-  - inference latency benchmark.
-- Tổng hợp kết quả thành report markdown/html cho stakeholders.
-- Đưa ra kết luận đạt/không đạt triển khai và khuyến nghị cải tiến.
+- Tái sử dụng module đánh giá hiện có nếu có.
+- Nếu thiếu, bổ sung module mới cho metrics vận hành (fatal errors, near-miss, PR/Recall lớp 4/5, latency, SHAP).
+- Notebook 06 tập trung tổng hợp report và quyết định triển khai.
 
-### 8) Đồng bộ notebook với script production
+### 9) Bổ sung module thiếu (Gap Closure)
 
-- Mapping rõ cell/notebook nào tương đương bước nào trong script production.
-- Đảm bảo đầu vào/đầu ra cùng chuẩn path và schema giữa notebook và script.
-- Tránh tình trạng notebook chạy được nhưng script production vỡ contract.
+- Với từng khoảng trống ở bước 1, tạo module Python mới có:
+  - interface rõ ràng,
+  - docstring,
+  - input/output contract,
+  - test tối thiểu.
+- Sau khi có module mới, thay toàn bộ logic tương ứng trong notebook bằng lời gọi module.
 
-### 9) Validation kỹ thuật notebook format
+### 10) Validation định dạng notebook + validation chức năng
 
-- Tất cả notebook JSON hợp lệ.
-- Mỗi cell có:
-  - `metadata.language`
-  - `metadata.id` cho cell đã tồn tại.
-- Có thể parse bằng `json.loads(...)` và kiểm tra cấu trúc tự động.
+- Format:
+  - Notebook JSON hợp lệ.
+  - Mỗi cell có `metadata.language`.
+  - Cell đã tồn tại có `metadata.id`.
+- Function:
+  - Chạy tuần tự 00->06 (hoặc 01->06 nếu bỏ 00).
+  - Xác nhận artifact tồn tại, đọc lại được, đúng schema.
+  - Xác nhận notebook 05 chạy được pure và warmstart.
 
-### 10) Nghiệm thu end-to-end
+## Mapping bắt buộc notebook -> module/script
 
-- Chạy theo thứ tự `00 -> 01 -> 02 -> 03 -> 04 -> 05 -> 06`.
-- Xác nhận toàn bộ artifact đầu ra tồn tại và đọc được.
-- Xác nhận notebook 05 chạy được cả pure và warmstart.
-- Xác nhận notebook 06 tạo đủ biểu đồ/chỉ số theo yêu cầu.
+Mỗi notebook phải có bảng mapping trong docs/spec gồm:
+- Notebook step.
+- Hàm/module/script được gọi.
+- Đầu vào.
+- Đầu ra.
+- Trạng thái: reused/newly-added.
+
+Không có bảng mapping này thì chưa nghiệm thu.
 
 ## Deliverables bắt buộc
 
-- Notebook files trong `ai-core/notebooks/` theo danh sách mục tiêu.
-- Tập artifacts đầu ra đầy đủ của 01/02/03/05/06.
+- 01 bản spec/task đã cập nhật theo reuse-first (file này).
+- 01 bảng module reuse map cho notebook 01-06: `ai-core/specs/task/module_reuse_map_notebooks_01_06.md`.
+- Notebook 01-06 đã refactor: cell business logic dài được thay bằng lời gọi module/script.
+- Module mới (nếu cần) + test tối thiểu cho module mới.
+- Bộ artifacts đầy đủ của luồng 01/02/03/05/06.
 - Report đánh giá cuối (markdown/html + plots).
-- Tài liệu pipeline đã đồng bộ với trạng thái triển khai thực tế.
 
-## Acceptance Criteria
+## Acceptance Criteria (phiên bản Reuse-First)
 
-- [ ] Có đầy đủ notebook 01-06, đúng vai trò theo kế hoạch.
-- [ ] Notebook 01 xuất thành công `01_processed_features.parquet`.
-- [ ] Notebook 02 xuất thành công `02_balanced_training_data.parquet` và có thống kê class trước/sau.
-- [ ] Notebook 03 xuất được `best_traffic_model_baseline.pt`, `preprocessing_artifacts.pkl`, `ml_metrics.json`.
-- [ ] Notebook 04 chạy qua được prototype test không lỗi shape/dtype/device.
-- [ ] Notebook 05 chạy được cả pure mode và warmstart mode.
-- [ ] Notebook 05 warmstart dùng đúng baseline checkpoint.
-- [ ] Notebook 06 có confusion matrix, near-miss, PR/Recall lớp 4-5, SHAP, latency.
-- [ ] Có báo cáo tổng hợp cuối phục vụ quyết định triển khai.
-- [ ] Notebook JSON và metadata đạt yêu cầu format.
+- [ ] Notebook 01-06 tồn tại và đúng vai trò.
+- [ ] Mỗi notebook chỉ còn orchestration logic; business logic chính nằm trong module/script.
+- [ ] Có bảng mapping notebook -> module/script cho toàn bộ 01-06.
+- [ ] Mọi phần có thể tái sử dụng đã dùng lại module hiện có; phần thiếu đã bổ sung module mới.
+- [ ] Notebook 01 xuất `01_processed_features.parquet` đúng contract.
+- [ ] Notebook 02 xuất `02_balanced_training_data.parquet` và có class distribution trước/sau.
+- [ ] Notebook 03 xuất đủ baseline artifacts (`best_traffic_model_baseline.pt`, `preprocessing_artifacts.pkl`, `ml_metrics.json`).
+- [ ] Notebook 04 chạy qua prototype checks (shape/dtype/device).
+- [ ] Notebook 05 chạy được pure và warmstart, warmstart nạp đúng checkpoint baseline.
+- [ ] Notebook 06 xuất đủ metrics vận hành + XAI + latency report.
+- [ ] Notebook JSON/metadata đạt chuẩn format.
 
 ## Rủi ro và giảm thiểu
 
-- Rủi ro: CTGAN không khả dụng hoặc sinh dữ liệu kém chất lượng.
-  - Giảm thiểu: fallback augmentation + sanity check + log loại bỏ.
-- Rủi ro: lệch contract giữa notebook và production scripts.
-  - Giảm thiểu: mapping rõ path/schema, kiểm thử nạp artifact chéo.
-- Rủi ro: metrics tổng đẹp nhưng lỗi vận hành nguy hiểm cao.
-  - Giảm thiểu: bắt buộc theo dõi fatal errors, recall lớp hiếm, near-miss.
-- Rủi ro: notebook hợp lệ logic nhưng sai format JSON/metadata.
-  - Giảm thiểu: thêm bước validate cấu trúc notebook tự động.
+- Rủi ro: notebook vẫn chứa logic copy từ module.
+  - Giảm thiểu: review bắt buộc theo tiêu chí notebook-thin trước khi nghiệm thu.
+- Rủi ro: thiếu module trung gian khiến notebook phải viết tạm logic.
+  - Giảm thiểu: ưu tiên đóng gap module ở bước 9 trước khi mở rộng notebook.
+- Rủi ro: lệch contract giữa notebook và production.
+  - Giảm thiểu: bắt buộc reuse entrypoint production và kiểm thử artifact load chéo.
+- Rủi ro: CTGAN không khả dụng.
+  - Giảm thiểu: fallback augmentation + sanity-check + logging loại bỏ mẫu.
 
 ## Thứ tự ưu tiên thực hiện
 
-1. Chuẩn hóa dữ liệu và artifact flow: 01 -> 02 -> 03.
-2. Ổn định huấn luyện RL: 04 -> 05.
-3. Đánh giá vận hành + báo cáo: 06.
-4. Tinh chỉnh sandbox 00 theo bài toán mới (nếu cần).
+1. Lập module reuse map + chuẩn hóa contract.
+2. Refactor 01->03 theo reuse-first để khóa data/artifact flow.
+3. Refactor 04->05 để ổn định RL train pure/warmstart.
+4. Refactor 06 để hoàn chỉnh đánh giá vận hành và báo cáo.
+5. Chạy nghiệm thu end-to-end.
 
 ---
 
-Spec task này là tài liệu chuẩn để bám theo trong quá trình hoàn thành kế hoạch từ A-Z.
+Spec task này là tài liệu chuẩn để triển khai A-Z pipeline notebook theo nguyên tắc: tận dụng tối đa module Python hiện có, chỉ bổ sung module mới khi thực sự thiếu, và giữ notebook ở vai trò điều phối.

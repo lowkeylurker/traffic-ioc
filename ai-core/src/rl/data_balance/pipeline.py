@@ -34,7 +34,7 @@ except Exception:  # pragma: no cover - optional dependency
     HAS_CTGAN = False
 
 
-@dataclass(slots=True)
+@dataclass
 class ClassBalanceConfig:
     """Runtime configuration for class balancing."""
 
@@ -55,7 +55,7 @@ class ClassBalanceConfig:
     parquet_engine: str = "auto"
 
 
-@dataclass(slots=True)
+@dataclass
 class BalanceReport:
     """Structured summary for the balancing run."""
 
