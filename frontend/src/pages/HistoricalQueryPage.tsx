@@ -1,27 +1,31 @@
+import { TrafficMap } from '@/components/map/TrafficMap'
+import { LOS_COLORS } from '@/config/constants'
+import { useTrafficMap } from '@/hooks/useTraffic'
 import { historyApi, mapApi } from '@/services/api'
 import {
   HistoryHotspotPoint,
-  SegmentResponse,
   HistoryQueryParams,
   HistoryRecord,
   RoadOption,
+  SegmentResponse,
   TrafficStatus,
 } from '@/types'
-import { useQuery } from '@tanstack/react-query'
+import { formatDateTimeInTimeZone } from '@/utils/format'
 import { ExportOutlined, SearchOutlined } from '@ant-design/icons'
+import { useQuery } from '@tanstack/react-query'
 import {
-  Badge,
   AutoComplete,
+  Badge,
   Button,
   Card,
   DatePicker,
   Grid,
   Input,
-  Spin,
+  Select,
   Space,
+  Spin,
   Table,
   Tag,
-  Select,
   Typography,
   message,
 } from 'antd'
@@ -40,9 +44,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { TrafficMap } from '@/components/map/TrafficMap'
-import { useTrafficMap } from '@/hooks/useTraffic'
-import { LOS_COLORS } from '@/config/constants'
 
 const { RangePicker } = DatePicker
 const { Title, Text } = Typography
@@ -204,7 +205,7 @@ export const HistoricalQueryPage: React.FC = () => {
   const historySnapshotOptions = useMemo(() => {
     return (snapshotsQuery.data ?? []).map((value) => ({
       value,
-      label: dayjs(value).format('DD/MM/YYYY HH:mm:ss'),
+      label: formatDateTimeInTimeZone(value),
     }))
   }, [snapshotsQuery.data])
 
@@ -287,7 +288,7 @@ export const HistoricalQueryPage: React.FC = () => {
       key: 'timestamp',
       sorter: (a, b) =>
         dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf(),
-      render: (value: string) => dayjs(value).format('DD/MM/YYYY HH:mm'),
+      render: (value: string) => formatDateTimeInTimeZone(value),
       width: 170,
     },
     {

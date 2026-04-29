@@ -1,8 +1,8 @@
 // Utility Functions
 
+import { DATE_FORMAT, DATETIME_FORMAT, TIME_FORMAT } from '@/config/constants'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { DATE_FORMAT, TIME_FORMAT, DATETIME_FORMAT } from '@/config/constants'
 
 dayjs.extend(relativeTime)
 
@@ -16,6 +16,28 @@ export const formatTime = (date: Date | string): string => {
 
 export const formatDateTime = (date: Date | string): string => {
   return dayjs(date).format(DATETIME_FORMAT)
+}
+
+export const formatDateTimeInTimeZone = (
+  date: Date | string,
+  timeZone: string = 'Asia/Ho_Chi_Minh'
+): string => {
+  const value = date instanceof Date ? date : new Date(date)
+
+  if (Number.isNaN(value.getTime())) {
+    return 'N/A'
+  }
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(value)
 }
 
 export const formatRelativeTime = (date: Date | string): string => {
@@ -33,7 +55,10 @@ export const formatDistance = (distance: number): string => {
   return `${distance.toFixed(1)} km`
 }
 
-export const formatPercentage = (value: number, decimals: number = 1): string => {
+export const formatPercentage = (
+  value: number,
+  decimals: number = 1
+): string => {
   return `${value.toFixed(decimals)}%`
 }
 

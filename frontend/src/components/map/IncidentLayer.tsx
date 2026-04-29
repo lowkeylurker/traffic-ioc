@@ -1,5 +1,6 @@
 // Incident Layer Component (A2)
 import { IncidentFeature, IncidentSeverity, IncidentType } from '@/types'
+import { formatDateTimeInTimeZone } from '@/utils/format'
 import {
   ExclamationCircleOutlined,
   FireOutlined,
@@ -301,9 +302,7 @@ export const IncidentLayer: React.FC<IncidentLayerProps> = ({
               }}
             >
               <span style={{ color: 'rgba(0,0,0,0.55)' }}>🕓</span>
-              {new Date(selectedIncident.properties.timestamp).toLocaleString(
-                'vi-VN'
-              )}
+              {formatDateTimeInTimeZone(selectedIncident.properties.timestamp)}
             </div>
 
             {/* Action button */}

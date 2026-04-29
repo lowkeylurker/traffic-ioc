@@ -1,4 +1,5 @@
 import { weatherApi } from '@/services/api'
+import { formatDateTimeInTimeZone } from '@/utils/format'
 import { useQuery } from '@tanstack/react-query'
 import type { Feature, FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import mapboxgl from 'mapbox-gl'
@@ -442,9 +443,9 @@ export const WeatherVoronoiLayer: React.FC<WeatherVoronoiLayerProps> = ({
                   >
                     Updated:{' '}
                     {hovered.properties.latest_timestamp
-                      ? new Date(
+                      ? formatDateTimeInTimeZone(
                           hovered.properties.latest_timestamp
-                        ).toLocaleString()
+                        )
                       : 'N/A'}
                   </div>
                 </div>

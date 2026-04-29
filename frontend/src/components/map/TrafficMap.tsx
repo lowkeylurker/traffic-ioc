@@ -206,6 +206,24 @@ const toRgba = (color: string, alpha: number): string => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
+const formatTimestampUtc = (value: string | Date): string => {
+  const date = value instanceof Date ? value : new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'N/A'
+  }
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
 interface TrafficMapProps {
   segmentData: SegmentResponse | null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1703,16 +1721,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
                   <div style={{ color: '#9CA3AF', fontSize: '11px' }}>
                     Cập nhật:{' '}
                     {hoveredFeature.lastUpdated
-                      ? new Date(hoveredFeature.lastUpdated).toLocaleString(
-                          'vi-VN',
-                          {
-                            day: '2-digit',
-                            month: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                          }
-                        )
+                      ? formatTimestampUtc(hoveredFeature.lastUpdated)
                       : 'N/A'}
                   </div>
                 </div>
