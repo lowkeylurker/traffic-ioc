@@ -24,6 +24,25 @@ from src.ml.feature_contract import (
 from src.utils.data_loader import load_bulk_corridor_data, load_bulk_segment_data
 
 
+DEFAULT_CORRIDOR_IDS: list[int] = [
+    14146616491042222,
+    73904187376705400,
+    132965186560956307,
+    136550177913819656,
+    392537437542429252,
+    418854844871232114,
+    499090817621594113,
+    553923893084418928,
+    646713380690000556,
+    647577676530405923,
+    665064665204826106,
+    757793456805938866,
+    934115805333902094,
+    988709510142577156,
+    1100735735503891924,
+]
+
+
 @dataclass
 class Notebook01ETLConfig:
     start_date: str
@@ -56,6 +75,13 @@ def _collect_dataframes(config: Notebook01ETLConfig) -> list[pd.DataFrame]:
 
     corridor_ids = _normalize_ids(config.corridor_ids)
     segment_ids = _normalize_ids(config.segment_ids)
+
+    if not corridor_ids and not segment_ids:
+        corridor_ids = list(DEFAULT_CORRIDOR_IDS)
+        print(
+            "⚠️ No corridor_ids/segment_ids provided. Falling back to default corridor list "
+            f"({len(corridor_ids)} corridors)."
+        )
 
     for corridor_id in corridor_ids:
         corridor_data = load_bulk_corridor_data(
@@ -121,6 +147,12 @@ def run_notebook01_etl(config: Notebook01ETLConfig) -> Notebook01ETLOutput:
     sort_cols = [col for col in ("segment_key", "timestamp") if col in df.columns]
     if sort_cols:
         df = df.sort_values(sort_cols).reset_index(drop=True)
+
+    # Ensure categorical columns are strings to avoid PyArrow type mismatch
+    # (e.g., when some segments have numeric day_of_week and others have strings or 'unknown')
+    for col in CATEGORICAL_FEATURE_COLS:
+        if col in df.columns:
+            df[col] = df[col].astype(str)
 
     schema_report = validate_notebook01_output(df)
 

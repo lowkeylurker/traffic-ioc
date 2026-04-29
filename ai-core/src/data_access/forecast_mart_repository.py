@@ -16,11 +16,11 @@ _LAST_MART_REFRESH_AT: dict[str, float] = {}
 
 
 def _mart_query_timeout_ms() -> int:
-    raw = os.getenv("AI_FORECAST_MART_QUERY_TIMEOUT_MS", "20000")
+    raw = os.getenv("AI_FORECAST_MART_QUERY_TIMEOUT_MS", "60000")
     try:
         return max(1000, int(raw))
     except ValueError:
-        return 20000
+        return 60000
 
 
 def _mart_lock_timeout_ms() -> int:
@@ -178,7 +178,7 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
         time_cos,
         inserted_at
     )
-    SELECT
+    SELECT DISTINCT ON (f.segment_key, f.date_key, f.time_key)
         f.segment_key,
         bcs.corridor_key,
         f.date_key,
@@ -236,6 +236,7 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
       AND f.date_key BETWEEN {start_date_key} AND {end_date_key}
       AND f.timestamp >= '{refresh_start_ts}'
       AND f.timestamp <= '{refresh_end_ts}'
+    ORDER BY f.segment_key, f.date_key, f.time_key, bcs.corridor_key
     ON CONFLICT (segment_key, date_key, time_key)
     DO UPDATE SET
         corridor_key = EXCLUDED.corridor_key,
@@ -266,6 +267,8 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
     try:
         _ensure_forecast_mart_table(engine)
         with engine.begin() as conn:
+            conn.execute(text(f"SET statement_timeout = {5 * _mart_query_timeout_ms()}"))
+            conn.execute(text(f"SET lock_timeout = {5 * _mart_lock_timeout_ms()}"))
             conn.execute(text(query))
         return True
     except Exception as exc:

@@ -20,6 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     git \
     curl \
+    wget \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory

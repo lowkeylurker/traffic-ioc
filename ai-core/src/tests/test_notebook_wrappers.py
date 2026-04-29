@@ -7,6 +7,7 @@ import pytest
 
 from src.pipelines.notebook01_etl import (
     Notebook01ETLConfig,
+    _collect_dataframes,
     run_notebook01_etl,
     validate_notebook01_output,
 )
@@ -70,6 +71,47 @@ def test_run_notebook01_etl_writes_parquet(monkeypatch: pytest.MonkeyPatch, tmp_
     assert result.rows == len(sample_feature_frame)
     reloaded = pd.read_parquet(output_path)
     assert len(reloaded) == len(sample_feature_frame)
+
+
+def test_collect_dataframes_falls_back_to_default_corridors(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _mock_load_bulk_corridor_data(corridor_id: int, start_date: str, end_date: str, peak_hours_only: bool = True):
+        return {
+            corridor_id: pd.DataFrame(
+                {
+                    "segment_key": [101, 202],
+                    "timestamp": [pd.Timestamp("2026-04-01 06:00:00"), pd.Timestamp("2026-04-01 06:15:00")],
+                    "current_speed_kmh": [30.0, 28.0],
+                    "traffic_index": [0.2, 0.25],
+                    "delay_seconds": [5.0, 6.0],
+                    "quality_flag": [1.0, 1.0],
+                    "speed_ratio": [0.6, 0.55],
+                    "speed_delta": [0.0, -2.0],
+                    "default_lane_count": [2.0, 3.0],
+                    "free_flow_speed_kmh": [45.0, 45.0],
+                    "time_sin": [0.0, 0.1],
+                    "time_cos": [1.0, 0.99],
+                    "is_one_way": [1, 0],
+                    "is_peak_hour": [1, 1],
+                    "is_business_hours": [1, 1],
+                    "is_weekend": [0, 0],
+                    "tomtom_frc": [3, 4],
+                    "ward_district_id": [101, 202],
+                    "weather_key": [800, 800],
+                    "shift_code": [1, 1],
+                    "day_of_week": [2, 2],
+                    "congestion_level": [2, 3],
+                }
+            )
+        }
+
+    monkeypatch.setattr("src.pipelines.notebook01_etl.load_bulk_corridor_data", _mock_load_bulk_corridor_data)
+
+    cfg = Notebook01ETLConfig(start_date="2026-04-01", end_date="2026-04-02", output_path="/tmp/noop.parquet")
+    frames = _collect_dataframes(cfg)
+
+    # Fallback uses DEFAULT_CORRIDOR_IDS (20 corridors), so expect 20 frames
+    assert len(frames) == 20
+    assert frames[0].shape[0] == 2
 
 
 def test_validate_warmstart_inputs(tmp_path: Path) -> None:
