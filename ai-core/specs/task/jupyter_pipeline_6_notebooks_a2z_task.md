@@ -38,7 +38,7 @@ Mục tiêu: hoàn thiện pipeline notebook 00-06 theo nguyên tắc ưu tiên 
 
 ## Danh sách notebook mục tiêu
 
-- `00_EDA_Sandbox.ipynb` (tùy chọn)
+- `00_EDA_Sandbox.ipynb` (bắt buộc)
 - `01_Data_Extraction_Feature_Engineering.ipynb`
 - `02_Hybrid_Resampling_and_CTGAN.ipynb`
 - `03_ML_Training_and_Preprocessing_Artifacts.ipynb`
@@ -71,7 +71,14 @@ Mục tiêu: hoàn thiện pipeline notebook 00-06 theo nguyên tắc ưu tiên 
 - Đồng bộ naming/path artifacts giữa notebook và script production.
 - Chuẩn hóa warmstart/pure contract theo runner RL hiện tại.
 
-### 3) Refactor notebook 01 theo hướng gọi module ETL
+### 3) Refactor notebook 00 theo hướng EDA và Feature Selection
+
+- Notebook 00 thực hiện EDA trên mẫu dữ liệu.
+- Đánh giá độ quan trọng của feature sơ bộ (dùng Random Forest hoặc tương quan).
+- Chốt danh sách feature tinh chỉnh trước khi đưa vào ETL chính thức.
+- Đảm bảo gọi module từ `src/data_access` để load mẫu.
+
+### 4) Refactor notebook 01 theo hướng gọi module ETL
 
 - Notebook 01 chỉ gọi hàm ETL/feature engineering từ module.
 - Nếu chưa có module ETL chuẩn, tạo module mới (ví dụ trong `src/data_access` hoặc `src/features`) rồi notebook gọi lại.

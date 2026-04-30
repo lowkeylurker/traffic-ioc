@@ -1,7 +1,7 @@
-# Kế hoạch Pipeline Jupyter Notebook (6 notebook chính + 1 sandbox tùy chọn)
+# Kế hoạch Pipeline Jupyter Notebook (7 notebook chính)
 
-Tài liệu này định nghĩa rõ vai trò của 6 notebook chính (01-06) trong luồng train ML + RL cho bài toán dự báo giao thông.
-Notebook 00 là sandbox tiền trạm, tùy chọn nhưng rất nên có để thử nghiệm nhanh.
+Tài liệu này định nghĩa rõ vai trò của 7 notebook chính (00-06) trong luồng train ML + RL cho bài toán dự báo giao thông.
+Notebook 00 là bước bắt buộc để đánh giá và tinh chỉnh feature trước khi chạy ETL chính thức.
 Mỗi notebook đều có đầu vào, đầu ra và phạm vi trách nhiệm riêng để tránh trùng lặp hoặc lỗ hổng quy trình.
 
 ## 1) 00_EDA_Sandbox.ipynb

@@ -16,11 +16,11 @@ _LAST_MART_REFRESH_AT: dict[str, float] = {}
 
 
 def _mart_query_timeout_ms() -> int:
-    raw = os.getenv("AI_FORECAST_MART_QUERY_TIMEOUT_MS", "60000")
+    raw = os.getenv("AI_FORECAST_MART_QUERY_TIMEOUT_MS", "180000")
     try:
         return max(1000, int(raw))
     except ValueError:
-        return 60000
+        return 180000
 
 
 def _mart_lock_timeout_ms() -> int:
@@ -299,10 +299,21 @@ def maybe_refresh_forecast_mart_for_segments(engine, segment_ids: list[int], sta
         f"⚠️ Forecast mart stale cho segments {refresh_key[:80]} (max_ts={max_ts}), "
         "đang self-refresh nhẹ trước khi query..."
     )
+
+    # Optimization: If we already have some data, only refresh from the last known timestamp
+    # to avoid re-processing months of data unnecessarily.
+    effective_start = start_date
+    if max_ts is not None:
+        # Start from max_ts - 1 hour to ensure overlap and handle any partial hours
+        ts_overlap = pd.to_datetime(max_ts) - timedelta(hours=1)
+        # But don't start later than the requested start_date
+        if ts_overlap > pd.to_datetime(start_date):
+            effective_start = ts_overlap.strftime("%Y-%m-%d %H:%M:%S")
+
     refreshed = _refresh_forecast_mart_for_segments(
         engine=engine,
         segment_ids=segment_ids,
-        start_date=start_date,
+        start_date=effective_start,
         end_date=end_date,
     )
     if refreshed:
@@ -340,7 +351,9 @@ def load_forecast_mart_by_segments(
             is_business_hours,
             is_weekend,
             speed_ratio,
-            speed_delta
+            speed_delta,
+            time_sin,
+            time_cos
         FROM fact_forecast_segment_mart
         WHERE segment_key IN ({segment_ids_str})
           AND timestamp >= '{start_date}'

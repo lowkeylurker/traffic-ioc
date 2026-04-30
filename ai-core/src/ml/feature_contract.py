@@ -6,15 +6,12 @@ from typing import Any
 
 DYNAMIC_FEATURE_COLS = [
     "current_speed_kmh",
-    "traffic_index",
-    "delay_seconds",
-    "quality_flag",
     "speed_ratio",
+    "delay_seconds",
     "speed_delta",
 ]
 
 STATIC_MODEL_FEATURE_COLS = [
-    "default_lane_count",
     "free_flow_speed_kmh",
     "time_sin",
     "time_cos",
