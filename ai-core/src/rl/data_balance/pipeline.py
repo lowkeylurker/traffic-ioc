@@ -112,7 +112,7 @@ def _infer_feature_columns(df: pd.DataFrame) -> tuple[list[str], list[str], list
         "balance_seed",
     }
     excluded.update(CATEGORICAL_FEATURE_COLS)
-    excluded.update({"is_one_way", "is_peak_hour", "is_business_hours", "is_weekend"})
+    excluded.update({"is_peak_hour", "is_business_hours", "is_weekend"})
 
     numeric_cols: list[str] = []
     categorical_cols: list[str] = []
@@ -245,7 +245,7 @@ def _jitter_numeric_block(
         base = float(value)
         jitter = rng.normal(0.0, noise_pct)
         row[col] = base * (1.0 + jitter)
-        if col in {"default_lane_count", "is_one_way", "is_peak_hour", "is_business_hours", "is_weekend"}:
+        if col in {"default_lane_count", "is_peak_hour", "is_business_hours", "is_weekend"}:
             row[col] = int(round(max(0.0, row[col])))
     return row
 

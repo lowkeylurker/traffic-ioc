@@ -46,16 +46,13 @@ _MART_DDL = text(
         default_lane_count INTEGER NULL,
         free_flow_speed_kmh DOUBLE PRECISION NULL,
         tomtom_frc INTEGER NULL,
-        ward_district_id TEXT NULL,
         weather_key INTEGER NULL,
         day_of_week TEXT NULL,
         shift_code TEXT NULL,
-        is_one_way INTEGER NULL,
         is_peak_hour INTEGER NULL,
         is_business_hours INTEGER NULL,
         is_weekend INTEGER NULL,
         speed_ratio DOUBLE PRECISION NULL,
-        speed_delta DOUBLE PRECISION NULL,
         time_sin DOUBLE PRECISION NULL,
         time_cos DOUBLE PRECISION NULL,
         inserted_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -68,14 +65,11 @@ _MART_ALTER_DDL = [
     "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS congestion_level INTEGER NULL",
     "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS free_flow_speed_kmh DOUBLE PRECISION NULL",
     "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS tomtom_frc INTEGER NULL",
-    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS ward_district_id TEXT NULL",
     "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS weather_key INTEGER NULL",
-    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS is_one_way INTEGER NULL",
     "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS is_peak_hour INTEGER NULL",
     "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS is_business_hours INTEGER NULL",
     "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS is_weekend INTEGER NULL",
     "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS speed_ratio DOUBLE PRECISION NULL",
-    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS speed_delta DOUBLE PRECISION NULL",
 ]
 
 
@@ -164,16 +158,13 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
         default_lane_count,
         free_flow_speed_kmh,
         tomtom_frc,
-        ward_district_id,
         weather_key,
         day_of_week,
         shift_code,
-        is_one_way,
         is_peak_hour,
         is_business_hours,
         is_weekend,
         speed_ratio,
-        speed_delta,
         time_sin,
         time_cos,
         inserted_at
@@ -192,15 +183,9 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
         w_dim.default_lane_count,
         f.free_flow_speed_kmh,
         COALESCE(w_dim.tomtom_frc, 6) AS tomtom_frc,
-        (
-            COALESCE(NULLIF(TRIM(loc.district), ''), 'unknown')
-            || '::' ||
-            COALESCE(NULLIF(TRIM(loc.ward), ''), 'unknown')
-        ) AS ward_district_id,
         f.weather_key,
         d_date.day_of_week,
         shift.shift_code,
-        COALESCE(s_dim.is_one_way, FALSE)::INT AS is_one_way,
                 CASE
                         WHEN EXTRACT(HOUR FROM f.timestamp) BETWEEN 6 AND 10
                             OR EXTRACT(HOUR FROM f.timestamp) BETWEEN 16 AND 20 THEN 1
@@ -215,11 +200,6 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
             ELSE 0
         END AS is_weekend,
         COALESCE(f.current_speed_kmh / NULLIF(f.free_flow_speed_kmh, 0), 0.0) AS speed_ratio,
-        COALESCE(
-            f.current_speed_kmh
-            - LAG(f.current_speed_kmh) OVER (PARTITION BY f.segment_key ORDER BY f.timestamp),
-            0.0
-        ) AS speed_delta,
         SIN(2 * PI() * (f.time_key::DOUBLE PRECISION / 1440.0)) AS time_sin,
         COS(2 * PI() * (f.time_key::DOUBLE PRECISION / 1440.0)) AS time_cos,
         NOW() AS inserted_at
@@ -249,16 +229,13 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
         default_lane_count = EXCLUDED.default_lane_count,
         free_flow_speed_kmh = EXCLUDED.free_flow_speed_kmh,
         tomtom_frc = EXCLUDED.tomtom_frc,
-        ward_district_id = EXCLUDED.ward_district_id,
         weather_key = EXCLUDED.weather_key,
         day_of_week = EXCLUDED.day_of_week,
         shift_code = EXCLUDED.shift_code,
-        is_one_way = EXCLUDED.is_one_way,
         is_peak_hour = EXCLUDED.is_peak_hour,
         is_business_hours = EXCLUDED.is_business_hours,
         is_weekend = EXCLUDED.is_weekend,
         speed_ratio = EXCLUDED.speed_ratio,
-        speed_delta = EXCLUDED.speed_delta,
         time_sin = EXCLUDED.time_sin,
         time_cos = EXCLUDED.time_cos,
         inserted_at = NOW()
@@ -342,16 +319,13 @@ def load_forecast_mart_by_segments(
             default_lane_count,
             free_flow_speed_kmh,
             tomtom_frc,
-            ward_district_id,
             weather_key,
             day_of_week,
             shift_code,
-            is_one_way,
             is_peak_hour,
             is_business_hours,
             is_weekend,
             speed_ratio,
-            speed_delta,
             time_sin,
             time_cos
         FROM fact_forecast_segment_mart

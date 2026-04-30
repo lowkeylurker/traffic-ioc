@@ -26,17 +26,14 @@ def sample_feature_frame() -> pd.DataFrame:
             "delay_seconds": [12.0, 15.0, 8.0, 7.0],
             "quality_flag": [1.0, 1.0, 1.0, 1.0],
             "speed_ratio": [0.55, 0.50, 0.78, 0.82],
-            "speed_delta": [0.0, -1.0, 0.0, 1.0],
             "default_lane_count": [2.0, 2.0, 3.0, 3.0],
             "free_flow_speed_kmh": [45.0, 45.0, 45.0, 45.0],
             "time_sin": [0.0, 0.1, 0.2, 0.3],
             "time_cos": [1.0, 0.99, 0.98, 0.95],
-            "is_one_way": [1, 1, 0, 0],
             "is_peak_hour": [1, 1, 1, 1],
             "is_business_hours": [1, 1, 1, 1],
             "is_weekend": [0, 0, 0, 0],
             "tomtom_frc": [3, 3, 4, 4],
-            "ward_district_id": [101, 101, 202, 202],
             "weather_key": [800, 800, 800, 800],
             "shift_code": [1, 1, 1, 1],
             "day_of_week": [2, 2, 2, 2],
@@ -85,17 +82,14 @@ def test_collect_dataframes_falls_back_to_default_corridors(monkeypatch: pytest.
                     "delay_seconds": [5.0, 6.0],
                     "quality_flag": [1.0, 1.0],
                     "speed_ratio": [0.6, 0.55],
-                    "speed_delta": [0.0, -2.0],
                     "default_lane_count": [2.0, 3.0],
                     "free_flow_speed_kmh": [45.0, 45.0],
                     "time_sin": [0.0, 0.1],
                     "time_cos": [1.0, 0.99],
-                    "is_one_way": [1, 0],
                     "is_peak_hour": [1, 1],
                     "is_business_hours": [1, 1],
                     "is_weekend": [0, 0],
                     "tomtom_frc": [3, 4],
-                    "ward_district_id": [101, 202],
                     "weather_key": [800, 800],
                     "shift_code": [1, 1],
                     "day_of_week": [2, 2],
@@ -109,8 +103,8 @@ def test_collect_dataframes_falls_back_to_default_corridors(monkeypatch: pytest.
     cfg = Notebook01ETLConfig(start_date="2026-04-01", end_date="2026-04-02", output_path="/tmp/noop.parquet")
     frames = _collect_dataframes(cfg)
 
-    # Fallback uses DEFAULT_CORRIDOR_IDS (20 corridors), so expect 20 frames
-    assert len(frames) == 20
+    # Fallback uses DEFAULT_CORRIDOR_IDS (15 corridors), so expect 15 frames
+    assert len(frames) == 15
     assert frames[0].shape[0] == 2
 
 

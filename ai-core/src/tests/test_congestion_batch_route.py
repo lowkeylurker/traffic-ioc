@@ -4,7 +4,7 @@ import pandas as pd
 from fastapi.testclient import TestClient
 
 from src.api.app import app
-from src.api.dependencies import get_warmstart_rl_predictor
+from src.api.dependencies import get_warmstart_rl_predictor, get_warmstart_rl_predictor_by_horizon
 
 
 class _DummyPredictor:
@@ -34,6 +34,7 @@ def test_batch_direct_reason_code(monkeypatch):
 
     monkeypatch.setattr(route, "forecast_for_request", _forecast_for_request)
     app.dependency_overrides[get_warmstart_rl_predictor] = lambda: _DummyPredictor()
+    app.dependency_overrides[get_warmstart_rl_predictor_by_horizon] = lambda h: _DummyPredictor()
 
     try:
         client = TestClient(app)
@@ -64,6 +65,7 @@ def test_batch_fallback_nearest_reason_code(monkeypatch):
     monkeypatch.setattr(route, "get_corridors_by_segment", lambda segment_id: [1])
     monkeypatch.setattr(route, "get_nearest_segments_in_corridor", lambda segment_id, corridor_id, limit: [(999, 120.5)])
     app.dependency_overrides[get_warmstart_rl_predictor] = lambda: _DummyPredictor()
+    app.dependency_overrides[get_warmstart_rl_predictor_by_horizon] = lambda h: _DummyPredictor()
 
     try:
         client = TestClient(app)
@@ -93,6 +95,7 @@ def test_batch_fallback_distance_exceeded_reason_code(monkeypatch):
     monkeypatch.setattr(route, "get_corridors_by_segment", lambda segment_id: [1])
     monkeypatch.setattr(route, "get_nearest_segments_in_corridor", lambda segment_id, corridor_id, limit: [(999, 99999.0)])
     app.dependency_overrides[get_warmstart_rl_predictor] = lambda: _DummyPredictor()
+    app.dependency_overrides[get_warmstart_rl_predictor_by_horizon] = lambda h: _DummyPredictor()
 
     try:
         client = TestClient(app)
@@ -126,6 +129,7 @@ def test_batch_reuses_candidate_forecast_cache(monkeypatch):
     monkeypatch.setattr(route, "get_corridors_by_segment", lambda segment_id: [1])
     monkeypatch.setattr(route, "get_nearest_segments_in_corridor", lambda segment_id, corridor_id, limit: [(999, 120.5)])
     app.dependency_overrides[get_warmstart_rl_predictor] = lambda: _DummyPredictor()
+    app.dependency_overrides[get_warmstart_rl_predictor_by_horizon] = lambda h: _DummyPredictor()
 
     try:
         client = TestClient(app)
@@ -165,6 +169,7 @@ def test_benchmark_endpoint(monkeypatch):
     monkeypatch.setattr(route, "forecast_for_request", _forecast_for_request)
     monkeypatch.setattr(route, "get_benchmark_segment_pool", lambda limit=5000: list(range(1, 200)))
     app.dependency_overrides[get_warmstart_rl_predictor] = lambda: _DummyPredictor()
+    app.dependency_overrides[get_warmstart_rl_predictor_by_horizon] = lambda h: _DummyPredictor()
 
     try:
         client = TestClient(app)

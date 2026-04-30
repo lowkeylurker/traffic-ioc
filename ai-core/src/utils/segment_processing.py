@@ -27,16 +27,13 @@ def process_single_segment(df_segment: pd.DataFrame, peak_hours_only: bool = Tru
         'default_lane_count': 'first',
         'free_flow_speed_kmh': 'first',
         'tomtom_frc': 'first',
-        'ward_district_id': 'first',
         'weather_key': 'first',
         'day_of_week': 'first',
         'shift_code': 'first',
-        'is_one_way': 'first',
         'is_peak_hour': 'max',
         'is_business_hours': 'max',
         'is_weekend': 'max',
         'speed_ratio': 'mean',
-        'speed_delta': 'mean',
     }
 
     df = df_segment.resample('15min').agg(agg_logic)
@@ -54,27 +51,22 @@ def process_single_segment(df_segment: pd.DataFrame, peak_hours_only: bool = Tru
 
     if 'speed_ratio' not in df.columns:
         df['speed_ratio'] = np.nan
-    if 'speed_delta' not in df.columns:
-        df['speed_delta'] = np.nan
 
     df['speed_ratio'] = pd.to_numeric(df['speed_ratio'], errors='coerce')
-    df['speed_delta'] = pd.to_numeric(df['speed_delta'], errors='coerce')
 
     fallback_speed_ratio = df['current_speed_kmh'] / df['free_flow_speed_kmh'].replace(0, np.nan)
     df['speed_ratio'] = df['speed_ratio'].fillna(fallback_speed_ratio)
-    df['speed_delta'] = df['speed_delta'].fillna(df['current_speed_kmh'].diff())
 
     if peak_hours_only:
         df = df.between_time('06:00', '21:00')
 
-    continuous_cols = ['current_speed_kmh', 'traffic_index', 'delay_seconds', 'quality_flag', 'speed_ratio', 'speed_delta']
+    continuous_cols = ['current_speed_kmh', 'traffic_index', 'delay_seconds', 'quality_flag', 'speed_ratio']
     df[continuous_cols] = df[continuous_cols].interpolate(method='linear')
 
-    categorical_cols = ['tomtom_frc', 'ward_district_id', 'weather_key', 'day_of_week', 'shift_code']
+    categorical_cols = ['tomtom_frc', 'weather_key', 'day_of_week', 'shift_code']
     df[categorical_cols] = df[categorical_cols].ffill().bfill()
-    df['is_one_way'] = df['is_one_way'].ffill().bfill()
 
-    static_cols = ['segment_key', 'default_lane_count', 'free_flow_speed_kmh', 'time_sin', 'time_cos', 'is_one_way', 'is_peak_hour', 'is_business_hours', 'is_weekend']
+    static_cols = ['segment_key', 'default_lane_count', 'free_flow_speed_kmh', 'time_sin', 'time_cos', 'is_peak_hour', 'is_business_hours', 'is_weekend']
     df[static_cols] = df[static_cols].ffill().bfill()
 
     # Keep business/weekend flags consistent with timestamp when source flags are sparse.

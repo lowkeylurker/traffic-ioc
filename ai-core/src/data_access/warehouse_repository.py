@@ -136,15 +136,9 @@ def load_warehouse_rows_by_segments(
             w_dim.default_lane_count,
             f.free_flow_speed_kmh,
             COALESCE(w_dim.tomtom_frc, 6) AS tomtom_frc,
-            (
-                COALESCE(NULLIF(TRIM(loc.district), ''), 'unknown')
-                || '::' ||
-                COALESCE(NULLIF(TRIM(loc.ward), ''), 'unknown')
-            ) AS ward_district_id,
             f.weather_key,
             d_date.day_of_week,
             shift.shift_code,
-            COALESCE(s_dim.is_one_way, FALSE)::INT AS is_one_way,
                         CASE
                                 WHEN EXTRACT(HOUR FROM f.timestamp) BETWEEN 6 AND 10
                                     OR EXTRACT(HOUR FROM f.timestamp) BETWEEN 16 AND 20 THEN 1
@@ -158,12 +152,7 @@ def load_warehouse_rows_by_segments(
                 WHEN EXTRACT(HOUR FROM f.timestamp) BETWEEN 8 AND 17 THEN 1
                 ELSE 0
             END AS is_business_hours,
-            COALESCE(f.current_speed_kmh / NULLIF(f.free_flow_speed_kmh, 0), 0.0) AS speed_ratio,
-            COALESCE(
-                f.current_speed_kmh
-                - LAG(f.current_speed_kmh) OVER (PARTITION BY f.segment_key ORDER BY f.timestamp),
-                0.0
-            ) AS speed_delta
+            COALESCE(f.current_speed_kmh / NULLIF(f.free_flow_speed_kmh, 0), 0.0) AS speed_ratio
         FROM fact_traffic_flow f
         JOIN dim_segment s_dim ON f.segment_key = s_dim.segment_key
         JOIN dim_way w_dim ON s_dim.way_key = w_dim.way_key

@@ -8,14 +8,12 @@ DYNAMIC_FEATURE_COLS = [
     "current_speed_kmh",
     "speed_ratio",
     "delay_seconds",
-    "speed_delta",
 ]
 
 STATIC_MODEL_FEATURE_COLS = [
     "free_flow_speed_kmh",
     "time_sin",
     "time_cos",
-    "is_one_way",
     "is_peak_hour",
     "is_business_hours",
     "is_weekend",
@@ -27,7 +25,6 @@ STATIC_SCALER_FEATURE_COLS = [
 
 CATEGORICAL_FEATURE_COLS = [
     "tomtom_frc",
-    "ward_district_id",
     "weather_key",
     "shift_code",
     "day_of_week",
