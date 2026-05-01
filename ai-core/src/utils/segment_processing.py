@@ -33,7 +33,6 @@ def process_single_segment(df_segment: pd.DataFrame, peak_hours_only: bool = Tru
         'is_peak_hour': 'max',
         'is_business_hours': 'max',
         'is_weekend': 'max',
-        'speed_ratio': 'mean',
     }
 
     df = df_segment.resample('15min').agg(agg_logic)
@@ -49,18 +48,10 @@ def process_single_segment(df_segment: pd.DataFrame, peak_hours_only: bool = Tru
     # Keep source congestion_level as training label; do not infer labels from traffic_index.
     df = extract_traffic_features(df, derive_aux_levels=False)
 
-    if 'speed_ratio' not in df.columns:
-        df['speed_ratio'] = np.nan
-
-    df['speed_ratio'] = pd.to_numeric(df['speed_ratio'], errors='coerce')
-
-    fallback_speed_ratio = df['current_speed_kmh'] / df['free_flow_speed_kmh'].replace(0, np.nan)
-    df['speed_ratio'] = df['speed_ratio'].fillna(fallback_speed_ratio)
-
     if peak_hours_only:
         df = df.between_time('06:00', '21:00')
 
-    continuous_cols = ['current_speed_kmh', 'traffic_index', 'delay_seconds', 'quality_flag', 'speed_ratio']
+    continuous_cols = ['current_speed_kmh', 'traffic_index', 'delay_seconds', 'quality_flag']
     df[continuous_cols] = df[continuous_cols].interpolate(method='linear')
 
     categorical_cols = ['tomtom_frc', 'weather_key', 'day_of_week', 'shift_code']

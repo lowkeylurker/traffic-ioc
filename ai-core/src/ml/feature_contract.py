@@ -6,7 +6,7 @@ from typing import Any
 
 DYNAMIC_FEATURE_COLS = [
     "current_speed_kmh",
-    "speed_ratio",
+    "traffic_index",
     "delay_seconds",
 ]
 

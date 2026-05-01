@@ -151,8 +151,7 @@ def load_warehouse_rows_by_segments(
             CASE
                 WHEN EXTRACT(HOUR FROM f.timestamp) BETWEEN 8 AND 17 THEN 1
                 ELSE 0
-            END AS is_business_hours,
-            COALESCE(f.current_speed_kmh / NULLIF(f.free_flow_speed_kmh, 0), 0.0) AS speed_ratio
+            END AS is_business_hours
         FROM fact_traffic_flow f
         JOIN dim_segment s_dim ON f.segment_key = s_dim.segment_key
         JOIN dim_way w_dim ON s_dim.way_key = w_dim.way_key

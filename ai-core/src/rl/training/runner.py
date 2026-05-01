@@ -398,7 +398,6 @@ def _balance_majority_windows(
             "current_speed_kmh",
             "delay_seconds",
             "quality_flag",
-            "speed_ratio",
             "free_flow_speed_kmh",
             "is_business_hours",
             "is_weekend",

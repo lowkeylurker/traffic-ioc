@@ -34,7 +34,6 @@ def _build_class_balance_frame() -> pd.DataFrame:
                     "traffic_index": 0.1 * (label + index),
                     "delay_seconds": 5.0 + index,
                     "quality_flag": float(index % 2),
-                    "speed_ratio": 0.5 + 0.01 * index,
                     "default_lane_count": 2.0,
                     "free_flow_speed_kmh": 45.0,
                     "time_key": temporal.hour * 60 + temporal.minute,

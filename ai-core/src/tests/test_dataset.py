@@ -28,7 +28,6 @@ def _build_segment_rows(segment_key: int, start_time: datetime, row_count: int) 
                 "traffic_index": 0.1 * index,
                 "delay_seconds": 5.0 + index,
                 "quality_flag": float(index % 2),
-                "speed_ratio": 0.5,
                 "default_lane_count": 2.0,
                 "free_flow_speed_kmh": 45.0,
                 "time_sin": 0.5,

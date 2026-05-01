@@ -52,7 +52,6 @@ _MART_DDL = text(
         is_peak_hour INTEGER NULL,
         is_business_hours INTEGER NULL,
         is_weekend INTEGER NULL,
-        speed_ratio DOUBLE PRECISION NULL,
         time_sin DOUBLE PRECISION NULL,
         time_cos DOUBLE PRECISION NULL,
         inserted_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -69,7 +68,6 @@ _MART_ALTER_DDL = [
     "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS is_peak_hour INTEGER NULL",
     "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS is_business_hours INTEGER NULL",
     "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS is_weekend INTEGER NULL",
-    "ALTER TABLE fact_forecast_segment_mart ADD COLUMN IF NOT EXISTS speed_ratio DOUBLE PRECISION NULL",
 ]
 
 
@@ -164,7 +162,6 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
         is_peak_hour,
         is_business_hours,
         is_weekend,
-        speed_ratio,
         time_sin,
         time_cos,
         inserted_at
@@ -199,7 +196,6 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
             WHEN EXTRACT(ISODOW FROM f.timestamp) IN (6, 7) THEN 1
             ELSE 0
         END AS is_weekend,
-        COALESCE(f.current_speed_kmh / NULLIF(f.free_flow_speed_kmh, 0), 0.0) AS speed_ratio,
         SIN(2 * PI() * (f.time_key::DOUBLE PRECISION / 1440.0)) AS time_sin,
         COS(2 * PI() * (f.time_key::DOUBLE PRECISION / 1440.0)) AS time_cos,
         NOW() AS inserted_at
@@ -235,7 +231,6 @@ def _refresh_forecast_mart_for_segments(engine, segment_ids: list[int], start_da
         is_peak_hour = EXCLUDED.is_peak_hour,
         is_business_hours = EXCLUDED.is_business_hours,
         is_weekend = EXCLUDED.is_weekend,
-        speed_ratio = EXCLUDED.speed_ratio,
         time_sin = EXCLUDED.time_sin,
         time_cos = EXCLUDED.time_cos,
         inserted_at = NOW()
@@ -325,7 +320,6 @@ def load_forecast_mart_by_segments(
             is_peak_hour,
             is_business_hours,
             is_weekend,
-            speed_ratio,
             time_sin,
             time_cos
         FROM fact_forecast_segment_mart
