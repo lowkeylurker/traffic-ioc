@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.preprocessing import LabelEncoder
-from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
+from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler, Subset
 
 from src.features.sliding_window import find_valid_window_starts
 from src.ml.feature_contract import (
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class TrafficDataset(Dataset):
-    def __init__(self, df: pd.DataFrame, window_size: int = WINDOW_SIZE_DEFAULT, target_offset_steps: int = 1):
+    def __init__(self, df: pd.DataFrame, window_size: int = WINDOW_SIZE_DEFAULT, target_offset_steps: int = 1, verbose: bool = True):
         self.df = df
         self.window_size = window_size
         self.target_offset_steps = target_offset_steps
@@ -49,11 +49,21 @@ class TrafficDataset(Dataset):
             step_minutes=WINDOW_STEP_MINUTES,
         )
 
-        print(f"Tổng số dòng dữ liệu thô: {len(self.df)}")
-        print(
-            "Tổng số cửa sổ hợp lệ thu được: "
-            f"{len(self.valid_indices)} (window={self.window_size}, target_offset={self.target_offset_steps})"
-        )
+        if verbose:
+            print(f"Tổng số dòng dữ liệu thô: {len(self.df)}")
+            print(
+                "Tổng số cửa sổ hợp lệ thu được: "
+                f"{len(self.valid_indices)} (window={self.window_size}, target_offset={self.target_offset_steps})"
+            )
+            
+            # Log class distribution of windows
+            if len(self.valid_indices) > 0:
+                window_targets = self.get_training_targets()
+                unique, counts = np.unique(window_targets, return_counts=True)
+                dist = dict(zip(unique, counts))
+                print("Phân bổ Class trong các cửa sổ:")
+                for cls in range(NUM_CLASSES):
+                    print(f"  - Class {cls}: {dist.get(cls, 0)} windows")
 
     def _target_index(self, start_idx: int) -> int:
         return start_idx + self.window_size + self.target_offset_steps - 1
@@ -92,56 +102,67 @@ def prepare_dataloaders(
     use_weighted_sampler: bool = True,
 ):
     df_working = df.copy()
-    df_working["timestamp"] = pd.to_datetime(df_working["timestamp"])
-
-    split_time = df_working["timestamp"].quantile(train_ratio)
-    df_train = df_working[df_working["timestamp"] < split_time].copy()
-    df_val = df_working[df_working["timestamp"] >= split_time].copy()
-
+    
+    # 1. Encode categorical columns on the WHOLE dataset to ensure consistent mapping
     label_encoders = {}
     for col in CATEGORICAL_FEATURE_COLS:
-        le = LabelEncoder()
-        train_col = df_train[col].astype(str)
-        le.fit(train_col)
-        label_encoders[col] = le
+        if col in df_working.columns:
+            le = LabelEncoder()
+            # Ensure consistent type (string) for encoding
+            df_working[col] = df_working[col].astype(str)
+            df_working[col] = le.fit_transform(df_working[col])
+            label_encoders[col] = le
 
-        df_train[col] = le.transform(train_col)
+    # 3. Create a temporary master dataset to find all valid windows and their timestamps
+    # This helps us find the chronological split point
+    full_dataset_raw = TrafficDataset(
+        df_working,
+        window_size=window_size,
+        target_offset_steps=target_offset_steps,
+        verbose=False # Don't print distribution yet
+    )
+    
+    if len(full_dataset_raw) == 0:
+        raise ValueError("Không tìm thấy cửa sổ hợp lệ nào trong dữ liệu đầu vào.")
 
-        val_col = df_val[col].astype(str)
-        unseen_mask = ~val_col.isin(le.classes_)
-        if unseen_mask.any():
-            fallback_value = str(le.classes_[0])
-            unseen_examples = val_col[unseen_mask].value_counts().head(5).to_dict()
-            logger.warning(
-                "Validation contains unseen category for '%s': count=%d, examples=%s. Fallback='%s'.",
-                col,
-                int(unseen_mask.sum()),
-                unseen_examples,
-                fallback_value,
-            )
-            val_col.loc[unseen_mask] = fallback_value
-        df_val[col] = le.transform(val_col)
-
+    # 4. Chronological Split Point
+    target_indices = [full_dataset_raw._target_index(idx) for idx in full_dataset_raw.valid_indices]
+    window_timestamps = full_dataset_raw.timestamps[target_indices]
+    sorted_order = np.argsort(window_timestamps)
+    
+    split_idx = int(len(sorted_order) * train_ratio)
+    train_win_indices = sorted_order[:split_idx]
+    val_win_indices = sorted_order[split_idx:]
+    
+    # Identify the split timestamp to partition the RAW dataframe for scaling
+    # This ensures the scaler only sees training data distribution
+    split_ts = window_timestamps[sorted_order[split_idx-1]]
+    train_df_raw = df_working[pd.to_datetime(df_working['timestamp']) <= pd.to_datetime(split_ts)]
+    
+    # 5. Fit Scaler ONLY on training rows, then transform full df
     scaler = TrafficScaler()
-    scaler.fit(df_train)
-
-    df_train_scaled = scaler.transform(df_train)
-    df_val_scaled = scaler.transform(df_val)
-
-    train_dataset = TrafficDataset(
-        df_train_scaled,
+    scaler.fit(train_df_raw)
+    df_scaled = scaler.transform(df_working)
+    
+    # 6. Create the final scaled datasets
+    full_dataset_scaled = TrafficDataset(
+        df_scaled,
         window_size=window_size,
         target_offset_steps=target_offset_steps,
+        verbose=True # Final distribution print
     )
-    val_dataset = TrafficDataset(
-        df_val_scaled,
-        window_size=window_size,
-        target_offset_steps=target_offset_steps,
-    )
+    
+    train_dataset = Subset(full_dataset_scaled, train_win_indices)
+    val_dataset = Subset(full_dataset_scaled, val_win_indices)
+    
+    print(f"Dataset split complete (LEAK-PROOF CHRONOLOGICAL): Train={len(train_dataset)}, Val={len(val_dataset)}")
 
     train_sampler = None
     if use_weighted_sampler:
-        train_targets = train_dataset.get_training_targets()
+        # Correctly get targets for the training subset
+        all_targets = full_dataset_scaled.get_training_targets()
+        train_targets = all_targets[train_win_indices]
+        
         class_counts = np.bincount(train_targets, minlength=NUM_CLASSES)
         sample_weights = np.array(
             [1.0 / class_counts[target] if class_counts[target] > 0 else 0.0 for target in train_targets],

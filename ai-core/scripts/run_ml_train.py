@@ -39,11 +39,11 @@ USE_WEIGHTED_SAMPLER = False
 USE_CLASS_WEIGHTS = True
 CLASS_WEIGHT_CLIP_MIN = 0.8
 CLASS_WEIGHT_CLIP_MAX = 1.8
-TRAIN_EPOCHS = 35
+TRAIN_EPOCHS = 50
 LEARNING_RATE = 0.001
 PATIENCE = 12
 BATCH_SIZE = 256
-LOSS_TYPE = "ce"
+LOSS_TYPE = "focal"
 FOCAL_GAMMA = 2.0
 CLASS_BALANCED_BETA = 0.9999
 LABEL_SMOOTHING = 0.05
@@ -177,31 +177,39 @@ def main() -> None:
         f"ckpt={CHECKPOINT_PATH}"
     )
 
-    all_segments_data = []
+    # 1. Nạp dữ liệu (Ưu tiên từ Parquet đã balanced, fallback về Database)
+    input_parquet = os.getenv("ML_INPUT_DATA_PATH")
+    if input_parquet and Path(input_parquet).exists():
+        print(f"📦 LOADING BALANCED DATA FROM PARQUET: {input_parquet}")
+        df_master = pd.read_parquet(input_parquet)
+        USE_WINDOW_BALANCING_LOCAL = False
+    else:
+        print(f"🌍 BẮT ĐẦU KÉO DỮ LIỆU TỪ {len(CORRIDOR_IDS)} CORRIDORS...")
+        all_segments_data = []
+        for corridor_id in CORRIDOR_IDS:
+            print(f"\n👉 Đang truy xuất Corridor ID: {corridor_id}")
+            corridor_data = load_bulk_corridor_data(
+                corridor_id=corridor_id,
+                start_date=START_DATE,
+                end_date=END_DATE,
+                peak_hours_only=True,
+            )
 
-    print(f"🌍 BẮT ĐẦU KÉO DỮ LIỆU TỪ {len(CORRIDOR_IDS)} CORRIDORS...")
-    for corridor_id in CORRIDOR_IDS:
-        print(f"\n👉 Đang truy xuất Corridor ID: {corridor_id}")
-        corridor_data = load_bulk_corridor_data(
-            corridor_id=corridor_id,
-            start_date=START_DATE,
-            end_date=END_DATE,
-            peak_hours_only=True,
-        )
+            if corridor_data:
+                df_corridor = pd.concat(corridor_data.values(), ignore_index=True)
+                all_segments_data.append(df_corridor)
 
-        if corridor_data:
-            df_corridor = pd.concat(corridor_data.values(), ignore_index=True)
-            all_segments_data.append(df_corridor)
+        if not all_segments_data:
+            print("❌ Không lấy được dữ liệu nào. Hãy kiểm tra lại Database hoặc Thời gian.")
+            return
 
-    if not all_segments_data:
-        print("❌ Không lấy được dữ liệu nào. Hãy kiểm tra lại Database hoặc Thời gian.")
-        return
+        df_master = pd.concat(all_segments_data, ignore_index=True)
+        USE_WINDOW_BALANCING_LOCAL = USE_WINDOW_BALANCING
 
-    df_master = pd.concat(all_segments_data, ignore_index=True)
     df_master = df_master.sort_values(by=["segment_key", "timestamp"]).reset_index(drop=True)
 
     balancing_stats = {"applied": False, "reason": "disabled"}
-    if USE_WINDOW_BALANCING:
+    if USE_WINDOW_BALANCING_LOCAL:
         print("⚖️ Applying window-level majority undersampling on supervised dataset...")
         df_master, balancing_stats = _balance_majority_windows(
             df_master,

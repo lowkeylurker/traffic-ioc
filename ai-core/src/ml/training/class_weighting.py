@@ -10,7 +10,12 @@ from src.ml.feature_contract import NUM_CLASSES
 
 
 def class_balanced_weights(train_dataset, num_classes: int = NUM_CLASSES, beta: float = 0.9999) -> torch.Tensor:
-    targets = train_dataset.get_training_targets()
+    # Handle torch.utils.data.Subset
+    if hasattr(train_dataset, "dataset") and hasattr(train_dataset, "indices"):
+        full_targets = train_dataset.dataset.get_training_targets()
+        targets = full_targets[train_dataset.indices]
+    else:
+        targets = train_dataset.get_training_targets()
     counts = np.bincount(targets, minlength=num_classes).astype(np.float64)
     weights = np.zeros(num_classes, dtype=np.float64)
     for c in range(num_classes):
@@ -24,7 +29,13 @@ def class_balanced_weights(train_dataset, num_classes: int = NUM_CLASSES, beta: 
 
 def get_class_weights(train_dataset, num_classes: int = NUM_CLASSES, clip_min: float = 0.5, clip_max: float = 25.0):
     print("⏳ Đang phân tích phân phối nhãn để tính toán Class Weights...")
-    y_train = train_dataset.get_training_targets()
+    
+    # Handle torch.utils.data.Subset
+    if hasattr(train_dataset, "dataset") and hasattr(train_dataset, "indices"):
+        full_targets = train_dataset.dataset.get_training_targets()
+        y_train = full_targets[train_dataset.indices]
+    else:
+        y_train = train_dataset.get_training_targets()
     present_classes = np.unique(y_train)
 
     weights_present = compute_class_weight(
