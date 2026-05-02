@@ -69,31 +69,69 @@ def _extract_window_indices(df: pd.DataFrame, window_size: int, target_col: str)
     return df_clean, valid_indices
 
 def _undersample_majority_rows(df: pd.DataFrame, config: ClassBalanceConfig) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    VERSION 7.0: Smart-Filtering Undersampling.
+    Prioritizes informative windows for classes 0, 1, 2 using entropy and transitions.
+    """
     window_size = config.window_size + 1
     W = window_size - 1
     df_clean, valid_indices = _extract_window_indices(df, window_size, config.target_col)
     all_labels = df_clean[config.target_col].astype(int).values
+    
     class_indices = {i: [] for i in range(6)}
     for idx in valid_indices:
         label = all_labels[idx]
         if 0 <= label <= 5: class_indices[label].append(idx)
+        
     anchor_count = len(class_indices[config.anchor_class])
-    print(f"⚓ Stage 2 Undersampling: Found {anchor_count} anchor windows.")
+    print(f"⚓ Stage 2 Smart-Filtering: Analyzing {len(valid_indices)} windows...")
+    
     selected_parts = []
     new_key = 9000000000000000
     final_counts = {}
+    
     for label in range(4): 
         indices = class_indices[label]
         if not indices: continue
+        
         target = len(indices) if label == config.anchor_class else min(int(anchor_count * config.majority_multipliers.get(label, 1.0)), config.majority_cap or 1000000)
-        if len(indices) > target: sampled = np.random.choice(indices, target, replace=False)
-        else: sampled = indices
-        final_counts[label] = len(sampled)
-        for idx in sampled:
+        
+        if len(indices) > target:
+            # SMART SCORING for Majority Classes
+            print(f"🧠 Smart-Filtering Class {label}: {len(indices)} -> {target}")
+            scores = []
+            for idx in indices:
+                # Get the 13-row window data
+                win_speeds = df_clean.iloc[idx - W : idx + 1]['current_speed_kmh'].values
+                win_levels = df_clean.iloc[idx - W : idx + 1][config.target_col].values
+                
+                # 1. Entropy Score: Standard deviation of speed
+                speed_std = np.std(win_speeds)
+                
+                # 2. Transition Bonus: Does congestion level change?
+                # We check if there's any variation in levels within the window
+                unique_levels = np.unique(win_levels)
+                transition_bonus = 3.0 if len(unique_levels) > 1 else 1.0
+                
+                # Final Score Calculation
+                score = (speed_std + 0.1) * transition_bonus + np.random.random() * 0.2
+                scores.append(score)
+            
+            scores = np.array(scores)
+            probs = scores / scores.sum()
+            
+            # Weighted Sampling
+            sampled_indices = np.random.choice(indices, target, replace=False, p=probs)
+        else:
+            sampled_indices = indices
+            
+        final_counts[label] = len(sampled_indices)
+        for idx in sampled_indices:
             win = df_clean.iloc[idx - W : idx + 1].copy()
             win['segment_key'] = new_key
             selected_parts.append(win)
             new_key += 1
+            
     if not selected_parts: return pd.DataFrame(), {"applied": False}
     return pd.concat(selected_parts, ignore_index=True), {"applied": True, "window_counts": final_counts}
 
