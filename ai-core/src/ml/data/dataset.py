@@ -157,6 +157,19 @@ def prepare_dataloaders(
     
     print(f"Dataset split complete (LEAK-PROOF CHRONOLOGICAL): Train={len(train_dataset)}, Val={len(val_dataset)}")
 
+    # Log detailed window distribution
+    print("\n📊 PHÂN BỔ CỬA SỔ CHI TIẾT (TRAIN VS VAL):")
+    all_targets = full_dataset_scaled.get_training_targets()
+    train_targets = all_targets[train_win_indices]
+    val_targets = all_targets[val_win_indices]
+    
+    train_counts = np.bincount(train_targets, minlength=NUM_CLASSES)
+    val_counts = np.bincount(val_targets, minlength=NUM_CLASSES)
+    
+    for cls in range(NUM_CLASSES):
+        print(f"  - Class {cls}: Train={train_counts[cls]:>6} | Val={val_counts[cls]:>6}")
+    print("-" * 50)
+
     train_sampler = None
     if use_weighted_sampler:
         # Correctly get targets for the training subset
