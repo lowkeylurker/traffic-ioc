@@ -112,8 +112,8 @@ export class SimulationService {
         ),
         route_features AS (
           SELECT 
-            r.cost as edge_time,
-            ST_Length(ds.geometry_linestring::geography) as edge_distance,
+            v.travel_time as edge_time,
+            v.travel_distance as edge_distance,
             json_build_object(
               'type', 'Feature',
               'geometry', ST_AsGeoJSON(ds.geometry_linestring)::json,
@@ -122,10 +122,13 @@ export class SimulationService {
                 'route_node', r.node,
                 'route_edge', r.edge,
                 'route_cost', r.cost,
-                'route_agg_cost', r.agg_cost
+                'route_agg_cost', r.agg_cost,
+                'travel_time', v.travel_time,
+                'travel_distance', v.travel_distance
               ) || (to_jsonb(ds.*) - 'geometry_linestring')
             ) AS feature
           FROM route r
+          INNER JOIN view_dynamic_routing_edges v ON r.edge = v.id
           INNER JOIN dim_segment ds ON r.edge = ds.segment_key
           ORDER BY r.seq
         )
