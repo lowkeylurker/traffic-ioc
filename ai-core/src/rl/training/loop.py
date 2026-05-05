@@ -154,6 +154,12 @@ def train_rl_agent(
             f"Avg Loss: {avg_loss:.4f} | Epsilon: {agent.epsilon:.3f} | "
             f"Q: {mean_q_value:.4f} | TD: {mean_td_error:.4f}"
         )
+        # Bổ sung log phân bổ hành động (Class counts)
+        action_counts_str = " | ".join([f"C{i}:{int(action_counts[i])}" for i in range(NUM_CLASSES)])
+        print(f"📊 Action Distribution: {action_counts_str}")
+        # Bổ sung log chỉ số đánh giá (Recall) cho từng Class
+        recall_str = " | ".join([f"C{i}:{ep_recall[i]:.2f}" for i in range(NUM_CLASSES)])
+        print(f"📈 Per-Class Recall  : {recall_str}")
 
         if writer is not None:
             writer.add_scalar("rl/train/episode_reward", total_reward, episode + 1)
