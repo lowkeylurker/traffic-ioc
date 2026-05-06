@@ -1,0 +1,296 @@
+\documentclass[a4paper]{article}
+\usepackage{vntex}
+\usepackage{setspace}
+\onehalfspacing
+%\usepackage[english,vietnam]{babel}
+%\usepackage[utf8]{inputenc}
+\usepackage{mathptmx}[ptm]
+%\usepackage[utf8]{inputenc}
+%\usepackage[francais]{babel}
+\usepackage{a4wide,amssymb,epsfig,latexsym,array,hhline,fancyhdr}
+\usepackage[normalem]{ulem}
+%\usepackage{soul}
+\usepackage[table]{xcolor}
+\usepackage[shortlabels]{enumitem}
+\usepackage[makeroom]{cancel}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{multicol,longtable,amscd}
+\usepackage{diagbox}%Make diagonal lines in tables
+\usepackage{booktabs}
+\usepackage{alltt}
+\usepackage[framemethod=tikz]{mdframed}% For highlighting paragraph backgrounds
+\usepackage{caption,subcaption}
+
+
+% \usepackage{lastpage} % Moved to after hyperref
+\usepackage[lined,boxed,commentsnumbered]{algorithm2e}
+% \usepackage{enumerate} % Removed in favor of enumitem with shortlabels
+\usepackage{color}
+\usepackage{graphicx}							% Standard graphics package
+\usepackage{array}
+\usepackage{tabularx, caption}
+\usepackage{multirow}
+\usepackage{multicol}
+\usepackage{rotating}
+\usepackage{graphics}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{epsfig}
+\usepackage{tikz}
+\usepackage{float}
+\usetikzlibrary{arrows,snakes,backgrounds,calc}
+\usepackage[unicode]{hyperref}
+\hypersetup{urlcolor=blue,linkcolor=black,citecolor=black,colorlinks=true} 
+\usepackage{lastpage}
+\usepackage{listings}
+
+%\usepackage{pstcol} 								% PSTricks with the standard color package
+
+\usepackage[normalem]{ulem}
+
+\newtheorem{theorem}{{\bf Định lý}}
+\newtheorem{property}{{\bf Tính chất}}
+\newtheorem{proposition}{{\bf Mệnh đề}}
+\newtheorem{corollary}[proposition]{{\bf Hệ quả}}
+\newtheorem{lemma}[proposition]{{\bf Bổ đề}}
+\theoremstyle{definition}
+\newtheorem{exer}{Bài toán}
+\addtocontents{toc}{\protect\thispagestyle{empty}}
+% Remove page number in contents page. 
+\addtocontents{lof}{\protect\thispagestyle{empty}}
+% Remove page number in list of figure page. 
+\addtocontents{lot}{\protect\thispagestyle{empty}}
+% Remove page number in list of table page. 
+\def\thesislayout{	% A4: 210 × 297
+	\geometry{
+		a4paper,
+		total={160mm,240mm},  % fix over page
+		left=30mm,
+		top=22mm,
+            right=20mm,
+            bottom=20mm,
+	}
+}
+\def\thesisheadlayout{	% A4: 210 × 297
+	\geometry{
+		a4paper,
+		total={160mm,240mm},  % fix over page
+		left=30mm,
+		top=10mm,
+	}
+}
+\thesislayout
+\lstset{
+language=R,
+basicstyle=\footnotesize\sffamily,
+commentstyle=\ttfamily\color{black},
+numbers=left,
+numberstyle=\ttfamily\color{black}\footnotesize,
+stepnumber=1,
+numbersep=5pt,
+backgroundcolor=\color{white},
+showspaces=false,
+showstringspaces=false,
+showtabs=false,
+frame=single,
+tabsize=2,
+captionpos=b,
+breaklines=true,
+breakatwhitespace=false,
+title=\lstname,
+escapeinside={},
+keywordstyle={},
+morekeywords={}
+}
+%\usepackage{fancyhdr}
+\setlength{\headheight}{40pt}
+\pagestyle{fancy}
+\fancyhead{} % clear all header fields
+\renewcommand{\footruleskip}{1mm}
+
+\fancyhead[L]{
+ \begin{tabular}{rl}
+    \begin{picture}(25,15)(0,0)
+    \put(0,-8){\includegraphics[width=10mm, height=10mm]{Images/hcmut.png}}
+    %\put(0,-8){\epsfig{width=10mm,figure=hcmut.eps}}
+   \end{picture}&
+	%\includegraphics[width=8mm, height=8mm]{hcmut.png} & %
+	\begin{tabular}{l}
+		\textbf{  Trường Đại Học Bách Khoa - Đại học Quốc gia TP.HCM }\\
+		\textbf{  Khoa Khoa Học \& Kỹ Thuật Máy Tính}
+	\end{tabular} 	
+ \end{tabular}
+}
+\fancyhead[R]{
+	\begin{tabular}{l}
+		\tiny \bf \\
+		\tiny \bf 
+	\end{tabular}  }
+\fancyfoot{} % clear all footer fields
+\fancyfoot[L]{\scriptsize  Báo cáo Đồ án chuyên ngành - HK1 2025 - 2026}
+\fancyfoot[R]{\scriptsize  Trang {\thepage}/\pageref{LastPage}}
+
+\renewcommand{\headrulewidth}{0.3pt}
+\renewcommand{\footrulewidth}{0.3pt}
+
+%%%
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{3}
+\makeatletter
+\newcounter {subsubsubsection}[subsubsection]
+\renewcommand\thesubsubsubsection{\thesubsubsection .\@alph\c@subsubsubsection}
+\newcommand\subsubsubsection{\@startsection{subsubsubsection}{4}{\z@}%
+                                     {-3.25ex\@plus -1ex \@minus -.2ex}%
+                                     {1.5ex \@plus .2ex}%
+                                     {\normalfont\normalsize\bfseries}}
+\newcommand*\l@subsubsubsection{\@dottedtocline{3}{10.0em}{4.1em}}
+\newcommand*{\subsubsubsectionmark}[1]{}
+\makeatother
+
+\everymath{\color{black}}%make in-line maths symbols blue to read/check easily
+
+\sloppy
+\captionsetup[figure]{labelfont={small,bf},textfont={small,it},belowskip=-1pt,aboveskip=-9pt}
+%space remove between caption, figure, and text
+\captionsetup[table]{labelfont={small,bf},textfont={small,it},belowskip=-1pt,aboveskip=7pt}
+\setlength{\floatsep}{5pt plus 2pt minus 2pt}
+\setlength{\textfloatsep}{5pt plus 2pt minus 2pt}
+\setlength{\intextsep}{10pt plus 2pt minus 2pt}
+
+\thesislayout
+
+\begin{document}
+
+\begin{titlepage}
+\begin{tikzpicture}[remember picture, overlay]
+  \draw[line width = 4pt] ($(current page.north west) + (0.4in,-0.5in)$) rectangle ($(current page.south east) + (-0.4in,0.5in)$);
+  \draw[line width=1.5pt]
+    ($ (current page.north west) + (0.45in,-0.55in) $)
+    rectangle
+    ($ (current page.south east) + (-0.45in,0.55in) $);
+\end{tikzpicture}
+
+\begin{center}
+\LARGE \textbf{ĐẠI HỌC QUỐC GIA THÀNH PHỐ HỒ CHÍ MINH} \\
+\vspace{0.2cm}
+\LARGE \textbf{TRƯỜNG ĐẠI HỌC BÁCH KHOA} \\
+\vspace{0.2cm}
+\LARGE \textbf{KHOA KHOA HỌC VÀ KĨ THUẬT MÁY TÍNH}
+\end{center}
+
+\vspace{0.3cm}
+
+\begin{figure}[h!]
+\begin{center}
+\includegraphics[width=4cm]{Images/hcmut.png}
+\end{center}
+\end{figure}
+
+\begin{center}
+\begin{tabular}{c}
+    % Phần tiêu đề báo cáo
+    \textbf{\LARGE BÁO CÁO} \\
+    \vspace{0.05cm} \\ % Khoảng cách nhỏ
+    \textbf{\LARGE ĐỒ ÁN CHUYÊN NGÀNH} \\
+    \vspace{0.5cm} \\
+
+    % Phần tên đề tài: Sử dụng parbox để tự động xuống dòng
+    % 12cm là chiều rộng tối đa của tên đề tài (bạn có thể thay đổi số này)
+    \parbox{12cm}{
+        \centering \LARGE \textbf{MÔ HÌNH KHO DỮ LIỆU (DATA WAREHOUSE) VỀ GIAO THÔNG PHỤC VỤ CÔNG TÁC THỐNG KÊ, DỰ BÁO, HỖ TRỢ RA QUYẾT ĐỊNH}
+    } \\
+    
+    \vspace{0.2cm} \\
+    
+    {\Large NGÀNH: KHOA HỌC MÁY TÍNH}
+\end{tabular}
+\end{center}
+\vspace{0.5cm}
+\begin{table}[h]
+\begin{tabular}{rll}
+\hspace{6 cm} &  \textbf{\Large CBHD1:} {\Large PGS.TS. Trần Minh Quang}
+\\
+\\
+\hspace{6 cm} &   \textbf{\Large CBHD2:} {\Large ThS. Bùi Tiến Đức}
+\\
+\\
+
+
+\\
+\hspace{6 cm} &   \textbf{\Large SVTH1:} {\Large Đinh Nguyễn Việt Khiêm (2211565)}
+\\
+\\
+\hspace{6 cm}&   \textbf{\Large SVTH2:}  {\Large Nguyễn Thành Dũng (2210589)}
+\\
+\\
+\hspace{6 cm} &   \textbf{\Large SVTH3:}  {\Large Hồ Trần Ngọc Liêm (2211835)}
+\\
+\\
+\end{tabular}
+\end{table}
+\vspace{0.5cm}
+\begin{center}
+{\Large TP. HỒ CHÍ MINH, THÁNG 12 NĂM 2025 }
+\end{center}
+\end{titlepage}
+%\thispagestyle{empty}
+\newpage
+%%%%%%%%%%%%%%%%%INTRO%%%%%%%%%%%%%%%%%%%
+% % \input{Intro/LoiCamOn}
+% % \input{Intro/LoiCamDoan}
+% % \input{Intro/TomTat}
+\newpage
+\tableofcontents
+\newpage
+
+% --- Danh mục hình ảnh ---
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{section}{Danh mục hình ảnh} % Thêm dòng này để hiện tên mục này trong Mục lục
+\listoffigures 
+\newpage
+
+% --- Danh mục bảng biểu ---
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{section}{Danh mục bảng biểu} % Thêm dòng này để hiện tên mục này trong Mục lục
+\listoftables
+\newpage
+
+% \listoffigures
+% \newpage
+% \listoftables
+% \newpage
+% \setcounter{page}{1}
+
+%%%%%%%%%%%%%%%%%CONTENTS%%%%%%%%%%%%%%%%%%%
+\input{Contents/GioiThieu}
+\newpage
+\input{Contents/QuanLyVaPhanCong}
+\newpage
+\input{Contents/CoSoLyThuyet}
+\newpage
+\input{Contents/YeuCauHeThong}
+\newpage
+\input{Contents/DacTaChiTietCacUseCase}
+\newpage
+\input{Contents/PhanTichThietKeHeThong}
+\newpage
+\input{Contents/KiemThuHeThong}
+\newpage
+\input{Contents/HienThuc}
+\newpage
+\input{Contents/Demo}
+\newpage
+\input{Contents/TrienKhai}
+\newpage
+\input{Contents/TongKet}
+\newpage
+%%%%%%%%%%%%%%%%%OUTRO%%%%%%%%%%%%%%%%%%%
+\input{Outro/TaiLieuThamKhao}
+% \newpage
+% \input{Outro/PhuLuc}
+\end{document}
+
+

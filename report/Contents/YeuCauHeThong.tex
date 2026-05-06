@@ -1,0 +1,68 @@
+\section{Công trình liên quan}
+Trong chương này, nhóm thực hiện khảo sát các nghiên cứu khoa học và các hệ thống thực tế đã triển khai liên quan đến kho dữ liệu và hệ thống hỗ trợ ra quyết định trong lĩnh vực giao thông thông minh (ITS).
+
+Mục tiêu là phân tích ưu/nhược điểm của các giải pháp hiện có, từ đó xác định khoảng trống nghiên cứu để đề xuất giải pháp tối ưu cho Sở Giao thông Vận tải TP.HCM.
+
+\subsection{Các bài báo và nghiên cứu đã xem xét}
+
+Việc xây dựng kho dữ liệu giao thông không phải là một chủ đề mới, tuy nhiên, cách tiếp cận kiến trúc và tích hợp trí tuệ nhân tạo (AI) đã có sự chuyển dịch mạnh mẽ trong những năm gần đây. Nhóm phân chia các công trình nghiên cứu thành hai nhóm chính như sau:
+
+\subsubsection{Nhóm nghiên cứu về kiến trúc Kho dữ liệu giao thông truyền thống}
+
+Các nghiên cứu trong giai đoạn trước năm 2015 thường tập trung vào việc mô hình hóa dữ liệu dựa trên kiến trúc quan hệ truyền thống, điển hình như các mô hình sau đây:
+
+\begin{itemize}
+    \item \textbf{Mô hình Dimensional Modeling (Kimball):} Nhiều nghiên cứu đề xuất sử dụng mô hình Star Schema hoặc Snowflake Schema để tổ chức dữ liệu giao thông (lưu lượng xe, vận tốc trung bình) nhằm phục vụ truy vấn. Mô hình này có tốc độ truy xuất báo cáo thống kê nhanh, dễ hiểu cho người dùng nghiệp vụ, tuy nhiên lại gặp khó khăn khi tích hợp dữ liệu phi cấu trúc (video camera, GPS log thô) và thiếu tính linh hoạt khi yêu cầu nghiệp vụ thay đổi liên tục, dẫn đến hiện tượng "Spider Web" trong quản lý dữ liệu.
+    
+    \item \textbf{Mô hình Normalized Data Warehouse (Inmon):} Một số nghiên cứu khác (như của Chen et al., 2010 về ITS Data Management) áp dụng mô hình 3NF của Bill Inmon để đảm bảo tính toàn vẹn và duy nhất của dữ liệu. Hạn chế của chúng là độ phức tạp cao khi triển khai, hiệu năng truy vấn thấp nếu không có lớp Data Mart hỗ trợ.
+\end{itemize}
+
+\subsubsection{Nhóm nghiên cứu về Kho dữ liệu lớn và Tích hợp AI}
+
+Các nghiên cứu gần đây (từ 2018 trở lại đây) tập trung vào việc xử lý dữ liệu lớn (Big Data) và tích hợp mô hình dự báo.
+
+\begin{itemize}
+    \item \textbf{Kiến trúc Lambda/Kappa:} Các bài báo như Zhang et al. (2020) đề xuất kiến trúc xử lý song song: một luồng xử lý Batch cho dữ liệu lịch sử và một luồng Speed cho dữ liệu thời gian thực. Ưu điểm của kiến trúc này là nó có khả năng giải quyết được bài toán độ trễ (latency). Mặt khác, kiến trúc này gặp hạn chế về độ phức tạp trong việc duy trì hai luồng code (codebase) khác nhau, gây khó khăn trong việc đồng bộ logic xử lý dữ liệu.
+    
+    \item \textbf{Tích hợp AI/Machine Learning:} Nhiều nghiên cứu tập trung vào thuật toán (LSTM, GNN) để dự báo tắc nghẽn. Tuy nhiên, các nghiên cứu này thường chỉ tập trung vào mô hình toán học mà bỏ qua khâu \textbf{Data Engineering} – tức là làm thế nào để chuẩn hóa, làm sạch và cung cấp dữ liệu huấn luyện một cách tự động từ DW.
+\end{itemize}
+
+Hầu hết các nghiên cứu học thuật tập trung sâu vào thuật toán dự báo hoặc kiến trúc lưu trữ thuần túy, thiếu một mô hình tích hợp toàn diện từ khâu chuẩn hóa dữ liệu (ETL) đến khâu tích hợp module phân tích của bên thứ 3 như yêu cầu của đề tài.
+
+\subsection{Các phần mềm và hệ thống hiện có (Softwares/tools/systems)}
+
+Để đánh giá tính thực tiễn, nhóm đã khảo sát các hệ thống đang vận hành tại TP.HCM và các giải pháp phổ biến, từ đó quyết định sử dụng các phần mềm, công cụ và hệ thống nào để xây dựng đề tài.
+
+\subsubsection{Cổng thông tin giao thông TP.HCM (giaothong.hochiminhcity.gov.vn)}
+
+Đây là hệ thống chính thống hiện tại của TPHCM phục vụ người dân và cơ quan quản lý, với chức năng cung cấp các hình ảnh camera trực tuyến, cảnh báo tắc nghẽn, bản đồ số, thông tin rào chắn thi công.
+
+Về kiến trúc, hệ thống hoạt động thiên về hướng \textbf{Operational Data Store (ODS)}. Nó cung cấp dữ liệu "snapshot" tại thời điểm tức thời rất tốt. Bên cạnh đó, dữ liệu chủ yếu phục vụ tra cứu tức thời (Operational Reporting).
+
+Vì phục vụ data real-time, nên hệ thống thiếu khả năng phân tích lịch sử sâu và rộng để nhận diện các xu hướng dài hạn cần thiết, ví dụ như so sánh lưu lượng giao thông cùng kỳ năm ngoái. Bên cạnh đó, hệ thống chưa tích hợp mạnh các mô hình dự báo để cảnh báo tắc nghẽn trước khi nó xảy ra. Ngoài ra, dữ liệu camera và cảm biến chưa được khai thác triệt để cho các bài toán học máy (Machine Learning).
+
+\subsubsection{Hệ thống UTraffic (bktraffic.com)}
+
+Hệ thống này được phát triển bởi các nhóm nghiên cứu trước tại ĐH Bách Khoa, là nền tảng mà đề tài này sẽ kế thừa. Chức năng của hệ thống là thu thập dữ liệu GPS từ cộng đồng, ước lượng vận tốc trung bình các tuyến đường, và trực quan hóa trạng thái giao thông.
+
+Hệ thống Utraffic có nguồn dữ liệu phong phú được làm giàu qua nhiều thế hệ sinh viên nghiên cứu, cùng với thuật toán ước lượng trạng thái giao thông tốt. Tuy nhiên, kiến trúc lưu trữ hiện tại có thể chưa tối ưu cho các truy vấn phân tích phức tạp (OLAP) mà thiên về xử lý giao dịch (OLTP) hơn. Ngoài ra, chưa có một kho dữ liệu tập trung (Centralized DW) được chuẩn hóa để phục vụ cho các bên thứ 3 hoặc các module AI cắm vào (plug-in) dễ dàng.
+
+\subsubsection{Các nền tảng dữ liệu hiện đại (Modern Data Platform - Snowflake/Databricks)}
+
+Tham khảo từ tài liệu "Data Modeling with Snowflake", các hệ thống giao thông trên thế giới đang chuyển dịch sang các nền tảng đám mây hỗ trợ: Xử lý dữ liệu bán cấu trúc (JSON, XML từ thiết bị IoT) trực tiếp mà không cần chuyển đổi phức tạp (Schema-on-read) và khả năng mở rộng linh hoạt theo nhu cầu xử lý dự báo.
+
+\subsection{Khoảng trống nghiên cứu}
+
+Qua việc khảo sát các nghiên cứu lý thuyết và hệ thống thực tế, nhóm xác định được các "khoảng trống" sau đây mà đồ án sẽ tập trung giải quyết:
+
+\begin{itemize}
+    \item \textbf{Thứ nhất, về khía cạnh kiến trúc dữ liệu.} Thực tế cho thấy các hệ thống giao thông đã đề cập thường là các ODS rời rạc hoặc các hệ thống giám sát thời gian thực (ví dụ như Cổng thông tin TP.HCM), do đó thiếu khả năng lưu trữ lịch sử lâu dài và đa chiều. Nhóm quyết định tập trung xây dựng DW lai (hybrid), nghĩa là kết hợp mô hình Inmon và Kimball, cùng với hỗ trợ lưu trữ lịch sử biến động để phục vụ phân tích xu hướng, vì mô hình Inmon cho sự nhất quán dữ liệu nền tảng, trong khi đó mô hình của Kimball phục vụ cho các Data Mart thống kê.
+    
+    \item \textbf{Thứ hai, về khả năng tích hợp AI/ML,} hiện tại các mô hình AI thường chạy độc lập (Standalone), tốn nhiều công sức để chuẩn bị dữ liệu thủ công. Nhóm quyết định tích hợp AI vào luồng dữ liệu (Data Pipeline), xây dựng cơ chế để DW tự động chuẩn hóa, tiền xử lý dữ liệu và cung cấp đầu vào cho các module dự báo ngay trong quy trình ETL/ELT.
+    
+    \item \textbf{Thứ ba, về khả năng mở rộng.} Các hệ thống hiện tại thường đóng kín (Closed systems), khó tích hợp công cụ phân tích của bên thứ 3. Nhóm tập trung giải quyết tính mở rộng bằng cách thiết kế DW cho phép các phương thức phân tích của bên thứ 3 thông qua các API chuẩn hoặc cơ chế chia sẻ dữ liệu an toàn, phục vụ trực tiếp cho Sở GTVT.
+    
+    \item \textbf{Thứ tư, về khả năng hỗ trợ ra quyết định.} Các hệ thống hiện tại chỉ dừng lại ở việc hiển thị, mức “Mô tả”, do đó nhóm tập trung xây dựng hệ thống không chỉ báo cáo thống kê mà còn đưa ra các dự báo tắc nghẽn để hỗ trợ quyết định điều tiết giao thông.
+\end{itemize}
+
+Tóm lại, đồ án này không chỉ xây dựng một nơi chứa dữ liệu, mà còn xây dựng một hệ sinh thái dữ liệu thông minh kế thừa trên Utraffic, áp dụng các kỹ thuật mô hình hóa hiện đại, để giải quyết các bài toán giao thông đặc thù của Thành phố Hồ Chí Minh.

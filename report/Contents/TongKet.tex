@@ -1,0 +1,143 @@
+\section{Tổng kết}
+\subsection{Kết quả đạt được}
+
+Kết thúc giai đoạn Đồ án chuyên ngành, nhóm thực hiện đề tài đã hoàn thành việc xây dựng nền tảng dữ liệu (Data Foundation) vững chắc cho hệ thống Giao thông thông minh. Khác với các tiếp cận truyền thống chỉ tập trung vào ứng dụng bề nổi, đề tài đã đi sâu vào giải quyết bài toán cốt lõi về \textbf{tích hợp và chuẩn hóa dữ liệu} từ gốc.
+
+Các kết quả đạt được có thể chia thành hai nhóm chính: Kết quả về mặt Nghiệp vụ - Thiết kế hệ thống và Kết quả về mặt Kỹ thuật - Dữ liệu.
+
+\subsubsection{Về mặt Nghiệp vụ và Thiết kế hệ thống}
+Đây là mảng kết quả mang tính định hướng, đảm bảo hệ thống xây dựng ra giải quyết đúng và trúng các vấn đề thực tiễn của giao thông đô thị.
+
+\begin{description}
+    \item[a. Hoàn thành bức tranh toàn cảnh về hiện trạng và nhu cầu] \hfill \\
+    Nhóm đã thực hiện khảo sát sâu các hệ thống thông tin giao thông hiện có tại TP.HCM (Cổng thông tin GTVT, BKTraffic) và chỉ ra được "khoảng trống" (Gap) quan trọng: sự thiếu hụt các công cụ phân tích lịch sử và dự báo chủ động. Việc xác định rõ nhu cầu chuyển dịch từ \textbf{Giám sát (Monitoring)} sang \textbf{Phân tích (Analytics)} là cơ sở để định hình kiến trúc Kho dữ liệu.
+    
+    \item[b. Đặc tả bộ nghiệp vụ phân tích đa tầng (Analytics Hierarchy)] \hfill \\
+    Dựa trên nhu cầu thực tế, nhóm đã thiết kế thành công danh mục nghiệp vụ (Use Case Catalog) gồm 15 chức năng, được phân cấp rõ ràng theo mô hình trưởng thành dữ liệu:
+    \begin{itemize}
+        \item \textbf{Tầng Thống kê mô tả (Descriptive):} Đã định nghĩa được các chỉ số đo lường hiệu suất (KPIs) quan trọng như \textit{Mức độ phục vụ (LOS)}, \textit{Chỉ số độ tin cậy thời gian (Buffer Index)}, và \textit{Phân tích điểm nóng sự cố (Hotspot Analysis)}.
+        \item \textbf{Tầng Dự báo (Predictive):} Thiết lập bài toán cho các mô hình máy học tương lai, bao gồm dự báo tốc độ ngắn hạn và dự báo rủi ro sự cố.
+        \item \textbf{Tầng Hỗ trợ ra quyết định (Prescriptive):} Đề xuất các logic nghiệp vụ cao cấp như Gợi ý lộ trình tối ưu đa mục tiêu (Cân bằng giữa Nhanh - Tin cậy - An toàn).
+    \end{itemize}
+    
+    \item[c. Thiết kế thành công Kiến trúc Galaxy Schema (Constellation Schema)] \hfill \\
+    Thay vì sử dụng mô hình Star Schema đơn giản không đủ khả năng biểu diễn sự phức tạp của giao thông, nhóm đã thiết kế thành công mô hình \textbf{Galaxy Schema}. Đây là một thành tựu quan trọng về mặt thiết kế hệ thống, cho phép:
+    \begin{itemize}
+        \item Tích hợp đồng thời nhiều bảng Fact nghiệp vụ khác nhau: \texttt{fact\_traffic\_flow} (Lưu lượng), \texttt{fact\_incident} (Sự cố), và \texttt{fact\_user\_travel\_time} (Hành trình).
+        \item Chia sẻ (Shared Dimensions) hiệu quả các chiều dữ liệu quan trọng: Thời gian (\texttt{dim\_date}, \texttt{dim\_time\_of\_day}), Không gian (\texttt{dim\_segment}), và Ngữ cảnh (\texttt{dim\_weather}).
+        \item Thiết kế này đảm bảo tính mở rộng (Scalability), cho phép thêm các quy trình nghiệp vụ mới (như \texttt{fact\_route\_recommendation}) trong tương lai mà không phá vỡ cấu trúc hiện tại.
+    \end{itemize}
+    
+    \item[d. Chuẩn hóa mô hình dữ liệu Không gian - Thời gian (Spatio-Temporal Data)] \hfill \\
+    Nhóm đã giải quyết được bài toán khó nhất trong dữ liệu giao thông là chuẩn hóa không gian và thời gian:
+    \begin{itemize}
+        \item \textbf{Về thời gian:} Đã thiết kế bộ lịch vạn niên tự động (hỗ trợ cả Dương lịch và Âm lịch cho các ngày lễ Việt Nam) để phục vụ phân tích chu kỳ.
+        \item \textbf{Về không gian:} Đã mô hình hóa thành công mạng lưới đường bộ dưới dạng đồ thị (Graph) với các Node và Segment, tích hợp trực tiếp vào cơ sở dữ liệu quan hệ, làm nền tảng cho các thuật toán tìm đường sau này.
+    \end{itemize}
+\end{description}
+
+\subsubsection{Về mặt Kỹ thuật và Dữ liệu}
+Song song với các kết quả về nghiệp vụ, nhóm đã giải quyết thành công các bài toán kỹ thuật phức tạp liên quan đến thu thập, lưu trữ và xử lý dữ liệu lớn đa chiều.
+
+\begin{description}
+    \item[a. Triển khai thành công Hạ tầng dữ liệu hợp nhất (Unified Data Infrastructure)] \hfill \\
+    Thay vì sử dụng kiến trúc phân tán rời rạc (MongoDB cho Staging và BigQuery cho Warehouse) như ý tưởng ban đầu, nhóm đã chuyển đổi và triển khai thành công hệ thống trên một nền tảng duy nhất là \textbf{PostgreSQL}.
+    \begin{itemize}
+        \item \textbf{Tối ưu hóa không gian:} Tích hợp phần mở rộng \textbf{PostGIS}, biến PostgreSQL thành một cơ sở dữ liệu không gian mạnh mẽ, cho phép thực hiện các truy vấn hình học phức tạp trực tiếp trên kho dữ liệu.
+        \item \textbf{Lưu trữ linh hoạt:} Sử dụng kiểu dữ liệu \textbf{JSONB} để lưu trữ nguyên trạng dữ liệu phản hồi từ API (TomTom, OpenWeatherMap) tại tầng Staging, đảm bảo không thất thoát dữ liệu thô và dễ dàng thích ứng khi cấu trúc API thay đổi.
+    \end{itemize}
+    
+    \item[b. Xây dựng hoàn chỉnh các luồng ETL tự động (Automated ETL Pipelines)] \hfill \\
+    Nhóm đã phát triển và vận hành ổn định bộ các script Python thực hiện quy trình Trích xuất - Chuyển đổi - Nạp (ETL) cho 3 nhóm dữ liệu cốt lõi:
+    \begin{itemize}
+        \item \textbf{Dữ liệu Hạ tầng (Static):} Xây dựng quy trình xử lý dữ liệu bản đồ OpenStreetMap (OSM), thực hiện các kỹ thuật làm sạch dữ liệu và gom nhóm để chuyển đổi từ các "Way" thô thành các "Segment" và "Road" có ý nghĩa nghiệp vụ.
+        \item \textbf{Dữ liệu Động (Dynamic):} Thiết lập cơ chế "Snapshot" để thu thập dữ liệu Lưu lượng và Sự cố từ TomTom với tần suất 15 phút/lần. Đặc biệt, đã giải quyết triệt để vấn đề trùng lặp dữ liệu (Deduplication) tại các vùng chồng lấn bằng thuật toán xử lý theo mốc thời gian.
+        \item \textbf{Dữ liệu Ngữ cảnh (Context):} Tự động hóa việc đồng bộ dữ liệu Thời tiết và Lịch vạn niên để làm giàu ngữ cảnh phân tích.
+    \end{itemize}
+    
+    \item[c. Giải quyết bài toán Chất lượng dữ liệu (Data Quality)] \hfill \\
+    Hệ thống đã áp dụng các kỹ thuật kiểm soát chất lượng chặt chẽ ngay trong quá trình nạp dữ liệu:
+    \begin{itemize}
+        \item \textbf{Xử lý tham chiếu không gian (Map Matching):} Đã xây dựng thuật toán để khớp tọa độ GPS của sự cố vào đúng đoạn đường trên bản đồ số.
+        \item \textbf{Quản lý biến động thời gian (SCD):} Áp dụng kỹ thuật Slowly Changing Dimension (SCD Type 2) cho các bảng danh mục quan trọng.
+        \item \textbf{Đồng bộ hóa thời gian:} Dữ liệu từ nhiều nguồn khác nhau được chuẩn hóa về cùng một trục thời gian (Time Dimension).
+    \end{itemize}
+    
+    \item[d. Khả năng vận hành bền bỉ] \hfill \\
+    Hệ thống đã được cấu hình để chạy ngầm (Background Service) thông qua Windows Task Scheduler, đảm bảo khả năng thu thập dữ liệu liên tục 24/7 mà không cần sự can thiệp thủ công.
+\end{description}
+
+\subsection{Hạn chế và Hướng phát triển}
+
+Mặc dù đã xây dựng thành công nền tảng Kho dữ liệu (Data Warehouse) vững chắc theo kiến trúc Galaxy Schema trên PostgreSQL, nhóm nghiên cứu nhận thức rõ những giới hạn hiện tại của đề tài. Đây chính là những tiền đề quan trọng để định hình khối lượng công việc cho Đồ án tốt nghiệp sắp tới.
+
+\subsubsection{Các hạn chế tồn tại}
+Qua quá trình triển khai và đánh giá, nhóm nhận diện các hạn chế sau:
+
+\begin{enumerate}
+    \item \textbf{Dữ liệu hành vi người dùng còn phụ thuộc vào mô phỏng (Simulation):} Hiện tại, các bảng dữ liệu liên quan đến người dùng như \texttt{dim\_user} và \texttt{fact\_user\_travel\_time} đang được xây dựng dựa trên dữ liệu giả lập (Mock Data). Hệ thống chưa có nguồn dữ liệu thực tế từ cộng đồng (Crowdsourcing) do chưa triển khai ứng dụng người dùng cuối. Điều này làm giảm độ chính xác của các phân tích về thói quen di chuyển.
+    
+    \item \textbf{Mức độ phân tích dừng lại ở Thống kê mô tả (Descriptive Analytics):} Hệ thống hiện tại đã hoàn thành tốt việc lưu trữ và truy vấn dữ liệu lịch sử để trả lời câu hỏi "Cái gì đã xảy ra?". Tuy nhiên, các bài toán nâng cao về Dự báo (Predictive) và Hỗ trợ ra quyết định (Prescriptive) – giá trị cốt lõi của đề tài – mới chỉ dừng lại ở mức đặc tả nghiệp vụ và chuẩn bị dữ liệu, chưa được hiện thực hóa bằng các thuật toán Machine Learning cụ thể.
+    
+    \item \textbf{Thiếu giao diện tương tác trực quan (Frontend Interface):} Kết quả của quá trình ETL và phân tích hiện tại chỉ có thể truy xuất thông qua các câu lệnh SQL. Nhóm chưa xây dựng được ứng dụng (Web/Mobile App) trực quan để người dùng phổ thông có thể trải nghiệm các tính năng như bản đồ nhiệt hay gợi ý lộ trình.
+\end{enumerate}
+
+\subsubsection{Hướng phát triển cho Đồ án tốt nghiệp}
+Dựa trên nền tảng dữ liệu đã chuẩn hóa, Đồ án tốt nghiệp sẽ tập trung giải quyết các hạn chế trên thông qua 2 trụ cột chính: \textbf{Triển khai Thuật toán Thông minh} và \textbf{Xây dựng Ứng dụng Thực tế}.
+
+\begin{description}
+    \item[a. Triển khai các thuật toán Phân tích và Dự báo nâng cao] \hfill \\
+    Nhóm sẽ tận dụng nguồn dữ liệu lịch sử đã thu thập được để huấn luyện các mô hình AI/Machine Learning, hiện thực hóa nhóm nghiệp vụ B và C:
+    \begin{itemize}
+        \item \textbf{Mô hình Dự báo Tốc độ (Short-term Traffic Prediction):} Sử dụng các thuật toán như LSTM hoặc GNN để dự báo tốc độ giao thông trong 15-60 phút tới.
+        \item \textbf{Mô hình Phân tích Rủi ro (Risk Analysis):} Kết hợp dữ liệu sự cố lịch sử và điều kiện thời tiết để tính toán xác suất rủi ro trên từng cung đường.
+        \item \textbf{Thuật toán Định tuyến Đa mục tiêu (Multi-objective Routing):} Xây dựng thuật toán tìm đường tùy biến, cân bằng giữa thời gian di chuyển, độ tin cậy và mức độ an toàn.
+    \end{itemize}
+    
+    \item[b. Phát triển Ứng dụng Giao thông thông minh (User Application)] \hfill \\
+    Xây dựng một ứng dụng hoàn chỉnh (Mobile App hoặc Web App) đóng vai trò là "cầu nối" đưa tri thức từ Kho dữ liệu đến người dùng cuối. Ứng dụng sẽ hiển thị trạng thái giao thông thời gian thực, cung cấp chức năng dẫn đường thông minh và đặc biệt là đóng vai trò thu thập dữ liệu hành trình thực tế (GPS Trajectories).
+    
+    \item[c. Tối ưu hóa hiệu năng hệ thống] \hfill \\
+    Áp dụng các kỹ thuật tối ưu hóa chuyên sâu như Partitioning theo thời gian (cho các bảng Fact lớn) và Spatial Indexing nâng cao để đảm bảo độ trễ thấp cho ứng dụng khi khối lượng dữ liệu tăng lên.
+\end{description}
+
+\subsection{Kế hoạch thực hiện Đồ án tốt nghiệp}
+Kế hoạch được xây dựng cho khoảng thời gian 15 tuần, chia thành 4 giai đoạn chính nhằm đảm bảo hoàn thiện cả về mặt thuật toán lẫn sản phẩm ứng dụng.
+
+\begin{table}[H]
+\centering
+\caption{Kế hoạch thực hiện chi tiết cho Đồ án tốt nghiệp}
+\begin{tabular}{|p{3.5cm}|p{1.5cm}|p{6cm}|p{4cm}|}
+\hline
+\textbf{Giai đoạn} & \textbf{Tuần} & \textbf{Công việc chi tiết} & \textbf{Mục tiêu đầu ra} \\ \hline
+
+\textbf{GĐ 1:} \newline Khởi động \& Chuẩn bị & 1 - 2 & 
+- Rà soát và tối ưu hóa Schema Galaxy hiện tại. \newline
+- Kiểm tra tính toàn vẹn của dữ liệu lịch sử đã ETL. \newline
+- Nghiên cứu lý thuyết các mô hình dự báo (ARIMA, LSTM, GNN). & 
+- Dataset sạch phục vụ Training. \newline
+- Tài liệu thiết kế thuật toán chi tiết. \\ \hline
+
+\textbf{GĐ 2:} \newline Phát triển Core Thuật toán & 3 - 7 & 
+- \textbf{Tuần 3-4:} Tiền xử lý dữ liệu (Preprocessing) và trích xuất đặc trưng (Feature Engineering) từ DW. \newline
+- \textbf{Tuần 5-6:} Huấn luyện (Training) và tinh chỉnh mô hình dự báo tốc độ \& rủi ro. \newline
+- \textbf{Tuần 7:} Đánh giá mô hình và tích hợp luồng dự báo ngược lại vào DW. & 
+- Các mô hình AI hoạt động ổn định. \newline
+- Kết quả dự báo được lưu trữ vào bảng Fact dự báo. \\ \hline
+
+\textbf{GĐ 3:} \newline Phát triển Ứng dụng (App) & 8 - 12 & 
+- \textbf{Tuần 8:} Xây dựng Backend API (RESTful) kết nối PostgreSQL. \newline
+- \textbf{Tuần 9-10:} Phát triển Frontend (Bản đồ số, UI/UX). \newline
+- \textbf{Tuần 11:} Tích hợp thuật toán gợi ý lộ trình đa mục tiêu vào App. \newline
+- \textbf{Tuần 12:} Kiểm thử tích hợp (Integration Testing). & 
+- Ứng dụng (Mobile/Web) hoàn chỉnh. \newline
+- API hoạt động trơn tru. \\ \hline
+
+\textbf{GĐ 4:} \newline Hoàn thiện \& Bảo vệ & 13 - 15 & 
+- \textbf{Tuần 13:} Triển khai hệ thống (Deployment) lên môi trường thực tế. \newline
+- \textbf{Tuần 14:} Viết báo cáo tổng kết và làm Slide/Video demo. \newline
+- \textbf{Tuần 15:} Bảo vệ Đồ án tốt nghiệp. & 
+- Hệ thống chạy Live. \newline
+- Báo cáo và Slide thuyết trình. \\ \hline
+\end{tabular}
+\end{table}

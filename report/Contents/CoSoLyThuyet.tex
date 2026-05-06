@@ -1,0 +1,311 @@
+\section{Kiến thức và công nghệ nền tảng}
+\subsection{Kiến thức nền tảng}
+Trong kỷ nguyên dữ liệu lớn (Big Data), việc quản lý và khai thác hiệu quả nguồn dữ liệu khổng lồ từ hệ thống giao thông thông minh (ITS) là một thách thức lớn.
+
+Phần này sẽ trình bày các cơ sở lý thuyết quan trọng làm nền tảng cho việc xây dựng hệ thống, bao gồm lý thuyết về Kho dữ liệu (Data Warehouse), mô hình hóa dữ liệu quan hệ và không gian, cũng như các nguyên lý cơ bản trong phân tích giao thông.
+
+\subsubsection{Tổng quan về Kho dữ liệu (Data Warehouse)}
+
+\textbf{a. Khái niệm}
+
+Kho dữ liệu (Data Warehouse - DWH) là một hệ thống được thiết kế để lưu trữ, quản lý và phân tích dữ liệu lịch sử từ nhiều nguồn khác nhau nhằm hỗ trợ quá trình ra quyết định (Decision Support System - DSS).
+
+Theo định nghĩa kinh điển của W.H. Inmon – người được coi là cha đẻ của Kho dữ liệu:
+\begin{quote}
+"Kho dữ liệu là một tập hợp dữ liệu hướng chủ đề (subject-oriented), tích hợp (integrated), biến đổi theo thời gian (time-variant) và bất biến (non-volatile) để hỗ trợ sự quản lý ra quyết định."
+\end{quote}
+
+Khác với các cơ sở dữ liệu vận hành (Operational Database) chỉ tập trung vào xử lý giao dịch hiện tại, DWH tập trung vào việc lưu trữ dữ liệu lịch sử và tối ưu hóa cho các truy vấn phân tích phức tạp.
+
+\textbf{b. Các đặc tính cốt lõi của Kho dữ liệu}
+
+Một hệ thống DWH chuẩn mực phải đảm bảo 4 đặc tính sau:
+\begin{itemize}
+    \item \textbf{Hướng chủ đề (Subject-Oriented):} Dữ liệu trong DWH được tổ chức theo các chủ đề chính của nghiệp vụ thay vì theo quy trình ứng dụng. Trong ngữ cảnh giao thông, các chủ đề có thể là "Lưu lượng xe" (Traffic Flow), "Sự cố" (Incident), hoặc "Người dùng" (User), thay vì tổ chức theo các chức năng như "Ghi log API" hay "Xử lý lỗi".
+    \item \textbf{Tính tích hợp (Integrated):} Đây là đặc tính quan trọng nhất. Dữ liệu từ các nguồn không đồng nhất (như API TomTom, OpenWeatherMap, OpenStreetMap) phải được làm sạch, chuẩn hóa và thống nhất về định dạng (ví dụ: đồng bộ định dạng ngày giờ, đơn vị đo lường, mã hóa ký tự) trước khi đưa vào kho.
+    \item \textbf{Biến đổi theo thời gian (Time-Variant):} Mọi dữ liệu trong DWH đều gắn liền với một mốc thời gian cụ thể. DWH lưu trữ lịch sử dữ liệu trong thời gian dài (5-10 năm) để phục vụ phân tích xu hướng (trend analysis). Ví dụ: so sánh mức độ tắc nghẽn của Quận 1 vào sáng thứ Hai năm nay so với năm ngoái.
+    \item \textbf{Tính bất biến (Non-Volatile):} Dữ liệu sau khi được nạp vào DWH sẽ không bị thay đổi hoặc xóa bỏ (trừ trường hợp sửa lỗi kỹ thuật). DWH chủ yếu phục vụ thao tác đọc (Read) và nạp thêm (Append), đảm bảo tính toàn vẹn của lịch sử dữ liệu.
+\end{itemize}
+
+\textbf{c. Kiến trúc tổng quát của hệ thống Kho dữ liệu}
+
+Kiến trúc của một hệ thống DWH thường bao gồm 3 lớp chính:
+\begin{itemize}
+    \item \textbf{Lớp nguồn dữ liệu (Data Source Layer):} Bao gồm các hệ thống bên ngoài cung cấp dữ liệu thô (API giao thông, file log, database vận hành).
+    \item \textbf{Lớp Staging (Staging Area):} Vùng đệm trung gian lưu trữ dữ liệu thô vừa trích xuất. Tại đây, dữ liệu chưa được xử lý sâu, phục vụ mục đích trích xuất nhanh để không ảnh hưởng đến hệ thống nguồn. Trong đề tài này, PostgreSQL với kiểu dữ liệu JSONB được sử dụng làm vùng Staging.
+    \item \textbf{Lớp lưu trữ dữ liệu (Data Storage Layer):} Nơi chứa dữ liệu đã được làm sạch và mô hình hóa (thường theo dạng Star Schema hoặc Snowflake Schema). Đây là nơi diễn ra các truy vấn phân tích chính.
+\end{itemize}
+
+\textbf{d. So sánh giữa OLTP và OLAP}
+
+Để hiểu rõ lý do cần xây dựng DWH riêng biệt thay vì dùng database có sẵn, cần phân biệt hai loại hệ thống xử lý dữ liệu:
+\begin{itemize}
+    \item \textbf{OLTP (Online Transaction Processing):} Hệ thống xử lý giao dịch trực tuyến.
+    \item \textbf{OLAP (Online Analytical Processing):} Hệ thống xử lý phân tích trực tuyến (Mục tiêu của DWH).
+\end{itemize}
+
+\begin{table}[h!]
+\centering
+\caption{So sánh đặc điểm giữa OLTP và OLAP}
+\begin{tabular}{|p{3.5cm}|p{5.5cm}|p{5.5cm}|}
+\hline
+\textbf{Tiêu chí} & 
+\textbf{OLTP (Hệ thống giao dịch)} & 
+\textbf{OLAP (Kho dữ liệu)} \\ 
+\hline
+
+\textbf{Mục đích chính} &
+Hỗ trợ vận hành hàng ngày, xử lý giao dịch nhanh. &
+Hỗ trợ ra quyết định, phân tích, báo cáo, dự báo. \\ 
+\hline
+
+\textbf{Dữ liệu} &
+Dữ liệu hiện tại, chi tiết, cập nhật liên tục. &
+Dữ liệu lịch sử, tổng hợp, đa chiều. \\ 
+\hline
+
+\textbf{Cấu trúc dữ liệu} &
+Chuẩn hóa cao (3NF) để tránh dư thừa và đảm bảo nhất quán. &
+Phi chuẩn hóa (Denormalized - Star/Snowflake Schema) để tối ưu tốc độ đọc. \\ 
+\hline
+
+\textbf{Loại truy vấn} &
+Truy vấn đơn giản, trả về ít dòng (Insert, Update, Delete). &
+Truy vấn phức tạp, tổng hợp (Sum, Count, Avg) trên hàng triệu dòng. \\ 
+\hline
+
+\textbf{Người dùng} &
+Nhân viên vận hành, hệ thống ứng dụng. &
+Nhà quản lý, chuyên viên phân tích dữ liệu (DA/DS). \\ 
+\hline
+
+\textbf{Hiệu năng} &
+Tối ưu hóa cho tốc độ ghi (Write throughput). &
+Tối ưu hóa cho tốc độ đọc (Read throughput). \\ 
+\hline
+
+\end{tabular}
+\end{table}
+
+Việc tách biệt hệ thống OLAP (Kho dữ liệu giao thông) ra khỏi các hệ thống OLTP giúp đảm bảo hiệu năng phân tích không làm ảnh hưởng đến tốc độ vận hành của các ứng dụng nghiệp vụ khác, đồng thời cung cấp cái nhìn toàn cảnh về dữ liệu theo thời gian.
+
+\subsubsection{Lý thuyết về Cơ sở dữ liệu quan hệ và SQL}
+
+Hệ quản trị cơ sở dữ liệu quan hệ (Relational Database Management System - RDBMS) đã và đang là nền tảng lưu trữ dữ liệu phổ biến nhất trong các hệ thống thông tin hiện đại. Đối với bài toán phân tích giao thông, việc hiểu sâu về RDBMS không chỉ giúp thiết kế mô hình dữ liệu chặt chẽ mà còn hỗ trợ tối ưu hóa hiệu năng khi xử lý lượng dữ liệu lớn.
+
+\textbf{a. Mô hình dữ liệu quan hệ (Relational Data Model)}
+
+Mô hình dữ liệu quan hệ, được đề xuất bởi E.F. Codd vào năm 1970, tổ chức dữ liệu thành các bảng (tables) hai chiều, hay còn gọi là quan hệ (relations). Mỗi bảng bao gồm các hàng (rows/tuples) và cột (columns/attributes).
+
+Các thành phần cốt lõi bao gồm:
+\begin{itemize}
+    \item \textbf{Khóa chính (Primary Key):} Một hoặc một tập hợp các thuộc tính dùng để định danh duy nhất một bản ghi trong bảng, đảm bảo tính toàn vẹn thực thể.
+    \item \textbf{Khóa ngoại (Foreign Key):} Dùng để liên kết dữ liệu giữa hai bảng, đảm bảo tính toàn vẹn tham chiếu. Trong mô hình Data Warehouse (như Star Schema), khóa ngoại đóng vai trò then chốt để kết nối bảng Fact trung tâm với các bảng Dimension vệ tinh.
+    \item \textbf{Ngôn ngữ SQL (Structured Query Language):} Ngôn ngữ chuẩn hóa dùng để định nghĩa, thao tác và truy vấn dữ liệu. SQL cung cấp khả năng thực hiện các phép toán đại số quan hệ phức tạp như JOIN, UNION, INTERSECT một cách hiệu quả.
+\end{itemize}
+
+\textbf{b. Các tính chất ACID trong giao dịch}
+
+Để đảm bảo tính tin cậy và nhất quán của dữ liệu, đặc biệt trong môi trường đa người dùng hoặc khi hệ thống gặp sự cố, các giao dịch (Transactions) trong RDBMS tuân thủ nghiêm ngặt 4 tính chất ACID:
+\begin{itemize}
+    \item \textbf{Tính nguyên tố (Atomicity):} Một giao dịch được xem là một đơn vị công việc không thể chia nhỏ. Giao dịch hoặc được thực hiện trọn vẹn (Commit), hoặc không thực hiện gì cả (Rollback).
+    \item \textbf{Tính nhất quán (Consistency):} Giao dịch phải chuyển cơ sở dữ liệu từ trạng thái hợp lệ này sang trạng thái hợp lệ khác, tuân thủ mọi ràng buộc toàn vẹn đã định nghĩa.
+    \item \textbf{Tính cô lập (Isolation):} Các giao dịch thực thi đồng thời phải độc lập với nhau, không can thiệp vào dữ liệu trung gian của nhau.
+    \item \textbf{Tính bền vững (Durability):} Một khi giao dịch đã được xác nhận (Commit), dữ liệu sẽ được lưu trữ vĩnh viễn trong hệ thống, ngay cả khi xảy ra sự cố mất điện hay lỗi hệ thống.
+\end{itemize}
+
+\textbf{c. Xử lý dữ liệu bán cấu trúc trong RDBMS (JSONB)}
+
+Trong bối cảnh dữ liệu lớn hiện đại, mô hình quan hệ truyền thống gặp thách thức với các dữ liệu đa dạng cấu trúc hoặc thay đổi liên tục (như phản hồi từ API TomTom hay OpenWeatherMap). Để giải quyết vấn đề này, các hệ quản trị CSDL hiện đại như PostgreSQL đã tích hợp khả năng lưu trữ dữ liệu bán cấu trúc (Semi-structured data) thông qua kiểu dữ liệu \textbf{JSONB (Binary JSON)}.
+
+\begin{itemize}
+    \item \textbf{Đặc điểm:} JSONB lưu trữ dữ liệu dưới dạng nhị phân đã được phân tách, cho phép hệ thống truy xuất trực tiếp đến các khóa (key) cụ thể mà không cần phân tích cú pháp (parsing) lại toàn bộ văn bản mỗi khi truy vấn.
+    \item \textbf{Ưu điểm trong ETL:} Việc sử dụng JSONB cho phép xây dựng lớp \textbf{Staging} linh hoạt (Schema-less). Dữ liệu thô từ API có thể được lưu trữ nguyên vẹn vào một cột JSONB, sau đó mới được trích xuất và chuẩn hóa sang các bảng quan hệ trong các bước xử lý sau. Điều này giúp hệ thống thích nghi tốt với sự thay đổi cấu trúc từ phía nhà cung cấp dữ liệu mà không làm gián đoạn quy trình thu thập.
+\end{itemize}
+
+\textbf{d. Các kỹ thuật tối ưu hóa lưu trữ cho dữ liệu lớn}
+
+Với đặc thù của dữ liệu giao thông là dữ liệu chuỗi thời gian (Time-series) với tần suất cập nhật cao (ví dụ: mỗi 15 phút), kích thước bảng Fact có thể tăng lên rất nhanh. Hai kỹ thuật tối ưu hóa quan trọng được áp dụng là:
+\begin{itemize}
+    \item \textbf{Phân vùng dữ liệu (Partitioning):} Kỹ thuật này chia một bảng lớn thành các bảng con nhỏ hơn (partitions) dựa trên giá trị của một cột cụ thể, thường là thời gian (Range Partitioning).
+    \textit{Ví dụ:} Bảng \texttt{fact\_traffic\_flow} có thể được phân vùng theo tháng (\texttt{traffic\_2025\_01}, \texttt{traffic\_2025\_02}).
+    \textit{Lợi ích:} Khi truy vấn dữ liệu của một tháng cụ thể, hệ thống chỉ cần quét phân vùng tương ứng (Partition Pruning) thay vì quét toàn bộ bảng, giúp cải thiện tốc độ truy vấn đáng kể.
+    
+    \item \textbf{Đánh chỉ mục (Indexing):} Chỉ mục là cấu trúc dữ liệu bổ trợ giúp tăng tốc độ tìm kiếm.
+    \begin{itemize}
+        \item \textbf{B-Tree Index:} Phù hợp cho các truy vấn so sánh bằng, phạm vi (range) trên các kiểu dữ liệu chuẩn (số, chuỗi).
+        \item \textbf{GIN (Generalized Inverted Index) / GiST:} Đặc biệt hiệu quả cho việc đánh chỉ mục trên các cột JSONB (truy vấn thuộc tính bên trong JSON) và dữ liệu không gian (PostGIS), giúp giảm thiểu chi phí tìm kiếm trên các tập dữ liệu phức tạp.
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Hệ thống thông tin địa lý (GIS) và Dữ liệu không gian}
+
+Trong phân tích giao thông, dữ liệu không chỉ bao gồm các con số thống kê (lưu lượng, vận tốc) mà còn gắn liền với vị trí địa lý. Hệ thống thông tin địa lý (Geographic Information System - GIS) cung cấp cơ sở lý thuyết và công cụ để thu thập, lưu trữ, quản lý và phân tích các dữ liệu có tọa độ không gian này.
+
+\textbf{a. Mô hình dữ liệu không gian (Spatial Data Models)}
+
+Dữ liệu không gian thường được biểu diễn dưới hai mô hình chính: Vector và Raster. Trong phạm vi bài toán phân tích mạng lưới giao thông, mô hình \textbf{Vector} là trọng tâm nghiên cứu.
+
+Mô hình Vector biểu diễn các thực thể thế giới thực thông qua các hình học cơ bản, tuân theo chuẩn \textbf{Simple Features} của tổ chức OGC (Open Geospatial Consortium):
+\begin{itemize}
+    \item \textbf{Điểm (Point):} Được xác định bởi một cặp tọa độ (x, y). Trong hệ thống giao thông, điểm đại diện cho vị trí sự cố (incident), nút giao thông (node), hoặc vị trí hiện tại của phương tiện.
+    \item \textbf{Đường (LineString):} Là tập hợp các đoạn thẳng nối liền một chuỗi các điểm. Đường đại diện cho các đoạn đường (segment), tuyến đường (route) hoặc lộ trình di chuyển.
+    \item \textbf{Vùng (Polygon):} Là một đường khép kín bao quanh một khu vực. Vùng đại diện cho các đơn vị hành chính (quận, phường), vùng ảnh hưởng của thời tiết, hoặc khu vực cấm.
+\end{itemize}
+
+\textbf{b. Hệ quy chiếu tọa độ (Coordinate Reference Systems - CRS)}
+
+Để định vị chính xác một điểm trên bề mặt Trái Đất lên bản đồ phẳng, cần sử dụng hệ quy chiếu tọa độ. Có hai loại hệ quy chiếu quan trọng cần phân biệt trong quá trình ETL:
+\begin{itemize}
+    \item \textbf{Hệ tọa độ địa lý (Geographic Coordinate System):} Sử dụng bề mặt cầu (hoặc ellipsoid) để xác định vị trí. Đơn vị: Độ (Degrees - Kinh độ/Vĩ độ). Phổ biến nhất: \textbf{WGS84 (EPSG:4326)}. Đây là chuẩn mặc định của GPS và các hệ thống bản đồ trực tuyến như TomTom, Google Maps, OpenStreetMap. Dữ liệu đầu vào từ API thường ở dạng này.
+    \item \textbf{Hệ tọa độ tham chiếu (Projected Coordinate System):} Sử dụng phép chiếu bản đồ để trải bề mặt cầu lên mặt phẳng 2D. Đơn vị: Mét (Meters). Ứng dụng: Dùng để tính toán khoảng cách, diện tích chính xác (ví dụ: tính chiều dài đoạn đường, bán kính tìm kiếm sự cố). Trong PostgreSQL/PostGIS, kiểu dữ liệu \textbf{GEOGRAPHY} tự động xử lý các phép toán trên bề mặt cầu mà không cần chuyển đổi thủ công sang hệ tọa độ phẳng cục bộ (như VN-2000).
+\end{itemize}
+
+\textbf{c. Các phép toán không gian cơ bản (Spatial Operations)}
+
+Sức mạnh của GIS nằm ở khả năng trả lời các câu hỏi về mối quan hệ không gian. Các phép toán cốt lõi được ứng dụng trong hệ thống bao gồm:
+\begin{itemize}
+    \item \textbf{Truy vấn khoảng cách (Distance Query / k-NN):} Xác định các đối tượng nằm gần một điểm nhất. Ví dụ: "Tìm đoạn đường (segment) gần nhất với tọa độ GPS của một vụ tai nạn."
+    \item \textbf{Quan hệ tô pô (Topological Relationships):}
+    \begin{itemize}
+        \item \texttt{ST\_Contains}: Kiểm tra một điểm có nằm trong một vùng hay không (VD: Sự cố này thuộc Quận nào?).
+        \item \texttt{ST\_Intersects}: Kiểm tra hai đối tượng có giao nhau không (VD: Tuyến đường này có đi qua vùng đang mưa bão không?).
+    \end{itemize}
+    \item \textbf{Khớp bản đồ (Map Matching):} Đây là kỹ thuật quan trọng trong xử lý dữ liệu GPS. Do sai số của thiết bị định vị, tọa độ thu được thường không nằm chính xác trên tim đường. Map Matching là thuật toán chiếu các điểm GPS thô lên mạng lưới đường bộ logic để xác định chính xác phương tiện đang di chuyển trên đoạn đường nào.
+\end{itemize}
+
+\textbf{d. Định dạng trao đổi dữ liệu}
+
+Để tích hợp dữ liệu giữa các lớp ứng dụng (Application Layer) và cơ sở dữ liệu (Database Layer), các định dạng chuẩn hóa được sử dụng:
+\begin{itemize}
+    \item \textbf{GeoJSON:} Định dạng dựa trên JSON, phổ biến trong các API web (như TomTom API).
+    \\ \textit{Ví dụ:} \texttt{\{ "type": "Point", "coordinates": [106.7, 10.8] \}}
+    \item \textbf{WKT (Well-Known Text):} Định dạng văn bản dùng trong truy vấn SQL. \textit{Ví dụ:} \texttt{POINT(106.7 10.8)}.
+    \item \textbf{WKB (Well-Known Binary):} Định dạng nhị phân dùng để lưu trữ tối ưu trong cơ sở dữ liệu PostgreSQL.
+\end{itemize}
+
+\subsubsection{Lý thuyết về Giao thông}
+
+Để chuyển đổi dữ liệu thô từ các cảm biến và API thành thông tin hữu ích hỗ trợ ra quyết định, hệ thống cần dựa trên các nguyên lý cơ bản của Lý thuyết dòng giao thông (Traffic Flow Theory). Đây là cơ sở toán học để mô hình hóa hành vi di chuyển của các phương tiện trên mạng lưới đường bộ.
+
+\textbf{a. Các thông số cơ bản của dòng giao thông (Macroscopic Parameters)}
+
+Dòng giao thông vĩ mô được đặc trưng bởi ba thông số cơ bản có mối quan hệ mật thiết với nhau:
+\begin{itemize}
+    \item \textbf{Lưu lượng (Flow - $q$):} Là số lượng phương tiện đi qua một điểm cắt ngang của làn đường hoặc mặt đường trong một đơn vị thời gian (thường là xe/giờ - veh/h).
+    \item \textbf{Tốc độ (Speed - $v$):} Là quãng đường phương tiện di chuyển được trong một đơn vị thời gian (km/h). Trong phân tích vĩ mô, ta thường sử dụng Tốc độ trung bình không gian (Space Mean Speed), tức là trung bình cộng tốc độ của tất cả các xe trên đoạn đường tại một thời điểm.
+    \item \textbf{Mật độ (Density - $k$):} Là số lượng phương tiện chiếm dụng trên một đơn vị chiều dài đường (xe/km - veh/km). Mật độ phản ánh mức độ "đông đúc" của đoạn đường.
+\end{itemize}
+
+Mối quan hệ cơ bản giữa ba đại lượng này được biểu diễn qua phương trình:
+$$q = k \times v$$
+(\textit{Lưu lượng = Mật độ $\times$ Tốc độ})
+
+Phương trình này cho thấy tại một tốc độ nhất định, mật độ càng cao thì lưu lượng càng lớn, nhưng chỉ đến một điểm bão hòa nhất định.
+
+\textbf{b. Mô hình Greenshields}
+
+Trong thực tế, việc đo trực tiếp Mật độ ($k$) rất khó khăn (cần chụp ảnh từ trên cao toàn bộ đoạn đường). Do đó, hệ thống sử dụng \textbf{Mô hình Greenshields} (1935) để ước lượng mật độ dựa trên tốc độ thu thập được từ API.
+
+Giả thuyết của Greenshields cho rằng mối quan hệ giữa Tốc độ ($v$) và Mật độ ($k$) là tuyến tính:
+$$v = v_f \times \left(1 - \frac{k}{k_j}\right)$$
+
+Trong đó:
+\begin{itemize}
+    \item $v_f$ (\textit{Free-flow speed}): Tốc độ dòng tự do, là tốc độ khi đường vắng (mật độ $k \approx 0$). Dữ liệu này được cung cấp bởi API TomTom (\texttt{freeFlowSpeed}).
+    \item $k_j$ (\textit{Jam density}): Mật độ ùn tắc, là mật độ khi xe xếp sát nhau và đứng yên ($v=0$). Giá trị này thường được ước lượng dựa trên chiều dài trung bình của xe và khoảng cách an toàn (khoảng 145-180 xe/km/làn).
+\end{itemize}
+Từ mô hình này, ta có thể suy ra các chỉ số quan trọng khác như \textbf{Tỷ lệ chiếm dụng (Occupancy Rate)} để lưu vào Kho dữ liệu.
+
+\textbf{c. Mức độ phục vụ (Level of Service - LOS)}
+
+Để đánh giá chất lượng vận hành của dòng giao thông một cách định tính, Sổ tay Năng lực Đường bộ (Highway Capacity Manual - HCM) đưa ra khái niệm Mức độ phục vụ (LOS). LOS chia điều kiện giao thông thành 6 cấp độ từ A đến F, dựa trên tỷ số giữa tốc độ hiện tại và tốc độ tự do:
+\begin{itemize}
+    \item \textbf{LOS A (Tự do):} Phương tiện di chuyển với tốc độ tự do, không bị cản trở.
+    \item \textbf{LOS B (Ổn định):} Dòng xe ổn định, nhưng sự hiện diện của xe khác bắt đầu ảnh hưởng nhẹ.
+    \item \textbf{LOS C (Ổn định - Giới hạn):} Tốc độ và khả năng chuyển làn bị ảnh hưởng bởi mật độ xe.
+    \item \textbf{LOS D (Tiệm cận không ổn định):} Tốc độ giảm đáng kể, tự do di chuyển bị hạn chế.
+    \item \textbf{LOS E (Không ổn định - Dung lượng):} Lưu lượng đạt tới giới hạn năng lực thông hành (Capacity), dòng xe di chuyển chậm, dễ xảy ra ùn tắc.
+    \item \textbf{LOS F (Cưỡng bức - Ùn tắc):} Tắc nghẽn xảy ra, tốc độ rất thấp hoặc đứng yên (Stop-and-go).
+\end{itemize}
+Trong hệ thống ETL, chỉ số LOS được tính toán tự động cho từng đoạn đường (Segment) để phục vụ trực quan hóa trên bản đồ nhiệt (Heatmap).
+
+\textbf{d. Các chỉ số độ tin cậy thời gian di chuyển}
+
+Bên cạnh tốc độ và lưu lượng, hệ thống còn tập trung vào tính ổn định của thời gian di chuyển thông qua các chỉ số:
+\begin{itemize}
+    \item \textbf{Chỉ số thời gian di chuyển (Travel Time Index - TTI):} Tỷ lệ giữa thời gian di chuyển thực tế vào giờ cao điểm so với thời gian di chuyển trong điều kiện tự do.
+    $$TTI = \frac{\text{Thời gian thực tế}}{\text{Thời gian dòng tự do}}$$
+    \textit{Ví dụ:} TTI = 1.30 nghĩa là chuyến đi bình thường mất 20 phút sẽ kéo dài 26 phút.
+    
+    \item \textbf{Chỉ số đệm (Buffer Time Index - BTI):} Phần trăm thời gian dôi thêm mà người lái xe cần dự phòng để đảm bảo đến nơi đúng giờ (với độ tin cậy 95\%). Đây là chỉ số quan trọng để đánh giá tác động của các sự cố (Incidents) lên mạng lưới.
+\end{itemize}
+
+\subsection{Công nghệ sử dụng}
+
+Để hiện thực hóa kiến trúc hệ thống Kho dữ liệu giao thông, đề tài lựa chọn bộ công nghệ (Tech stack) dựa trên tiêu chí: mã nguồn mở, hiệu năng cao, hỗ trợ mạnh mẽ dữ liệu không gian và khả năng mở rộng. Dưới đây là chi tiết các công nghệ cốt lõi được sử dụng.
+
+\subsubsection{Ngôn ngữ lập trình Python}
+
+Python được lựa chọn là ngôn ngữ chính để xây dựng quy trình ETL (Extract – Transform – Load) nhờ vào hệ sinh thái thư viện phong phú hỗ trợ Khoa học dữ liệu và Kỹ thuật dữ liệu. Các thư viện chính được sử dụng trong đề tài bao gồm:
+\begin{itemize}
+    \item \textbf{Requests:} Đóng vai trò là HTTP Client để gửi yêu cầu (Request) và nhận phản hồi (Response) từ các API của nhà cung cấp dữ liệu (TomTom, OpenWeatherMap). Thư viện này hỗ trợ xử lý các phiên làm việc (Session), cơ chế thử lại (Retry) khi mất kết nối, đảm bảo tính bền vững của quá trình trích xuất (Extract).
+    \item \textbf{Pandas:} Công cụ mạnh mẽ để xử lý và phân tích dữ liệu dạng bảng (DataFrame). Pandas được sử dụng trong giai đoạn chuyển đổi (Transform) để làm sạch dữ liệu, xử lý giá trị khuyết thiếu (Null handling), và tính toán các chỉ số dẫn xuất (như tính quý từ tháng, tính ngày lễ).
+    \item \textbf{Psycopg2 / SQLAlchemy:} Thư viện điều hợp (Adapter) giúp Python kết nối và tương tác với cơ sở dữ liệu PostgreSQL. Hỗ trợ thực thi các câu lệnh SQL, quản lý giao dịch và nạp dữ liệu theo lô (Batch Insert) để tối ưu hiệu năng ghi.
+    \item \textbf{OSMnx:} Thư viện chuyên dụng để tải và xử lý dữ liệu mạng lưới đường bộ từ OpenStreetMap, hỗ trợ trích xuất cấu trúc đồ thị (Graph) và các thuộc tính hình học của đường.
+\end{itemize}
+
+\subsubsection{Hệ quản trị cơ sở dữ liệu PostgreSQL}
+
+PostgreSQL là một hệ quản trị cơ sở dữ liệu quan hệ đối tượng (ORDBMS - Object-Relational Database Management System) mã nguồn mở tiên tiến nhất hiện nay. Trong kiến trúc của đề tài, PostgreSQL đóng vai trò kép: vừa là nơi lưu trữ dữ liệu thô (Staging), vừa là Kho dữ liệu trung tâm (Data Warehouse).
+
+Các tính năng đặc thù của PostgreSQL được khai thác bao gồm:
+\begin{itemize}
+    \item \textbf{Kiểu dữ liệu JSONB (Binary JSON):} Thay vì sử dụng một NoSQL Database riêng biệt (như MongoDB), đề tài tận dụng kiểu dữ liệu JSONB của PostgreSQL để lưu trữ dữ liệu bán cấu trúc từ API. JSONB lưu trữ dữ liệu dưới dạng nhị phân phân tách, cho phép đánh chỉ mục (Indexing) trực tiếp trên các thuộc tính bên trong JSON, mang lại hiệu năng truy vấn cao mà không cần lược đồ cố định (Schema-less) ở tầng Staging.
+    \item \textbf{Cơ chế Phân vùng (Partitioning):} Để xử lý dữ liệu chuỗi thời gian (Time-series) của lưu lượng giao thông tích lũy theo năm tháng, PostgreSQL cung cấp tính năng \textbf{Declarative Partitioning}. Dữ liệu bảng Fact được chia nhỏ thành các bảng con theo phạm vi thời gian (Range Partitioning), giúp tăng tốc độ truy vấn và dễ dàng quản lý vòng đời dữ liệu (Data lifecycle management).
+    \item \textbf{Tuân thủ ACID:} Đảm bảo tính toàn vẹn và nhất quán của dữ liệu trong quá trình ETL phức tạp.
+\end{itemize}
+
+\subsubsection{Phần mở rộng không gian PostGIS}
+
+PostGIS là phần mở rộng (Extension) biến PostgreSQL thành một Cơ sở dữ liệu không gian (Spatial Database) thực thụ, được đánh giá là tiêu chuẩn vàng trong lĩnh vực GIS mã nguồn mở.
+
+Vai trò của PostGIS trong hệ thống:
+\begin{itemize}
+    \item \textbf{Lưu trữ hình học:} Sử dụng kiểu dữ liệu \textbf{GEOGRAPHY} (thay vì GEOMETRY) để lưu trữ tọa độ GPS (Kinh độ/Vĩ độ) trên bề mặt cầu (Spheroid). Điều này giúp các phép tính khoảng cách và diện tích đạt độ chính xác cao mà không cần các phép chiếu bản đồ phức tạp.
+    \item \textbf{Truy vấn không gian:} Cung cấp các hàm mạnh mẽ như \texttt{ST\_DWithin} (tìm kiếm trong bán kính), \texttt{ST\_Intersects} (tìm giao điểm), \texttt{ST\_Length} (tính chiều dài đường). Đây là công cụ chính để thực hiện kỹ thuật \textbf{Map Matching} (khớp tọa độ sự cố vào đoạn đường) và \textbf{Spatial Join} (xác định đoạn đường thuộc quận/huyện nào).
+    \item \textbf{Chỉ số không gian (Spatial Index - GiST):} Giúp tăng tốc độ truy vấn không gian từ O(N) xuống O(log N), cho phép tìm kiếm nhanh trên hàng triệu đoạn đường.
+\end{itemize}
+
+\subsubsection{Các nguồn dữ liệu và API (Data Providers)}
+
+Hệ thống tích hợp dữ liệu từ các nguồn uy tín sau:
+\begin{itemize}
+    \item \textbf{TomTom Traffic API:}
+    \begin{itemize}
+        \item \textbf{Flow Segment Data:} Cung cấp dữ liệu thời gian thực về tốc độ hiện tại (current speed), tốc độ tự do (free-flow speed) và thời gian di chuyển trên từng đoạn đường.
+        \item \textbf{Incident Details:} Cung cấp thông tin về các sự cố giao thông (tai nạn, tắc đường, thi công...) bao gồm vị trí, loại sự cố và mức độ nghiêm trọng.
+    \end{itemize}
+    \item \textbf{OpenWeatherMap API:} Cung cấp dữ liệu thời tiết hiện tại (Current Weather Data) bao gồm nhiệt độ, độ ẩm, tầm nhìn và lượng mưa tại khu vực TP.HCM. Dữ liệu này được dùng để phân tích tác động của môi trường lên dòng giao thông.
+    \item \textbf{OpenStreetMap (OSM):} Nguồn dữ liệu bản đồ mở, cung cấp thông tin nền tảng về hạ tầng giao thông (Nodes, Ways, Relations) để xây dựng các bảng Dimension về không gian (\texttt{dim\_road}, \texttt{dim\_segment}).
+\end{itemize}
+
+\subsubsection{Công cụ tự động hóa}
+
+Để đảm bảo tính "Cập nhật" (Freshness) của dữ liệu trong Kho, quy trình ETL cần được thực thi định kỳ và tự động.
+\begin{itemize}
+    \item \textbf{Windows Task Scheduler:} Được sử dụng để lập lịch chạy các script Python (Batch Processing).
+    \item \textbf{Cơ chế vận hành:} Các script được đóng gói thành các tác vụ (Tasks), được kích hoạt tự động theo chu kỳ 15 phút/lần (đối với dữ liệu Real-time như Traffic Flow, Incident) hoặc hàng năm (đối với dữ liệu tĩnh như Road Network), đảm bảo dữ liệu trong kho luôn phản ánh trạng thái mới nhất của hệ thống giao thông.
+\end{itemize}
+
+\subsection{Kết chương}
+
+Chương 3 đã trình bày một cách hệ thống các cơ sở lý thuyết và công nghệ nền tảng cần thiết để xây dựng Kho dữ liệu giao thông.
+
+Về mặt lý thuyết, việc nắm vững các nguyên lý của Kho dữ liệu (Data Warehouse), mô hình dữ liệu quan hệ (Relational Model) và các chỉ số đo lường giao thông (Flow, Speed, Density) là cơ sở để thiết kế một mô hình dữ liệu (Schema) phản ánh chính xác thực tế nghiệp vụ. Bên cạnh đó, các kiến thức về Hệ thống thông tin địa lý (GIS) đóng vai trò then chốt trong việc xử lý các yếu tố không gian phức tạp của mạng lưới giao thông đô thị.
+
+Về mặt công nghệ, sự lựa chọn \textbf{hệ sinh thái PostgreSQL} làm nền tảng lưu trữ duy nhất là một quyết định chiến lược của đề tài. Việc kết hợp sức mạnh xử lý dữ liệu quan hệ của PostgreSQL, khả năng lưu trữ dữ liệu bán cấu trúc linh hoạt của \textbf{JSONB}, và khả năng phân tích không gian vượt trội của \textbf{PostGIS} tạo nên một kiến trúc hệ thống thống nhất, mạnh mẽ và tối ưu chi phí.
+
+Ngôn ngữ \textbf{Python} đóng vai trò là chất kết dính, tự động hóa quy trình thu thập và chuyển đổi dữ liệu từ các nguồn phân tán vào hệ thống trung tâm.
+
+Những kiến thức và công nghệ được đúc kết trong chương này sẽ là tiền đề vững chắc để tiến hành phân tích yêu cầu và thiết kế chi tiết kiến trúc hệ thống Kho dữ liệu trong Chương 3 tiếp theo.

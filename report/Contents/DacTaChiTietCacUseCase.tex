@@ -1,0 +1,254 @@
+\section{Nghiệp vụ thống kê, dự báo, hỗ trợ ra quyết định}
+\subsection{Phân tích hiện trạng các hệ thống thông tin giao thông hiện có}
+
+Trước khi tiến hành đặc tả các nghiệp vụ phân tích nâng cao cho hệ thống Kho dữ liệu (Data Warehouse), cần thiết phải khảo sát và đánh giá năng lực của các nền tảng thông tin giao thông đang vận hành tại TP.HCM. Việc phân tích này nhằm mục đích nhận diện các ưu điểm cần kế thừa, đồng thời chỉ ra những hạn chế trong khả năng lưu trữ lịch sử và hỗ trợ ra quyết định, từ đó xác định rõ phạm vi và giá trị cốt lõi mà đề tài hướng tới.
+
+Hiện nay, hai hệ thống tiêu biểu đang phục vụ cộng đồng và cơ quan quản lý tại TP.HCM là \textbf{Cổng thông tin giao thông TP.HCM} (nguồn dữ liệu chính thống) và \textbf{Hệ thống BKTraffic} (nguồn dữ liệu cộng đồng). Dưới đây là phân tích chi tiết từng hệ thống dưới góc độ quản lý và khai thác dữ liệu.
+
+\subsubsection{Khảo sát Cổng thông tin giao thông TP.HCM (giaothong.hochiminhcity.gov.vn)}
+
+\textbf{a. Tổng quan}
+
+Cổng thông tin giao thông TP.HCM là kênh thông tin chính thức do Sở Giao thông Vận tải TP.HCM quản lý và vận hành. Đây là hệ thống đóng vai trò cốt lõi trong việc cung cấp thông tin tình trạng giao thông thời gian thực (Real-time Monitoring) cho người dân và hỗ trợ công tác điều phối của cơ quan chức năng.\\
+\\
+\textbf{b. Các nhóm chức năng chính}
+
+Qua khảo sát thực tế trên cổng thông tin, hệ thống cung cấp các nhóm chức năng chính sau:
+\begin{itemize}
+    \item \textbf{Hiển thị trạng thái giao thông thời gian thực:} Hệ thống sử dụng các vệt màu (Polylines) phủ lên bản đồ nền để biểu thị vận tốc trung bình của dòng xe. Quy ước: Màu xanh (Thông thoáng), Màu vàng (Đông xe), Màu đỏ (Ùn tắc). Dữ liệu được thu thập chủ yếu từ hệ thống giám sát hành trình (GPS) của các phương tiện vận tải và hệ thống cảm biến đo đạc.
+    \item \textbf{Hệ thống Camera giám sát (CCTV):} Cung cấp hình ảnh trực tiếp (Snapshot hoặc Video stream) từ hàng trăm camera giao thông lắp đặt tại các nút giao trọng điểm. Cho phép người dùng quan sát trực quan tình hình thực tế tại hiện trường.
+    \item \textbf{Cảnh báo sự kiện hạ tầng:} Cung cấp thông tin về các lô cốt, rào chắn thi công, các điểm hạn chế tốc độ hoặc cấm đường. Thông tin được hiển thị dưới dạng các điểm (Points of Interest - POI) trên bản đồ số.
+\end{itemize}
+\\
+\textbf{c. Đánh giá ưu điểm và hạn chế dưới góc độ Khoa học dữ liệu}
+
+\begin{itemize}
+    \item \textbf{Ưu điểm:}
+    \begin{itemize}
+        \item \textit{Tính chính thống và tin cậy:} Dữ liệu được kiểm duyệt bởi cơ quan quản lý nhà nước, đảm bảo độ chính xác cao về mặt thông tin hạ tầng và quy hoạch.
+        \item \textit{Khả năng giám sát tức thời (Real-time):} Hệ thống làm rất tốt vai trò của một hệ thống OLTP (Online Transaction Processing), cập nhật trạng thái giao thông liên tục với độ trễ thấp, đáp ứng nhu cầu "biết ngay lúc này" của người đi đường.
+    \end{itemize}
+    
+    \item \textbf{Hạn chế và Khoảng trống nghiệp vụ:} Tuy nhiên, hệ thống hiện tại bộc lộ những hạn chế lớn khi xét đến nhu cầu phân tích chuyên sâu và dự báo (OLAP):
+    \begin{itemize}
+        \item \textit{Thiếu khả năng truy xuất lịch sử (Historical Data Gap):} Người dùng không thể xem lại tình trạng giao thông của ngày hôm qua, tuần trước hay tháng trước. Dữ liệu sau khi hiển thị thường bị ghi đè hoặc lưu trữ dưới dạng log thô khó truy vấn, gây khó khăn cho việc nhận diện quy luật ùn tắc định kỳ.
+        \item \textit{Thiếu các mô hình dự báo (Lack of Prediction):} Hệ thống chỉ phản ánh "những gì đang xảy ra" (Descriptive) mà chưa cho biết "những gì sẽ xảy ra" (Predictive). Ví dụ: Không có chức năng dự báo kẹt xe trong 1 giờ tới nếu trời mưa.
+        \item \textit{Khả năng tích hợp dữ liệu hạn chế:} Chưa thấy sự tích hợp sâu giữa dữ liệu giao thông và các yếu tố ngoại cảnh như thời tiết (mưa, ngập) để đưa ra các khuyến nghị thông minh (Prescriptive) như gợi ý lộ trình tránh ngập/kẹt xe tối ưu đa mục tiêu.
+    \end{itemize}
+\end{itemize}
+
+\textbf{Kết luận:} Cổng thông tin giao thông TP.HCM là một nguồn dữ liệu đầu vào (Data Source) chất lượng cao cho đề tài, nhưng chưa đủ để đóng vai trò là một hệ thống hỗ trợ ra quyết định thông minh. Đây chính là tiền đề để xây dựng hệ thống Data Warehouse với khả năng lưu trữ lịch sử và phân tích đa chiều trên nền tảng PostgreSQL/PostGIS.
+
+\subsubsection{Khảo sát Hệ thống BKTraffic (bktraffic.com)}
+
+\textbf{a. Tổng quan}
+
+Hệ thống thông tin giao thông BKTraffic là sản phẩm nghiên cứu khoa học được phát triển bởi Trường Đại học Bách Khoa - ĐHQG TP.HCM. Khác với Cổng thông tin giao thông của Sở GTVT dựa trên hạ tầng cảm biến cố định, BKTraffic tiếp cận bài toán theo hướng \textbf{Giao thông thông minh dựa trên dữ liệu cộng đồng (Crowdsourcing)}. Hệ thống hoạt động dựa trên nguyên lý thu thập dữ liệu vận tốc, tọa độ từ thiết bị di động của người tham gia giao thông (thông qua ứng dụng trên Smartphone), xử lý và tổng hợp để đưa ra bức tranh toàn cảnh về trạng thái mạng lưới đường bộ.\\
+\\
+\textbf{b. Các nhóm chức năng và đặc điểm kỹ thuật chính}
+
+\begin{itemize}
+    \item \textbf{Thu thập dữ liệu từ phương tiện thăm dò (Probe Vehicles):} BKTraffic sử dụng dữ liệu định vị (GPS) từ người dùng ứng dụng như những "cảm biến di động" (Floating Car Data - FCD). Các dữ liệu về vị trí, hướng di chuyển và vận tốc tức thời được gửi về máy chủ để tính toán vận tốc trung bình của dòng xe trên từng đoạn đường (link/segment).
+    \item \textbf{Dẫn đường và Cảnh báo ùn tắc:} Cung cấp chức năng tìm kiếm lộ trình đi lại trong thành phố. Tự động phát hiện các đoạn đường có vận tốc di chuyển thấp bất thường để cảnh báo người dùng tránh các điểm ùn tắc.
+    \item \textbf{Bản đồ trực quan hóa:} Tương tự như các hệ thống khác, BKTraffic sử dụng thang màu để hiển thị mật độ giao thông. Tuy nhiên, độ phủ của dữ liệu phụ thuộc lớn vào mật độ người sử dụng ứng dụng tại thời điểm đó.
+\end{itemize}
+\\
+\textbf{c. Đánh giá ưu điểm và hạn chế dưới góc độ Khoa học dữ liệu}
+
+\begin{itemize}
+    \item \textbf{Ưu điểm:}
+    \begin{itemize}
+        \item \textit{Chi phí triển khai thấp:} Không phụ thuộc vào việc lắp đặt và bảo trì các thiết bị cảm biến đắt tiền (Loop detector, Camera) trên mặt đường.
+        \item \textit{Khả năng mở rộng linh hoạt:} Có thể thu thập dữ liệu ở bất kỳ đâu có sóng GPS và mạng di động, bao gồm cả những tuyến đường hẻm hoặc ngoại ô mà hệ thống camera giám sát chưa bao phủ tới.
+        \item \textit{Dữ liệu phản ánh hành vi thực:} Dữ liệu GPS phản ánh chính xác vận tốc di chuyển thực tế của người lái xe trong dòng giao thông hỗn hợp.
+    \end{itemize}
+    
+    \item \textbf{Hạn chế và Khoảng trống nghiệp vụ:} Mặc dù có cách tiếp cận hiện đại, BKTraffic vẫn tồn tại những hạn chế khi xét đến yêu cầu của một hệ thống Phân tích \& Hỗ trợ ra quyết định toàn diện:
+    \begin{itemize}
+        \item \textit{Vấn đề về độ phủ dữ liệu (Data Sparsity):} Độ chính xác của hệ thống phụ thuộc hoàn toàn vào số lượng người dùng (Sample size). Ở những khung giờ thấp điểm hoặc tuyến đường ít người dùng BKTraffic, dữ liệu có thể bị gián đoạn hoặc thiếu tin cậy, gây khó khăn cho việc thống kê liên tục trong Data Warehouse.
+        \item \textit{Thiếu tích hợp đa nguồn dữ liệu:} Hệ thống chủ yếu tập trung vào dữ liệu GPS thuần túy. Chưa có sự kết hợp sâu với các nguồn dữ liệu quan trọng khác như: dữ liệu sự cố từ VOV/Camera (Fact Incident) hay dữ liệu thời tiết (Dim Weather) để giải thích nguyên nhân của việc giảm tốc độ.
+        \item \textit{Hạn chế trong phân tích xu hướng dài hạn:} Tương tự Cổng thông tin giao thông, BKTraffic tập trung giải quyết bài toán thời gian thực (Real-time). Các nghiệp vụ phân tích sâu như "So sánh sự thay đổi hành vi lái xe trong mùa mưa giữa năm 2023 và 2024" chưa được hỗ trợ mạnh mẽ.
+    \end{itemize}
+\end{itemize}
+
+\textbf{Kết luận:} Hệ thống BKTraffic đại diện cho nguồn dữ liệu "động" từ cộng đồng, bổ sung rất tốt cho nguồn dữ liệu "tĩnh" từ cảm biến cố định. Tuy nhiên, để hỗ trợ ra quyết định ở cấp độ quản lý và dự báo chiến lược, cần một hệ thống trung tâm (Data Warehouse) có khả năng hợp nhất dữ liệu từ cả hai nguồn, lưu trữ lịch sử lâu dài và làm giàu dữ liệu bằng các chiều thông tin bổ sung.
+
+\subsubsection{Khoảng trống nghiệp vụ và Sự cần thiết của Data Warehouse}
+
+Từ việc khảo sát và phân tích hai hệ thống tiêu biểu là Cổng thông tin giao thông TP.HCM và BKTraffic, có thể nhận thấy một bức tranh chung về hiện trạng ứng dụng công nghệ thông tin trong giao thông tại TP.HCM. Mặc dù các hệ thống này đã giải quyết rất tốt bài toán \textbf{Giám sát vận hành (Operational Monitoring)} và cung cấp thông tin thời gian thực, nhưng vẫn tồn tại những "khoảng trống" lớn về khả năng \textbf{Phân tích chiến lược (Strategic Analytics)} và \textbf{Hỗ trợ ra quyết định (Decision Support)}.
+
+Các khoảng trống nghiệp vụ chính bao gồm:
+
+\begin{description}
+    \item[a. Sự thiếu hụt khả năng phân tích lịch sử (Historical Analysis Gap):] Các hệ thống hiện tại hoạt động theo cơ chế OLTP, tập trung vào tốc độ cập nhật trạng thái hiện tại. Dữ liệu lịch sử thường bị ghi đè hoặc lưu trữ dưới dạng log thô. Điều này khiến các nhà quản lý gặp khó khăn khi muốn trả lời các câu hỏi mang tính chu kỳ dài hạn.
+    
+    \item[b. Dữ liệu bị cô lập (Data Silos):] Thông tin giao thông hiện đang bị tách biệt với các nguồn dữ liệu ngữ cảnh khác (như ngập nước, thời tiết). Việc thiếu một nền tảng tích hợp khiến cho việc phân tích nguyên nhân - hệ quả trở nên bất khả thi.
+    
+    \item[c. Hạn chế trong năng lực Dự báo và Khuyến nghị (Lack of Predictive \& Prescriptive Analytics):] Hầu hết các chức năng hiện tại dừng lại ở mức Thống kê mô tả (Descriptive). Khoảng trống lớn nhất nằm ở khả năng Dự báo (Predictive) và Khuyến nghị (Prescriptive). Người tham gia giao thông cần biết trước rủi ro kẹt xe trước khi xuất phát, và cơ quan quản lý cần các kịch bản mô phỏng để điều tiết giao thông chủ động hơn.
+\end{description}
+\\
+\textbf{d. Sự cần thiết của Kho dữ liệu (Data Warehouse)}\\
+
+Để lấp đầy các khoảng trống nêu trên, việc xây dựng một hệ thống \textbf{Kho dữ liệu (Data Warehouse)} tập trung là yêu cầu cấp thiết. Hệ thống này không thay thế các ứng dụng hiện có mà đóng vai trò là tầng nền tảng phía sau, thực hiện các chức năng:
+\begin{itemize}
+    \item \textbf{Lưu trữ tập trung và dài hạn:} Tích lũy dữ liệu lịch sử từ nhiều nguồn (TomTom, OpenWeatherMap,...) theo mô hình đa chiều, đảm bảo tính nhất quán và toàn vẹn theo thời gian.
+    \item \textbf{Tích hợp đa nguồn:} Kết hợp dữ liệu dòng xe (Traffic Flow) với dữ liệu sự kiện (Incident), thời tiết (Weather) và hạ tầng (Road Network) để tạo ra các góc nhìn phân tích sâu sắc (Insights).
+    \item \textbf{Nền tảng cho AI/Machine Learning:} Cung cấp dữ liệu sạch và chuẩn hóa để huấn luyện các mô hình dự báo tốc độ, dự báo sự cố và tối ưu hóa lộ trình.
+\end{itemize}
+
+\subsection{Đặc tả các nghiệp vụ Phân tích và Hỗ trợ ra quyết định}
+
+Dựa trên danh mục Use Case đã phân tích, các nghiệp vụ của hệ thống được chia thành 3 nhóm chính theo mô hình trưởng thành dữ liệu: Thống kê mô tả (Descriptive), Dự báo (Predictive) và Đề xuất (Prescriptive). Mỗi nghiệp vụ được định nghĩa rõ ràng về hạt dữ liệu (Grain) và các chiều phân tích (Dimension) để đảm bảo tính khả thi khi truy vấn trên Data Warehouse.
+
+\subsubsection{Nhóm nghiệp vụ Thống kê mô tả và Giám sát (Descriptive Analytics)}
+
+Nhóm này tập trung khai thác dữ liệu hiện tại và lịch sử để cung cấp các chỉ số đo lường hiệu suất (KPIs) và báo cáo vận hành.
+
+\begin{description}
+    \item[A1: Giám sát tốc độ trung bình thời gian thực]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Cung cấp thông tin vận tốc thực tế (km/h) trên từng đoạn đường thay vì chỉ hiển thị màu sắc định tính.
+        \item \textbf{Hạt (Grain):} \texttt{segment\_key} tại thời điểm hiện tại (NOW - 5 phút).
+        \item \textbf{Nguồn dữ liệu:} \texttt{fact\_traffic\_flow}.
+        \item \textbf{Đầu ra:} Bản đồ hiển thị tốc độ số.
+    \end{itemize}
+
+    \item[A2: Đánh giá Mức độ tắc nghẽn (Congestion Level)]\hfill
+    
+    \begin{itemize}
+        \item \textbf{Mục đích:} Chuẩn hóa tình trạng giao thông theo thang điểm 1-5 (Level of Service) để dễ dàng cảnh báo và so sánh giữa các khu vực.
+        \item \textbf{Hạt (Grain):} \texttt{segment\_key} tại thời điểm hiện tại.
+        \item \textbf{Nguồn dữ liệu:} \texttt{fact\_traffic\_flow} (dựa trên tỷ lệ occupancy\_rate và avg\_speed).
+        \item \textbf{Đầu ra:} Cảnh báo mức độ (Ví dụ: "Ngã 4 Hàng Xanh: Mức 5/5 - Ùn tắc nghiêm trọng").
+    \end{itemize}
+
+    \item[A3: Phân tích thời gian di chuyển đặc trưng (Typical Travel Time)]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Thiết lập "mức chuẩn" (Baseline) cho thời gian di chuyển trên các tuyến đường quen thuộc vào từng khung giờ cụ thể trong tuần.
+        \item \textbf{Hạt (Grain):} \texttt{route\_key} + \texttt{time\_of\_day} (khung 15 phút) + \texttt{day\_of\_week}.
+        \item \textbf{Nguồn dữ liệu:} \texttt{fact\_user\_travel\_time}, \texttt{dim\_route}.
+        \item \textbf{Đầu ra:} Biểu đồ so sánh thời gian di chuyển.
+    \end{itemize}
+
+    \item[A4: Chỉ số độ tin cậy thời gian (Buffer Index)]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Đo lường sự biến động của thời gian di chuyển. Chỉ số này cho biết người dùng cần cộng thêm bao nhiêu \% thời gian dự phòng để đảm bảo đến nơi đúng giờ.
+        \item \textbf{Hạt (Grain):} \texttt{route\_key} + \texttt{time\_of\_day}.
+        \item \textbf{Nguồn dữ liệu:} \texttt{fact\_user\_travel\_time}.
+        \item \textbf{Đầu ra:} Khuyến nghị thời gian xuất phát.
+    \end{itemize}
+
+    \item[A5: Thống kê điểm nóng sự cố (Incident Hotspots)]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Xác định các đoạn đường "đen" thường xuyên xảy ra tai nạn hoặc xe hỏng để hỗ trợ quy hoạch và cảnh báo an toàn.
+        \item \textbf{Hạt (Grain):} \texttt{segment\_key} tích lũy theo tháng/quý.
+        \item \textbf{Nguồn dữ liệu:} \texttt{fact\_incident}, \texttt{dim\_incident\_type}, \texttt{dim\_weather}.
+        \item \textbf{Đầu ra:} Bản đồ nhiệt (Heatmap) điểm đen sự cố.
+    \end{itemize}
+    
+    \item[A6: Phân tích tác động của thời tiết đến tốc độ]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Lượng hóa mức độ suy giảm vận tốc trung bình dưới các điều kiện thời tiết khác nhau.
+        \item \textbf{Hạt (Grain):} \texttt{segment\_key} + \texttt{weather\_type}.
+        \item \textbf{Nguồn dữ liệu:} Kết hợp \texttt{fact\_traffic\_flow} và \texttt{dim\_weather}.
+        \item \textbf{Đầu ra:} Bảng so sánh mức giảm tốc độ.
+    \end{itemize}
+
+    \item[A7: Đánh giá hiệu quả hệ thống gợi ý (Admin View)]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Đo lường mức độ tin tưởng của người dùng đối với các lộ trình mà hệ thống đề xuất.
+        \item \textbf{Hạt (Grain):} Theo ngày (\texttt{date\_key}).
+        \item \textbf{Nguồn dữ liệu:} \texttt{fact\_route\_recommendation}.
+        \item \textbf{Đầu ra:} Chỉ số hiệu quả (Ví dụ: "Tỷ lệ tuân thủ lộ trình gợi ý đạt 72\%").
+    \end{itemize}
+
+    \item[A8: Thu thập phản hồi chuyến đi (User Feedback)]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Đối chiếu giữa thời gian dự kiến và thực tế để tinh chỉnh thuật toán.
+        \item \textbf{Hạt (Grain):} Mỗi chuyến đi (\texttt{travel\_time\_key}).
+        \item \textbf{Nguồn dữ liệu:} \texttt{fact\_user\_travel\_time}.
+        \item \textbf{Đầu ra:} Thông báo kết quả so sánh.
+    \end{itemize}
+
+    \item[A9: Phân bố lưu lượng theo loại xe (Vehicle Composition)]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Phân tích thành phần dòng xe (xe máy, ô tô, xe tải) để phục vụ quản lý làn đường và giờ cấm.
+        \item \textbf{Hạt (Grain):} \texttt{segment\_key} + \texttt{vehicle\_type}.
+        \item \textbf{Nguồn dữ liệu:} \texttt{fact\_traffic\_flow\_by\_vehicle}.
+        \item \textbf{Đầu ra:} Biểu đồ cơ cấu phương tiện.
+    \end{itemize}
+\end{description}
+
+\subsubsection{Nhóm nghiệp vụ Phân tích dự báo (Predictive Analytics)}
+
+Nhóm này sử dụng các mô hình học máy (Machine Learning) trên nền tảng dữ liệu lịch sử để dự đoán trạng thái tương lai.
+
+\begin{description}
+    \item[B1: Dự báo tốc độ ngắn hạn (Short-term Speed Prediction)]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Dự đoán vận tốc trung bình trên từng đoạn đường trong khung thời gian 15-60 phút tới.
+        \item \textbf{Hạt (Grain):} \texttt{segment\_key} + \texttt{datetime\_key} (tương lai).
+        \item \textbf{Nguồn dữ liệu:} \texttt{fact\_traffic\_flow} (lịch sử), \texttt{dim\_weather} (dự báo).
+        \item \textbf{Đầu ra:} Cảnh báo sớm nguy cơ ùn tắc.
+    \end{itemize}
+
+    \item[B2: Dự báo thời gian hành trình (ETA Prediction)]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Cung cấp thời gian đến dự kiến (Estimated Time of Arrival) chính xác cho một lộ trình cụ thể, có tính đến biến động giao thông tương lai.
+        \item \textbf{Hạt (Grain):} \texttt{route\_key} + \texttt{datetime\_key} (xuất phát).
+        \item \textbf{Nguồn dữ liệu:} Tổng hợp dự báo B1 trên các segment thuộc \texttt{bridge\_route\_segment}.
+        \item \textbf{Đầu ra:} Thời gian dự kiến (Ví dụ: "Sân bay -> Bến Thành: 28-35 phút").
+    \end{itemize}
+
+    \item[B3: Dự báo rủi ro sự cố (Incident Risk Prediction)]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Dự đoán xác suất xảy ra tai nạn hoặc sự cố tại các điểm nóng dựa trên điều kiện môi trường và mật độ xe.
+        \item \textbf{Hạt (Grain):} \texttt{segment\_key} + \texttt{datetime\_key}.
+        \item \textbf{Nguồn dữ liệu:} \texttt{fact\_incident}, \texttt{fact\_traffic\_flow}, \texttt{dim\_weather}.
+        \item \textbf{Đầu ra:} Cảnh báo mức độ rủi ro.
+    \end{itemize}
+\end{description}
+
+\subsubsection{Nhóm nghiệp vụ Hỗ trợ ra quyết định (Prescriptive Analytics)}
+
+Đây là nhóm nghiệp vụ cao cấp nhất, trực tiếp đưa ra giải pháp hành động tối ưu cho người dùng.
+
+\begin{description}
+    \item[C1: Đề xuất lộ trình tối ưu đa mục tiêu (Multi-objective Routing)]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Gợi ý lộ trình không chỉ dựa trên thời gian ngắn nhất mà còn cân bằng các yếu tố: Độ tin cậy (ít kẹt xe bất ngờ) và Độ an toàn (ít rủi ro sự cố).
+        \item \textbf{Hạt (Grain):} 1 yêu cầu tìm đường O-D (Origin-Destination).
+        \item \textbf{Nguồn dữ liệu:} Kết hợp \texttt{fact\_traffic\_flow} (dự báo), \texttt{fact\_user\_travel\_time} (độ tin cậy), \texttt{fact\_incident} (rủi ro).
+        \item \textbf{Đầu ra:} Danh sách các phương án (Nhanh nhất, Tin cậy, An toàn).
+    \end{itemize}
+
+    \item[C2: Cảnh báo và Tái định tuyến thời gian thực (Real-time Rerouting)]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Chủ động phát hiện sự cố mới trên lộ trình đang đi và gợi ý hướng đi vòng ngay lập tức.
+        \item \textbf{Hạt (Grain):} Sự kiện \texttt{fact\_incident} mới phát sinh.
+        \item \textbf{Nguồn dữ liệu:} Stream dữ liệu từ \texttt{fact\_incident} và \texttt{fact\_traffic\_flow}.
+        \item \textbf{Đầu ra:} Thông báo đẩy gợi ý lộ trình thay thế.
+    \end{itemize}
+
+    \item[C3: Gợi ý giờ xuất phát tối ưu (Optimal Departure Time)]\hfill
+    \begin{itemize}
+        \item \textbf{Mục đích:} Phân tích xu hướng tắc nghẽn để khuyến nghị người dùng điều chỉnh thời gian khởi hành nhằm tránh giờ cao điểm.
+        \item \textbf{Hạt (Grain):} 1 yêu cầu O-D + Cửa sổ thời gian (2 giờ tới).
+        \item \textbf{Nguồn dữ liệu:} \texttt{fact\_traffic\_flow} (dự báo), \texttt{dim\_time\_of\_day}.
+        \item \textbf{Đầu ra:} Biểu đồ so sánh thời gian di chuyển theo giờ xuất phát.
+    \end{itemize}
+\end{description}
+
+\subsection{Kết chương}
+
+Chương 5 đã đi sâu vào phân tích khía cạnh nghiệp vụ của hệ thống, từ việc đánh giá hiện trạng đến việc đặc tả chi tiết các nhu cầu hỗ trợ ra quyết định. Thông qua việc khảo sát Cổng thông tin giao thông TP.HCM và hệ thống BKTraffic, đề tài đã chỉ ra một "khoảng trống" lớn trong bức tranh giao thông thông minh hiện tại: sự thiếu hụt các công cụ phân tích lịch sử sâu (Historical Analytics) và khả năng dự báo chủ động (Predictive Analytics).
+
+Các hệ thống hiện hành chủ yếu dừng lại ở vai trò giám sát vận hành (OLTP), trong khi nhu cầu thực tế của cả người dân và nhà quản lý đang chuyển dịch mạnh mẽ sang các giải pháp tối ưu hóa dựa trên dữ liệu (Data-driven Optimization). Hệ thống danh mục nghiệp vụ được đề xuất bao gồm 3 tầng: \textbf{Thống kê mô tả (A)}, \textbf{Phân tích dự báo (B)}, và \textbf{Hỗ trợ ra quyết định (C)} đã chứng minh sự cần thiết của kiến trúc Kho dữ liệu được thiết kế trong các chương trước.
+
+Cụ thể:
+\begin{itemize}
+    \item Các bảng Fact (\texttt{fact\_traffic\_flow}, \texttt{fact\_incident}, \texttt{fact\_user\_travel\_time}) cung cấp hạt dữ liệu đủ mịn để tính toán các chỉ số phức tạp như Buffer Index hay Congestion Level.
+    \item Các bảng Dimension (\texttt{dim\_weather}, \texttt{dim\_segment}, \texttt{dim\_date}) cung cấp ngữ cảnh đa chiều, cho phép thực hiện các phân tích tương quan giữa thời tiết, hạ tầng và dòng giao thông.
+\end{itemize}
+
+Việc xác định rõ ràng các hạt dữ liệu (Grain) và logic nghiệp vụ trong chương này là cơ sở quan trọng để xây dựng các quy trình ETL (Extract - Transform - Load) chính xác và viết các truy vấn SQL phân tích hiệu quả trên nền tảng PostgreSQL/PostGIS trong giai đoạn triển khai tiếp theo.

@@ -1,0 +1,101 @@
+\section{Giới thiệu}
+\subsection{Động cơ của đề tài}
+
+Trong bối cảnh đô thị hóa tăng tốc trong nhiều thập niên gần đây, Thành phố Hồ Chí Minh (TP.HCM) đang đối diện với các thách thức ngày càng phức tạp trong lĩnh vực giao thông vận tải. Sự bùng nổ của phương tiện cá nhân, đặc biệt là xe máy – vốn chiếm tỷ trọng lớn trong cơ cấu phương tiện lưu thông – kết hợp với sự quá tải của hạ tầng giao thông hiện hữu đã dẫn đến tình trạng ùn tắc nghiêm trọng tại nhiều khu vực trọng điểm. Tình trạng này không chỉ gây ảnh hưởng đến năng suất xã hội mà còn kéo theo những hệ lụy tiêu cực như ô nhiễm môi trường, tai nạn giao thông và suy giảm chất lượng sống của người dân đô thị.
+
+Theo định hướng xây dựng Đô thị thông minh giai đoạn 2020–2025, TP.HCM xác định giao thông thông minh là một trụ cột quan trọng nhằm nâng cao năng lực quản lý, vận hành và tối ưu hóa hệ thống giao thông đô thị. Tuy nhiên, các hệ thống giám sát và quản lý hiện có mới chỉ đáp ứng được yêu cầu theo dõi thời gian thực, trong khi lại thiếu một nền tảng dữ liệu tích hợp, có khả năng lưu trữ, tổng hợp và phân tích dài hạn.
+
+Hiện nay, dữ liệu giao thông của TP.HCM được thu thập từ nhiều nguồn khác nhau như hệ thống camera giám sát (CCTV), cảm biến vòng từ, thiết bị giám sát hành trình (GPS), cũng như dữ liệu cộng đồng từ các ứng dụng di động. Tuy vậy, các nguồn dữ liệu này thường tồn tại ở dạng rời rạc, phân tán trên nhiều hệ thống tách biệt và thiếu sự chuẩn hóa. Điều này dẫn đến hạn chế trong việc khai thác chuyên sâu, đặc biệt là các phân tích theo chiều không gian – thời gian, vốn rất cần thiết cho công tác thống kê và dự báo xu hướng giao thông.
+
+Kho dữ liệu (Data Warehouse) được xem là giải pháp nền tảng để khắc phục tình trạng phân mảnh dữ liệu, cho phép tích hợp các nguồn dữ liệu đa dạng, chuẩn hóa và lưu trữ theo cấu trúc đa chiều, hỗ trợ tốt các truy vấn phân tích phức tạp (OLAP). Không giống với các cơ sở dữ liệu giao dịch (OLTP) chủ yếu phục vụ thao tác cập nhật, kho dữ liệu được thiết kế tối ưu cho việc truy vấn phân tích khối lượng dữ liệu lớn và dài hạn, phù hợp cho các bài toán dự báo và hỗ trợ ra quyết định.
+
+Bên cạnh đó, xu hướng chuyển đổi từ mô hình quản lý giao thông phản ứng thụ động ("reactive traffic management") sang chủ động ("proactive traffic management") đang đòi hỏi sự tham gia của các công nghệ trí tuệ nhân tạo và học máy. Các mô hình dự báo lưu lượng hay tốc độ giao thông chỉ có thể vận hành hiệu quả khi được xây dựng trên một nền dữ liệu sạch, thống nhất và có quy mô đủ lớn – những tiêu chí mà kho dữ liệu giao thông có thể đảm bảo.
+
+Xuất phát từ nhu cầu cấp thiết đó, nhóm nghiên cứu quyết định thực hiện đề tài: "Mô hình kho dữ liệu (data warehouse) về giao thông phục vụ công tác thống kê, dự báo, hỗ trợ ra quyết định". Đề tài nhằm mục đích xây dựng nền tảng hạ tầng dữ liệu vững chắc, làm tiền đề cho các giải pháp điều khiển giao thông thông minh, góp phần giải quyết bài toán tổng thể về tích hợp dữ liệu giao thông và tạo nền tảng vững chắc cho các giải pháp phân tích, dự báo trong tương lai.
+
+\subsection{Mục tiêu}
+
+Mục tiêu tổng quát của đề tài là thiết kế và triển khai một mô hình kho dữ liệu giao thông có khả năng tích hợp đa nguồn dữ liệu, mở rộng linh hoạt và đáp ứng các yêu cầu phân tích – dự báo phục vụ quản lý giao thông đô thị. Để hiện thực hóa mục tiêu tổng quát đó, đề tài tập trung vào các mục tiêu cụ thể sau:
+\begin{itemize}
+    \item \textbf{Nghiên cứu và đề xuất kiến trúc kho dữ liệu}\\
+    Xây dựng một kiến trúc kho dữ liệu phù hợp với đặc thù của dữ liệu giao thông hỗn hợp tại Việt Nam, vốn bao gồm nhiều loại dữ liệu cấu trúc và bán cấu trúc. Đề tài thiết kế mô hình dữ liệu đa chiều, sử dụng Star Schema hoặc Snowflake Schema nhằm tối ưu hóa hiệu năng truy vấn và hỗ trợ phân tích đa chiều.
+    \item \textbf{Xây dựng quy trình xử lý dữ liệu – ETL/ELT}\\
+    Thiết kế và xây dựng quy trình trích xuất (Extract), biến đổi (Transform) và tải (Load) nhằm tự động hóa quá trình thu thập dữ liệu thô từ nhiều nguồn khác nhau, xử lý nhiễu, chuẩn hóa định dạng và cập nhật đồng bộ vào kho dữ liệu trung tâm.
+    \item \textbf{Tích hợp mô hình dự báo lưu lượng giao thông}\\
+    Ứng dụng các mô hình học máy và học sâu như ARIMA, LSTM hoặc mô hình lai ghép (Hybrid Models) trên tập dữ liệu lịch sử đã được chuẩn hóa để dự báo lưu lượng phương tiện và mức độ tắc nghẽn trong tương lai gần dựa trên phân tích chuỗi thời gian.
+    \item \textbf{Phát triển chức năng hỗ trợ ra quyết định}\\
+    Xây dựng dashboard và các công cụ trực quan hóa dữ liệu nhằm cung cấp thông tin chi tiết cho các nhà quản lý tại Sở Giao thông Vận tải TP.HCM, hỗ trợ công tác phân luồng, điều tiết giao thông và hoạch định chính sách.
+    \item \textbf{Triển khai thử nghiệm và đánh giá hệ thống}\\
+    Tích hợp hệ thống mẫu với nền tảng UTraffic, từ đó đánh giá hiệu năng của kho dữ liệu và độ chính xác của mô hình dự báo trên dữ liệu thực tế hoặc dữ liệu được mô phỏng.
+\end{itemize}
+
+\subsection{Phạm vi}
+
+Để đảm bảo tính khả thi và tập trung vào chiều sâu chuyên môn, đề tài xác định phạm vi nghiên cứu như sau:
+
+\begin{itemize}
+    \item \textbf{Về dữ liệu}\\
+    Đề tài tập trung vào các dạng dữ liệu giao thông có cấu trúc hoặc bán cấu trúc, bao gồm dữ liệu định vị GPS, dữ liệu đếm xe từ cảm biến hoặc camera, và dữ liệu trạng thái giao thông. Dữ liệu phi cấu trúc (như video thô) không thuộc phạm vi xử lý trực tiếp mà chỉ sử dụng khi đã được trích xuất thành dữ liệu dạng số.
+    \item \textbf{Về không gian nghiên cứu}\\
+    Hệ thống được thử nghiệm tại một số nút giao thông trọng điểm và các tuyến đường huyết mạch trên địa bàn Thành phố Hồ Chí Minh, làm cơ sở đánh giá tính hiệu quả và khả năng mở rộng của mô hình.
+    \item \textbf{Về công nghệ sử dụng}\\
+    Đề tài sử dụng các hệ quản trị cơ sở dữ liệu và nền tảng kho dữ liệu phổ biến như SQL Server, PostgreSQL hoặc các mô hình triển khai trên môi trường điện toán đám mây. Các mô hình phân tích và dự báo được xây dựng bằng Python thông qua các thư viện khoa học dữ liệu như Pandas, Scikit-learn, TensorFlow/PyTorch.
+    \item \textbf{Về chức năng hệ thống}\\
+    Nghiên cứu tập trung vào phần mềm và xử lý dữ liệu; không bao gồm thiết kế hoặc triển khai phần cứng như camera hay cảm biến ngoài thực tế. Dữ liệu đầu vào được giả định là sẵn có hoặc do GVHD/UTraffic cung cấp.
+\end{itemize}
+
+\subsection{Ý nghĩa}
+
+\subsubsection{Ý nghĩa thực tiễn}
+
+Kết quả nghiên cứu có khả năng mang lại nhiều lợi ích thiết thực cho công tác quản lý giao thông tại TP.HCM:
+
+\begin{itemize}
+    \item Công cụ hỗ trợ cho Sở GTVT: Kho dữ liệu giúp cung cấp góc nhìn toàn diện về hiện trạng giao thông, hỗ trợ đánh giá hiệu quả của các chính sách phân luồng và vận hành hạ tầng.
+    \item Tối ưu hóa nguồn lực xã hội: Các mô hình dự báo tắc nghẽn hỗ trợ lực lượng chức năng bố trí nhân sự hợp lý, giảm thiểu thời gian ùn tắc và chi phí nhiên liệu.
+    \item Nền tảng mở cho phát triển hệ sinh thái giao thông thông minh: Kiến trúc được thiết kế theo hướng mở, dễ dàng tích hợp thêm dữ liệu hoặc triển khai tại các đô thị khác.
+
+\end{itemize}
+
+\subsubsection{Ý nghĩa khoa học}
+\begin{itemize}
+    \item Đóng góp về mô hình hóa dữ liệu giao thông: Đề tài kiểm chứng khả năng áp dụng mô hình dữ liệu đa chiều cho dữ liệu giao thông spatio-temporal, một lĩnh vực còn ít được nghiên cứu trong bối cảnh Việt Nam.
+    \item Đánh giá thực nghiệm về ứng dụng AI trong giao thông Việt Nam: Việc thử nghiệm các mô hình dự báo trên dữ liệu dòng xe hỗn hợp góp phần bổ sung thêm bằng chứng khoa học về tính hiệu quả của các thuật toán hiện đại trong môi trường giao thông đặc thù của các quốc gia đang phát triển.
+\end{itemize}
+
+\subsection{Cấu trúc báo cáo}
+
+Báo cáo đồ án được cấu trúc thành 11 chương, trình bày logic từ khâu đặt vấn đề, cơ sở lý thuyết đến hiện thực kỹ thuật và đánh giá kết quả:\\
+\\
+\textbf{Chương 1: Giới thiệu}\\
+Trình bày bối cảnh, động cơ chọn đề tài, mục tiêu cụ thể, phạm vi nghiên cứu và ý nghĩa thực tiễn của hệ thống kho dữ liệu giao thông thông minh.\\
+\\
+\textbf{Chương 2: Quản lý dự án và Phân công nhiệm vụ}\\
+Mô tả quy trình làm việc chuyên nghiệp của nhóm thông qua các công cụ quản lý (Trello, GitHub, Google Meet) và chi tiết hóa đóng góp chuyên môn của từng thành viên trong quá trình phát triển hệ thống.\\
+\\
+\textbf{Chương 3: Kiến thức và công nghệ nền tảng}\\
+Hệ thống hóa lý thuyết về Kho dữ liệu (DWH), GIS, PostGIS và các chỉ số giao thông. Đồng thời giới thiệu hệ sinh thái công nghệ sử dụng như Python, PostgreSQL và các nguồn cung cấp dữ liệu API (TomTom, OSM, OWM).\\
+\\
+\textbf{Chương 4: Công trình liên quan}\\
+Tổng quan các nghiên cứu khoa học và các hệ thống thực tế hiện có (UTraffic, Cổng thông tin giao thông TP.HCM). Từ đó xác định "khoảng trống nghiên cứu" để định vị sự khác biệt và tính mới của đề tài.\\
+\\
+\textbf{Chương 5: Nghiệp vụ thống kê, dự báo, hỗ trợ ra quyết định}\\
+Phân tích hiện trạng nghiệp vụ và đặc tả chi tiết ba nhóm yêu cầu phân tích trọng tâm: Thống kê mô tả (Descriptive), Phân tích dự báo (Predictive) và Hỗ trợ ra quyết định (Prescriptive).\\
+\\
+\textbf{Chương 6: Thiết kế DataWarehouse Schema}\\
+Trình bày quá trình tiến hóa của mô hình dữ liệu từ Star Schema sơ khởi đến cấu trúc Galaxy Schema hiện đại. Chương này cũng bao gồm phân tích tính khả thi của các nguồn dữ liệu và chi tiết hóa các bảng Fact, Dimension.\\
+\\
+\textbf{Chương 7: Ứng dụng Schema vào thực tiễn}\\
+Hiện thực hóa các bài toán nghiệp vụ cụ thể dựa trên cấu trúc Schema đã thiết kế, bao gồm các thuật toán tính toán LOS, chỉ số tin cậy hành trình, dự báo rủi ro sự cố và đề xuất lộ trình tối ưu.\\
+\\
+\textbf{Chương 8: Thiết kế và triển khai quy trình ETL}\\
+Chi tiết hóa kiến trúc đường ống dữ liệu (Data Pipeline), sự tích hợp của thị giác máy tính (YOLOv8x) vào quy trình nạp dữ liệu, cơ chế giả lập dữ liệu (Mock Data) và hệ thống tự động hóa vận hành.\\
+\\
+\textbf{Chương 9: Đánh giá hệ thống}\\
+Thực hiện đánh giá toàn diện về cấu trúc Schema (tính toàn vẹn, khả năng mở rộng) và kết quả thực thi sau ETL (hiệu năng nạp dữ liệu, quản trị dữ liệu lớn và tính sẵn sàng cho AI/ML).\\
+\\
+\textbf{Chương 10: Tổng kết}\\
+Tổng hợp các kết quả đạt được về mặt kỹ thuật và nghiệp vụ, nhìn nhận các hạn chế tồn tại và đề xuất kế hoạch phát triển chi tiết cho Đồ án tốt nghiệp.\\
+\\
+\textbf{Chương 11: Tài liệu tham khảo}\\
+Danh mục các nguồn tài liệu, bài báo khoa học và tài liệu kỹ thuật được sử dụng trong suốt quá trình thực hiện đồ án.
