@@ -157,9 +157,14 @@ def train_rl_agent(
         # Bổ sung log phân bổ hành động (Class counts)
         action_counts_str = " | ".join([f"C{i}:{int(action_counts[i])}" for i in range(NUM_CLASSES)])
         print(f"📊 Action Distribution: {action_counts_str}")
-        # Bổ sung log chỉ số đánh giá (Recall) cho từng Class
+        # Bổ sung log chỉ số đánh giá (Recall, Precision, F1) cho từng Class
         recall_str = " | ".join([f"C{i}:{ep_recall[i]:.2f}" for i in range(NUM_CLASSES)])
-        print(f"📈 Per-Class Recall  : {recall_str}")
+        precision_str = " | ".join([f"C{i}:{ep_precision[i]:.2f}" for i in range(NUM_CLASSES)])
+        f1_str = " | ".join([f"C{i}:{ep_f1[i]:.2f}" for i in range(NUM_CLASSES)])
+        
+        print(f"📈 Per-Class Recall   : {recall_str}")
+        print(f"🎯 Per-Class Precision: {precision_str}")
+        print(f"💎 Per-Class F1-Score : {f1_str}")
 
         if writer is not None:
             writer.add_scalar("rl/train/episode_reward", total_reward, episode + 1)
