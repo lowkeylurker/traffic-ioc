@@ -26,10 +26,11 @@ from src.rl.artifacts import (
     get_rl_history_path,
     get_rl_metrics_path,
     get_rl_preprocessing_artifacts_path,
+    get_rl_evaluation_predictions_path,
 )
 from src.rl.agents.dqn_agent import DQNAgent
 from src.rl.environments.traffic_env import TrafficForecastingEnv
-from src.rl.inference.evaluator import evaluate_policy_net
+from src.rl.inference.evaluator import evaluate_policy_net, get_policy_predictions
 from src.rl.training.loop import train_rl_agent
 from src.utils.data_loader import load_bulk_corridor_data, load_bulk_segment_data
 from src.utils.preprocessing import TrafficScaler
@@ -521,6 +522,13 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
 
     # --- EVALUATION ---
     eval_summary = evaluate_policy_net(agent.policy_net, eval_loader, device=device)
+
+    # --- EXPORT PREDICTIONS FOR ANALYSIS (Notebook 06) ---
+    logger.info("🎬 Exporting evaluation predictions for detailed analysis...")
+    eval_df = get_policy_predictions(agent.policy_net, eval_loader, device=device)
+    predictions_path = get_rl_evaluation_predictions_path()
+    eval_df.to_parquet(predictions_path, index=False)
+    logger.info(f"📊 Predictions exported to: {predictions_path}")
     print(f"✅ Eval | acc={eval_summary.get('accuracy', 0.0):.4f} | macro_f1={eval_summary.get('macro_f1', 0.0):.4f}")
 
     # --- SAVE RESULTS ---

@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Literal
 
-ArtifactKind = Literal["checkpoints", "metrics", "histories", "preprocessing", "benchmark", "predictions", "logs"]
+ArtifactKind = Literal["checkpoints", "metrics", "histories", "preprocessing", "benchmark", "predictions", "logs", "evaluation"]
 
 
 def get_rl_artifact_root() -> Path:
@@ -28,7 +28,7 @@ def get_rl_artifact_root() -> Path:
 
 def ensure_rl_artifact_dirs() -> None:
     root = get_rl_artifact_root()
-    for kind in ("checkpoints", "metrics", "histories", "preprocessing", "benchmark", "predictions", "logs"):
+    for kind in ("checkpoints", "metrics", "histories", "preprocessing", "benchmark", "predictions", "logs", "evaluation"):
         (root / kind).mkdir(parents=True, exist_ok=True)
 
 
@@ -69,6 +69,11 @@ def get_rl_preprocessing_artifacts_path(mode: str = "pure", run_id: str | None =
     ensure_rl_artifact_dirs()
     suffix = f"_{run_id}" if run_id else ""
     return get_rl_artifact_root() / "preprocessing" / f"rl_{mode}_preprocessing_artifacts{suffix}.pkl"
+
+
+def get_rl_evaluation_predictions_path() -> Path:
+    ensure_rl_artifact_dirs()
+    return get_rl_artifact_root() / "evaluation" / "predictions.parquet"
 
 
 def get_rl_prediction_output_dir() -> Path:

@@ -66,3 +66,30 @@ def evaluate_policy_net(policy_net, dataloader, device: str = "cpu") -> dict:
         "per_class_metrics": per_class,
         "confusion_matrix": cm.tolist(),
     }
+
+
+def get_policy_predictions(policy_net, dataloader, device: str = "cpu"):
+    """Run inference on a dataloader and return raw y_true, y_pred in a DataFrame."""
+    import pandas as pd
+    was_training = bool(policy_net.training)
+    policy_net.eval()
+
+    all_preds: list[int] = []
+    all_targets: list[int] = []
+
+    with torch.no_grad():
+        for batch in dataloader:
+            x_dynamic, x_static, x_cat, y_target = [tensor.to(device) for tensor in batch]
+            logits = policy_net(x_dynamic, x_static, x_cat)
+            preds = torch.argmax(logits, dim=1)
+
+            all_preds.extend(preds.cpu().numpy().astype(int).tolist())
+            all_targets.extend(y_target.cpu().numpy().astype(int).tolist())
+
+    if was_training:
+        policy_net.train()
+
+    return pd.DataFrame({
+        "y_true": all_targets,
+        "y_pred": all_preds
+    })
