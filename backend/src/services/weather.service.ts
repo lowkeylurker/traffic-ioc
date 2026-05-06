@@ -91,19 +91,19 @@ export class WeatherService {
 
       const warehouseRows = await prisma.$queryRaw<WarehouseWeatherRow[]>`
         WITH latest_minute AS (
-          SELECT DATE_TRUNC('minute', MAX(timestamp)) AS minute_ts
+          SELECT DATE_TRUNC('minute', MAX(inserted_at)) AS minute_ts
           FROM fact_traffic_flow
-          WHERE timestamp IS NOT NULL
+          WHERE inserted_at IS NOT NULL
         ),
         dominant_weather AS (
           SELECT
             ftf.weather_key,
-            MAX(ftf.timestamp) AS latest_timestamp,
+            MAX(ftf.inserted_at) AS latest_timestamp,
             COUNT(*) AS sample_count,
             SUM(COALESCE(ftf.pcu_volume, 0)) AS weighted_volume
           FROM fact_traffic_flow ftf
           INNER JOIN latest_minute lm
-            ON DATE_TRUNC('minute', ftf.timestamp) = lm.minute_ts
+            ON DATE_TRUNC('minute', ftf.inserted_at) = lm.minute_ts
           WHERE ftf.weather_key IS NOT NULL
           GROUP BY ftf.weather_key
           ORDER BY weighted_volume DESC, sample_count DESC, ftf.weather_key ASC
@@ -168,11 +168,11 @@ export class WeatherService {
           SELECT DISTINCT ON (segment_key)
             segment_key,
             weather_key,
-            timestamp
+            inserted_at
           FROM fact_traffic_flow
-          WHERE timestamp >= NOW() - INTERVAL '15 minutes'
-            AND timestamp::date = CURRENT_DATE
-          ORDER BY segment_key, timestamp DESC
+          WHERE inserted_at >= NOW() - INTERVAL '15 minutes'
+            AND inserted_at::date = CURRENT_DATE
+          ORDER BY segment_key, inserted_at DESC
         )
         SELECT
           s.segment_key::text as "segmentId",
@@ -181,7 +181,7 @@ export class WeatherService {
           dw.weather_id as "weatherId",
           dw.main_category as "weatherCategory",
           dw.severity_level as "severityLevel",
-          lf.timestamp as "timestamp"
+          lf.inserted_at as "timestamp"
         FROM dim_segment s
         LEFT JOIN dim_way w ON w.way_key = s.way_key
         LEFT JOIN dim_road r ON r.road_key = w.road_key
@@ -226,11 +226,11 @@ export class WeatherService {
           SELECT DISTINCT ON (ftf.segment_key)
             ftf.segment_key,
             ftf.weather_key,
-            ftf.timestamp
+            ftf.inserted_at
           FROM fact_traffic_flow ftf
-          WHERE ftf.timestamp >= NOW() - INTERVAL '15 minutes'
+          WHERE ftf.inserted_at >= NOW() - INTERVAL '15 minutes'
             AND ftf.weather_key IS NOT NULL
-          ORDER BY ftf.segment_key, ftf.timestamp DESC
+          ORDER BY ftf.segment_key, ftf.inserted_at DESC
         ),
         segment_weather AS (
           SELECT
@@ -246,7 +246,7 @@ export class WeatherService {
             dw.name AS weather_name,
             dw.main_category AS weather_category,
             dw.severity_level,
-            lf.timestamp
+            lf.inserted_at
           FROM latest_flow lf
           INNER JOIN dim_segment ds ON ds.segment_key = lf.segment_key
           INNER JOIN dim_weather dw ON dw.weather_key = lf.weather_key
@@ -278,13 +278,13 @@ export class WeatherService {
             sw.weather_name,
             sw.weather_category,
             sw.severity_level,
-            sw.timestamp,
+            sw.inserted_at,
             ROW_NUMBER() OVER (
               PARTITION BY vc.cell_id
-              ORDER BY sw.severity_level ASC NULLS LAST, sw.timestamp DESC
+              ORDER BY sw.severity_level ASC NULLS LAST, sw.inserted_at DESC
             ) AS rn,
             COUNT(*) OVER (PARTITION BY vc.cell_id)::int AS segment_count,
-            MAX(sw.timestamp) OVER (PARTITION BY vc.cell_id) AS latest_timestamp
+            MAX(sw.inserted_at) OVER (PARTITION BY vc.cell_id) AS latest_timestamp
           FROM voronoi_cells vc
           INNER JOIN segment_weather sw
             ON ST_Intersects(vc.cell_geom, sw.point_geom)

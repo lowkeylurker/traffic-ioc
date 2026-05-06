@@ -101,11 +101,11 @@ export class ReliabilityMartService {
         SELECT
           bcs.corridor_key,
           f.segment_key,
-          f.timestamp,
+          f.inserted_at,
           CASE
-            WHEN EXTRACT(HOUR FROM f.timestamp) BETWEEN 7 AND 9 THEN 'AM_PEAK'
-            WHEN EXTRACT(HOUR FROM f.timestamp) BETWEEN 16 AND 19 THEN 'PM_PEAK'
-            WHEN EXTRACT(HOUR FROM f.timestamp) BETWEEN 10 AND 15 OR EXTRACT(HOUR FROM f.timestamp) BETWEEN 20 AND 23 THEN 'OFF_PEAK'
+            WHEN EXTRACT(HOUR FROM f.inserted_at) BETWEEN 7 AND 9 THEN 'AM_PEAK'
+            WHEN EXTRACT(HOUR FROM f.inserted_at) BETWEEN 16 AND 19 THEN 'PM_PEAK'
+            WHEN EXTRACT(HOUR FROM f.inserted_at) BETWEEN 10 AND 15 OR EXTRACT(HOUR FROM f.inserted_at) BETWEEN 20 AND 23 THEN 'OFF_PEAK'
             ELSE NULL
           END AS time_window,
           CASE
@@ -118,8 +118,8 @@ export class ReliabilityMartService {
         FROM fact_traffic_flow f
         INNER JOIN dim_segment s ON s.segment_key = f.segment_key
         INNER JOIN bridge_corridor_segment bcs ON bcs.segment_key = f.segment_key
-        WHERE f.timestamp >= $1::timestamp
-          AND f.timestamp < $2::timestamp
+        WHERE f.inserted_at >= $1::timestamp
+          AND f.inserted_at < $2::timestamp
           AND f.is_closed IS DISTINCT FROM true
       ),
       metric_source AS (
@@ -158,9 +158,9 @@ export class ReliabilityMartService {
         FROM fact_traffic_flow f
         INNER JOIN dim_segment s ON s.segment_key = f.segment_key
         INNER JOIN bridge_corridor_segment bcs ON bcs.segment_key = f.segment_key
-        WHERE f.timestamp >= $1::timestamp
-          AND f.timestamp < $2::timestamp
-          AND EXTRACT(HOUR FROM f.timestamp) BETWEEN 0 AND 4
+        WHERE f.inserted_at >= $1::timestamp
+          AND f.inserted_at < $2::timestamp
+          AND EXTRACT(HOUR FROM f.inserted_at) BETWEEN 0 AND 4
           AND f.is_closed IS DISTINCT FROM true
       ),
       freeflow_agg AS (
