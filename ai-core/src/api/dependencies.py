@@ -21,6 +21,7 @@ def _resolve_horizon_paths(prediction_horizon_minutes: int) -> tuple[str, str]:
 
 	# Preferred RL run-id aligned with horizon; keep backward-compatible fallback.
 	rl_run_candidates = [
+		f"notebook_warmstart_h{prediction_horizon_minutes}",
 		f"manual_h{prediction_horizon_minutes}",
 		f"warmstart_manual_h{prediction_horizon_minutes}",
 		None,
