@@ -55,7 +55,7 @@ const BASE_JOIN = `
 `;
 
 const buildFilters = (params: HistoryExportParams) => {
-  const conditions: string[] = ['f.inserted_at >= $1::timestamp', 'f.inserted_at <= $2::timestamp'];
+  const conditions: string[] = ['f.timestamp >= $1::timestamp', 'f.timestamp <= $2::timestamp'];
   const values: Array<string | number> = [params.startDateTime, params.endDateTime];
 
   if (params.roadKey) {
@@ -86,7 +86,7 @@ export class HistoryService {
       `
       WITH filtered_history AS (
         SELECT
-          f.inserted_at AS "timestamp",
+          f.timestamp AS "timestamp",
           r.name AS "roadName",
           l.district AS "district",
           s.segment_key::text AS "segmentId",
@@ -125,7 +125,7 @@ export class HistoryService {
 
     const sql = `
       SELECT
-        f.inserted_at AS "timestamp",
+        f.timestamp AS "timestamp",
         r.name AS "roadName",
         l.district AS "district",
         s.segment_key::text AS "segmentId",
@@ -136,7 +136,7 @@ export class HistoryService {
       ${BASE_JOIN}
       LEFT JOIN dim_location l ON l.location_key = s.location_key
       ${where}
-      ORDER BY f.inserted_at DESC
+      ORDER BY f.timestamp DESC
     `;
 
     const client = await pool.connect();

@@ -196,14 +196,14 @@ export class AnalyticsService {
         ),
         raw_data AS (
           SELECT
-            EXTRACT(HOUR FROM f.inserted_at)::int AS hour,
-            f.inserted_at::date AS date_val,
-            EXTRACT(ISODOW FROM f.inserted_at)::int AS day_of_week,
+            EXTRACT(HOUR FROM f.timestamp)::int AS hour,
+            f.timestamp::date AS date_val,
+            EXTRACT(ISODOW FROM f.timestamp)::int AS day_of_week,
             (${metric.sqlExpr})::numeric AS metric_value
           FROM fact_traffic_flow f
           WHERE f.segment_key = ANY($1::bigint[])
-            AND f.inserted_at >= ($2::date - INTERVAL '30 days')
-            AND f.inserted_at < CASE
+            AND f.timestamp >= ($2::date - INTERVAL '30 days')
+            AND f.timestamp < CASE
               WHEN $2::date = CURRENT_DATE THEN NOW()
               ELSE ($2::date + INTERVAL '1 day')
             END
@@ -403,12 +403,12 @@ export class AnalyticsService {
       ),
       raw_data AS (
         SELECT
-          f.inserted_at::date AS date_val,
+          f.timestamp::date AS date_val,
           (${metric.sqlExpr})::numeric AS metric_value
         FROM fact_traffic_flow f
         WHERE f.segment_key = ANY($1::bigint[])
-          AND f.inserted_at >= ($2::date - INTERVAL '6 days')
-          AND f.inserted_at < CASE
+          AND f.timestamp >= ($2::date - INTERVAL '6 days')
+          AND f.timestamp < CASE
             WHEN $2::date = CURRENT_DATE THEN NOW()
             ELSE ($2::date + INTERVAL '1 day')
           END
@@ -564,8 +564,8 @@ export class AnalyticsService {
             FROM fact_traffic_flow f
             INNER JOIN target_segments ts ON ts.segment_key = f.segment_key
             INNER JOIN dim_segment s ON s.segment_key = f.segment_key
-            WHERE f.inserted_at >= $1::date
-              AND f.inserted_at < ($1::date + INTERVAL '1 day')
+            WHERE f.timestamp >= $1::date
+              AND f.timestamp < ($1::date + INTERVAL '1 day')
             GROUP BY COALESCE(s.segment_id_source::text, f.segment_key::text)
             ORDER BY "totalDelay" DESC
             LIMIT 10
@@ -585,8 +585,8 @@ export class AnalyticsService {
               SUM(COALESCE(f.delay_seconds, 0))::numeric AS "totalDelay"
             FROM fact_traffic_flow f
             INNER JOIN dim_segment s ON s.segment_key = f.segment_key
-            WHERE f.inserted_at >= $1::date
-              AND f.inserted_at < ($1::date + INTERVAL '1 day')
+            WHERE f.timestamp >= $1::date
+              AND f.timestamp < ($1::date + INTERVAL '1 day')
             GROUP BY COALESCE(s.segment_id_source::text, f.segment_key::text)
             ORDER BY "totalDelay" DESC
             LIMIT 10

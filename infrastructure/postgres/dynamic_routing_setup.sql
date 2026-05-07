@@ -99,16 +99,16 @@ traffic_with_confidence AS (
         segment_key,
         current_speed_kmh,
         free_flow_speed_kmh,
-        inserted_at AS timestamp,
+        timestamp,
         -- C = e^(-lambda * dt) | lambda = 0.046 (Độ tin cậy giảm 50% sau 15p)
-        EXP(-0.046 * (EXTRACT(EPOCH FROM (NOW() - inserted_at)) / 60.0)) as confidence,
+        EXP(-0.046 * (EXTRACT(EPOCH FROM (NOW() - timestamp)) / 60.0)) as confidence,
         -- Vận tốc thực tế sau khi xử lý độ tin cậy (Decay)
         -- Càng lâu không có dữ liệu, vận tốc càng tiến dần về Free-flow
         -- Giới hạn vận tốc tối thiểu 5km/h để tránh thời gian di chuyển vô tận
-        GREATEST(5.0, (COALESCE(free_flow_speed_kmh, 40) + (current_speed_kmh - COALESCE(free_flow_speed_kmh, 40)) * EXP(-0.046 * (EXTRACT(EPOCH FROM (NOW() - inserted_at)) / 60.0)))) as adjusted_speed
+        GREATEST(5.0, (COALESCE(free_flow_speed_kmh, 40) + (current_speed_kmh - COALESCE(free_flow_speed_kmh, 40)) * EXP(-0.046 * (EXTRACT(EPOCH FROM (NOW() - timestamp)) / 60.0)))) as adjusted_speed
     FROM fact_traffic_flow
-    WHERE inserted_at >= NOW() - INTERVAL '2 hours' 
-    ORDER BY segment_key, inserted_at DESC
+    WHERE timestamp >= NOW() - INTERVAL '2 hours' 
+    ORDER BY segment_key, timestamp DESC
 ),
 decay_traffic AS (
     SELECT 
