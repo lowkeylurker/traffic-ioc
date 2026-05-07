@@ -469,7 +469,7 @@ export class MapService {
             FROM bridge_corridor_segment bcs
             WHERE bcs.segment_key = f.segment_key
           )                     AS "isCorridor",
-          f.timestamp            AS timestamp
+          f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp
         FROM latest_flow f
         LEFT JOIN dim_segment s ON f.segment_key = s.segment_key
         LEFT JOIN dim_way w ON w.way_key = s.way_key
@@ -510,7 +510,7 @@ export class MapService {
           f.traffic_index        AS "losScore",
           f.pcu_volume           AS "pcuValue",
           NULL::float            AS "occupancyRate",
-          f.timestamp            AS timestamp
+          f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp
         FROM dim_segment s
         LEFT JOIN dim_way w ON w.way_key = s.way_key
         LEFT JOIN dim_road r ON r.road_key = w.road_key
@@ -572,7 +572,7 @@ export class MapService {
 
       const result = await query(
         `
-        SELECT DISTINCT timestamp AS snapshot_time
+        SELECT DISTINCT timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS snapshot_time
         FROM fact_traffic_flow
         ${whereClause}
         ORDER BY snapshot_time DESC
