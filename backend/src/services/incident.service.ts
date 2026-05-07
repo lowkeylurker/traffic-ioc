@@ -458,7 +458,7 @@ export class IncidentService {
           ftf.segment_key,
           ftf.current_speed_kmh
         FROM fact_traffic_flow ftf
-        ORDER BY ftf.segment_key, ftf.inserted_at DESC
+        ORDER BY ftf.segment_key, ftf.timestamp DESC
       ),
       candidates AS (
         SELECT
@@ -525,7 +525,7 @@ export class IncidentService {
             ftf.segment_key,
             ftf.current_speed_kmh
           FROM fact_traffic_flow ftf
-          ORDER BY ftf.segment_key, ftf.inserted_at DESC
+          ORDER BY ftf.segment_key, ftf.timestamp DESC
         ),
         candidates AS (
           SELECT
