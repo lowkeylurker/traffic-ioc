@@ -74,7 +74,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # STAGE 5: EXPOSE & ENTRY POINT
 # ════════════════════════════════════════════════════════════════════════════════
 # Expose port
-EXPOSE 5000
+EXPOSE 80
 
 # Default command: Run FastAPI server
 CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "5000"]
