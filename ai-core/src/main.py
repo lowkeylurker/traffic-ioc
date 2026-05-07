@@ -15,7 +15,14 @@ except ImportError:
 # Load biến môi trường từ tệp .env
 load_dotenv()
 
-app = FastAPI(title="Smart Traffic AI-Core Health Checker")
+app = FastAPI(title="Smart Traffic AI-Core")
+
+# --- REGISTER ROUTERS ---
+from src.api.routes.congestion import internal_router as congestion_internal_router
+from src.api.routes.congestion import router as congestion_router
+
+app.include_router(congestion_router)
+app.include_router(congestion_internal_router)
 
 
 def _get_allowed_origins() -> list[str]:

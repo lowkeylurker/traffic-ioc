@@ -90,12 +90,21 @@ def _try_predict_single_segment(
 		cached = predict_cache[cache_key]
 		return cached.model_copy(deep=True) if cached is not None else None
 
-	df_segment_result = forecast_for_request(
-		predictor=predictor,
-		segment_ids=[segment_id],
-		request_time=request_time_str,
-		resample_minutes=horizon_minutes,
-	)
+	try:
+		df_segment_result = forecast_for_request(
+			predictor=predictor,
+			segment_ids=[segment_id],
+			request_time=request_time_str,
+			resample_minutes=horizon_minutes,
+		)
+	except Exception as exc:
+		# Nếu thiếu dữ liệu, trả về None để logic fallback tiếp tục thử các segment khác
+		if "Không có dữ liệu" in str(exc):
+			if predict_cache is not None:
+				predict_cache[cache_key] = None
+			return None
+		raise exc
+
 	if not isinstance(df_segment_result, pd.DataFrame) or df_segment_result.empty:
 		if predict_cache is not None:
 			predict_cache[cache_key] = None
@@ -181,39 +190,39 @@ def _fallback_predict_in_same_corridor(
 
 
 def _fallback_predict_global(
-	predictor: RLTrafficPredictor,
-	target_segment_id: int,
-	request_time_str: str,
-	horizon_minutes: int,
-	predict_cache: SegmentPredictCache,
+    predictor: RLTrafficPredictor,
+    target_segment_id: int,
+    request_time_str: str,
+    horizon_minutes: int,
+    predict_cache: SegmentPredictCache,
 ) -> Tuple[Optional[CongestionPredictionItem], str]:
-	"""Fallback to nearest segments in the entire network (no corridor required)."""
-	candidates = get_nearest_segments_global(segment_id=target_segment_id, limit=FALLBACK_NEAREST_LIMIT)
-	if not candidates:
-		return None, REASON_FALLBACK_NO_CANDIDATE
+    """Fallback to nearest segments in the entire network (no corridor required)."""
+    candidates = get_nearest_segments_global(segment_id=target_segment_id, limit=FALLBACK_NEAREST_LIMIT)
+    if not candidates:
+        return None, REASON_FALLBACK_NO_CANDIDATE
 
-	for candidate_segment_id, distance_m in candidates:
-		if distance_m > FALLBACK_MAX_DISTANCE_M:
-			continue
+    for candidate_segment_id, distance_m in candidates:
+        if distance_m > FALLBACK_MAX_DISTANCE_M:
+            continue
 
-		candidate_item = _try_predict_single_segment(
-			predictor=predictor,
-			segment_id=candidate_segment_id,
-			request_time_str=request_time_str,
-			horizon_minutes=horizon_minutes,
-			predict_cache=predict_cache,
-		)
-		if candidate_item is None:
-			continue
+        candidate_item = _try_predict_single_segment(
+            predictor=predictor,
+            segment_id=candidate_segment_id,
+            request_time_str=request_time_str,
+            horizon_minutes=horizon_minutes,
+            predict_cache=predict_cache,
+        )
+        if candidate_item is None:
+            continue
 
-		candidate_item.segment_id = target_segment_id
-		candidate_item.used_fallback = True
-		candidate_item.source_segment_id = candidate_segment_id
-		candidate_item.fallback_distance_m = round(float(distance_m), 2)
-		candidate_item.reason_code = REASON_FALLBACK_GLOBAL_NEAREST
-		return candidate_item, REASON_FALLBACK_GLOBAL_NEAREST
+        candidate_item.segment_id = target_segment_id
+        candidate_item.used_fallback = True
+        candidate_item.source_segment_id = candidate_segment_id
+        candidate_item.fallback_distance_m = round(float(distance_m), 2)
+        candidate_item.reason_code = REASON_FALLBACK_GLOBAL_NEAREST
+        return candidate_item, REASON_FALLBACK_GLOBAL_NEAREST
 
-	return None, REASON_FALLBACK_NO_VALID_WINDOW
+    return None, REASON_FALLBACK_NO_VALID_WINDOW
 
 
 @router.post(
@@ -296,114 +305,118 @@ def _fallback_predict_global(
 	},
 )
 def predict_congestion_batch(
-	payload: CongestionBatchPredictionRequest,
-	predictor: RLTrafficPredictor = Depends(get_warmstart_rl_predictor),
+    payload: CongestionBatchPredictionRequest,
+    predictor: RLTrafficPredictor = Depends(get_warmstart_rl_predictor),
 ) -> CongestionBatchPredictionResponse:
-	# Use predictor from Depends; if horizon doesn't match default (15), fetch correct one.
-	if payload.prediction_horizon_minutes != 15:
-		predictor = get_warmstart_rl_predictor_by_horizon(payload.prediction_horizon_minutes)
-	segment_ids = list(dict.fromkeys(payload.segment_ids))
-	if not segment_ids:
-		raise HTTPException(status_code=400, detail="segment_ids must not be empty")
-	if any(segment_id <= 0 for segment_id in segment_ids):
-		raise HTTPException(status_code=400, detail="segment_ids must be positive integers")
+    # Use predictor from Depends; if horizon doesn't match default (15), fetch correct one.
+    if payload.prediction_horizon_minutes != 15:
+        predictor = get_warmstart_rl_predictor_by_horizon(payload.prediction_horizon_minutes)
+    segment_ids = list(dict.fromkeys(payload.segment_ids))
+    if not segment_ids:
+        raise HTTPException(status_code=400, detail="segment_ids must not be empty")
+    if any(segment_id <= 0 for segment_id in segment_ids):
+        raise HTTPException(status_code=400, detail="segment_ids must be positive integers")
 
-	request_time = payload.request_time or datetime.utcnow()
-	request_time_str = request_time.strftime("%Y-%m-%d %H:%M:%S")
+    request_time = payload.request_time or datetime.utcnow()
+    request_time_str = request_time.strftime("%Y-%m-%d %H:%M:%S")
 
-	try:
-		df_results = forecast_for_request(
-			predictor=predictor,
-			segment_ids=segment_ids,
-			request_time=request_time_str,
-			resample_minutes=payload.prediction_horizon_minutes,
-		)
-	except HTTPException:
-		raise
-	except Exception as exc:
-		raise HTTPException(status_code=500, detail=f"Failed to run warmstart RL inference: {exc}") from exc
+    try:
+        df_results = forecast_for_request(
+            predictor=predictor,
+            segment_ids=segment_ids,
+            request_time=request_time_str,
+            resample_minutes=payload.prediction_horizon_minutes,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # Nếu chỉ đơn giản là thiếu dữ liệu, trả về DataFrame rỗng thay vì crash 500
+        if "Không có dữ liệu" in str(exc):
+            df_results = pd.DataFrame()
+        else:
+            raise HTTPException(status_code=500, detail=f"Failed to run warmstart RL inference: {exc}") from exc
 
-	by_segment: dict[int, CongestionPredictionItem] = {}
-	corridor_cache: CorridorCache = {}
-	candidate_cache: CandidateCache = {}
-	predict_cache: SegmentPredictCache = {}
-	if isinstance(df_results, pd.DataFrame) and not df_results.empty:
-		for _, row in df_results.iterrows():
-			sid = int(row["Segment_ID"])
-			status_description = str(row.get("Dự báo (15p tới)", ""))
-			level = _extract_level(status_description)
-			forecast_for_time = pd.to_datetime(row.get("Forecast_For_Time")).to_pydatetime()
+    by_segment: dict[int, CongestionPredictionItem] = {}
+    corridor_cache: CorridorCache = {}
+    candidate_cache: CandidateCache = {}
+    predict_cache: SegmentPredictCache = {}
+    if isinstance(df_results, pd.DataFrame) and not df_results.empty:
+        for _, row in df_results.iterrows():
+            sid = int(row["Segment_ID"])
+            status_description = str(row.get("Dự báo (15p tới)", ""))
+            level = _extract_level(status_description)
+            forecast_for_time = pd.to_datetime(row.get("Forecast_For_Time")).to_pydatetime()
 
-			by_segment[sid] = CongestionPredictionItem(
-				segment_id=sid,
-				congestion_level=level,
-				status="ok",
-				status_description=status_description,
-				forecast_for_time=forecast_for_time,
-				reason_code=REASON_DIRECT,
-				model_profile="warmstart",
-				used_fallback=False,
-				source_segment_id=sid,
-				fallback_distance_m=0.0,
-			)
+            by_segment[sid] = CongestionPredictionItem(
+                segment_id=sid,
+                congestion_level=level,
+                status="ok",
+                status_description=status_description,
+                forecast_for_time=forecast_for_time,
+                reason_code=REASON_DIRECT,
+                model_profile="warmstart",
+                used_fallback=False,
+                source_segment_id=sid,
+                fallback_distance_m=0.0,
+            )
 
-	items: list[CongestionPredictionItem] = []
-	for sid in segment_ids:
-		if sid in by_segment:
-			items.append(by_segment[sid])
-		else:
-			fallback_item, fallback_reason = _fallback_predict_in_same_corridor(
-				predictor=predictor,
-				target_segment_id=sid,
-				request_time_str=request_time_str,
-				horizon_minutes=payload.prediction_horizon_minutes,
-				corridor_cache=corridor_cache,
-				candidate_cache=candidate_cache,
-				predict_cache=predict_cache,
-			)
-			if fallback_item is not None:
-				items.append(fallback_item)
-				continue
+    items: list[CongestionPredictionItem] = []
+    for sid in segment_ids:
+        if sid in by_segment:
+            items.append(by_segment[sid])
+        else:
+            fallback_item, fallback_reason = _fallback_predict_in_same_corridor(
+                predictor=predictor,
+                target_segment_id=sid,
+                request_time_str=request_time_str,
+                horizon_minutes=payload.prediction_horizon_minutes,
+                corridor_cache=corridor_cache,
+                candidate_cache=candidate_cache,
+                predict_cache=predict_cache,
+            )
+            if fallback_item is not None:
+                items.append(fallback_item)
+                continue
 
-			# --- STEP 3: GLOBAL SPATIAL FALLBACK (No corridor mapping) ---
-			fallback_item, fallback_reason = _fallback_predict_global(
-				predictor=predictor,
-				target_segment_id=sid,
-				request_time_str=request_time_str,
-				horizon_minutes=payload.prediction_horizon_minutes,
-				predict_cache=predict_cache,
-			)
-			if fallback_item is not None:
-				items.append(fallback_item)
-				continue
+            # --- STEP 3: GLOBAL SPATIAL FALLBACK (No corridor mapping) ---
+            fallback_item, fallback_reason = _fallback_predict_global(
+                predictor=predictor,
+                target_segment_id=sid,
+                request_time_str=request_time_str,
+                horizon_minutes=payload.prediction_horizon_minutes,
+                predict_cache=predict_cache,
+            )
+            if fallback_item is not None:
+                items.append(fallback_item)
+                continue
 
-			items.append(
-				CongestionPredictionItem(
-					segment_id=sid,
-					congestion_level=None,
-					status="no_data",
-					status_description=None,
-					forecast_for_time=None,
-					reason_code=fallback_reason or REASON_NO_VALID_WINDOW,
-					model_profile="warmstart",
-					used_fallback=False,
-					source_segment_id=None,
-					fallback_distance_m=None,
-				)
-			)
+            items.append(
+                CongestionPredictionItem(
+                    segment_id=sid,
+                    congestion_level=None,
+                    status="no_data",
+                    status_description=None,
+                    forecast_for_time=None,
+                    reason_code=fallback_reason or REASON_NO_VALID_WINDOW,
+                    model_profile="warmstart",
+                    used_fallback=False,
+                    source_segment_id=None,
+                    fallback_distance_m=None,
+                )
+            )
 
-	success_count = sum(1 for item in items if item.status == "ok")
-	no_data_count = sum(1 for item in items if item.status == "no_data")
+    success_count = sum(1 for item in items if item.status == "ok")
+    no_data_count = sum(1 for item in items if item.status == "no_data")
 
-	return CongestionBatchPredictionResponse(
-		request_time=request_time,
-		prediction_horizon_minutes=payload.prediction_horizon_minutes,
-		model_profile="warmstart",
-		total_segments=len(segment_ids),
-		success_count=success_count,
-		no_data_count=no_data_count,
-		items=items,
-	)
+    return CongestionBatchPredictionResponse(
+        request_time=request_time,
+        prediction_horizon_minutes=payload.prediction_horizon_minutes,
+        model_profile="warmstart",
+        total_segments=len(segment_ids),
+        success_count=success_count,
+        no_data_count=no_data_count,
+        items=items,
+    )
 
 
 @internal_router.get(
