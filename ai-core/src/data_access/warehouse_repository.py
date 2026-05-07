@@ -96,6 +96,48 @@ def get_nearest_segments_in_corridor(
     ]
 
 
+def get_nearest_segments_global(
+    segment_id: int,
+    limit: int = 8,
+) -> list[tuple[int, float]]:
+    """Return nearest candidate segments across the entire network based on GPS distance."""
+    engine = get_engine()
+    query = text(
+        """
+        SELECT
+            cand.segment_key AS candidate_segment_id,
+            ST_Distance(src.geometry_center::geography, cand.geometry_center::geography) AS distance_m
+        FROM dim_segment cand
+        JOIN dim_segment src ON src.segment_key = :segment_id
+        WHERE cand.segment_key <> :segment_id
+          AND src.geometry_center IS NOT NULL
+          AND cand.geometry_center IS NOT NULL
+          AND EXISTS (
+              SELECT 1
+              FROM fact_traffic_flow f
+              WHERE f.segment_key = cand.segment_key
+              LIMIT 1
+          )
+        ORDER BY distance_m ASC
+        LIMIT :limit
+        """
+    )
+    df = pd.read_sql_query(
+        query,
+        engine,
+        params={
+            "segment_id": int(segment_id),
+            "limit": int(limit),
+        },
+    )
+    if df.empty:
+        return []
+    return [
+        (int(row["candidate_segment_id"]), float(row["distance_m"]))
+        for _, row in df.iterrows()
+    ]
+
+
 def get_benchmark_segment_pool(limit: int = 5000) -> list[int]:
     """Return a real segment pool from warehouse traffic facts for benchmark sampling."""
     engine = get_engine()

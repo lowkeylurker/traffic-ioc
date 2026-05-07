@@ -17,6 +17,7 @@ from src.data_access import (
 	get_benchmark_segment_pool,
 	get_corridors_by_segment,
 	get_nearest_segments_in_corridor,
+	get_nearest_segments_global,
 )
 from src.rl.inference.predictor import RLTrafficPredictor, forecast_for_request
 from src.schemas.congestion_rl_schema import (
@@ -40,6 +41,7 @@ REASON_NO_CORRIDOR_MAPPING = "NO_CORRIDOR_MAPPING"
 REASON_FALLBACK_NO_CANDIDATE = "FALLBACK_NO_CANDIDATE"
 REASON_FALLBACK_DISTANCE_EXCEEDED = "FALLBACK_DISTANCE_EXCEEDED"
 REASON_FALLBACK_NO_VALID_WINDOW = "FALLBACK_NO_VALID_WINDOW"
+REASON_FALLBACK_GLOBAL_NEAREST = "FALLBACK_GLOBAL_NEAREST"
 
 
 SegmentPredictCache = dict[tuple[int, str, int], Optional[CongestionPredictionItem]]
@@ -176,6 +178,42 @@ def _fallback_predict_in_same_corridor(
 	if found_candidate_within_distance:
 		return None, REASON_FALLBACK_NO_VALID_WINDOW
 	return None, REASON_FALLBACK_NO_CANDIDATE
+
+
+def _fallback_predict_global(
+	predictor: RLTrafficPredictor,
+	target_segment_id: int,
+	request_time_str: str,
+	horizon_minutes: int,
+	predict_cache: SegmentPredictCache,
+) -> Tuple[Optional[CongestionPredictionItem], str]:
+	"""Fallback to nearest segments in the entire network (no corridor required)."""
+	candidates = get_nearest_segments_global(segment_id=target_segment_id, limit=FALLBACK_NEAREST_LIMIT)
+	if not candidates:
+		return None, REASON_FALLBACK_NO_CANDIDATE
+
+	for candidate_segment_id, distance_m in candidates:
+		if distance_m > FALLBACK_MAX_DISTANCE_M:
+			continue
+
+		candidate_item = _try_predict_single_segment(
+			predictor=predictor,
+			segment_id=candidate_segment_id,
+			request_time_str=request_time_str,
+			horizon_minutes=horizon_minutes,
+			predict_cache=predict_cache,
+		)
+		if candidate_item is None:
+			continue
+
+		candidate_item.segment_id = target_segment_id
+		candidate_item.used_fallback = True
+		candidate_item.source_segment_id = candidate_segment_id
+		candidate_item.fallback_distance_m = round(float(distance_m), 2)
+		candidate_item.reason_code = REASON_FALLBACK_GLOBAL_NEAREST
+		return candidate_item, REASON_FALLBACK_GLOBAL_NEAREST
+
+	return None, REASON_FALLBACK_NO_VALID_WINDOW
 
 
 @router.post(
@@ -321,6 +359,18 @@ def predict_congestion_batch(
 				horizon_minutes=payload.prediction_horizon_minutes,
 				corridor_cache=corridor_cache,
 				candidate_cache=candidate_cache,
+				predict_cache=predict_cache,
+			)
+			if fallback_item is not None:
+				items.append(fallback_item)
+				continue
+
+			# --- STEP 3: GLOBAL SPATIAL FALLBACK (No corridor mapping) ---
+			fallback_item, fallback_reason = _fallback_predict_global(
+				predictor=predictor,
+				target_segment_id=sid,
+				request_time_str=request_time_str,
+				horizon_minutes=payload.prediction_horizon_minutes,
 				predict_cache=predict_cache,
 			)
 			if fallback_item is not None:

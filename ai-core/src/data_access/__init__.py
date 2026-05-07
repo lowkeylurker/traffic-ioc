@@ -9,6 +9,7 @@ from .warehouse_repository import (
     get_benchmark_segment_pool,
     get_corridors_by_segment,
     get_nearest_segments_in_corridor,
+    get_nearest_segments_global,
     get_segments_in_corridor,
     load_warehouse_rows_by_segments,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "get_benchmark_segment_pool",
     "get_corridors_by_segment",
     "get_nearest_segments_in_corridor",
+    "get_nearest_segments_global",
     "get_segments_in_corridor",
     "is_forecast_mart_enabled",
     "load_forecast_mart_by_segments",
