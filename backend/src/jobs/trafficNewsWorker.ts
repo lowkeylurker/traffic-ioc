@@ -65,8 +65,8 @@ async function fetchTrafficData() {
         SELECT DISTINCT ON (segment_key)
           segment_key, los_level
         FROM fact_traffic_flow
-        WHERE timestamp >= NOW() - INTERVAL '15 minutes'
-          AND timestamp::date = CURRENT_DATE
+        WHERE inserted_at >= NOW() - INTERVAL '15 minutes'
+          AND inserted_at::date = CURRENT_DATE
       )
       SELECT dr.name as road, f.los_level as level
       FROM latest_flow f
