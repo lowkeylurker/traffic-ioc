@@ -38,3 +38,23 @@ build/
 
 # Sensitive runtime state (contains API key identifiers/usage)
 data-pipeline/cache/tomtom_key_pool_state.json
+
+# LaTeX rác
+*.aux
+*.fdb_latexmk
+*.fls
+*.gz
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.bbl
+*.blg
+
+# Output (Tùy chọn: nếu không muốn đẩy PDF lên thì bỏ comment dòng dưới)
+# main.pdf
+
+# OS rác
+.DS_Store
+Thumbs.db

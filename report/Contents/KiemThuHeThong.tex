@@ -1,0 +1,856 @@
+\section{Ứng dụng Schema vào thực tiễn}
+\subsection{Nhóm nghiệp vụ thống kê mô tả và giám sát}
+\subsubsection{A1: Giám sát tốc độ trung bình thời gian thực}
+
+Nhóm nghiệp vụ A1 tập trung vào bài toán giám sát tốc độ trung bình của dòng giao thông theo thời gian thực, với độ trễ xử lý tối đa là 5 phút. Phân tích kỹ thuật được xây dựng dựa trên cấu trúc Kho dữ liệu (Data Warehouse) đã thiết kế, kết hợp giữa mô hình dữ liệu và các thuật toán xử lý nhằm đảm bảo độ chính xác và tính đại diện của chỉ số vận tốc được cung cấp.
+
+\subsubsubsection{Thành phần dữ liệu trong Schema}
+
+Để thực hiện giám sát vận tốc thực tế với độ trễ thấp, hệ thống truy vấn và tích hợp dữ liệu từ các bảng Fact và Dimension sau:\\
+
+Bảng Fact chính: \texttt{fact\_traffic\_flow}
+Bảng \texttt{fact\_traffic\_flow} đóng vai trò là nguồn dữ liệu trung tâm, lưu trữ các chỉ số giao thông được thu thập từ nhiều nguồn khác nhau (AI Camera, TomTom, v.v.). Các thuộc tính được sử dụng bao gồm:
+\begin{itemize}
+    \item \texttt{avg\_speed\_kmh}: Vận tốc trung bình thực tế đo được trên đoạn đường.
+    \item \texttt{travel\_time\_seconds}: Thời gian di chuyển thực tế trên phân đoạn đường.
+    \item \texttt{total\_pcu}: Tổng số đơn vị xe quy đổi (Passenger Car Unit), được sử dụng làm trọng số phản ánh mức độ ảnh hưởng của dòng phương tiện.
+    \item \texttt{segment\_key}: Khóa định danh duy nhất cho phân đoạn đường vật lý.
+    \item \texttt{time\_key}, \texttt{date\_key}: Khóa thời gian dùng để lọc dữ liệu trong cửa sổ thời gian gần thực.
+    \item \texttt{quality\_flag}: Cờ đánh dấu độ tin cậy của dữ liệu, chỉ các bản ghi có giá trị bằng 1 mới được đưa vào tính toán.
+\end{itemize}
+
+Bảng Dimension hỗ trợ: \texttt{dim\_segment}
+Bảng \texttt{dim\_segment} cung cấp thông tin không gian và hình học của từng phân đoạn đường:
+\begin{itemize}
+    \item \texttt{geometry\_linestring}: Dữ liệu hình học dạng đường (LineString), phục vụ việc hiển thị trên bản đồ.
+    \item \texttt{length\_m}: Chiều dài vật lý của phân đoạn đường (đơn vị mét).
+\end{itemize}
+
+Bảng Dimension thời gian: \texttt{dim\_time\_of\_day}
+Bảng \texttt{dim\_time\_of\_day} được sử dụng để gom nhóm dữ liệu theo các khoảng thời gian ngắn:
+\begin{itemize}
+    \item \texttt{bucket\_5min\_key}: Nhóm thời gian 5 phút, đóng vai trò là \textit{grain} (độ hạt) của báo cáo giám sát thời gian thực.
+\end{itemize}
+
+\subsubsubsection{Thuật toán xử lý dữ liệu}
+
+Mục tiêu của thuật toán là cung cấp giá trị vận tốc định lượng chính xác cho từng phân đoạn đường, thay vì chỉ biểu diễn trạng thái giao thông bằng các mức màu định tính. Bài toán cốt lõi cần giải quyết là hội tụ dữ liệu đa nguồn trong một cửa sổ thời gian ngắn ($T = 5$ phút).\\
+
+Vận tốc trung bình không gian
+
+Trong kỹ thuật giao thông, vận tốc trung bình không gian (SMS) phản ánh trạng thái dòng xe chính xác hơn so với vận tốc trung bình thời gian, do SMS dựa trên tổng thời gian các phương tiện chiếm dụng đoạn đường.
+
+Vận tốc trung bình không gian cho mỗi phân đoạn (\texttt{segment\_key}) trong một khoảng thời gian 5 phút (\texttt{bucket\_5min\_key}) được tính theo công thức:
+\[
+V_{SMS} = \frac{n \times L}{\sum_{i=1}^{n} t_i}
+\]
+
+Trong đó:
+\begin{itemize}
+    \item $L$: Chiều dài phân đoạn đường (lấy từ thuộc tính \texttt{length\_m} của bảng \texttt{dim\_segment}).
+    \item $t_i$: Thời gian hành trình của phương tiện thứ $i$ (thuộc tính \texttt{travel\_time\_seconds} trong bảng \texttt{fact\_traffic\_flow}).
+    \item $n$: Tổng số mẫu phương tiện được ghi nhận trong khoảng thời gian 5 phút.
+\end{itemize}
+
+Trọng số hóa theo PCU 
+
+Do đặc thù giao thông hỗn hợp, các phương tiện có kích thước lớn như xe buýt hoặc xe tải có ảnh hưởng đáng kể hơn đến khả năng lưu thông so với xe con. Vì vậy, hệ thống áp dụng cơ chế trọng số hóa theo đơn vị xe quy đổi (PCU) nhằm tính toán vận tốc đại diện cho toàn bộ dòng xe.
+
+Vận tốc trung bình cuối cùng cho nhóm nghiệp vụ A1 được xác định như sau:
+\[
+\bar{V}_{A1} = \frac{\sum_{j=1}^{m} \left( avg\_speed\_kmh_j \times total\_pcu_j \right)}{\sum_{j=1}^{m} total\_pcu_j}
+\]
+
+Trong đó:
+\begin{itemize}
+    \item $avg\_speed\_kmh_j$: Vận tốc đo được từ nguồn dữ liệu thứ $j$.
+    \item $total\_pcu_j$: Lưu lượng xe quy đổi tương ứng của nguồn dữ liệu đó.
+    \item $m$: Số lượng bản ghi dữ liệu hợp lệ được thu thập cho phân đoạn đường trong khoảng thời gian 5 phút.
+\end{itemize}
+
+Thuật toán trên cho phép hệ thống cung cấp chỉ số vận tốc có tính đại diện cao, phản ánh chính xác trạng thái thực tế của dòng giao thông trong điều kiện dữ liệu đa nguồn và thời gian xử lý gần thực.
+
+\subsubsection{A2: Đánh giá Mức độ tắc nghẽn}
+
+Nhóm nghiệp vụ A2 tập trung vào việc đánh giá mức độ tắc nghẽn giao thông trên từng phân đoạn đường, dựa trên hệ thống Kho dữ liệu giao thông hiện hữu. Mục tiêu của nhóm nghiệp vụ này là chuẩn hóa các chỉ số định lượng thu thập được từ dữ liệu thực tế thành các mức độ phục vụ, sau đó ánh xạ sang thang điểm trực quan từ 1 đến 5 nhằm phục vụ cho việc giám sát, phân tích và hỗ trợ ra quyết định.
+
+\subsubsubsection{Thành phần dữ liệu trong Schema}
+
+Để đánh giá mức độ tắc nghẽn một cách khách quan và có cơ sở khoa học, hệ thống cần kết hợp đồng thời các thuộc tính động (phản ánh trạng thái giao thông theo thời gian thực) và các thuộc tính tĩnh (phản ánh năng lực thiết kế của hạ tầng).\\
+
+Bảng Fact chính: \texttt{fact\_traffic\_flow}
+Bảng \texttt{fact\_traffic\_flow} cung cấp các chỉ số giao thông động, bao gồm:
+\begin{itemize}
+    \item \texttt{total\_pcu}: Tổng số đơn vị xe con quy đổi (Passenger Car Unit) đang lưu thông trên phân đoạn đường tại thời điểm quan sát.
+    \item \texttt{avg\_speed\_kmh}: Tốc độ trung bình thực tế của dòng xe.
+    \item \texttt{free\_flow\_speed\_kmh}: Tốc độ dòng xe trong điều kiện tự do, khi không xảy ra ùn tắc.
+    \item \texttt{los\_index}: Chỉ số mức độ phục vụ (LOS từ A đến F) đã được tính toán sơ bộ từ hệ thống nguồn.
+\end{itemize}
+
+Bảng Dimension hạ tầng: \texttt{dim\_waydesign}
+Bảng \texttt{dim\_waydesign} cung cấp thông tin về năng lực thiết kế của hạ tầng giao thông:
+\begin{itemize}
+    \item \texttt{design\_capacity}: Sức chứa thiết kế của đoạn đường, đo bằng số xe quy đổi trên giờ (PCU/giờ).
+    \item \texttt{default\_speed\_limit}: Tốc độ giới hạn tối đa cho phép trên đoạn đường theo quy định.
+\end{itemize}
+
+Bảng Dimension không gian: \texttt{dim\_segment} và \texttt{dim\_location}
+Hai bảng Dimension này cung cấp ngữ cảnh không gian cho việc phân tích:
+\begin{itemize}
+    \item \texttt{segment\_key}: Khóa định danh phân đoạn đường vật lý.
+    \item \texttt{location\_key}: Khóa liên kết đến thông tin vị trí hành chính hoặc điểm giao thông đặc trưng (ví dụ: giao lộ, phường, quận).
+\end{itemize}
+
+\subsubsubsection{Thuật toán và mô hình tính toán}
+
+Việc xác định mức độ tắc nghẽn được xây dựng dựa trên sự kết hợp của hai chỉ số cốt lõi trong kỹ thuật giao thông: tỷ lệ lưu lượng trên sức chứa (Volume-to-Capacity Ratio -- V/C) và chỉ số suy giảm vận tốc (Speed Reduction Index -- SRI). Hai chỉ số này phản ánh đồng thời áp lực hạ tầng và hành vi thực tế của dòng xe.\\
+
+Chỉ số V/C (Volume-to-Capacity Ratio)
+
+Chỉ số V/C thể hiện mối quan hệ giữa lưu lượng giao thông thực tế và sức chứa thiết kế của hạ tầng, được xác định theo công thức:
+\[
+R_{V/C} = \frac{Total\_PCU_{realtime}}{Design\_Capacity}
+\]
+
+Trong đó:
+\begin{itemize}
+    \item $Total\_PCU_{realtime}$ được lấy từ thuộc tính \texttt{total\_pcu} trong bảng \texttt{fact\_traffic\_flow}.
+    \item $Design\_Capacity$ được lấy từ thuộc tính \texttt{design\_capacity} trong bảng \texttt{dim\_waydesign}.
+\end{itemize}
+
+Giá trị $R_{V/C}$ càng tiến gần hoặc vượt quá 1 cho thấy phân đoạn đường đang vận hành ở trạng thái quá tải so với năng lực thiết kế ban đầu.\\
+
+Chỉ số suy giảm vận tốc (Speed Reduction Index -- SRI)
+
+Chỉ số SRI phản ánh mức độ sụt giảm vận tốc của dòng xe so với trạng thái tự do, được tính như sau:
+\[
+SRI = 1 - \left( \frac{Avg\_Speed}{Free\_Flow\_Speed} \right)
+\]
+
+Trong đó:
+\begin{itemize}
+    \item $Avg\_Speed$ là tốc độ trung bình thực tế của dòng xe.
+    \item $Free\_Flow\_Speed$ là tốc độ dòng xe trong điều kiện không bị cản trở.
+\end{itemize}
+
+Giá trị SRI nằm trong khoảng $[0,1]$. Khi SRI tiến dần về 1, dòng xe có xu hướng tiệm cận trạng thái đứng yên, phản ánh mức độ ùn tắc nghiêm trọng.
+
+\subsubsubsection{Logic chuẩn hóa sang thang điểm 1--5}
+
+Dựa trên tổ hợp của hai chỉ số $R_{V/C}$ và $SRI$, hệ thống thực hiện ánh xạ mức độ tắc nghẽn sang thang điểm chuẩn hóa từ 1 đến 5. Mỗi mức điểm tương ứng với một trạng thái nghiệp vụ và mức độ phục vụ (LOS) trong kỹ thuật giao thông, như trình bày trong Bảng~\ref{tab:los_mapping}.
+
+\begin{table}[H]
+\centering
+\caption{Ánh xạ mức độ tắc nghẽn theo thang điểm 1--5}
+\label{tab:los_mapping}
+\begin{tabular}{|c|c|c|p{7cm}|}
+\hline
+\textbf{Mức độ} & \textbf{LOS} & \textbf{Ngưỡng $R_{V/C}$} & \textbf{Mô tả nghiệp vụ} \\ \hline
+1 & A (Free Flow) & $< 0.35$ & Đường rất thông thoáng, phương tiện di chuyển gần với tốc độ giới hạn cho phép. \\ \hline
+2 & B--C (Stable Flow) & $0.35 - 0.70$ & Lưu lượng ổn định, bắt đầu xuất hiện sự tương tác giữa các phương tiện. \\ \hline
+3 & D (Approaching Unstable) & $0.70 - 0.85$ & Lưu lượng lớn, vận tốc giảm rõ rệt, dòng xe kém ổn định. \\ \hline
+4 & E (Unstable Flow) & $0.85 - 1.00$ & Dòng xe di chuyển rất chậm, thường xuyên xảy ra hiện tượng dồn ứ. \\ \hline
+5 & F (Forced Flow) & $> 1.00$ & Ùn tắc nghiêm trọng, phương tiện phải dừng chờ trong thời gian dài. \\ \hline
+\end{tabular}
+\end{table}
+
+Cách tiếp cận này cho phép hệ thống chuyển đổi dữ liệu giao thông phức tạp thành các mức độ dễ diễn giải, đồng thời vẫn bảo toàn cơ sở định lượng và tính khoa học của các chỉ số kỹ thuật.
+
+
+\subsubsection{A3: Phân tích thời gian di chuyển đặc trưng}
+
+Nhóm nghiệp vụ A3 tập trung vào việc phân tích thời gian di chuyển đặc trưng của các lộ trình giao thông dựa trên dữ liệu lịch sử trong hệ thống Kho dữ liệu. Mục tiêu chính của nhóm nghiệp vụ này là xác định giá trị kỳ vọng về thời gian di chuyển cho từng lộ trình và từng khung thời gian cụ thể, từ đó làm mốc tham chiếu cho các báo cáo đánh giá hiệu suất giao thông và so sánh với điều kiện vận hành theo thời gian thực.
+
+\subsubsubsection{Thành phần dữ liệu trong Schema}
+
+Để thiết lập mức chuẩn về thời gian di chuyển, hệ thống cần truy vấn dữ liệu lịch sử và thực hiện phân nhóm theo các chiều thời gian và lộ trình cụ thể. Các bảng dữ liệu được sử dụng bao gồm:\\
+
+Bảng Fact chính: \texttt{fact\_trip\_recommendation}
+Bảng \texttt{fact\_trip\_recommendation} lưu trữ thông tin chi tiết của các chuyến đi đã được thực hiện trong quá khứ. Các thuộc tính được sử dụng trong phân tích bao gồm:
+\begin{itemize}
+    \item \texttt{chosen\_route\_key}: Khóa ngoại liên kết đến lộ trình thực tế mà người dùng đã lựa chọn và di chuyển.
+    \item \texttt{actual\_travel\_time\_min}: Tổng thời gian di chuyển thực tế của chuyến đi, đơn vị phút.
+    \item \texttt{time\_key}, \texttt{date\_key}: Khóa ngoại dùng để liên kết với các chiều thời gian trong Kho dữ liệu.
+\end{itemize}
+
+Bảng Dimension lộ trình: \texttt{dim\_route}
+Bảng \texttt{dim\_route} cung cấp thông tin định danh và mô tả cho từng lộ trình giao thông:
+\begin{itemize}
+    \item \texttt{route\_key}: Định danh duy nhất cho mỗi tuyến đường.
+    \item \texttt{route\_name}: Tên mô tả của lộ trình (ví dụ: ``Nhà -- Công ty'').
+\end{itemize}
+
+Bảng Dimension thời gian trong ngày: \texttt{dim\_time\_of\_day}
+Bảng \texttt{dim\_time\_of\_day} được sử dụng để phân nhóm các chuyến đi theo các khung thời gian ngắn:
+\begin{itemize}
+    \item \texttt{bucket\_15min\_key}: Nhóm thời gian 15 phút, được xem là chuẩn phổ biến trong các nghiên cứu và hệ thống phân tích giao thông quốc tế.
+\end{itemize}
+
+Bảng Dimension ngày: \texttt{dim\_date}
+Bảng \texttt{dim\_date} cung cấp ngữ cảnh lịch:
+\begin{itemize}
+    \item \texttt{day\_of\_week}: Thứ trong tuần (1 = Thứ Hai, $\ldots$, 7 = Chủ Nhật), cho phép phân biệt đặc tính giao thông giữa ngày thường và cuối tuần.
+\end{itemize}
+
+\subsubsubsection{Thuật toán và mô hình tính toán}
+
+Thuật toán trong nhóm nghiệp vụ A3 tập trung vào việc trích xuất giá trị thời gian di chuyển mang tính đặc trưng, bằng cách loại bỏ các yếu tố nhiễu và các biến số cực đoan (outliers) như tai nạn giao thông, điều kiện thời tiết bất thường hoặc các sự kiện đột xuất.\\
+
+Xác định Baseline bằng kỳ vọng toán học
+
+Thời gian di chuyển đặc trưng $T_{Typical}$ được xác định thông qua giá trị kỳ vọng của thời gian di chuyển thực tế trong quá khứ, với điều kiện các chuyến đi có cùng đặc điểm nhận dạng về lộ trình và thời gian. Cụ thể:
+\[
+T_{Typical}(r, b, d) = \mathbb{E}\left[T_{actual} \mid Route = r,\; Bucket = b,\; DoW = d\right]
+\]
+
+Trong đó:
+\begin{itemize}
+    \item $r$: Lộ trình cụ thể, được định danh bởi \texttt{route\_key}.
+    \item $b$: Khung thời gian 15 phút, tương ứng với \texttt{bucket\_15min\_key}.
+    \item $d$: Thứ trong tuần, tương ứng với thuộc tính \texttt{day\_of\_week}.
+\end{itemize}
+
+Trong thực tế triển khai, giá trị kỳ vọng có thể được tính bằng trung bình cộng hoặc trung vị (median), tùy theo phân phối dữ liệu và mức độ ảnh hưởng của các giá trị ngoại lai còn sót lại.\\
+
+Thuật toán lọc giá trị ngoại lai (Z-score Filtering)
+
+Để đảm bảo mức chuẩn được tính toán phản ánh đúng hành vi giao thông điển hình, hệ thống áp dụng thuật toán lọc ngoại lai dựa trên chỉ số Z-score:
+\[
+Z = \frac{x - \mu}{\sigma}
+\]
+
+Trong đó:
+\begin{itemize}
+    \item $x$: Thời gian di chuyển của một chuyến đi cụ thể.
+    \item $\mu$: Giá trị trung bình của thời gian di chuyển trong nhóm $(r, b, d)$.
+    \item $\sigma$: Độ lệch chuẩn của thời gian di chuyển trong cùng nhóm.
+\end{itemize}
+
+Hệ thống chỉ giữ lại các bản ghi thỏa mãn điều kiện $|Z| < 2$, tương ứng với khoảng 95\% dữ liệu tập trung quanh giá trị trung bình, để phục vụ cho việc tính toán thời gian di chuyển đặc trưng.
+
+Cách tiếp cận này cho phép xác định một giá trị baseline ổn định, có khả năng đại diện tốt cho điều kiện giao thông thông thường và đóng vai trò làm mốc so sánh tin cậy cho các phân tích hiệu suất giao thông tiếp theo.
+
+\subsubsection{A4: Chỉ số độ tin cậy thời gian}
+
+Nhóm nghiệp vụ A4 tập trung vào việc đánh giá độ tin cậy của thời gian di chuyển thông qua chỉ số Buffer Index (BI). Đây là một thước đo tiêu chuẩn được sử dụng rộng rãi trong lĩnh vực phân tích giao thông nhằm phản ánh mức độ biến động của thời gian hành trình. Chỉ số này hỗ trợ người sử dụng trong việc lập kế hoạch xuất phát an toàn bằng cách ước lượng khoảng thời gian dự phòng cần thiết để đảm bảo xác suất đến đúng giờ ở mức cao.
+
+\subsubsubsection{Thành phần dữ liệu trong Schema}
+
+Để tính toán chỉ số độ tin cậy thời gian, hệ thống cần khai thác dữ liệu hành trình lịch sử kết hợp với các khung thời gian tương ứng. Các bảng dữ liệu được sử dụng bao gồm:\\
+
+Bảng Fact chính: \texttt{fact\_trip\_recommendation}
+Bảng \texttt{fact\_trip\_recommendation} lưu trữ thông tin chi tiết về các chuyến đi đã được thực hiện trong quá khứ. Các thuộc tính chính phục vụ cho việc tính toán Buffer Index bao gồm:
+\begin{itemize}
+    \item \texttt{actual\_travel\_time\_min}: Thời gian di chuyển thực tế của chuyến đi (đơn vị: phút), là biến số chính phản ánh sự biến động của hành trình.
+    \item \texttt{chosen\_route\_key}: Định danh tuyến đường mà người dùng đã lựa chọn để di chuyển.
+    \item \texttt{time\_key}: Khóa ngoại liên kết đến chiều thời gian nhằm xác định khung giờ xuất phát.
+\end{itemize}
+
+Bảng Dimension lộ trình: \texttt{dim\_route}
+Bảng \texttt{dim\_route} cung cấp thông tin định danh và mô tả cho từng tuyến đường:
+\begin{itemize}
+    \item \texttt{route\_key}: Khóa chính định danh duy nhất cho mỗi lộ trình.
+    \item \texttt{route\_name}: Tên mô tả của lộ trình (ví dụ: ``Nhà -- Công ty'').
+\end{itemize}
+
+Bảng Dimension thời gian trong ngày: \texttt{dim\_time\_of\_day}
+Bảng \texttt{dim\_time\_of\_day} được sử dụng để phân nhóm các chuyến đi theo các khung thời gian chuẩn:
+\begin{itemize}
+    \item \texttt{bucket\_15min\_key}: Nhóm thời gian 15 phút, được xem là hạt (grain) tiêu chuẩn để đánh giá sự biến động của thời gian di chuyển trong các khung giờ cao điểm và thấp điểm.
+\end{itemize}
+
+\subsubsubsection{Thuật toán và mô hình tính toán}
+
+Thuật toán trọng tâm của nhóm nghiệp vụ A4 là chỉ số Buffer Index (BI), được xây dựng dựa trên sự chênh lệch giữa thời gian di chuyển trong điều kiện gần như bất lợi nhất và thời gian di chuyển trung bình. Chỉ số này phản ánh mức độ dự phòng thời gian mà người dùng cần bổ sung vào kế hoạch di chuyển để đạt được độ tin cậy mong muốn.\\
+
+Phân vị thời gian di chuyển
+
+Đối với mỗi cặp định danh \{\texttt{route\_key}, \texttt{bucket\_15min\_key}\}, hệ thống thu thập tập hợp các chuyến đi lịch sử với thời gian di chuyển tương ứng, ký hiệu là $T$.
+
+Từ tập dữ liệu này, hai đại lượng thống kê quan trọng được xác định:
+\begin{itemize}
+    \item Thời gian di chuyển trung bình($\bar{T}$): Giá trị kỳ vọng của thời gian di chuyển, phản ánh điều kiện giao thông thông thường mà người dùng có thể gặp phải.
+    \item Thời gian phân vị thứ 95 ($T_{95}$): Giá trị thời gian mà 95\% các chuyến đi trong quá khứ hoàn thành trong khoảng thời gian đó hoặc nhanh hơn. Đại lượng này đại diện cho trạng thái ``gần như tệ nhất'' mà người dùng có khả năng đối mặt trong điều kiện giao thông bất lợi.
+\end{itemize}
+
+Công thức tính chỉ số Buffer Index
+
+Chỉ số Buffer Index được xác định theo tỷ lệ phần trăm thời gian dự phòng cần bổ sung so với thời gian trung bình, nhằm đảm bảo xác suất đến đúng giờ đạt khoảng 95\%. Công thức được biểu diễn như sau:
+\[
+BI(\%) = \frac{T_{95} - \bar{T}}{\bar{T}} \times 100\%
+\]
+
+Giá trị $BI$ càng lớn cho thấy mức độ biến động của thời gian di chuyển càng cao, đồng nghĩa với việc người dùng cần dành nhiều thời gian dự phòng hơn để đảm bảo độ tin cậy của hành trình. Ngược lại, giá trị $BI$ nhỏ phản ánh thời gian di chuyển ổn định và có tính dự đoán cao.
+
+Cách tiếp cận này cho phép hệ thống lượng hóa mức độ tin cậy của thời gian di chuyển một cách trực quan, đồng thời cung cấp thông tin hữu ích cho người dùng trong việc lập kế hoạch xuất phát và đánh giá hiệu suất vận hành của mạng lưới giao thông.
+
+\subsubsection{A5: Thống kê điểm nóng sự cố}
+
+Nhóm nghiệp vụ A5 tập trung vào việc xác định và phân tích các điểm nóng sự cố (Incident Hotspots), hay còn gọi là các ``điểm đen'' giao thông, dựa trên dữ liệu lịch sử được lưu trữ trong hệ thống Kho dữ liệu giao thông. Mục tiêu của nhóm nghiệp vụ này là phát hiện các khu vực có tần suất và mức độ nghiêm trọng sự cố cao thông qua việc phân tích đồng thời yếu tố không gian và thời gian, từ đó hỗ trợ công tác quy hoạch, cảnh báo rủi ro và nâng cao an toàn giao thông.\\
+
+\subsubsubsection{Thành phần dữ liệu trong Schema}
+
+Để xác định chính xác các điểm nóng sự cố, hệ thống cần tích hợp dữ liệu từ bảng Fact sự cố và nhiều bảng Dimension hỗ trợ nhằm cung cấp đầy đủ ngữ cảnh không gian, thời gian và điều kiện ngoại cảnh.\\
+
+Bảng Fact chính: \texttt{fact\_incident}
+Bảng \texttt{fact\_incident} lưu trữ thông tin chi tiết về các sự cố giao thông đã xảy ra. Các thuộc tính chính được sử dụng trong phân tích bao gồm:
+\begin{itemize}
+    \item \texttt{segment\_key}: Khóa định danh phân đoạn đường nơi xảy ra sự cố.
+    \item \texttt{incident\_type\_key}: Khóa ngoại liên kết đến bảng phân loại bản chất sự cố (tai nạn, xe hỏng, va chạm nhẹ, v.v.).
+    \item \texttt{severity\_level}: Mức độ nghiêm trọng của sự cố, được chuẩn hóa theo thang giá trị từ 0 đến 4.
+    \item \texttt{weather\_key}: Khóa ngoại dùng để liên kết với điều kiện thời tiết tại thời điểm xảy ra sự cố.
+    \item \texttt{date\_key}: Khóa thời gian dùng để tích lũy và phân tích dữ liệu theo các chu kỳ báo cáo (tháng hoặc quý).
+\end{itemize}
+
+Các bảng Dimension hỗ trợ
+
+Các bảng Dimension đóng vai trò bổ sung ngữ cảnh cho việc phân tích điểm nóng sự cố:
+\begin{itemize}
+    \item \texttt{dim\_incident\_type}: Cung cấp thuộc tính \texttt{incident\_category\_group}, cho phép phân nhóm các loại sự cố nghiêm trọng nhằm phục vụ phân tích chuyên sâu.
+    \item \texttt{dim\_segment}: Cung cấp thông tin không gian của phân đoạn đường, bao gồm \texttt{geometry\_center} (tọa độ tâm) để xây dựng bản đồ nhiệt và \texttt{length\_m} để chuẩn hóa mật độ sự cố theo chiều dài.
+    \item \texttt{dim\_weather}: Cung cấp mức độ nghiêm trọng của điều kiện thời tiết (\texttt{severity\_level}), hỗ trợ phân tích các đoạn đường nhạy cảm với yếu tố ngoại cảnh như mưa lớn, ngập lụt hoặc sương mù.
+    \item \texttt{dim\_month\_year}: Cho phép lọc và nhóm dữ liệu theo các chu kỳ thời gian vĩ mô phục vụ báo cáo tổng hợp.
+\end{itemize}
+
+\subsubsubsection{Thuật toán và mô hình tính toán}
+
+Thay vì chỉ đơn thuần đếm số lượng sự cố, nhóm nghiệp vụ A5 áp dụng phương pháp tính toán dựa trên trọng số nhằm phản ánh chính xác hơn mức độ ảnh hưởng của từng sự cố. Thuật toán cốt lõi được sử dụng là chỉ số Mật độ sự cố có trọng số (Weighted Incident Density -- WID).\\
+
+Chỉ số cường độ sự cố (Incident Intensity Index -- III)
+
+Mỗi sự cố $i$ được gán một trọng số $W_i$, phản ánh mức độ tác động tổng hợp của sự cố đó dựa trên mức độ nghiêm trọng của bản thân sự cố và điều kiện thời tiết tại thời điểm xảy ra. Trọng số được xác định theo công thức:
+\[
+W_i = (Severity\_Level_{incident} \times \alpha) + (Severity\_Level_{weather} \times \beta)
+\]
+
+Trong đó:
+\begin{itemize}
+    \item $Severity\_Level_{incident}$ là mức độ nghiêm trọng của sự cố giao thông.
+    \item $Severity\_Level_{weather}$ là mức độ nghiêm trọng của điều kiện thời tiết tương ứng.
+    \item $\alpha, \beta$ là các hệ số điều chỉnh theo quy tắc nghiệp vụ, cho phép ưu tiên các sự cố có tác động lớn hơn đến an toàn và lưu thông (ví dụ: tai nạn giao thông được gán trọng số cao hơn so với sự cố xe hỏng).
+\end{itemize}
+
+Tính toán mật độ sự cố theo không gian
+
+Để xác định các ``điểm đen'' giao thông trên từng phân đoạn đường, hệ thống tính toán tổng trọng số sự cố tích lũy và chuẩn hóa theo chiều dài phân đoạn. Chỉ số Mật độ sự cố có trọng số cho mỗi phân đoạn được xác định như sau:
+\[
+WID_{segment} = \frac{\sum_{i=1}^{n} W_i}{Length\_m}
+\]
+
+Trong đó:
+\begin{itemize}
+    \item $n$ là tổng số sự cố xảy ra trên phân đoạn đường trong một chu kỳ phân tích (tháng hoặc quý).
+    \item $Length\_m$ là chiều dài vật lý của phân đoạn đường, lấy từ bảng \texttt{dim\_segment}.
+\end{itemize}
+
+Giá trị $WID_{segment}$ càng lớn cho thấy phân đoạn đường đó có mật độ và mức độ nghiêm trọng sự cố càng cao, qua đó được xác định là một điểm nóng cần ưu tiên trong công tác giám sát, cải tạo hạ tầng hoặc triển khai các biện pháp an toàn giao thông.
+
+\subsubsection{A6: Phân tích tác động của thời tiết đến tốc độ}
+
+Nhóm nghiệp vụ A6 tập trung vào việc phân tích và định lượng hóa tác động của các yếu tố thời tiết đến tốc độ và năng lực thông hành của dòng xe. Các hiện tượng ngoại cảnh như mưa, sương mù hoặc bão có ảnh hưởng trực tiếp đến độ bám đường, tầm nhìn và hành vi lái xe, từ đó làm suy giảm vận tốc khai thác của hạ tầng giao thông. Mục tiêu của nhóm nghiệp vụ này là xây dựng các chỉ số định lượng phản ánh mức độ suy giảm tốc độ dưới tác động của thời tiết, đồng thời làm cơ sở cho việc dự báo và hỗ trợ ra quyết định trong quản lý giao thông.\\
+
+\subsubsubsection{Thành phần dữ liệu trong Schema}
+
+Để thực hiện phân tích mối tương quan giữa thời tiết và tốc độ giao thông, hệ thống kết hợp dữ liệu từ các bảng Fact đo lường vận tốc và bảng Dimension mô tả điều kiện thời tiết.\\
+
+Bảng Fact chính: \texttt{fact\_weather\_impact}
+
+Bảng \texttt{fact\_weather\_impact} là bảng Fact chuyên biệt được thiết kế cho nhóm nghiệp vụ A6, lưu trữ các chỉ số vận tốc trong những điều kiện thời tiết khác nhau. Các thuộc tính chính bao gồm:
+\begin{itemize}
+    \item \texttt{segment\_key}: Khóa ngoại định danh phân đoạn đường chịu ảnh hưởng của điều kiện thời tiết.
+    \item \texttt{weather\_key}: Khóa ngoại xác định trạng thái thời tiết tại thời điểm đo (ví dụ: trời quang, mưa, sương mù).
+    \item \texttt{baseline\_speed\_kmh}: Tốc độ trung bình mang tính chuẩn (baseline) của phân đoạn đường trong điều kiện thời tiết thuận lợi.
+    \item \texttt{actual\_speed\_kmh}: Tốc độ trung bình thực tế được ghi nhận trong điều kiện thời tiết đang xét.
+    \item \texttt{speed\_reduction\_pct}: Tỷ lệ suy giảm tốc độ đã được tính toán sẵn trong quá trình ETL.
+    \item \texttt{precipitation\_mm}: Lượng mưa đo được (đơn vị: mm), phục vụ cho các phân tích định lượng theo cường độ mưa.
+\end{itemize}
+
+Bảng Fact bổ trợ: \texttt{fact\_traffic\_flow}
+
+Bảng \texttt{fact\_traffic\_flow} cung cấp các chỉ số vận tốc nền để so sánh:
+\begin{itemize}
+    \item \texttt{avg\_speed\_kmh}: Tốc độ trung bình thực tế của dòng xe.
+    \item \texttt{free\_flow\_speed\_kmh}: Tốc độ dòng xe trong điều kiện thông thoáng.
+\end{itemize}
+
+Bảng Dimension thời tiết: \texttt{dim\_weather}
+
+Bảng \texttt{dim\_weather} mô tả chi tiết các đặc tính của điều kiện thời tiết:
+\begin{itemize}
+    \item \texttt{weather\_type}: Tên hiển thị của loại thời tiết (ví dụ: ``Mưa rào nặng hạt'').
+    \item \texttt{severity\_level}: Mức độ nghiêm trọng của thời tiết, được chuẩn hóa theo thang giá trị từ 1 đến 5.
+    \item \texttt{road\_friction\_impact}: Thuộc tính mô tả ảnh hưởng của thời tiết đến độ bám mặt đường (ví dụ: trơn trượt).
+\end{itemize}
+
+\subsubsubsection{Thuật toán và mô hình tính toán}
+
+Trọng tâm của nhóm nghiệp vụ A6 là việc tính toán tỷ lệ suy giảm vận tốc (Speed Reduction Percentage -- SRP) và xây dựng mô hình tương quan giữa cường độ thời tiết và vận tốc khai thác của hạ tầng.\\
+
+Xác định vận tốc Baseline
+
+Thay vì sử dụng một giá trị vận tốc cố định, hệ thống xác định vận tốc baseline $V_{base}$ một cách động, dựa trên dữ liệu lịch sử của chính phân đoạn đường đó trong điều kiện thời tiết thuận lợi (trời quang), tại cùng khung thời gian trong ngày. Cụ thể:
+\[
+V_{base}(s, t) = \operatorname{AVG}(\texttt{avg\_speed\_kmh}) 
+\;\middle|\; \text{Weather} = \text{``CLEAR''}
+\]
+
+Trong đó $s$ là phân đoạn đường (\texttt{segment\_key}) và $t$ là khung thời gian quan sát.\\
+
+Công thức tính tỷ lệ suy giảm vận tốc
+
+Tỷ lệ suy giảm vận tốc được tính cho từng cặp \{\texttt{segment\_key}, \texttt{weather\_type}\} theo công thức:
+\[
+SRP(\%) = \frac{V_{base} - V_{actual}}{V_{base}} \times 100\%
+\]
+
+Trong đó $V_{actual}$ là tốc độ trung bình thực tế được ghi nhận trong điều kiện thời tiết đang xét. Giá trị $SRP$ càng lớn phản ánh mức độ ảnh hưởng càng nghiêm trọng của thời tiết đến năng lực thông hành của đoạn đường.\\
+
+Mô hình tương quan giữa thời tiết và vận tốc
+
+Để phân tích sâu hơn mối quan hệ định lượng giữa cường độ mưa và tốc độ giao thông, hệ thống áp dụng mô hình hồi quy tuyến tính đơn giản:
+\[
+V = V_{base} - (\gamma \times P)
+\]
+
+Trong đó:
+\begin{itemize}
+    \item $V$ là vận tốc dự kiến của dòng xe.
+    \item $P$ là lượng mưa đo được (mm).
+    \item $\gamma$ là hệ số suy giảm, phản ánh mức độ nhạy cảm của vận tốc đối với lượng mưa.
+\end{itemize}
+
+Mô hình này cho phép ước lượng trước sự suy giảm tốc độ dựa trên thông tin dự báo thời tiết từ các API khí tượng, qua đó hỗ trợ hệ thống giao thông thông minh trong việc cảnh báo, điều tiết và tối ưu hóa luồng di chuyển trong điều kiện thời tiết bất lợi.
+
+\subsubsection{A7: Đánh giá hiệu quả hệ thống gợi ý}
+
+Nhóm nghiệp vụ A7 tập trung vào việc đánh giá mức độ hiệu quả của hệ thống gợi ý lộ trình dựa trên trí tuệ nhân tạo, thông qua việc khai thác dữ liệu trong kho dữ liệu giao thông. Mục tiêu trọng tâm của nghiệp vụ này là định lượng hóa mức độ chấp nhận, tuân thủ và mức độ tin tưởng của người dùng đối với các lộ trình được hệ thống đề xuất, từ đó làm cơ sở cho việc cải tiến thuật toán gợi ý và hỗ trợ ra quyết định ở cấp quản trị.
+
+\subsubsubsection{Thành phần dữ liệu trong Schema}
+
+Để đo lường hiệu quả của hệ thống gợi ý, kho dữ liệu tập trung vào các bảng Fact phản ánh hành vi sử dụng lộ trình của người dùng và kết quả phản hồi sau chuyến đi, kết hợp với bảng Dimension thời gian nhằm phục vụ phân tích xu hướng.\\
+
+Bảng Fact chính: \texttt{fact\_trip\_recommendation}
+
+Bảng \texttt{fact\_trip\_recommendation} lưu trữ dữ liệu ở mức hạt (grain) là mỗi chuyến đi có áp dụng gợi ý lộ trình, với các thuộc tính chính như sau:
+
+\begin{itemize}
+    \item \texttt{is\_followed}: Biến logic xác định người dùng có tuân thủ hoàn toàn lộ trình do hệ thống đề xuất hay không.
+    \item \texttt{deviation\_count}: Số lần người dùng đi chệch khỏi lộ trình gợi ý trong suốt chuyến đi, phản ánh mức độ tái định tuyến.
+    \item \texttt{time\_diff\_min}: Độ lệch thời gian (tính bằng phút) giữa thời gian di chuyển thực tế và thời gian dự báo bởi hệ thống AI.
+    \item \texttt{satisfaction\_score}: Điểm đánh giá chủ quan của người dùng đối với lộ trình được đề xuất, theo thang đo từ 1 đến 5.
+    \item \texttt{date\_key}: Khóa ngoại liên kết đến bảng Dimension thời gian, phục vụ tổng hợp và phân tích theo ngày.
+\end{itemize}
+
+Bảng Dimension thời gian: \texttt{dim\_date}
+
+Bảng \texttt{dim\_date} cung cấp các thuộc tính thời gian hỗ trợ phân tích hiệu quả của hệ thống gợi ý theo bối cảnh sử dụng:
+
+\begin{itemize}
+    \item \texttt{date\_key}: Khóa chính dùng để liên kết với bảng Fact.
+    \item \texttt{is\_weekend}, \texttt{is\_holiday}: Các biến phân loại nhằm đánh giá sự khác biệt về hiệu quả gợi ý giữa ngày thường và các ngày đặc biệt như cuối tuần hoặc ngày lễ.
+\end{itemize}
+
+\subsubsubsection{Thuật toán và mô hình tính toán}
+
+Việc đánh giá hiệu quả của hệ thống gợi ý được thực hiện thông qua các chỉ số định lượng, phản ánh đồng thời hành vi tuân thủ của người dùng và độ chính xác kỹ thuật của mô hình dự báo.\\
+
+Tỷ lệ Tuân thủ Lộ trình (Route Compliance Rate -- RCR)
+
+Tỷ lệ tuân thủ lộ trình là chỉ số trực tiếp phản ánh mức độ tin tưởng của người dùng đối với các đề xuất của hệ thống. Chỉ số này được tính cho từng ngày $d$ như sau:
+
+\[
+RCR_d = \left( \frac{\sum (is\_followed = TRUE)}{Total\_Trips_d} \right) \times 100\%
+\]
+
+Trong đó $Total\_Trips_d$ là tổng số chuyến đi có áp dụng gợi ý lộ trình trong ngày $d$. Giá trị $RCR$ càng cao cho thấy mức độ chấp nhận và tin tưởng của người dùng đối với hệ thống gợi ý càng lớn.\\
+
+Chỉ số Độ lệch Hành trình (Deviation Index -- DI)
+
+Ngoài việc tuân thủ hoàn toàn lộ trình, hệ thống đo lường mức độ điều chỉnh của người dùng thông qua số lần tái định tuyến trung bình, được xác định như sau:
+
+\[
+DI_d = \frac{\sum_{i=1}^{n} deviation\_count_i}{Total\_Trips_d}
+\]
+
+Chỉ số $DI$ phản ánh mức độ dao động trong hành vi di chuyển. Trường hợp $RCR$ duy trì ở mức cao trong khi $DI$ lớn cho thấy lộ trình tổng thể được chấp nhận, tuy nhiên vẫn tồn tại các phân đoạn cục bộ chưa tối ưu, buộc người dùng phải điều chỉnh liên tục.\\
+
+Độ chính xác thời gian dự kiến (ETA Accuracy)
+
+Độ chính xác của thời gian dự kiến (Estimated Time of Arrival -- ETA) là yếu tố then chốt ảnh hưởng đến mức độ tin tưởng của người dùng. Sai số dự báo được đo lường thông qua sai số tuyệt đối trung bình (Mean Absolute Error -- MAE):
+
+\[
+MAE_{ETA} = \frac{1}{n} \sum_{i=1}^{n} \left| time\_diff\_min_i \right|
+\]
+
+Giá trị $MAE_{ETA}$ càng nhỏ cho thấy khả năng dự báo thời gian của hệ thống càng chính xác, từ đó nâng cao hiệu quả kỹ thuật và độ tin cậy của hệ thống gợi ý lộ trình.
+
+\subsubsection{A8: Thu thập phản hồi chuyến đi }
+
+Nhóm nghiệp vụ A8 tập trung vào việc thu thập và khai thác phản hồi sau chuyến đi của người dùng nhằm đánh giá mức độ sai lệch giữa kết quả dự báo trước chuyến đi và kết quả thực tế ghi nhận sau chuyến đi. Mục tiêu cốt lõi của nghiệp vụ này là hình thành một vòng lặp phản hồi, qua đó cung cấp dữ liệu đầu vào có giá trị cho quá trình tinh chỉnh và tái huấn luyện các mô hình học máy trong hệ thống gợi ý lộ trình.
+
+\subsubsubsection{Thành phần dữ liệu trong Schema}
+
+Để thực hiện đối chiếu và phân tích sai số dự báo ở cả mức độ chuyến đi và mức độ phân đoạn, hệ thống khai thác dữ liệu từ các bảng Fact chính và Fact chi tiết, kết hợp với các bảng Dimension phục vụ phân tích hành vi người dùng.\\
+
+Bảng Fact chính: \texttt{fact\_trip\_recommendation}
+
+Bảng \texttt{fact\_trip\_recommendation} đóng vai trò là bảng cha, lưu trữ dữ liệu tổng hợp ở mức hạt là từng chuyến đi hoàn chỉnh, với các thuộc tính quan trọng như sau:
+
+\begin{itemize}
+    \item \texttt{trip\_recom\_key}: Khóa chính định danh duy nhất cho mỗi chuyến đi có áp dụng hệ thống gợi ý.
+    \item \texttt{actual\_travel\_time\_min}: Tổng thời gian di chuyển thực tế của người dùng, tính bằng phút.
+    \item \texttt{predicted\_duration\_min}: Thời gian di chuyển dự kiến ban đầu do hệ thống AI tính toán trước chuyến đi.
+    \item \texttt{time\_diff\_min}: Độ lệch thời gian được tính trong quá trình ETL, xác định bằng hiệu số giữa thời gian thực tế và thời gian dự báo.
+    \item \texttt{satisfaction\_score}: Điểm đánh giá chủ quan của người dùng (từ 1 đến 5 sao), dùng để xác định mức độ chấp nhận sai số dự báo.
+\end{itemize}
+
+Bảng Fact chi tiết: \texttt{fact\_segment\_performance}
+
+Bảng \texttt{fact\_segment\_performance} là bảng con, lưu trữ dữ liệu ở mức hạt chi tiết hơn, tương ứng với từng phân đoạn đường trong chuyến đi:
+
+\begin{itemize}
+    \item \texttt{travel\_time\_key}: Khóa chính đại diện cho một bản ghi phân tích hiệu suất tại mức phân đoạn.
+    \item \texttt{waiting\_time\_sec}: Thời gian phương tiện đứng yên hoặc di chuyển rất chậm tại phân đoạn, phản ánh tình trạng ùn tắc cục bộ.
+    \item \texttt{moving\_time\_sec}: Thời gian phương tiện thực sự di chuyển trên phân đoạn, dùng để đối chiếu với tốc độ thiết kế hoặc tốc độ dự báo.
+\end{itemize}
+
+Bảng Dimension người dùng: \texttt{dim\_user}
+
+Bảng \texttt{dim\_user} cung cấp khóa định danh người dùng (\texttt{user\_key}), cho phép phân tích phản hồi theo từng nhóm người dùng, chẳng hạn như người dùng thường xuyên hoặc người dùng mới.
+
+\subsubsubsection{Thuật toán và mô hình tính toán}
+
+Các thuật toán trong nhóm nghiệp vụ A8 tập trung vào việc đo lường và phân tích sai số dự báo, từ đó xác định các điểm yếu trong mô hình định tuyến và cung cấp dữ liệu cho quá trình tối ưu hóa.\\
+
+Sai số phần trăm tuyệt đối trung bình trên từng chuyến đi
+
+Độ chính xác của thuật toán dự báo thời gian di chuyển được đánh giá thông qua chỉ số sai số phần trăm tuyệt đối trung bình (Mean Absolute Percentage Error -- MAPE) tại mức chuyến đi:
+
+\[
+MAPE_{trip} = \left| \frac{Actual\_Time - Predicted\_Time}{Actual\_Time} \right| \times 100\%
+\]
+
+Chỉ số này cho phép hệ thống xác định liệu sai số dự báo có nằm trong ngưỡng kỹ thuật cho phép (ví dụ nhỏ hơn 15\%) hay phản ánh sự suy giảm hiệu năng của mô hình AI trong một số bối cảnh giao thông cụ thể.\\
+
+Phân tích nguyên nhân gốc rễ sai số (Root Cause Analysis -- RCA)
+
+Đối với các chuyến đi có giá trị \texttt{time\_diff\_min} vượt quá ngưỡng quy định, hệ thống thực hiện truy vấn chi tiết xuống bảng \texttt{fact\_segment\_performance} nhằm xác định các phân đoạn đường đóng góp chính vào sai số dự báo. Mức độ đóng góp sai số của từng phân đoạn được xác định như sau:
+
+\[
+Error\_Contribution = 
+\frac{\sum (Segment\_Actual - Segment\_Predicted)}
+{Total\_Time\_Difference}
+\]
+
+Kết quả phân tích này cho phép hệ thống nhận diện các ``đoạn đường biến động'' có tần suất gây sai số cao, từ đó làm cơ sở để điều chỉnh trọng số, cập nhật tham số hoặc tái huấn luyện mô hình dự báo trong các vòng lặp học máy tiếp theo.
+
+\subsubsection{A9: Phân bố lưu lượng theo loại xe}
+
+Nhóm nghiệp vụ A9 tập trung vào việc phân tích cơ cấu thành phần phương tiện trong dòng giao thông nhằm hỗ trợ các quyết định điều hành và tổ chức giao thông, bao gồm phân làn chức năng, áp dụng khung giờ cấm xe và điều tiết các phương tiện có tải trọng lớn. Việc hiểu rõ tỷ trọng và mức độ chiếm dụng của từng loại xe là cơ sở quan trọng để đánh giá năng lực thông hành thực tế của hạ tầng giao thông.
+
+\subsubsubsection{Thành phần dữ liệu trong Schema}
+
+Để phân tích thành phần dòng xe một cách định lượng và chính xác, hệ thống khai thác dữ liệu đếm phương tiện chi tiết từ bảng Fact lưu lượng, kết hợp với các thuộc tính quy đổi và thông tin hạ tầng từ các bảng Dimension liên quan.\\
+
+Bảng Fact chính: \texttt{fact\_traffic\_flow}
+
+Bảng \texttt{fact\_traffic\_flow} lưu trữ các chỉ số đo lường lưu lượng phương tiện tại từng phân đoạn đường và khung thời gian, với các thuộc tính chính như sau:
+
+\begin{itemize}
+    \item \texttt{motorcycle\_count}: Số lượng xe máy được ghi nhận.
+    \item \texttt{car\_count}: Số lượng xe ô tô con (dưới 9 chỗ).
+    \item \texttt{heavy\_vehicle\_count}: Số lượng xe tải, xe buýt và xe container, là các phương tiện có mức độ cản trở giao thông cao.
+    \item \texttt{other\_count}: Số lượng các phương tiện khác hoặc không xác định.
+    \item \texttt{total\_vehicle\_count}: Tổng số lượng phương tiện thực tế ghi nhận được.
+    \item \texttt{total\_pcu}: Tổng số đơn vị xe con quy đổi (Passenger Car Unit -- PCU), phản ánh tải trọng giao thông tổng hợp.
+    \item \texttt{segment\_key}: Khóa định danh phân đoạn đường đang được phân tích.
+\end{itemize}
+
+Bảng Dimension phương tiện: \texttt{dim\_vehicle\_type}
+
+Bảng \texttt{dim\_vehicle\_type} cung cấp thông tin phân loại và hệ số quy đổi cho từng loại phương tiện:
+
+\begin{itemize}
+    \item \texttt{vehicle\_name}: Tên hiển thị của loại phương tiện (ví dụ: xe máy, xe tải).
+    \item \texttt{category}: Phân nhóm tổng quát như \textit{2-wheel}, \textit{4-wheel} hoặc \textit{Heavy}.
+    \item \texttt{pcu\_factor}: Hệ số quy đổi đơn vị xe con, phản ánh mức độ chiếm dụng không gian và tác động đến dòng xe.
+\end{itemize}
+
+Bảng Dimension hạ tầng: \texttt{dim\_way}
+
+Bảng \texttt{dim\_way} cung cấp các thông tin về năng lực hạ tầng nhằm đối chiếu với cơ cấu dòng xe:
+
+\begin{itemize}
+    \item \texttt{default\_lane\_count}: Số làn xe hiện hữu trên đoạn đường.
+    \item \texttt{way\_type}: Loại hình đường (quốc lộ, đường đô thị nội bộ, đường vành đai), làm cơ sở áp dụng các quy định điều tiết phương tiện theo thời gian.
+\end{itemize}
+
+\subsubsubsection{Thuật toán và mô hình tính toán}
+
+Các thuật toán trong nhóm nghiệp vụ A9 tập trung vào việc lượng hóa tỷ trọng của từng loại phương tiện trong dòng xe cũng như mức độ đóng góp của chúng vào tải trọng giao thông tổng thể.\\
+
+Tỷ trọng thành phần phương tiện (Vehicle Mix Percentage -- VMP)
+
+Tỷ trọng của từng loại phương tiện $i$ trên tổng lưu lượng tại một phân đoạn đường được xác định như sau:
+
+\[
+VMP_i = \frac{Count_i}{Total\_Vehicle\_Count} \times 100\%
+\]
+
+Chỉ số này cho phép nhà quản lý giao thông nhận diện loại phương tiện chiếm ưu thế trên từng tuyến đường, ví dụ như trường hợp xe máy chiếm tỷ trọng lớn trên các trục giao thông nội đô.\\
+
+Chỉ số đóng góp tải trọng (PCU Contribution Index)
+
+Do mức độ ảnh hưởng của các loại phương tiện đến khả năng thông hành là không đồng đều, hệ thống sử dụng chỉ số đóng góp PCU để đo lường ``không gian chiếm dụng'' thực tế của từng loại xe trong dòng giao thông:
+
+\[
+PCU\_Impact_i = 
+\frac{Count_i \times PCU\_Factor_i}
+{Total\_PCU}
+\times 100\%
+\]
+
+Trong đó, hệ số \texttt{PCU\_Factor} được lấy từ bảng \texttt{dim\_vehicle\_type} (ví dụ: xe buýt có hệ số PCU lớn hơn xe con). Chỉ số này giúp định lượng chính xác mức độ tác động của từng nhóm phương tiện đến tình trạng ùn tắc, ngay cả khi số lượng tuyệt đối của chúng không lớn.
+
+
+\subsection{Nhóm nghiệp vụ Phân tích dự báo (Predictive Analytics)}
+
+Nhóm này không chỉ truy xuất dữ liệu quá khứ mà còn sử dụng các kỹ thuật Học máy (Machine Learning) để sinh ra tri thức mới (Insight) về trạng thái giao thông trong tương lai. Dưới đây là đặc tả kỹ thuật cho từng nghiệp vụ dự báo.
+
+\subsubsection{Nghiệp vụ B1: Dự báo tốc độ ngắn hạn (Short-term Speed Prediction)}
+\subsubsubsection{Mục đích và phạm vi}
+Mục tiêu là dự đoán vận tốc trung bình (\verb|avg_speed_kmh|) cho từng đoạn đường (\verb|segment_key|) trong khoảng thời gian tương lai (T+15, T+30, T+60 phút). Kết quả dự báo là đầu vào quan trọng cho việc cảnh báo ùn tắc sớm.
+
+\subsubsubsection{Ánh xạ dữ liệu nguồn}
+Mô hình dự báo sẽ sử dụng dữ liệu lịch sử làm tập huấn luyện (Training Set). Các bảng và trường dữ liệu cụ thể bao gồm:
+\begin{itemize}
+    \item \textbf{Bảng Fact chính: \texttt{fact\_traffic\_flow}} (Lịch sử lưu lượng)
+    \begin{itemize}
+        \item \textit{Biến mục tiêu (Target Variable):} \texttt{avg\_speed\_kmh} (tại thời điểm tương lai).
+        \item \textit{Biến trễ (Lag features):} Sử dụng \texttt{avg\_speed\_kmh} và \texttt{vehicle\_count} tại các thời điểm quá khứ ($t-1$, $t-2$, $t-3$) để nắm bắt xu hướng tăng/giảm của dòng xe.
+    \end{itemize}
+    
+    \item \textbf{Bảng Dimension ngữ cảnh: \texttt{dim\_time} \& \texttt{dim\_date}}
+    \begin{itemize}
+        \item \textit{Tính chu kỳ:} Sử dụng \texttt{hour\_of\_day} (ví dụ: 17h chiều thường tắc đường) và \texttt{day\_of\_week} (Chủ nhật khác thứ Hai).
+        \item \textit{Sự kiện đặc biệt:} Sử dụng trường \texttt{is\_holiday} trong \texttt{dim\_date} để điều chỉnh dự báo vào ngày lễ.
+    \end{itemize}
+    
+    \item \textbf{Bảng Fact tác động: \texttt{fact\_weather\_impact}}
+    \begin{itemize}
+        \item \textit{Yếu tố ngoại sinh:} Sử dụng \texttt{precipitation\_mm} (lượng mưa) và \texttt{visibility\_m} (tầm nhìn) làm biến đầu vào. Mưa lớn thường làm giảm tốc độ trung bình từ 10-20\%.
+    \end{itemize}
+    
+    \item \textbf{Bảng Dimension không gian: \texttt{dim\_segment}}
+    \begin{itemize}
+        \item \textit{Đặc trưng tĩnh:} Sử dụng \texttt{lane\_count} (số làn) và \texttt{road\_type} để mô hình hiểu được năng lực thông hành của đoạn đường.
+    \end{itemize}
+\end{itemize}
+
+\subsubsubsection{Logic xử lý và Thuật toán}
+\begin{enumerate}
+    \item \textbf{Bước 1 - Data Preparation:} Thực hiện truy vấn JOIN giữa \texttt{fact\_traffic\_flow} và \texttt{fact\_weather\_impact} qua \texttt{segment\_key} và \texttt{time\_key}.
+    \item \textbf{Bước 2 - Feature Engineering:} Tạo cửa sổ trượt (Sliding Window) để chuyển đổi dữ liệu chuỗi thời gian thành dạng Supervised Learning ($X$: tốc độ 30 phút trước $\rightarrow$ $Y$: tốc độ 15 phút tới).
+    \item \textbf{Bước 3 - Modeling:} Áp dụng thuật toán \textbf{LSTM (Long Short-Term Memory)} hoặc \textbf{XGBoost}. Mô hình sẽ học mối tương quan phi tuyến tính: \textit{“Nếu là 17h thứ Sáu và có mưa 20mm trên đường Xô Viết Nghệ Tĩnh, tốc độ sẽ giảm xuống còn 12km/h”}.
+\end{enumerate}
+
+\subsubsection{Nghiệp vụ B2: Dự báo thời gian hành trình (ETA Prediction)}
+
+\subsubsubsection{Mục đích và Phạm vi}
+Cung cấp thời gian di chuyển dự kiến (Estimated Time of Arrival) cho một lộ trình tổng thể (Route) bao gồm nhiều đoạn đường (Segment) nối tiếp nhau.
+
+\subsubsubsection{Ánh xạ dữ liệu nguồn}
+Nghiệp vụ này là bài toán tổng hợp (Aggregation) dựa trên kết quả của B1 và cấu trúc mạng lưới đường.
+
+\begin{itemize}
+    \item \textbf{Bảng cầu nối: \texttt{bridge\_route\_segment}} (Giả định thiết kế bảng Bridge)
+    \begin{itemize}
+        \item \textit{Trường sử dụng:} \texttt{route\_key}, \texttt{segment\_key}, \texttt{sequence\_order} (thứ tự đoạn đường trong lộ trình).
+        \item \textit{Vai trò:} Xác định lộ trình A $\rightarrow$ B bao gồm những đoạn đường nào.
+    \end{itemize}
+    \item \textbf{Bảng Dimension: \texttt{dim\_segment}}
+    \begin{itemize}
+        \item \textit{Trường sử dụng:} \texttt{length\_m} (chiều dài đoạn đường).
+    \end{itemize}
+    \item \textbf{Kết quả từ B1 (Dự báo tốc độ):}
+    \begin{itemize}
+        \item Sử dụng tốc độ dự báo \texttt{predicted\_speed\_kmh} cho từng \texttt{segment\_key}.
+    \end{itemize}
+\end{itemize}
+
+\subsubsubsection{Logic xử lý và Thuật toán}
+Khác với các ứng dụng bản đồ thông thường chỉ lấy tốc độ hiện tại, hệ thống này áp dụng thuật toán \textbf{Time-Dependent Routing} (Định tuyến phụ thuộc thời gian):
+
+\begin{enumerate}
+    \item \textbf{Phân rã lộ trình:} Truy vấn bảng \texttt{bridge\_route\_segment} để lấy danh sách các đoạn đường $S_1, S_2, \dots, S_n$ theo thứ tự.
+    \item \textbf{Tính toán động:}
+    \begin{itemize}
+        \item Thời gian qua đoạn $S_1$ ($T_1$) = Chiều dài $S_1$ / Tốc độ dự báo tại thời điểm xuất phát $t_0$.
+        \item Thời gian qua đoạn $S_2$ ($T_2$) = Chiều dài $S_2$ / Tốc độ dự báo tại thời điểm ($t_0 + T_1$).
+        \item \textit{Lưu ý:} Tốc độ tại $S_2$ phải là tốc độ dự báo trong tương lai, không phải hiện tại.
+    \end{itemize}
+    \item \textbf{Tổng hợp:} 
+    \[ ETA_{total} = \sum_{i=1}^{n} T_i \]
+\end{enumerate}
+Logic này giúp loại bỏ sai số khi người dùng bắt đầu đi lúc đường thoáng nhưng đến giữa đường thì gặp giờ cao điểm.
+
+
+\subsubsection{Nghiệp vụ B3: Dự báo rủi ro sự cố (Incident Risk Prediction)}
+
+\subsubsubsection{Mục đích và Phạm vi}
+Dự đoán xác suất xảy ra tai nạn hoặc sự cố giao thông (Incident Probability) tại một thời điểm và địa điểm cụ thể, nhằm cảnh báo cho trung tâm điều hành.
+
+\subsubsubsection{Ánh xạ dữ liệu nguồn}
+Đây là bài toán Phân lớp (Classification) hoặc Hồi quy (Regression) dựa trên các mẫu hình tai nạn trong quá khứ.
+
+\begin{itemize}
+    \item \textbf{Bảng Fact sự kiện: \texttt{fact\_incident}} (Lịch sử sự cố)
+    \begin{itemize}
+        \item \textit{Vai trò:} Cung cấp nhãn (Label) cho mô hình học máy (Có tai nạn / Không có tai nạn).
+        \item \textit{Trường sử dụng:} \texttt{incident\_type}, \texttt{severity\_level} (để phân loại mức độ rủi ro).
+    \end{itemize}
+    \item \textbf{Bảng Fact tác động: \texttt{fact\_weather\_impact}}
+    \begin{itemize}
+        \item \textit{Biến nguyên nhân:} \texttt{precipitation\_mm}, \texttt{visibility\_m}, \texttt{surface\_condition}.
+        \item \textit{Logic:} Trời mưa lớn + Tầm nhìn thấp = Tăng nguy cơ va chạm.
+    \end{itemize}
+    \item \textbf{Bảng Fact lưu lượng: \texttt{fact\_traffic\_flow}}
+    \begin{itemize}
+        \item \textit{Biến nguyên nhân:} \texttt{vehicle\_count} (Mật độ). Mật độ quá cao gây va quẹt nhẹ, mật độ quá thấp nhưng tốc độ cao gây tai nạn nghiêm trọng.
+    \end{itemize}
+    \item \textbf{Bảng Dimension phương tiện: \texttt{dim\_vehicle\_type}} (Tham chiếu gián tiếp)
+    \begin{itemize}
+        \item Hệ thống phân tích tỷ lệ xe tải/container (\texttt{vehicle\_code} thuộc nhóm Heavy) trong dòng xe. Tỷ lệ xe lớn cao làm tăng chỉ số rủi ro.
+    \end{itemize}
+\end{itemize}
+
+\subsubsubsection{Logic xử lý và Thuật toán}
+\begin{enumerate}
+    \item \textbf{Xây dựng tập dữ liệu huấn luyện:} Kết nối (Join) \texttt{fact\_incident} với dữ liệu thời tiết và lưu lượng tại cùng thời điểm xảy ra tai nạn để tạo thành các "Hồ sơ rủi ro" (Risk Profiles). Đồng thời, lấy mẫu các thời điểm bình thường (Negative samples) để cân bằng dữ liệu.
+    \item \textbf{Mô hình hóa:} Sử dụng thuật toán \textbf{Random Forest} hoặc \textbf{Logistic Regression} để tính toán xác suất ($P$).
+    \begin{itemize}
+        \item Đầu vào: $X = \{ \text{Lượng mưa}, \text{Mật độ xe}, \text{Giờ trong ngày}, \text{Loại đường} \}$.
+        \item Đầu ra: $Y = P(\text{Incident})$.
+    \end{itemize}
+    \item \textbf{Phân ngưỡng cảnh báo:}
+    \begin{itemize}
+        \item Nếu $P > 0.8$: Cảnh báo Đỏ (Nguy cơ cao).
+        \item Nếu $0.5 < P \le 0.8$: Cảnh báo Vàng (Cần chú ý).
+    \end{itemize}
+\end{enumerate}
+
+
+
+\subsection{Nhóm nghiệp vụ Hỗ trợ ra quyết định (Prescriptive Analytics)}
+
+Đây là cấp độ cao nhất trong tháp phân tích dữ liệu, không chỉ dự báo tương lai mà còn trực tiếp đề xuất hành động tối ưu cho người dùng. Các nghiệp vụ này yêu cầu sự phối hợp phức tạp giữa các bảng dữ liệu lịch sử, dữ liệu dự báo và thuật toán tối ưu hóa đồ thị.
+
+\subsubsection{Nghiệp vụ C1: Đề xuất lộ trình tối ưu đa mục tiêu (Multi-objective Routing)}
+
+\subsubsubsection{Mục đích và Phạm vi}
+Khác với các ứng dụng dẫn đường truyền thống chỉ tập trung vào "Thời gian ngắn nhất", nghiệp vụ này giải quyết bài toán đánh đổi giữa các yếu tố: \textbf{Thời gian} (Speed), \textbf{Độ tin cậy} (Reliability - tránh các đường có thời gian di chuyển biến động thất thường) và \textbf{An toàn} (Safety - tránh khu vực ngập nước hoặc hay tai nạn).
+
+\subsubsubsection{Ánh xạ dữ liệu nguồn (Data Mapping)}
+Hệ thống xây dựng hàm trọng số chi phí (Cost Function) dựa trên các bảng sau:
+
+\begin{itemize}
+    \item \textbf{Yếu tố Thời gian (Time Cost):}
+    \begin{itemize}
+        \item \textit{Nguồn:} Kết quả dự báo từ nghiệp vụ B1 (sử dụng \texttt{fact\_traffic\_flow}).
+        \item \textit{Trường dữ liệu:} \texttt{predicted\_speed\_kmh} trên từng \texttt{segment\_key}.
+    \end{itemize}
+    
+    \item \textbf{Yếu tố Tin cậy (Reliability Cost):}
+    \begin{itemize}
+        \item \textit{Nguồn:} \texttt{fact\_traffic\_flow} (Lịch sử).
+        \item \textit{Logic:} Tính toán độ lệch chuẩn (Standard Deviation) của vận tốc trong cùng khung giờ quá khứ.
+        \item \textit{Trường phái sinh:} Nếu độ lệch chuẩn cao $\rightarrow$ Độ tin cậy thấp (phạt điểm đoạn đường này).
+    \end{itemize}
+    
+    \item \textbf{Yếu tố An toàn (Safety Risk Cost):}
+    \begin{itemize}
+        \item \textit{Nguồn 1:} \texttt{fact\_incident}. Tính tần suất tai nạn (\texttt{count}) và mức độ nghiêm trọng (\texttt{severity\_level}) trên đoạn đường.
+        \item \textit{Nguồn 2:} \texttt{fact\_weather\_impact}. Nếu \texttt{precipitation\_mm} > 50mm (ngập), gán trọng số rủi ro cực đại cho các đoạn đường trũng (dựa trên thuộc tính địa hình trong \texttt{dim\_segment} nếu có, hoặc lịch sử ngập).
+    \end{itemize}
+\end{itemize}
+
+\subsubsubsection{Logic xử lý và Thuật toán}
+Sử dụng thuật toán tìm đường \textbf{A* (A-Star)} hoặc \textbf{Dijkstra} với hàm chi phí tổng quát:
+
+\[ Cost_{total} = w_1 \cdot T_{dự báo} + w_2 \cdot \sigma_{biến động} + w_3 \cdot (R_{sự cố} + R_{thời tiết}) \]
+
+Trong đó $w_1, w_2, w_3$ là các trọng số do người dùng tùy chỉnh (Ví dụ: Người dùng chọn chế độ "An toàn" thì $w_3$ sẽ tăng cao).
+\begin{enumerate}
+    \item \textbf{Bước 1:} Truy vấn dữ liệu từ Data Warehouse để gán trọng số cho cạnh của đồ thị giao thông.
+    \item \textbf{Bước 2:} Chạy thuật toán tìm đường trên đồ thị đã gán trọng số.
+    \item \textbf{Bước 3:} Trả về 3 phương án:
+    \begin{itemize}
+        \item \textit{Phương án 1 (Nhanh nhất):} Tối ưu hóa $w_1$.
+        \item \textit{Phương án 2 (Tin cậy):} Tối ưu hóa $w_2$ (thường là các đường lớn, ít đèn đỏ, ít kẹt xe bất ngờ).
+        \item \textit{Phương án 3 (An toàn):} Tối ưu hóa $w_3$ (tránh đường đang ngập hoặc hay có tai nạn).
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{Nghiệp vụ C2: Cảnh báo và Tái định tuyến thời gian thực (Real-time Rerouting)}
+
+\subsubsubsection{Mục đích và Phạm vi}
+Hệ thống giám sát hành trình của người dùng và chủ động phát hiện sự cố mới phát sinh trên lộ trình dự kiến để gợi ý hướng đi vòng (Detour) ngay lập tức.
+
+\subsubsubsection{Ánh xạ dữ liệu nguồn}
+Nghiệp vụ này hoạt động theo cơ chế hướng sự kiện (Event-driven):
+
+\begin{itemize}
+    \item \textbf{Trigger (Kích hoạt):} Một bản ghi mới được INSERT vào bảng \texttt{fact\_incident}.
+    \begin{itemize}
+        \item \textit{Trường quan trọng:} \texttt{segment\_key} (vị trí sự cố), \texttt{incident\_type} (loại sự cố), \texttt{is\_active = TRUE}.
+    \end{itemize}
+    \item \textbf{Đánh giá tác động:}
+    \begin{itemize}
+        \item Dựa trên \texttt{dim\_segment} để xác định các đoạn đường lân cận chịu ảnh hưởng lan truyền.
+        \item Dựa trên \texttt{bridge\_route\_segment} (tạm thời trong bộ nhớ) để xác định các User đang có lộ trình đi qua đoạn đường bị lỗi.
+    \end{itemize}
+\end{itemize}
+
+\subsubsubsection{Logic xử lý và Thuật toán}
+\begin{enumerate}
+    \item \textbf{Monitoring:} Một quy trình (Daemon) liên tục lắng nghe thay đổi trên bảng \texttt{fact\_incident}.
+    \item \textbf{Impact Analysis:} Khi có sự cố tại đoạn $S_{blocked}$:
+    \begin{itemize}
+        \item Tìm tất cả các lộ trình active $R_i$ mà $S_{blocked} \in R_i$.
+    \end{itemize}
+    \item \textbf{Rerouting:} Với mỗi lộ trình bị ảnh hưởng, thực hiện tìm đường lại (Re-calculation) với điều kiện:
+    \[ Graph_{new} = Graph_{original} \setminus \{S_{blocked}\} \]
+    (Loại bỏ cạnh bị sự cố ra khỏi đồ thị).
+    \item \textbf{Notification:} Gửi thông báo đẩy: \textit{"Phát hiện tai nạn phía trước 2km. Lộ trình mới qua đường Nguyễn Thị Minh Khai nhanh hơn 10 phút."}
+\end{enumerate}
+
+\subsubsection{Nghiệp vụ C3: Gợi ý giờ xuất phát tối ưu (Optimal Departure Time)}
+
+\subsubsubsection{Mục đích và Phạm vi}
+Thay vì chỉ trả lời "Đi đường nào?", hệ thống trả lời "Đi lúc nào?". Nghiệp vụ này phân tích xu hướng tắc nghẽn trong cửa sổ thời gian (ví dụ: 2 giờ tới) để khuyến nghị người dùng dời giờ khởi hành nhằm tránh kẹt xe.
+
+\subsubsubsection{Ánh xạ dữ liệu nguồn}
+\begin{itemize}
+    \item \textbf{Không gian tìm kiếm:} 1 cặp O-D (Origin - Destination) cố định.
+    \item \textbf{Thời gian tìm kiếm:} $T_{start} \in [T_{now}, T_{now} + 120 \text{ phút}]$.
+    \item \textbf{Dữ liệu đầu vào:}
+    \begin{itemize}
+        \item Kết quả dự báo B1 cho chuỗi thời gian liên tục.
+        \item \texttt{dim\_time\_of\_day}: Dùng để hiển thị trục thời gian trực quan cho người dùng.
+    \end{itemize}
+\end{itemize}
+
+\subsubsubsection{Logic xử lý và Thuật toán}
+\begin{enumerate}
+    \item \textbf{Bước 1 - Mô phỏng đa kịch bản:} Hệ thống thực hiện bài toán dự báo thời gian hành trình (B2 - ETA Prediction) lặp lại $N$ lần với các mốc thời gian xuất phát khác nhau (ví dụ: cứ mỗi 15 phút).
+    \begin{itemize}
+        \item $ETA_{t0}$: Xuất phát ngay bây giờ.
+        \item $ETA_{t+15}$: Xuất phát sau 15 phút.
+        \item ...
+        \item $ETA_{t+120}$: Xuất phát sau 2 tiếng.
+    \end{itemize}
+    \item \textbf{Bước 2 - Tìm cực trị:} So sánh các giá trị $ETA$.
+    \[ T_{optimal} = \arg \min_{t} (ETA_t + Penalty(t)) \]
+    \textit{(Lưu ý: Penalty là hàm phạt nếu phải chờ đợi quá lâu, tránh việc hệ thống khuyên người dùng chờ... 3 tiếng để nhanh hơn 5 phút).}
+    \item \textbf{Bước 3 - Trực quan hóa:} Vẽ biểu đồ cột so sánh thời gian di chuyển, làm nổi bật cột có thời gian thấp nhất để người dùng ra quyết định.
+\end{enumerate}

@@ -1,0 +1,119 @@
+\section{Triển khai VÀ Đánh giá hệ thống DEMO}
+
+\subsection{TỔNG QUAN HỆ THỐNG VÀ GIÁM SÁT LƯU LƯỢNG THỜI GIAN THỰC}
+
+\subsubsection{Giới thiệu tổng quan Giao diện (System Overview)}
+Hệ thống được thiết kế theo phong cách Trung tâm Điều hành Thông minh (IOC), tối ưu hóa khả năng quan sát trên một màn hình duy nhất (Single Page Dashboard). Giao diện chia làm hai khu vực chính:
+\begin{itemize}
+    \item \textbf{Khu vực Bản đồ (Phải):} Sử dụng thư viện Leaflet.js để hiển thị trực quan các điểm nút giao thông dưới dạng bản đồ nhiệt (Heatmap markers) và các biểu tượng sự cố.
+    \item \textbf{Khu vực Bảng điều khiển (Trái):} Hệ thống Tab linh hoạt cho phép chuyển đổi giữa "Lưu lượng" và "Sự cố", kèm theo các công cụ lọc và ghim vị trí.
+\end{itemize}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{Images/DEMO_01}
+    \vspace{6mm}
+    \caption{Giao diện tổng thể hệ thống Saigon Traffic Insight}
+\end{figure}
+
+\subsubsection{Tính năng Giám sát Lưu lượng (Traffic Flow Monitoring)}
+Hệ thống tự động cập nhật dữ liệu mỗi 5 giây thông qua cơ chế AJAX, đảm bảo tính thời gian thực (Real-time) mà không cần tải lại trang. Các đặc điểm nổi bật bao gồm:
+
+\begin{itemize}
+
+    \item \textbf{Phân cấp mức độ tắc nghẽn bằng màu sắc:} Dựa trên tỷ lệ phần trăm kẹt xe tính toán từ tốc độ thực tế so với tốc độ tự do (Free-flow speed):
+    \begin{itemize}
+        \item \textbf{Xanh ($<$ 40\%):} Lưu thông thoáng.
+        \item \textbf{Vàng (40\% - 70\%):} Lưu lượng đông, bắt đầu ùn ứ.
+        \item \textbf{Đỏ ($\geq$ 70\%):} Tắc nghẽn nghiêm trọng.
+    \end{itemize}
+    \item \textbf{Tương tác thông minh:}
+    \begin{itemize}
+        \item \textbf{Nút Ghim} Cho phép người điều hành tự động "bay" bản đồ (flyTo) đến ngay vị trí đoạn đường đang có biến động để quan sát cận cảnh.
+        \item \textbf{Bootstrap Tooltip:} Khi di chuyển chuột vào các tên đường bị cắt ngắn, hệ thống sẽ hiển thị đầy đủ tên đường ngay lập tức để đảm bảo độ chính xác thông tin.
+    \end{itemize}
+\end{itemize}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{Images/DEMO_02}
+    \vspace{6mm}
+    \caption{Cơ chế phân màu trực quan và Tooltip hiển thị tên đường đầy đủ}
+\end{figure}
+\subsection{GIÁM SÁT SỰ CỐ VÀ CƠ CHẾ MÔ PHỎNG (DEMO SIMULATION)}
+
+\subsubsection{Hệ thống Giám sát Sự cố (Incident Management)}
+Hệ thống tách biệt việc giám sát lưu lượng và sự cố thông qua giao diện Tab giúp người điều hành tập trung xử lý các tình huống khẩn cấp. Các tính năng nổi bật trong quản lý sự cố bao gồm:
+
+\begin{itemize}
+    \item \textbf{Phân loại sự cố bằng biểu tượng:} Hệ thống tự động nhận diện loại sự cố từ dữ liệu thô và gán các biểu tượng trực quan để giúp người dùng nhận diện nhanh loại hình rủi ro ngay trên bản đồ và danh sách. Các biểu tượng bao gồm: hình ảnh mô phỏng va chạm (cho Tai nạn), sóng nước (cho Ngập nước), hoặc rào chắn (cho Thi công).
+    \item \textbf{Cảnh báo mức độ nghiêm trọng (Severity Level):} Mỗi sự cố được gán mức độ từ 1 đến 5, đi kèm với các nhãn màu sắc (Badge) khác nhau. Màu Đỏ được sử dụng cho các sự cố mức độ Cao và màu Vàng cho mức độ Vừa, giúp ưu tiên xử lý các vụ việc có tác động lớn đến tình hình giao thông.
+    \item \textbf{Điều hướng nhanh (FlyTo Feature):} Tại bảng danh sách sự cố, hệ thống tích hợp nút tọa độ giúp bản đồ ngay lập tức di chuyển và phóng to đến vị trí chính xác của vụ việc, hỗ trợ phản ứng nhanh chóng trong công tác điều hành.
+\end{itemize}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Images/DEMO_04}
+    \vspace{6mm}
+    \caption{Giao diện quản lý danh sách sự cố với các chỉ số phân loại trực quan}
+\end{figure}
+\newpage
+
+\subsubsection{Chế độ Mô phỏng và Kiểm soát Chất lượng (Demo Simulation \& Quality Control)}
+Điểm đặc biệt của dự án là khả năng vận hành trong mọi điều kiện, kể cả khi dữ liệu thực tế từ API TomTom không có sự cố nào xảy ra tại thời điểm truy vấn.
+
+\begin{itemize}
+    \item \textbf{Cơ chế tiêm dữ liệu (Mock Injection):} Thông qua biến cấu hình FORCE\_DEMO\_MODE, hệ thống có thể tự động sinh ra các kịch bản sự cố giả lập dựa trên danh sách các đoạn đường (Segment) thực tế trong cơ sở dữ liệu.
+    \item \textbf{Hệ thống đánh giá chất lượng (Quality Flag):} Hệ thống tự động phân loại nguồn dữ liệu để đảm bảo tính minh bạch trong quản lý:
+    \begin{itemize}
+        \item \textbf{REAL/LIVE:} Dữ liệu chuẩn xác được lấy trực tiếp từ API thực tế (quality\_flag = 1).
+        \item \textbf{SIM/DEMO:} Dữ liệu được mô phỏng nhằm mục đích trình diễn các tính năng của hệ thống (quality\_flag = 2).
+    \end{itemize}
+    \item \textbf{Ghi chú nguồn dữ liệu:} Trên cả bản đồ và bảng danh sách, các sự cố giả lập được gắn nhãn "Simulation (Demo)" rõ ràng để người điều hành có thể phân biệt với dữ liệu thực tế từ TomTom API.
+\end{itemize}
+
+\subsubsection{Trang Phân tích Tác động Chi tiết (Detailed Impact Analysis)}
+Khi người dùng chọn một đoạn đường cụ thể, hệ thống sẽ cung cấp một trang chuyên sâu hiển thị mối tương quan giữa yếu tố thời tiết và tốc độ giao thông tại khu vực đó.
+
+\begin{itemize}
+    \item \textbf{Biểu đồ tương quan Real-time:} Hệ thống sử dụng thư viện Chart.js để vẽ đồ thị kết hợp dạng đường (line) và cột (bar), thể hiện rõ nét biến động của tốc độ xe (đơn vị km/h) so với lượng mưa (đơn vị mm) theo thời gian thực.
+    \item \textbf{Dịch thuật thông minh:} Các mô tả thời tiết phức tạp và chi tiết từ OpenWeatherMap được hệ thống tự động chuyển ngữ sang tiếng Việt thuần túy, giúp người dùng tiếp nhận thông tin nhanh chóng và chính xác hơn.
+\end{itemize}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{Images/DEMO_05}
+    \vspace{6mm}
+    \caption{Trang phân tích chi tiết tác động của ngoại cảnh (thời tiết) lên hiệu suất giao thông}
+\end{figure}
+
+\subsection{KẾT LUẬN, ĐÁNH GIÁ HIỆU NĂNG VÀ HƯỚNG PHÁT TRIỂN}
+
+\subsubsection{Kết luận (Conclusion)}
+Dự án Saigon Traffic Insight đã xây dựng thành công một hệ thống giám sát giao thông tích hợp, đáp ứng đầy đủ các tiêu chuẩn của một ứng dụng quản lý dữ liệu hiện đại. Các thành tựu chính mà dự án đạt được bao gồm:
+
+\begin{itemize}
+    \item \textbf{Hợp nhất dữ liệu đa nguồn:} Kết hợp thành công dữ liệu lưu lượng từ TomTom, dữ liệu thời tiết từ OpenWeatherMap và dữ liệu sự cố giả lập để tạo ra một bức tranh toàn cảnh về tình hình giao thông đô thị.
+    \item \textbf{Giao diện tương tác thời gian thực:} Dashboard cung cấp khả năng quan sát trực quan thông qua bản đồ số và hệ thống bảng biểu với cơ chế tự động cập nhật dữ liệu liên tục.
+    \item \textbf{Tính minh bạch của dữ liệu:} Thông qua hệ thống nhãn phân loại chất lượng (Quality Flag), người điều hành luôn nắm rõ được nguồn gốc cũng như mức độ tin cậy của các thông tin đang tiếp nhận trên hệ thống.
+\end{itemize}
+
+\subsubsection{Đánh giá hiệu năng (Performance Evaluation)}
+Hệ thống đã đạt được các chỉ số tối ưu hóa đáng kể về mặt kỹ thuật, đảm bảo tính ổn định và hiệu quả trong vận hành:
+
+\begin{itemize}
+    \item \textbf{Tối ưu hóa tài nguyên API (Spatial Caching):} Việc áp dụng kỹ thuật lưu trữ đệm không gian trong xử lý dữ liệu thời tiết đã giúp giảm thiểu số lượng cuộc gọi API từ 80\% đến 90\% tại các khu vực có mật độ đoạn đường cao, giúp hệ thống vận hành ổn định và tiết kiệm chi phí tài nguyên.
+    \item \textbf{Xử lý dữ liệu thông minh (Smart Fill):} Thuật toán tự động tính toán độ dài sự cố và mức độ nghiêm trọng giúp duy trì tính liên tục của kho dữ liệu ngay cả trong trường hợp nguồn cung cấp từ API gốc bị khuyết thiếu thông tin.
+    \item \textbf{Trải nghiệm người dùng mượt mà:} Nhờ vào cơ chế AJAX và kỹ thuật cập nhật từng phần (Partial Update), trang Dashboard duy trì tốc độ phản hồi nhanh, không xảy ra hiện tượng chậm trễ khi số lượng điểm dữ liệu trên bản đồ tăng lên.
+    \item \textbf{Độ chính xác không gian:} Việc tận dụng các hàm xử lý của PostGIS (như ST\_Distance, ST\_Point) đảm bảo mọi sự cố đều được khớp nối chính xác với các đoạn đường thực tế trong hệ thống cơ sở dữ liệu.
+\end{itemize}
+
+\subsubsection{Hướng phát triển tương lai (Future Development)}
+Để nâng tầm và hoàn thiện hệ thống hơn nữa, các hướng phát triển tiếp theo được đề xuất bao gồm:
+
+\begin{itemize}
+    \item \textbf{Tích hợp Học máy (Machine Learning):} Tận dụng kho dữ liệu lịch sử đã lưu trữ để xây dựng các mô hình dự báo tình trạng kẹt xe trước từ 30 đến 60 phút, dựa trên các biến số về điều kiện thời tiết và dữ liệu giao thông trong quá khứ.
+    \item \textbf{Mở rộng nguồn dữ liệu cộng đồng (Crowdsourcing):} Phát triển tính năng cho phép người tham gia giao thông trực tiếp báo cáo sự cố qua ứng dụng, tạo ra nguồn dữ liệu kiểm chứng quan trọng cho các thông tin nhận được từ API.
+    \item \textbf{Hệ thống đề xuất lộ trình thông minh:} Tự động gợi ý các tuyến đường thay thế tối ưu khi hệ thống phát hiện các sự cố có mức độ nghiêm trọng cao trên tuyến đường hiện tại.
+    \item \textbf{Phân tích sâu bằng AI:} Tích hợp khả năng nhận diện hình ảnh từ hệ thống camera giao thông thực tế để tự động hóa quy trình đánh giá chất lượng dữ liệu tại các khu vực trọng điểm của thành phố.
+\end{itemize}
