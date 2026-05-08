@@ -1,0 +1,63 @@
+\section{TRIỂN KHAI, VẬN HÀNH VÀ TỐI ƯU CHI PHÍ}
+
+Một hệ thống phần mềm chỉ thực sự mang lại giá trị khi nó được triển khai lên môi trường thực tế, đảm bảo khả năng phục vụ người dùng 24/7 với độ ổn định cao. Chương này trình bày chi tiết về chiến lược đưa dự án từ môi trường phát triển (Development) lên môi trường vận hành (Production), tập trung vào kiến trúc đám mây, công nghệ ảo hóa, luồng tích hợp liên tục và các bài toán tối ưu hóa tài nguyên.
+
+\subsection{Kiến trúc Triển khai (Deployment Architecture)}
+
+Hệ thống được thiết kế theo kiến trúc phân tầng (Layered Architecture: Controller - Service - Repository) nhằm đảm bảo sự rành mạch giữa luồng điều khiển, logic nghiệp vụ và tương tác dữ liệu. Dựa trên tính toán về tải lượng dữ liệu và ngân sách dự án, nhóm quyết định phân bổ các dịch vụ lên nền tảng đám mây kết hợp.
+
+\begin{itemize}
+    \item \textbf{Backend API Server (ExpressJS) \& AI Core (Python):} Đóng vai trò xử lý logic nghiệp vụ, chạy các mô hình dự báo và phân phối dữ liệu. Cả hai module này được đóng gói bằng Docker, lưu trữ tại \textbf{Docker Hub} và triển khai lên nền tảng \textbf{Azure App Services (Web App for Containers)}. Hệ thống sử dụng gói máy chủ \textbf{Basic B2} với cấu hình mạnh mẽ hơn để đáp ứng tải thực tế. Việc sử dụng dịch vụ PaaS này giúp ứng dụng tự động cân bằng tải và dễ dàng khởi động lại khi có sự cố.
+    \item \textbf{Frontend App \& Dashboard (React):} Được triển khai trực tiếp lên nền tảng \textbf{Vercel} thông qua công cụ \textbf{Vercel CLI}. Nhóm tận dụng gói \textbf{Hobby Plan} (Miễn phí) của Vercel, giúp tự động biên dịch các tệp tĩnh (Static Assets) và phân phối siêu tốc qua mạng lưới Global CDN, tối ưu hóa triệt để tốc độ tải trang cho cả người dùng Web và Mobile.
+    \item \textbf{Cơ sở dữ liệu (Database Server):} Hệ thống sử dụng \textbf{PostgreSQL 17} để xử lý các truy vấn không gian - thời gian phức tạp và lưu trữ Data Warehouse. (Lưu ý: Thiết kế chi tiết và cấu hình triển khai hạ tầng Database được một thành viên khác trong nhóm phụ trách biên soạn ở chương riêng).
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{images/deployment_architecture.png}
+    \caption{Sơ đồ kiến trúc triển khai hệ thống trên nền tảng đám mây}
+    \label{fig:deployment_arch}
+\end{figure}
+
+\subsection{Quản lý Server và Containerization (Docker)}
+
+Để khắc phục triệt để vấn đề "chạy được trên máy tôi nhưng lỗi trên server" (It works on my machine), nhóm đã áp dụng triệt để công nghệ Containerization bằng \textbf{Docker} cho toàn bộ các dịch vụ.
+
+\subsubsection{Tối ưu hóa Docker Image}
+Việc đóng gói Backend ExpressJS và AI Core đòi hỏi sự tính toán kỹ lưỡng để giảm thiểu kích thước Image và đảm bảo tương thích môi trường đám mây.
+\begin{itemize}
+    \item \textbf{Alpine Linux Compatibility \& Multi-stage Builds:} Nhóm sử dụng base image \texttt{node:alpine} siêu nhẹ. Quy trình build được chia làm nhiều giai đoạn (Multi-stage). Giai đoạn đầu biên dịch mã TypeScript, sau đó Image cuối (Production) chỉ giữ lại file đã dịch và dependencies bắt buộc, giúp thu nhỏ kích thước Container từ hơn 1GB xuống dưới 150MB. Với Prisma ORM (sử dụng thư viện C cốt lõi \texttt{musl libc}), nhóm đã nhúng lệnh \texttt{npx prisma generate} vào luồng Build để đảm bảo tính tương thích 100\% khi container Alpine khởi động.
+    \item \textbf{Cấu hình cổng mạng (EXPOSE 80):} Đây là một điểm tối ưu mang tính quyết định khi làm việc với Azure App Services. Mặc định, nền tảng Azure sẽ liên tục ping kiểm tra sức khỏe (Health-check) vào cổng \texttt{80} của Container khi khởi động. Nếu ứng dụng Node.js/Python chạy ở cổng khác (như 3000) mà không khai báo, Azure sẽ rơi vào trạng thái chờ (Container Timeout) đúng 230 giây trước khi báo lỗi sập ứng dụng. Vì vậy, nhóm đã chủ động cấu hình \texttt{EXPOSE 80} trong \texttt{Dockerfile} và ràng buộc (bind) ứng dụng chạy thẳng trên cổng này, giúp container qua mặt được Health-check và khởi động thành công ngay lập tức.
+\end{itemize}
+
+\subsubsection{Quản lý Container và Dọn dẹp Tài nguyên}
+Trong quá trình vận hành và cập nhật phiên bản liên tục, server rất dễ bị đầy ổ cứng do các image cũ và container rác (Dangling images) tích tụ. Nhóm đã thiết lập các script tự động hóa (Bash script) kết hợp lệnh \texttt{docker system prune} chạy định kỳ qua Cronjob để dọn dẹp các volume và network không còn sử dụng, duy trì sự ổn định cho hạ tầng.
+
+\subsection{Thiết lập luồng Triển khai (Deployment Flow)}
+
+Khác với các hệ thống đồ sộ cần luồng CI (Continuous Integration) phức tạp, nhóm đã tinh gọn quy trình phát hành tính năng bằng các kịch bản triển khai thủ công nhưng mang lại tốc độ linh hoạt cao.
+
+\textbf{Quy trình hoạt động của luồng Triển khai:}
+\begin{enumerate}
+    \item \textbf{Với Backend \& AI Core:} 
+    \begin{itemize}
+        \item Nhà phát triển chạy lệnh build trực tiếp từ máy cục bộ và sử dụng lệnh \texttt{docker push} để đẩy Image mới nhất lên \textbf{Docker Hub}.
+        \item Sau khi Image đã cập nhật trên kho lưu trữ, thông qua Webhook hoặc thao tác trên Azure Portal, \textbf{Azure App Services} sẽ tự động kéo (Pull) image mới nhất về và khởi động lại container dịch vụ.
+    \end{itemize}
+    \item \textbf{Với Frontend:}
+    \begin{itemize}
+        \item Khi có thay đổi trên giao diện, nhà phát triển gõ lệnh \texttt{vercel --prod} trực tiếp thông qua \textbf{Vercel CLI} ở Terminal máy tính cục bộ.
+        \item Toàn bộ mã nguồn sẽ được tải lên đám mây của Vercel, sau đó Vercel tự động biên dịch bản build Production và phân phối tức thì lên mạng lưới Global CDN toàn cầu.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Phân tích \& Quản lý ngân sách (Budget \& Resource Optimization)}
+
+Đối với các dự án Giao thông thông minh có luồng dữ liệu thời gian thực lớn, nếu không có chiến lược tối ưu hóa, chi phí duy trì Cloud Server có thể vượt ngoài tầm kiểm soát. Nhóm đã áp dụng các phương pháp kỹ thuật để tối ưu hóa ngân sách vận hành:
+
+\begin{itemize}
+    \item \textbf{Tận dụng tài nguyên hỗ trợ Giáo dục:} Tận dụng tối đa gói tín dụng (Credits) từ Azure for Students và các dịch vụ Free Tier dành cho môi trường Development, chỉ phân bổ ngân sách thực cho môi trường Production.
+    \item \textbf{Tối ưu hóa I/O Cơ sở dữ liệu:} Thay vì phải nâng cấp cấu hình CPU/RAM (Scale-up) của Database Server để đáp ứng các biểu đồ OLAP, việc thiết kế \textbf{Materialized Views} kết hợp \textbf{Redis Cache} đã giúp giảm hơn 80\% khối lượng tính toán trực tiếp trên đĩa cứng (Disk I/O). Việc này cho phép hệ thống phục vụ hàng ngàn truy vấn với một máy chủ có cấu hình khiêm tốn.
+\end{itemize}
+
+Thông qua việc thiết kế kiến trúc triển khai thực dụng và áp dụng triệt để Containerization, nhóm không chỉ đảm bảo hệ thống vận hành trơn tru mà còn chứng minh được tính khả thi về mặt kinh tế để sẵn sàng bàn giao sản phẩm cho cơ quan quản lý.
