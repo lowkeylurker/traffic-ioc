@@ -1,0 +1,259 @@
+\section{Chi tiết nghiệp vụ hệ thống Traffic IOC}
+
+Chương này tập trung trình bày các chức năng nghiệp vụ cốt lõi mà hệ thống đã hiện thực hóa. Điểm nhấn của hệ thống không nằm ở việc hiển thị dữ liệu thô, mà ở cách trực quan hóa, cách xử lý logic nghiệp vụ và các phương pháp tối ưu hóa hiệu năng ứng dụng, được chia làm hai phân hệ riêng biệt: Phân hệ Quản trị \& Điều hành (dành cho Sở GTVT) và Phân hệ Người dùng cuối (dành cho người dân).
+
+\subsection{Tổng quan hệ thống và Triết lý thiết kế}
+
+\subsubsection{Giới thiệu tổng quan hệ thống}
+Hệ thống được phát triển trong đồ án không chỉ đơn thuần là một phần mềm theo dõi bản đồ, mà được định hình là một \textbf{Hệ thống Hỗ trợ Ra quyết định (Decision Support System - DSS)} chuyên biệt cho lĩnh vực Giao thông thông minh (ITS). 
+Hệ thống đóng vai trò là cầu nối cốt lõi, chuyển hóa dữ liệu thô khổng lồ từ Data Warehouse thành các thông tin có tính hành động (Actionable Insights). Hệ thống được chia làm hai phân hệ tương tác hai chiều:
+\begin{itemize}
+    \item \textbf{Phân hệ Admin (Command Center):} Dành cho Sở GTVT và các chuyên gia quy hoạch, cung cấp góc nhìn vĩ mô (Macro-level), đánh giá năng lực hạ tầng và phát hiện điểm nghẽn để tối ưu hóa nguồn lực điều tiết.
+    \item \textbf{Phân hệ Mobile App (Citizen View):} Dành cho người tham gia giao thông, cung cấp góc nhìn vi mô (Micro-level), cá nhân hóa thông tin theo lộ trình để giúp người dân ra quyết định di chuyển tối ưu nhất.
+\end{itemize}
+
+Điểm nhấn (Key Highlight) của toàn bộ hệ thống là nguyên tắc \textbf{Single Source of Truth (Nguồn chân lý duy nhất)}. Bất kỳ một sự cố ùn tắc nào được phát hiện bởi hệ thống AI/Data Warehouse đều được phản ánh đồng thời lên Dashboard của cơ quan quản lý và đẩy cảnh báo trực tiếp (Real-time Alert) xuống thiết bị của người dân, tạo ra sự đồng bộ tuyệt đối trong việc điều phối giao thông đô thị.
+
+\subsubsection{Nguyên tắc thiết kế Giao diện \& Trải nghiệm người dùng (UI/UX)}
+
+Thiết kế giao diện cho hệ thống giám sát giao thông đòi hỏi các tiêu chuẩn khắt khe về "Thời gian nhận thức" (Glanceability) — khả năng người dùng tiếp nhận thông tin chính xác chỉ trong vài phần mười giây. Nhóm đã tham khảo hệ thống nguyên tắc thiết kế \textit{Material Design} của Google (áp dụng trên Google Maps) và \textit{Ant Design} (chuyên biệt cho các Dashboard dữ liệu lớn) để xây dựng hệ thống thiết kế (Design System) riêng:
+
+\textbf{1. Hệ thống màu sắc (Color Semantics) theo tiêu chuẩn Giao thông:}
+Màu sắc trong hệ thống không được chọn theo sở thích thẩm mỹ mà tuân thủ nghiêm ngặt theo tiêu chuẩn Phân loại mức độ phục vụ \textbf{LOS (Level of Service)} của Cục Quản lý Đường bộ Liên bang Mỹ (FHWA).
+\begin{itemize}
+    \item \textbf{Màu Xanh lá (Green - \#52c41a):} Tương ứng với LOS A-C, đại diện cho dòng chảy tự do (Free-flow), chỉ số $TTI < 1.15$.
+    \item \textbf{Màu Vàng/Cam (Orange - \#fa8c16):} Tương ứng với LOS D, cảnh báo dòng xe đông, di chuyển chậm, chỉ số $TTI$ từ $1.15 - 1.3$.
+    \item \textbf{Màu Đỏ (Red - \#ff4d4f):} Tương ứng với LOS E-F, báo động trạng thái ùn tắc, kẹt cứng, hệ thống hạ tầng vượt quá sức chứa, chỉ số $TTI > 1.3$.
+\end{itemize}
+Việc đồng bộ hóa bảng màu này từ biểu đồ Web Admin cho đến nét vẽ tuyến đường trên Mobile App giúp giảm thiểu tối đa tải lượng nhận thức (Cognitive Load). Người quản lý hay tài xế không cần tốn thời gian "giải mã" màu sắc, mà ngay lập tức phản xạ theo bản năng thị giác (Màu đỏ = Dừng lại/Cảnh báo).
+
+\textbf{2. Lựa chọn họ Font chữ (Typography):}
+Hệ thống sử dụng họ font chữ không chân (Sans-serif) \textbf{Inter} (hoặc \textbf{Roboto}) làm bộ font tiêu chuẩn. Đây là quyết định mang tính kỹ thuật vì:
+\begin{itemize}
+    \item \textbf{Độ đọc chữ số xuất sắc (Tabular Figures):} Trong các hệ thống OLAP có hàng triệu bản ghi, các con số cần được căn chỉnh thẳng hàng dọc. Font Inter hỗ trợ tính năng Tabular Numbers, giúp các con số có độ rộng bằng nhau, cực kỳ tối ưu cho việc đọc lướt qua các bảng Data Grid (Bảng dữ liệu tra cứu).
+    \item \textbf{Tính hiển thị trên thiết bị di động:} Font Sans-serif với chiều cao chữ (X-height) lớn giúp nội dung vẫn sắc nét và dễ đọc trên Mobile App, đặc biệt trong môi trường ánh sáng ngoài trời có độ chói cao khi người dân đang chạy xe.
+\end{itemize}
+
+\textbf{3. Tối ưu hóa không gian (Space Optimization):}
+Do đặc thù màn hình trung tâm điều hành (Command Center) thường phải chứa hàng chục biểu đồ, nhóm áp dụng nguyên lý \textbf{Data-ink Ratio} (Tỷ lệ mực-dữ liệu) của Edward Tufte: Lược bỏ tối đa các đường viền, lưới (gridlines) không cần thiết. Các chi tiết rườm rà được ẩn đi và chỉ hiện ra dưới dạng \textit{Custom Tooltip} khi người dùng tương tác (Hover/Click), giúp hệ thống chứa được một mật độ thông tin khổng lồ nhưng không gây rối mắt.
+
+
+
+\subsection{Phân hệ Quản trị \& Điều hành (Admin Dashboard)}
+
+Phân hệ này đóng vai trò như một Trung tâm chỉ huy (Command Center), cung cấp cho các nhà quản lý giao thông những công cụ phân tích từ bao quát đến chi tiết.
+
+\subsubsection{Nghiệp vụ 1: Bảng điều khiển Tổng quan (Executive Dashboard)}
+
+\textbf{Mô tả nghiệp vụ:} Cung cấp bức tranh toàn cảnh (bird's-eye view) về "sức khỏe" của mạng lưới giao thông. Cho phép ban lãnh đạo nắm bắt tình hình thực tế chỉ trong vài giây đầu tiên đăng nhập.
+
+\textbf{Cách thực hiện:}
+\begin{itemize}
+    \item \textbf{Thẻ KPI Tổng quan:} Sử dụng các thẻ thông tin (Statistic Cards) để hiển thị 4 chỉ số cơ bản quan trọng nhất: \textit{Vận tốc trung bình, Điểm ùn tắc, Sự cố đang mở,} và \textit{Đoạn đang giám sát}.
+    \item \textbf{Deep-linking (Liên kết sâu):} Hỗ trợ truyền tham số tọa độ hoặc mã đoạn đường trực tiếp trên URL (\texttt{?segmentId=...}) giúp bản đồ tự động bay (flyTo) đến vị trí cần giám sát ngay khi mở trình duyệt, tạo thuận lợi cho việc báo cáo nhanh.
+\end{itemize}
+
+\textbf{Cách tối ưu (Hiệu năng):}
+Việc tổng hợp các chỉ số KPI này đòi hỏi truy vấn quét qua toàn bộ dữ liệu sự kiện trong ngày. Nhóm đã tối ưu bằng cách triển khai cơ chế Caching (Redis) ở tầng Backend. Các chỉ số KPI được tính toán nền và cập nhật vào Cache mỗi 5 phút, giúp trang Dashboard tải tức thì (dưới 300ms) ngay khi nhà quản lý truy cập.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{images/admin_executive_dashboard.png}
+    \caption{Bảng điều khiển Tổng quan với hệ thống thẻ KPI cơ bản}
+    \label{fig:admin_executive_dashboard}
+\end{figure}
+
+\subsubsection{Nghiệp vụ 2: Giám sát Năng lực thông hành (Corridor Performance)}
+
+\textbf{Mô tả nghiệp vụ:} Giám sát diễn biến năng lực thông hành của toàn hành lang theo từng khung giờ trong ngày, đánh giá hiệu năng hoạt động thông qua bộ chỉ số KPI chi tiết.
+
+\textbf{Cách thực hiện:}
+Hệ thống hiển thị bộ 6 chỉ số chuyên sâu: \textit{Tốc độ trung bình, Chỉ số TTI, Tổng thời gian trễ, Hiệu suất vận hành, Số lượng sự cố,} và \textit{So sánh với Baseline}. Đặc biệt, tính năng đối chiếu với Baseline (dữ liệu lịch sử cùng kỳ) giúp hiển thị mũi tên xanh/đỏ báo hiệu mức độ cải thiện hay suy giảm so với tuần trước.
+Ngoài ra, hệ thống sử dụng thư viện Recharts để vẽ các biểu đồ chuỗi thời gian (Time-series Line Chart). Điểm nổi bật là việc thiết lập các đường mục tiêu (ví dụ: Tốc độ mục tiêu 35.8 km/h, Ngưỡng cảnh báo TTI 1.3). Bất kỳ khoảng thời gian nào giá trị thực tế vượt qua ngưỡng này, hệ thống tự động đổi màu cảnh báo ngay trên đường đồ thị.
+
+\textbf{Cách tối ưu (UX \& Performance):}
+\begin{itemize}
+    \item \textbf{Tối ưu Trải nghiệm người dùng (Xử lý Nghịch lý dữ liệu):} Thường xuyên xảy ra hiện tượng "Tốc độ trung bình tăng nhưng Tổng độ trễ lại tăng vọt" (do kẹt xe cục bộ tại một vài nút giao). Để tránh gây hoang mang cho người ra quyết định, nhóm đã nhúng một \textit{Custom Tooltip} (biểu tượng \texttt{(i)}) ngay cạnh thẻ Baseline nhằm giải thích cặn kẽ nguyên nhân của sự bất đồng nhất này.
+    \item \textbf{Tối ưu hiệu năng Render biểu đồ:} Thay vì chặt nhỏ biểu đồ thành nhiều đoạn thẳng (gây phình to cây DOM và giảm hiệu năng), nhóm ứng dụng kỹ thuật \textbf{SVG Linear Gradient}. Thuật toán tại Frontend tính toán giá trị \texttt{offset} động (điểm cắt giữa giá trị thực tế và ngưỡng Threshold):
+\begin{equation}
+    Offset = \max\left(0, \min\left(1, \frac{Max_{value} - Threshold}{Max_{value} - Min_{value}}\right)\right)
+\end{equation}
+Dựa vào offset này, một thẻ \texttt{<defs>} chứa gradient dọc được áp dụng trực tiếp làm \texttt{stroke} cho toàn bộ thẻ \texttt{<Line>}, giúp biểu đồ đổi màu (Xanh/Đỏ) chính xác đến từng pixel với hiệu năng O(1) tại khâu render.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{images/admin_corridor_performance.png}
+    \caption{Nghiệp vụ Giám sát Năng lực thông hành với hệ thống KPI và biểu đồ Split-color Gradient}
+    \label{fig:admin_corridor}
+\end{figure}
+
+\subsubsection{Nghiệp vụ 3: Phân tích Độ tin cậy \& Biến động (Reliability Analytics)}
+
+\textbf{Mô tả nghiệp vụ:} Đánh giá mức độ bất ổn định của hành lang thông qua Chỉ số dự phòng (Buffer Index - $BI$) và Chỉ số thời gian lập kế hoạch (Planning Time Index - $PTI$), trả lời câu hỏi: "Người đi đường cần dự phòng bao nhiêu thời gian để chắc chắn 95\% không bị trễ giờ?".
+
+\textbf{Cách thực hiện:}
+Hệ thống thu thập thời gian đi lại của các phân đoạn ($T_{avg}$, $T_{95}$) và hiển thị trong một Modal (Popup) chi tiết. Modal cung cấp cái nhìn đối chiếu giữa mức độ trung bình của toàn tuyến và biểu đồ phân phối PTI của từng đoạn thành phần.
+
+\textbf{Cách tối ưu (Xử lý Aggregate Fallacy):}
+Khó khăn lớn nhất là việc tính toán $BI$ cho một tuyến đường dài từ nhiều đoạn nhỏ. Nếu lấy trung bình cộng $BI$ của từng đoạn (\textit{Average of Ratios}) sẽ dẫn đến sai số toán học nghiêm trọng (ví dụ UI hiển thị 37\% nhưng thực tế là 75\%). 
+Nhóm đã tối ưu bằng cách đẩy logic tính toán xuống tầng Cơ sở dữ liệu (Database Layer). Sử dụng Prisma để thực hiện Aggregation: Tính \textbf{Tổng thời gian trung bình} ($\sum T_{avg}$) và \textbf{Tổng thời gian phân vị 95} ($\sum T_{95}$) của toàn hành lang trước, sau đó mới tính $BI_{corridor}$ theo công thức:
+\begin{equation}
+    BI_{corridor} = \frac{\sum T_{95} - \sum T_{avg}}{\sum T_{avg}}
+\end{equation}
+Cách tối ưu này vừa giải quyết triệt để lỗi logic, vừa giảm tải lượng RAM tiêu thụ trên Node.js server do không phải kéo hàng ngàn record lên memory để loop.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{images/admin_reliability_modal.png}
+    \caption{Popup chi tiết Phân tích Độ tin cậy hành lang và hiển thị phân vị $T_{95}$}
+    \label{fig:admin_reliability}
+\end{figure}
+
+\subsubsection{Nghiệp vụ 4: Định vị \& Xếp hạng Điểm nghẽn (Bottleneck Detection)}
+
+\textbf{Mô tả nghiệp vụ:} Bóc tách và xếp hạng các phân đoạn đường (Segments) gây thiệt hại lớn nhất để nhà quản lý ưu tiên nguồn lực nâng cấp hạ tầng. Tính năng này được tích hợp liền mạch vào Trung tâm Phân tích Hành lang (Analytic Page) để nhà quản lý đối chiếu mà không cần chuyển trang.
+
+\textbf{Cách thực hiện:}
+Nhóm triển khai hai biểu đồ Bar Chart chạy song song mang hai ý nghĩa nghiệp vụ hoàn toàn khác biệt:
+\begin{itemize}
+    \item \textbf{Đánh giá tính Nghiêm trọng (Severity):} Xếp hạng dựa trên "Tổng thời gian trễ lũy kế". Giúp nhận diện đoạn đường tiêu tốn nhiều thời gian của xã hội nhất.
+    \item \textbf{Đánh giá tính Kinh niên (Persistence):} Xếp hạng dựa trên "Tần suất xuất hiện điểm nghẽn". Giúp nhận diện các nút thắt cổ chai lặp đi lặp lại.
+\end{itemize}
+
+\textbf{Cách tối ưu (Clean UI \& UX):}
+Thay vì lãng phí không gian màn hình bằng việc liệt kê lại một bảng danh sách các đoạn đường, nhóm đã thiết kế một \textbf{Custom Tooltip} gắn trực tiếp vào biểu đồ Recharts. Khi người dùng di chuột vào thanh Bar, hệ thống hiển thị mã ID đoạn đường (được tự động cắt gọn bằng \texttt{formatSegmentId}) kèm theo nút Copy. Tổng thời gian trễ (ví dụ: 4.822.977 giây) được format động thành "55 ngày 19 giờ" giúp nhà quản lý dễ dàng cảm nhận mức độ thiệt hại.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{images/admin_bottleneck_ranking.png}
+    \caption{Biểu đồ phân tách tính Nghiêm trọng và tính Kinh niên của Điểm nghẽn}
+    \label{fig:admin_bottleneck}
+\end{figure}
+
+\subsubsection{Nghiệp vụ 5: Phân tích Đa chiều OLAP \& Đánh giá Hạ tầng}
+
+\textbf{Mô tả nghiệp vụ:} Cung cấp cái nhìn đa chiều (OLAP) về mối tương quan giữa sức chứa hạ tầng vật lý và lưu lượng giao thông thực tế thông qua các biểu đồ phân tích cao cấp.
+
+\textbf{Cách thực hiện:}
+Tích hợp hai loại biểu đồ đặc thù:
+\begin{itemize}
+    \item \textbf{Traffic Heatmap (Bản đồ nhiệt 2D):} Trục X là thời gian, Trục Y là tên đường. Màu sắc thể hiện mức độ ùn tắc, giúp phát hiện quy luật "giờ chết" không gian - thời gian.
+    \item \textbf{Cross-analysis Bubble Chart (Biểu đồ bong bóng 4D):} Kết hợp Sức chứa thiết kế (Trục X), Mức độ kẹt (Trục Y), Hệ số V/C Ratio (Màu bóng) và Lưu lượng/Độ trễ (Kích thước bóng). Cho phép nhà quản lý nhìn thấy những tuyến đường đang "nhồi nhét" vượt tải trọng thiết kế dù chỉ số ùn tắc hiện tại có thể chưa cao.
+    \item \textbf{Biểu đồ Phân rã Độ trễ (Drilldown Delay Chart):} Tính năng "khoan sâu" (Drill-down) đặc trưng của OLAP. Khi nhà quản lý phát hiện một tuyến đường bất thường trên Heatmap, họ có thể click vào để bóc tách dữ liệu từ cấp độ vĩ mô (toàn tuyến) xuống vi mô (từng phân đoạn đường cụ thể), từ đó xác định chính xác nút giao nào là nguyên nhân gốc rễ (Root Cause) gây chậm trễ.
+\end{itemize}
+
+\textbf{Cách tối ưu:}
+Các truy vấn OLAP quét qua hàng triệu dòng dữ liệu sự kiện (event logs) thường mất nhiều phút để thực thi. Nhóm đã tối ưu bằng cách triển khai \textbf{Materialized Views} tại Database PostgreSQL. Dữ liệu tổng hợp cho Heatmap và Bubble Chart được tính toán sẵn (Pre-computation) theo một job chạy nền (Cronjob) mỗi 15 phút. Nhờ đó, thao tác tải trang hoặc filter trên giao diện Dashboard phản hồi với độ trễ dưới 1 giây.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{images/admin_olap_bubble.png}
+    \caption{Dashboard BI \& OLAP: Heatmap thời gian và Bubble Chart đánh giá hạ tầng}
+    \label{fig:admin_olap}
+\end{figure}
+
+\subsubsection{Nghiệp vụ 6: Tra cứu Lịch sử \& Tin nóng (Marquee Alert)}
+
+\textbf{Mô tả nghiệp vụ:} Cho phép truy xuất hàng trăm ngàn bản ghi sự cố trong quá khứ để lập báo cáo, đồng thời nhận cảnh báo theo thời gian thực về các tình trạng kẹt cứng hiện tại.
+
+\textbf{Cách thực hiện:}
+\begin{itemize}
+    \item Dải \textbf{Tin nóng (Marquee Alert)}: Hệ thống tích hợp một dải thanh cuộn (LiveNewsTicker) hiển thị text động từ Socket, chạy liên tục trên Layout toàn cục (Global Layout), hỗ trợ nhà quản lý nhận cảnh báo sớm ở bất kỳ trang nào, kể cả khi đang xem báo cáo lịch sử.
+    \item \textbf{Data Grid Lịch sử}: Bảng dữ liệu tra cứu trong màn hình chính, tích hợp bộ lọc thời gian (Time Range Picker), biểu đồ phân bổ trạng thái (Donut Chart) và tính năng Xuất file CSV.
+    \item \textbf{Bản đồ Tua lại thời gian (Spatial-Temporal Playback):} Thay vì chỉ hiển thị bảng số liệu khô khan, hệ thống cho phép chọn một mốc thời gian cụ thể trong quá khứ. Ngay lập tức, một bản đồ tĩnh (Snapshot Map) sẽ render lại toàn bộ hiện trạng mạng lưới giao thông y hệt như thời khắc đó, hỗ trợ đắc lực cho công tác hậu kiểm và phân tích "mổ xẻ" các vụ kẹt xe lớn.
+\end{itemize}
+
+\textbf{Cách tối ưu:}
+Với tập dữ liệu hàng trăm ngàn bản ghi, việc truy vấn lịch sử được tối ưu thông qua \textbf{Server-side Pagination} và đánh \textbf{Index (B-Tree)} trên cột thời gian (\texttt{timestamp}) và \texttt{segment\_id}. Nhóm cũng triển khai cơ chế chặn khoảng thời gian truy vấn (tối đa 7-30 ngày) để bảo vệ DB Server khỏi các truy vấn cạn kiệt tài nguyên.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{images/admin_history_marquee.png}
+    \caption{Giao diện Tra cứu lịch sử tích hợp thanh Tin nóng thời gian thực}
+    \label{fig:admin_history}
+\end{figure}
+
+\subsubsection{Nghiệp vụ 7: Mô phỏng \& Dự báo giao thông động (Traffic Simulation)}
+
+\textbf{Mô tả nghiệp vụ:} Cung cấp công cụ dự báo tình trạng giao thông trong tương lai gần (ví dụ 15-30 phút tới), cho phép nhà quản lý có cái nhìn đi trước thời gian thực để đưa ra phương án điều tiết sớm.
+
+\textbf{Cách thực hiện:}
+Hệ thống gọi API đến Module Dự báo (Predictive Module) để lấy kết quả từ mô hình AI và trực quan hóa các điểm nghẽn có nguy cơ hình thành. Điểm nổi bật về UX nằm ở \textbf{Kiến trúc Bản đồ Kép (Dual-Map UI)}: Thay vì nhồi nhét mọi tương tác lên một màn hình gây rối mắt, hệ thống chia giao diện làm hai phần riêng biệt. 
+Một bản đồ phụ (Selection Map) được đặt ở bảng điều khiển bên phải chuyên dùng để tìm kiếm và chọn đoạn đường cần phân tích. Sau khi xác nhận, kết quả dự báo AI mới được render lên bản đồ chính (Predictive Map) cực lớn ở trung tâm, đi kèm biểu đồ đối chiếu tốc độ dự báo với baseline lịch sử trong ngày. Thiết kế này giúp tối ưu hóa không gian làm việc và ngăn chặn tình trạng thao tác nhầm lẫn (misclick).
+
+
+\subsection{Phân hệ Người dùng cuối (Citizen Mobile App)}
+
+Phân hệ Mobile App chuyển hóa các phân tích vĩ mô thành quyết định cá nhân hóa cho từng chuyến đi của người dân.
+
+\subsubsection{Nghiệp vụ 1: Tìm đường thông minh theo Thời gian thực (Dynamic Smart Routing)}
+
+\textbf{Mô tả nghiệp vụ:} Tìm kiếm và đề xuất lộ trình tối ưu nhất (tránh điểm nghẽn, thời gian di chuyển ổn định) thay vì chỉ ưu tiên khoảng cách địa lý ngắn nhất như các ứng dụng bản đồ truyền thống.
+
+\textbf{Cách thực hiện:}
+Hệ thống sử dụng phần mở rộng \texttt{pgRouting} của PostgreSQL để chạy thuật toán \textbf{Bi-directional A*} (\texttt{pgr\_bdAstar}) trên cấu trúc Topology mạng lưới giao thông thay vì thuật toán Dijkstra truyền thống. 
+
+Để làm rõ lý do chọn thuật toán này cho bài toán dẫn đường đô thị thời gian thực, nhóm trình bày bảng phân tích và so sánh cơ chế của các giải thuật:
+
+\begin{table}[H]
+    \centering
+    \small
+    \renewcommand{\arraystretch}{1.5}
+    \begin{tabular}{|p{2.5cm}|p{5cm}|p{7cm}|}
+        \hline
+        \textbf{Thuật toán} & \textbf{Cơ chế hoạt động} & \textbf{Ưu / Nhược điểm} \\
+        \hline
+        \textbf{Dijkstra} & Duyệt tỏa tròn ra mọi hướng (như vết dầu loang) từ điểm Đầu cho đến khi gặp điểm Đích. & Không dùng hàm Heuristic (tìm kiếm mù). Đảm bảo tìm được kết quả tối ưu nhưng duyệt qua vô số đỉnh không liên quan, hiệu năng rất chậm trên đồ thị toàn thành phố. \\
+        \hline
+        \textbf{A* (A-Star)} & Sử dụng hàm Heuristic (khoảng cách đường chim bay) để định hướng, luôn ưu tiên mở rộng các đỉnh hướng về phía Đích. & Nhanh hơn Dijkstra rất nhiều do không gian tìm kiếm thu hẹp có định hướng. Tuy nhiên với quãng đường xuyên thành phố, không gian quét vẫn phình to đáng kể. \\
+        \hline
+        \textbf{Bi-directional A* (\texttt{bdAstar})} & Khởi chạy 2 luồng A* đồng thời: một luồng từ Đầu hướng về Đích, một luồng từ Đích hướng ngược về Đầu, và dừng lại khi gặp nhau ở giữa. & \textbf{Lựa chọn của hệ thống:} Vùng quét không gian được thu hẹp tối đa. Tốc độ phản hồi cực nhanh (dưới 100ms) ngay cả với lộ trình kéo dài hàng chục kilomet. Bù lại, hệ thống phải cung cấp toạ độ hình học ($x,y$) cho từng cạnh để tính Heuristic. \\
+        \hline
+    \end{tabular}
+    \caption{So sánh và lựa chọn thuật toán tìm đường trong pgRouting}
+    \label{tab:routing_algo_comparison}
+\end{table}
+
+Bên cạnh tốc độ bứt phá từ việc ứng dụng \texttt{bdAstar}, giá trị cốt lõi của hệ thống nằm ở việc thiết lập hàm \textbf{Chi phí thời gian thực (Real-time Cost)}. Thay vì dùng công thức tính toán đơn giản, nhóm đã thiết kế một hàm chi phí đa biến tại tầng cơ sở dữ liệu:
+\begin{equation}
+    Cost = (TravelTime + \alpha \times Distance) \times ConfidencePenalty
+\end{equation}
+Trong đó, các đại lượng được hệ thống định nghĩa như sau:
+\begin{itemize}
+    \item \textbf{$TravelTime$ (Thời gian di chuyển):} Yếu tố cốt lõi của thuật toán. Hệ thống ưu tiên chọn các cung đường có thời gian di chuyển thấp nhất để né các điểm nghẽn ùn tắc.
+    \item \textbf{$\alpha \times Distance$ (Hệ số phạt đường vòng):} Với hệ số $\alpha = 0.02$ (tương đương đi vòng 1km sẽ bị phạt cộng thêm 20 giây vào $Cost$). Giá trị này được thiết lập dựa trên khái niệm \textbf{Giá trị Thời gian (Value of Travel Time - VoT)}\footnote{Trong kinh tế học giao thông, VoT đo lường mức độ sẵn sàng đánh đổi của người lái xe. Khảo sát cho thấy người dùng sẵn sàng tốn thêm 20 giây trên đường chính thay vì phải đánh lái ngoằn ngoèo thêm 1km trong hẻm.}. Nếu chỉ tối ưu bằng thời gian thuần túy, thuật toán sẽ có xu hướng lùa xe vào các ngõ hẻm nhỏ hẹp để tiết kiệm vài giây (hiện tượng Rat-running). Trọng số này ép thuật toán ưu tiên lộ trình thẳng/ngắn nhất.
+    \item \textbf{$ConfidencePenalty$ (Hệ số phạt độ tin cậy):} Bằng $1.0$ cho dữ liệu đo đạc trực tiếp, $1.05$ cho dữ liệu nội suy KNN-IDW, và $1.1$ cho dữ liệu tĩnh. Mức phạt 5\% đến 10\% này mô phỏng \textbf{Hành vi chọn đường e ngại rủi ro (Risk-averse Route Choice)}\footnote{Tham khảo \textit{Reliability-based routing}: Người lái xe có xu hướng tâm lý tự cộng thêm khoảng 10\% "thời gian đệm" (buffer time) vào nhận thức khi chuẩn bị đi vào những tuyến đường không rõ tình trạng kẹt xe.}. Hệ số này giúp thuật toán "thiên vị" việc điều hướng vào đoạn đường có dữ liệu rõ ràng, giảm thiểu rủi ro đi vào "điểm mù".
+\end{itemize}
+
+\textbf{Cách tối ưu (Bù đắp dữ liệu bằng Spatial-Temporal Imputation):}
+Trong thực tế, mạng lưới cảm biến luôn tồn tại các "điểm mù" (cả về không gian lẫn thời gian). Thay vì phụ thuộc vào các mô hình AI/Deep Learning vốn đòi hỏi tài nguyên máy chủ lớn và khó chạy thời gian thực bên trong Database, nhóm đã ứng dụng các phương pháp thống kê không gian - thời gian (Spatiotemporal Imputation) trực tiếp trên Materialized View:
+\begin{itemize}
+    \item \textbf{Điểm mù thời gian (Temporal Decay):} Khi một cảm biến mất kết nối, hệ thống không giữ nguyên trạng thái kẹt xe vĩnh viễn. Thay vào đó, kỹ thuật \textbf{Suy giảm hàm mũ (Exponential Decay)} được áp dụng. Hàm số $e^{-0.046 \times t}$ (với hằng số $\lambda = 0.046$ được thiết kế để độ tin cậy giảm chính xác 50\% sau mỗi chu kỳ 15 phút). Chu kỳ bán rã (Half-life) 15 phút này là một quy tắc kinh nghiệm phổ biến trong kỹ thuật giao thông, vì các biến động ngắn hạn thường tự triệt tiêu sau mốc này. Thuật toán từ từ "mượt mà" trả trạng thái giao thông về lại vận tốc mặc định (Free-flow)\footnote{Tham khảo ứng dụng của kỹ thuật làm mượt hàm mũ: \textit{Short-term traffic flow prediction with Holt-Winters exponential smoothing}.}.
+    \item \textbf{Điểm mù không gian (Inverse Distance Weighting - IDW):} Với những đoạn đường không có cảm biến, hệ thống dự đoán vận tốc thông qua thuật toán \textbf{K-Nearest Neighbors (KNN)} kết hợp \textbf{IDW}\footnote{Tham khảo: Bartier, P. M., \& Keller, C. P. (1996). \textit{Multivariate interpolation to incorporate thematic surface data using inverse distance weighting}. Đây là thuật toán cơ sở (baseline) kinh điển cho bài toán nội suy không gian trong hệ thống thông tin địa lý GIS.}. Dữ liệu được tính toán thuần túy bằng đại số SQL và toán tử không gian \texttt{<->} của PostGIS. Các đường càng gần nhau (khoảng cách $d$ nhỏ) sẽ đóng góp trọng số $(1/d^2)$ càng lớn vào kết quả. 
+\end{itemize}
+Cách tiếp cận Tất định (Deterministic) này giúp nội suy cấu trúc mạng lưới giao thông (Topology) hoàn chỉnh trong chưa tới 1 giây, tuân thủ chặt chẽ Định luật thứ nhất của Địa lý học (Tobler's First Law) và giúp thuật toán \texttt{pgRouting} luôn dẫn đường hợp lý nhất 24/7.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{images/app_smart_routing.png}
+    \caption{Nghiệp vụ Tìm đường thông minh né điểm nghẽn}
+    \label{fig:app_routing}
+\end{figure}
+
+\subsubsection{Nghiệp vụ 2: Giám sát Bản đồ Cá nhân hóa}
+
+\textbf{Mô tả nghiệp vụ:} Cung cấp bản đồ giao thông được tô màu theo chuẩn LOS (Đỏ - Cam - Xanh) toàn thành phố để người dân chủ động giám sát tình hình khu vực xung quanh lộ trình của mình.
+
+\textbf{Cách thực hiện:}
+Ứng dụng hiển thị một MapboxGL View, tích hợp luồng dữ liệu thời gian thực. Giao diện được thiết kế với độ tương phản cao, các nút bấm (MapControls) thao tác bằng ngón tay cái to bản (Thumb-friendly) phục vụ người đi xe máy. Nền tảng còn cho phép bật/tắt hiển thị các lớp bản đồ nâng cao như Tình trạng thời tiết (Weather Voronoi Layer) và các Sự cố giao thông đang mở.
+
+\textbf{Cách tối ưu:}
+Thay vì render hàng chục ngàn đoạn thẳng lên thiết bị di động gây nóng máy và tụt pin, nhóm sử dụng kỹ thuật \textbf{Vector Tiles} (MVT). Cụ thể, hệ thống tích hợp luồng dữ liệu TomTom Flow Tiles và Incident Tiles qua một lớp proxy. Client sử dụng GPU để render các Vector Tile này, giúp bản đồ zoom/pan mượt mà 60 FPS dù hiển thị toàn bộ mạng lưới giao thông phức tạp.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{images/app_map_warning.png}
+    \caption{Giao diện Bản đồ trạng thái giao thông và Cảnh báo cá nhân hóa}
+    \label{fig:app_warning}
+\end{figure}
