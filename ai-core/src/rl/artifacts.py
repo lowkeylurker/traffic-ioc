@@ -71,9 +71,10 @@ def get_rl_preprocessing_artifacts_path(mode: str = "pure", run_id: str | None =
     return get_rl_artifact_root() / "preprocessing" / f"rl_{mode}_preprocessing_artifacts{suffix}.pkl"
 
 
-def get_rl_evaluation_predictions_path() -> Path:
+def get_rl_evaluation_predictions_path(mode: str = "warmstart", run_id: str | None = None) -> Path:
     ensure_rl_artifact_dirs()
-    return get_rl_artifact_root() / "evaluation" / "predictions.parquet"
+    suffix = f"_{run_id}" if run_id else ""
+    return get_rl_artifact_root() / "evaluation" / f"predictions_{mode}{suffix}.parquet"
 
 
 def get_rl_prediction_output_dir() -> Path:

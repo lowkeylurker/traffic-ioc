@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 import torch
 from sklearn.preprocessing import LabelEncoder
+import logging
 from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 
@@ -34,6 +35,10 @@ from src.rl.inference.evaluator import evaluate_policy_net, get_policy_predictio
 from src.rl.training.loop import train_rl_agent
 from src.utils.data_loader import load_bulk_corridor_data, load_bulk_segment_data
 from src.utils.preprocessing import TrafficScaler
+
+# Setup logger
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -101,11 +106,11 @@ def _load_default_rl_training_config(mode: str) -> RLTrainingConfig:
     requested_device = os.getenv("RL_DEVICE", "auto")
     gamma = float(os.getenv("RL_GAMMA", "0.99"))
     epsilon_start = float(os.getenv("RL_EPSILON_START", "1.0"))
-    epsilon_min_default = "0.10" if mode == "pure" else "0.05"
-    epsilon_decay_default = "0.995" if mode == "pure" else "0.97"
-    learning_rate_default = "0.0002" if mode == "pure" else "0.00005"
-    warmup_steps_default = "5000" if mode == "pure" else "2000"
-    replay_capacity_default = "200000" if mode == "pure" else "100000"
+    epsilon_min_default = "0.05"
+    epsilon_decay_default = "0.96"
+    learning_rate_default = "0.00005"
+    warmup_steps_default = "2000"
+    replay_capacity_default = "150000"
     use_class_aware_reward_default = "1" if mode == "pure" else "0"
     use_window_balancing_default = "1" if mode == "pure" else "0"
     use_class_balance_pipeline_default = "1" if mode == "pure" else "0"
@@ -526,7 +531,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
     # --- EXPORT PREDICTIONS FOR ANALYSIS (Notebook 06) ---
     logger.info("🎬 Exporting evaluation predictions for detailed analysis...")
     eval_df = get_policy_predictions(agent.policy_net, eval_loader, device=device)
-    predictions_path = get_rl_evaluation_predictions_path()
+    predictions_path = get_rl_evaluation_predictions_path(mode=mode, run_id=run_id)
     eval_df.to_parquet(predictions_path, index=False)
     logger.info(f"📊 Predictions exported to: {predictions_path}")
     print(f"✅ Eval | acc={eval_summary.get('accuracy', 0.0):.4f} | macro_f1={eval_summary.get('macro_f1', 0.0):.4f}")

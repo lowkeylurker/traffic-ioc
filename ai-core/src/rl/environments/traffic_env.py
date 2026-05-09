@@ -58,16 +58,22 @@ class TrafficForecastingEnv(gym.Env):
         }
 
         if action == target:
-            components["match_bonus"] = 10.0 * target_weight
+            # Tăng thưởng cho việc đoán đúng các lớp thấp để tránh Agent bỏ qua chúng
+            if target <= 2:
+                components["match_bonus"] = 15.0 * target_weight
+            else:
+                components["match_bonus"] = 10.0 * target_weight
         else:
             diff = action - target
             if abs(diff) == 1:
-                components["near_miss_penalty"] = -2.0 * target_weight
+                components["near_miss_penalty"] = -1.0 * target_weight # Giảm phạt sai lệch gần
             elif abs(diff) >= 2:
-                components["far_miss_penalty"] = -5.0 * abs(diff) * target_weight
-                if target == severe_class_idx and action <= severe_class_idx - 1:
-                    components["severe_mismatch_penalty"] = -20.0 * target_weight
-                elif target <= severe_class_idx - 1 and action == severe_class_idx:
+                components["far_miss_penalty"] = -3.0 * abs(diff) * target_weight # Giảm phạt sai lệch xa
+                
+                # Giảm bớt hình phạt 'tử hình' để Agent dám dự báo lớp thấp
+                if target >= severe_class_idx - 1 and action <= 1:
+                    components["severe_mismatch_penalty"] = -10.0 * target_weight
+                elif target <= 1 and action >= severe_class_idx - 1:
                     components["severe_mismatch_penalty"] = -5.0
 
         raw_reward = float(sum(components.values()))

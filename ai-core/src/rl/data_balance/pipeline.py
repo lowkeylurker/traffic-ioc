@@ -97,40 +97,56 @@ def _undersample_majority_rows(df: pd.DataFrame, config: ClassBalanceConfig) -> 
         target = len(indices) if label == config.anchor_class else min(int(anchor_count * config.majority_multipliers.get(label, 1.0)), config.majority_cap or 1000000)
         
         if len(indices) > target:
-            # SMART SCORING for Majority Classes
-            print(f"🧠 Smart-Filtering Class {label}: {len(indices)} -> {target}")
+            # HYBRID SAMPLING: 50% Smart (Entropy) + 50% Random
+            print(f"🧠 Hybrid-Filtering Class {label}: {len(indices)} -> {target}")
+            
+            num_smart = target // 2
+            num_random = target - num_smart
+            
+            # 1. Smart Part (Entropy-based)
             scores = []
             for idx in indices:
-                # Get the 13-row window data
                 win_speeds = df_clean.iloc[idx - W : idx + 1]['current_speed_kmh'].values
-                win_levels = df_clean.iloc[idx - W : idx + 1][config.target_col].values
-                
-                # 1. Entropy Score: Standard deviation of speed
                 speed_std = np.std(win_speeds)
-                
-                # 2. Transition Bonus: Does congestion level change?
-                # We check if there's any variation in levels within the window
-                unique_levels = np.unique(win_levels)
-                transition_bonus = 3.0 if len(unique_levels) > 1 else 1.0
-                
-                # Final Score Calculation
-                score = (speed_std + 0.1) * transition_bonus + np.random.random() * 0.2
-                scores.append(score)
+                scores.append(speed_std + 0.1)
             
             scores = np.array(scores)
             probs = scores / scores.sum()
             
-            # Weighted Sampling
-            sampled_indices = np.random.choice(indices, target, replace=False, p=probs)
+            smart_indices = np.random.choice(indices, num_smart, replace=False, p=probs)
+            
+            # 2. Random Part (Diversity)
+            remaining_indices = list(set(indices) - set(smart_indices))
+            random_indices = np.random.choice(remaining_indices, num_random, replace=False)
+            
+            sampled_indices = np.concatenate([smart_indices, random_indices])
         else:
             sampled_indices = indices
             
+        # TỐI ƯU VECTƠ HÓA: Không dùng vòng lặp tạo DF nhỏ
         final_counts[label] = len(sampled_indices)
-        for idx in sampled_indices:
-            win = df_clean.iloc[idx - W : idx + 1].copy()
-            win['segment_key'] = new_key
-            selected_parts.append(win)
-            new_key += 1
+        if len(sampled_indices) > 0:
+            # Tạo danh sách chỉ mục cho toàn bộ các cửa sổ cùng lúc
+            all_window_indices = []
+            for start_idx in sampled_indices:
+                all_window_indices.extend(range(start_idx - W, start_idx + 1))
+            
+            # Lấy toàn bộ dữ liệu một lần duy nhất
+            label_df = df_clean.iloc[all_window_indices].copy()
+            
+            # Cập nhật segment_key mới (mỗi cửa sổ 1 key)
+            new_keys = np.arange(new_key, new_key + len(sampled_indices))
+            label_df['segment_key'] = np.repeat(new_keys, window_size)
+            
+            # Ép kiểu để tiết kiệm RAM
+            for col in label_df.select_dtypes(include=['float64']).columns:
+                label_df[col] = label_df[col].astype('float32')
+            
+            selected_parts.append(label_df)
+            new_key += len(sampled_indices)
+            
+            import gc
+            gc.collect()
             
     if not selected_parts: return pd.DataFrame(), {"applied": False}
     return pd.concat(selected_parts, ignore_index=True), {"applied": True, "window_counts": final_counts}
@@ -205,8 +221,9 @@ def _augment_minority_classes(df: pd.DataFrame, config: ClassBalanceConfig) -> T
             
             time_span_seconds = (max_ts - min_ts).total_seconds()
             
+            # TỐI ƯU HÓA: Thu thập dữ liệu vào list và tạo DF một lần duy nhất
+            rows_to_collect = []
             for i in range(target):
-                # Distribute synthetic windows randomly across the REAL 1-month period
                 random_offset = np.random.randint(0, max(1, int(time_span_seconds - 13*15*60)))
                 start_ts = min_ts + pd.Timedelta(seconds=random_offset)
                 win_ts = [start_ts + pd.Timedelta(minutes=j*15) for j in range(window_size)]
@@ -214,17 +231,20 @@ def _augment_minority_classes(df: pd.DataFrame, config: ClassBalanceConfig) -> T
                 start_row = i * window_size
                 win_data = new_flat.iloc[start_row : start_row + window_size].copy()
                 
-                # Assign to synthetic_parts instead of selected_parts
                 for j in range(len(win_data)):
                     r = win_data.iloc[j].to_dict()
-                    # CRITICAL: Ensure the timestamp is within the 2026 range
                     r.update({"timestamp": win_ts[j], "segment_key": current_new_key, config.target_col: label, "synthetic_flag": 1})
                     
-                    # Ensure strict types for parquet compatibility
+                    # Chuyển kiểu ngay lập tức để tiết kiệm RAM
                     for c in ["weather_key", "day_of_week", "shift_code", "is_peak_hour", "is_business_hours", "is_weekend"]:
                         if c in r: r[c] = np.int64(float(r[c]))
-                    synthetic_parts.append(pd.DataFrame([r]))
+                    rows_to_collect.append(r)
                 current_new_key += 1
+            
+            synthetic_parts.append(pd.DataFrame(rows_to_collect))
+            del rows_to_collect # Giải phóng bộ nhớ tạm
+            import gc
+            gc.collect()
         except Exception as e:
             print(f"⚠️ CTGAN failed, using jitter: {e}")
             for i in range(target):
