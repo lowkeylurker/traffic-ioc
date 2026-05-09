@@ -5,7 +5,7 @@ Mục tiêu là phân tích ưu/nhược điểm của các giải pháp hiện 
 
 \subsection{Các bài báo và nghiên cứu đã xem xét}
 
-Việc xây dựng kho dữ liệu giao thông không phải là một chủ đề mới, tuy nhiên, cách tiếp cận kiến trúc và tích hợp trí tuệ nhân tạo (AI) đã có sự chuyển dịch mạnh mẽ trong những năm gần đây. Nhóm phân chia các công trình nghiên cứu thành hai nhóm chính như sau:
+Việc xây dựng kho dữ liệu giao thông không phải là một chủ đề mới, tuy nhiên, cách tiếp cận kiến trúc và tích hợp trí tuệ nhân tạo (AI) đã có sự chuyển dịch mạnh mẽ trong những năm gần đây. Nhóm phân chia các công trình nghiên cứu thành ba nhóm chính như sau:
 
 \subsubsection{Nhóm nghiên cứu về kiến trúc Kho dữ liệu giao thông truyền thống}
 
@@ -28,6 +28,15 @@ Các nghiên cứu gần đây (từ 2018 trở lại đây) tập trung vào vi
 \end{itemize}
 
 Hầu hết các nghiên cứu học thuật tập trung sâu vào thuật toán dự báo hoặc kiến trúc lưu trữ thuần túy, thiếu một mô hình tích hợp toàn diện từ khâu chuẩn hóa dữ liệu (ETL) đến khâu tích hợp module phân tích của bên thứ 3 như yêu cầu của đề tài.
+
+\subsubsection{Nhóm nghiên cứu về Thuật toán dẫn đường và Nội suy dữ liệu}
+
+Bên cạnh bài toán lưu trữ, các nghiên cứu về thuật toán tối ưu hóa chi phí di chuyển cũng đóng vai trò cốt lõi trong hệ thống giao thông thông minh.
+\begin{itemize}
+    \item \textbf{Lý thuyết dẫn đường dựa trên độ tin cậy (Reliability-based Routing):} Nghiên cứu về hành vi e ngại rủi ro của người lái xe (Risk-averse Route Choice) cho thấy người dùng có xu hướng tự cộng thêm một khoảng "thời gian đệm" (buffer time) vào nhận thức khi đi vào các tuyến đường không rõ tình trạng ùn tắc. Từ đó, hàm chi phí định tuyến cần được bổ sung các hệ số phạt (Penalty) thay vì chỉ tính toán thời gian di chuyển thuần túy. Ngoài ra, việc quy đổi khoảng cách đường vòng thành thời gian phạt thông qua Giá trị Thời gian (Value of Travel Time - VoT) cũng được đề xuất để tránh hiện tượng thuật toán lùa xe vào hẻm nhỏ (Rat-running).
+    
+    \item \textbf{Kỹ thuật Nội suy và Làm mượt dữ liệu (Data Imputation \& Smoothing):} Trong điều kiện cảm biến thường xuyên mất tín hiệu hoặc không phủ kín mạng lưới, các nghiên cứu (ví dụ: Bartier \& Keller, 1996) đề xuất sử dụng thuật toán nội suy không gian Inverse Distance Weighting (IDW) làm cơ sở. Đồng thời, kỹ thuật làm mượt hàm mũ (Exponential Smoothing), thường thấy trong các bài báo về dự báo dòng giao thông ngắn hạn (Short-term traffic flow prediction), được áp dụng để làm giảm dần sự phụ thuộc vào dữ liệu quá khứ, đưa vận tốc đoạn đường trượt dần về mức dòng tự do (Free-flow) khi bị mất kết nối quá lâu.
+\end{itemize}
 
 \subsection{Các phần mềm và hệ thống hiện có (Softwares/tools/systems)}
 
