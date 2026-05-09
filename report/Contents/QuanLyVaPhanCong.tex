@@ -1,165 +1,99 @@
-\section{Quản lý dự án và Phân công nhiệm vụ}
+\section{Quản lý dự án và phân công nhiệm vụ}
 
-\subsection{Quy trình làm việc và Công cụ quản lý}
+Để đảm bảo quá trình nghiên cứu và phát triển hệ thống diễn ra xuyên suốt, đúng tiến độ và đạt được các yêu cầu kỹ thuật đã đề ra, việc thiết lập một quy trình quản lý dự án bài bản là yếu tố tiên quyết. Chương này trình bày chi tiết về phương pháp luận quản lý được áp dụng, hệ sinh thái công cụ hỗ trợ, cách thức tổ chức nhóm và lộ trình thực hiện đồ án.
 
-Để hiện thực hóa một hệ thống phức tạp từ tầng thu thập AI đến tầng lưu trữ không gian PostGIS, nhóm đã thiết kế một quy trình làm việc khoa học, tận dụng tối đa các công cụ cộng tác hiện đại:
+\subsection{Phương pháp quản lý dự án}
+
+Với đặc thù của một đồ án phần mềm có kiến trúc phức tạp, bao gồm nhiều phân hệ tương tác lẫn nhau (Web Dashboard phân tích dữ liệu giao thông, Ứng dụng tra cứu cho người dân, Backend Server và Data Warehouse), nhóm quyết định áp dụng phương pháp phát triển phần mềm linh hoạt \textbf{Agile}, kết hợp với khung làm việc \textbf{Scrum}.
+
+Việc áp dụng Agile/Scrum mang lại những lợi thế cụ thể cho nhóm:
 
 \begin{itemize}
-    \item \textbf{Quản lý tiến độ (Project Management):} Nhóm sử dụng nền tảng \textbf{Trello} để phân phối và giám sát công việc theo mô hình Kanban. Các tác vụ được chia nhỏ thành các thẻ (cards) với thời hạn cụ thể, giúp các thành viên bám sát tiến độ của từng giai đoạn: Phân tích, Thiết kế Schema, Hiện thực ETL và Đánh giá.
-    \item \textbf{Quản lý mã nguồn và Phiên bản (Source Control):} Toàn bộ mã nguồn Python cho pipeline ETL, các module AI (YOLOv8x) và script khởi tạo cơ sở dữ liệu được quản lý tập trung trên \textbf{GitHub}. Nhóm tuân thủ quy trình Branching chặt chẽ để đảm bảo tính ổn định của mã nguồn khi có nhiều thành viên cùng tham gia hiện thực.
-    \item \textbf{Thiết kế và Công cụ cơ sở dữ liệu:} Sử dụng \textbf{LucidChart} để phác thảo và chuẩn hóa mô hình Galaxy Schema. Khâu quản trị và truy vấn dữ liệu không gian được thực hiện thông qua \textbf{pgAdmin 4} và \textbf{DBeaver}, giúp tối ưu hóa việc kiểm tra tính đúng đắn của các bảng Dimension và Fact.
-    \item \textbf{Cơ chế trao đổi và Báo cáo:}
+    \item \textbf{Tính thích ứng cao:} Cho phép nhóm dễ dàng điều chỉnh các tính năng (ví dụ: tinh chỉnh biểu đồ phân tích BI, thay đổi logic tính toán chỉ số TTI, BI) dựa trên kết quả nghiệm thu từng phần mà không làm đứt gãy toàn bộ cấu trúc dự án.
+    \item \textbf{Phát triển lặp (Iterative Development):} Quá trình phát triển được chia nhỏ thành các chu kỳ ngắn gọi là Sprint (kéo dài từ 1 đến 2 tuần). Cuối mỗi Sprint, nhóm sẽ cho ra mắt một phần mềm có khả năng chạy được (shippable product) để đánh giá và kiểm thử ngay lập tức.
+    \item \textbf{Tối ưu hóa giao tiếp:} Tổ chức các buổi họp ngắn (Sync-up meeting) từ 2-3 lần/tuần để cập nhật tiến độ, gỡ rối các rào cản kỹ thuật (bottlenecks) giữa các thành viên.
+\end{itemize}
+
+\textbf{Quy trình triển khai Scrum thực tế của nhóm:}
+\begin{enumerate}
+    \item \textbf{Product Backlog:} Tập hợp toàn bộ các tính năng cần có của hệ thống (ví dụ: Chức năng xem bản đồ nhiệt, Tính năng gợi ý lộ trình, Module ETL xử lý dữ liệu lịch sử).
+    \item \textbf{Sprint Planning:} Lựa chọn các task từ Backlog đưa vào Sprint hiện tại dựa trên mức độ ưu tiên.
+    \item \textbf{Sprint Execution:} Hiện thực hóa các tính năng bằng mã nguồn.
+    \item \textbf{Sprint Review \& Retrospective:} Tổng kết, ghép nối (integrate) các module, kiểm tra lỗi (bug) và rút kinh nghiệm cho chu kỳ tiếp theo.
+\end{enumerate}
+
+\subsection{Công cụ quản lý và Môi trường làm việc nhóm}
+
+Để hiện thực hóa phương pháp Agile, nhóm đã lựa chọn và đồng bộ hóa một hệ sinh thái công cụ quản lý chuyên nghiệp, bám sát với tiêu chuẩn của các doanh nghiệp phần mềm hiện nay:
+
+\begin{itemize}
+    \item \textbf{Quản lý mã nguồn (Source Code Management):} Sử dụng \textbf{Git} và nền tảng \textbf{GitHub} để lưu trữ mã nguồn. Áp dụng chiến lược Git Flow cơ bản, chia tách các nhánh \texttt{main} (môi trường production), \texttt{develop} (môi trường tích hợp) và các nhánh \texttt{feature/*} cho từng tính năng riêng biệt để tránh xung đột mã nguồn.
+    \item \textbf{Quản lý công việc (Task Management):} Khởi tạo không gian làm việc trên \textbf{Linear} theo mô hình bảng Kanban. Các công việc được thiết lập dưới dạng thẻ (card) và di chuyển qua các cột trạng thái: \textit{To Do}, \textit{In Progress}, \textit{In Review}, và \textit{Done}.
+    \item \textbf{Môi trường giao tiếp:} Sử dụng \textbf{Discord} làm kênh trao đổi thông tin chính, chia các channel (kênh) riêng biệt cho từng luồng công việc như \texttt{\#frontend-ui}, \texttt{\#backend-api}, và \texttt{\#deployment-alerts}.
+    \item \textbf{Môi trường phát triển và Tích hợp:} Chuẩn hóa môi trường cục bộ (local environment) giữa các thành viên bằng \textbf{Docker}, đảm bảo tính nhất quán từ môi trường phát triển (Development) đến môi trường triển khai (Production). Sử dụng nền tảng chia sẻ tài liệu API (như Postman/Swagger) để Frontend và Backend có thể làm việc độc lập.
+\end{itemize}
+
+\subsection{Phân công vai trò và chi tiết nhiệm vụ}
+
+Dựa trên thế mạnh cốt lõi và định hướng chuyên môn của từng thành viên, khối lượng công việc của đồ án được phân bổ một cách chuyên môn hóa nhưng vẫn đảm bảo tính phối hợp chặt chẽ (Cross-functional). Cụ thể như sau:
+
+\vspace{0.5cm}
+\noindent\textbf{Sinh viên 1: Hồ Trần Ngọc Liêm (MSSV: 2211835)}
+\begin{itemize}
+    \item \textbf{Vai trò:} Software Fullstack Developer.
+    \item \textbf{Nhiệm vụ chi tiết:}
     \begin{itemize}
-        \item \textbf{Họp nội bộ (Daily Stand-up):} Nhóm duy trì các buổi họp hằng ngày (Online/Offline) để cập nhật tiến độ và giải quyết các điểm nghẽn kỹ thuật ngay lập tức.
-        \item \textbf{Họp hướng dẫn (Weekly Meeting):} Nhóm thực hiện báo cáo định kỳ hằng tuần với GVHD (ThS. Bùi Tiến Đức) qua \textbf{Google Meet} để nhận góp ý chuyên môn và điều chỉnh Schema theo yêu cầu thực tế.
+        \item Chịu trách nhiệm xây dựng kiến trúc giao diện, tối ưu hóa Trải nghiệm người dùng (UX) và Giao diện người dùng (UI) cho Web Dashboard điều hành và App người dân.
+        \item Xây dựng và phát triển Frontend sử dụng thư viện React kết hợp với Ant Design để tạo ra các biểu đồ phân tích trực quan (Recharts), bản đồ số (Mapbox) xử lý khối lượng dữ liệu lớn.
+        \item Đảm nhiệm vai trò theo dõi tiến độ chung và phối hợp triển khai hệ thống (Deployment).
     \end{itemize}
 \end{itemize}
 
-\subsection{Chi tiết phân công công việc}
+\vspace{0.5cm}
+\noindent\textbf{Sinh viên 2: Đinh Nguyễn Việt Khiêm (MSSV: 2211565)}
+\begin{itemize}
+    \item \textbf{Vai trò:} Data Engineer (Hạ tầng dữ liệu).
+    \item \textbf{Nhiệm vụ chi tiết:}
+    \begin{itemize}
+        \item Nghiên cứu và chỉnh sửa, tối ưu hoá cấu trúc Data Warehouse từ Giai đoạn 1 để lưu trữ luồng dữ liệu giao thông khổng lồ, phù hợp với Giai đoạn 2.
+        \item Xử lý và làm sạch dữ liệu trạng thái giao thông, chuẩn hóa dữ liệu từ TomTom và các nguồn khác để đảm bảo tính nhất quán và chính xác. Đánh giá chất lượng dữ liệu đầu vào, kiểm tra lỗi, tìm kiếm nguồn dữ liệu thay thế khi cần thiết.
+        \item Xây dựng và tối ưu hóa luồng ETL trên hạ tầng Azure Virtual Machine.
+    \end{itemize}
+\end{itemize}
 
-Bảng dưới đây tóm tắt vai trò chủ chốt của các thành viên trong nhóm:
+\vspace{0.5cm}
+\noindent\textbf{Sinh viên 3: Nguyễn Thành Dũng (MSSV: 2210589)}
+\begin{itemize}
+    \item \textbf{Vai trò:} AI/Algorithm Developer.
+    \item \textbf{Nhiệm vụ chi tiết:}
+    \begin{itemize}
+        \item Nghiên cứu, xây dựng và tích hợp mô hình phân tích, dự báo điểm nghẽn giao thông.
+        \item Chịu trách nhiệm xử lý các bài toán nghiệp vụ cốt lõi (tính toán các chỉ số TTI, BI, PTI theo chuẩn quốc tế).
+        \item Thiết kế kịch bản kiểm thử (Load test, API Latency) và thực hiện đánh giá hiệu năng hệ thống toàn diện để đảm bảo tính ổn định của mô hình.
+    \end{itemize}
+\end{itemize}
 
-% Thêm lệnh này vào trước bảng hoặc trong Preamble để X là căn giữa dọc
-\renewcommand{\tabularxcolumn}[1]{m{#1}}
+\subsection{Tiến độ thực hiện đồ án}
 
-\begin{table}[htbp]
-\centering
-\renewcommand{\arraystretch}{1.5}
-\begin{tabularx}{\textwidth}{|>{\centering\arraybackslash\bfseries}m{2.5cm}|>{\centering\arraybackslash}m{2cm}|X|>{\centering\arraybackslash}m{2cm}|}
-\hline
-\rowcolor[HTML]{EFEFEF} 
-Thành viên & MSSV & \centering \textbf{Nhiệm vụ trọng tâm} & Hoàn thành \\ \hline
+Quá trình thực hiện đồ án được chia thành các giai đoạn chính (Milestones), trải dài trong suốt 15 tuần của học kỳ. Bảng \ref{tab:tiendo} dưới đây mô tả chi tiết các đầu mục công việc, kết quả kỳ vọng và người phụ trách cho từng giai đoạn.
 
-Nguyễn Thành Dũng & 2210589 & 
-\begin{singlespace}
-\begin{itemize}[leftmargin=*, nosep, before=\vspace{0.5pt}, after=\vspace{0pt}]
-    \item Thiết kế Galaxy Schema sơ khai và hiện thực kiến trúc ETL chính.
-    \item Cấu hình PostgreSQL/PostGIS và quản lý pipeline dữ liệu đa nguồn.
-    \item Nghiên cứu xu hướng DW hiện đại để hoàn thiện Schema cuối cùng.
-    \item Hiện thực Demo App.
-\end{itemize} 
-\end{singlespace} & 100\% \\ \hline
-
-Hồ Trần Ngọc Liêm & 2211835 & 
-\begin{singlespace}
-\begin{itemize}[leftmargin=*, nosep, before=\vspace{0.5pt}, after=\vspace{0pt}]
-    \item Phân tích Database VOH và cải tiến các bảng Dimension (Dim).
-    \item Nghiên cứu và kết nối các nguồn API: TomTom, OSM, OWM.
-    \item Đề xuất và tinh chỉnh hệ thống thuộc tính thuộc tầng không gian.
-\end{itemize} 
-\end{singlespace} & 100\% \\ \hline
-
-Đinh Nguyễn Việt Khiêm & 2211565 & 
-\begin{singlespace}
-\begin{itemize}[leftmargin=*, nosep, before=\vspace{0.5pt}, after=\vspace{0pt}]
-    \item Nghiên cứu tối ưu hóa Schema và tìm kiếm nguồn dữ liệu thứ cấp.
-    \item Thiết kế và cải tiến bảng Fact dựa trên nghiệp vụ phân tích lưu lượng.
-    \item Kiểm tra độ mịn dữ liệu (Granularity) và tính khả thi của thuộc tính.
-\end{itemize} 
-\end{singlespace} & 100\% \\ \hline
-
-\end{tabularx}
-\vspace{6mm}
-\caption{Bảng phân công nhiệm vụ chi tiết và mức độ hoàn thành}
+\begin{table}[H]
+    \centering
+    \caption{Chi tiết các mốc thời gian thực hiện đồ án}
+    \label{tab:tiendo}
+    \renewcommand{\arraystretch}{1.3} % Tăng khoảng cách dòng cho dễ nhìn
+    \begin{tabular}{|p{0.2\textwidth}|p{0.12\textwidth}|p{0.3\textwidth}|p{0.18\textwidth}|p{0.1\textwidth}|}
+        \hline
+        \textbf{Giai đoạn} & \textbf{Thời gian} & \textbf{Mô tả công việc cốt lõi} & \textbf{Kết quả đạt được} \\ \hline
+        
+        \textbf{Giai đoạn 1:} Khởi động \& Khảo sát & Tuần 1 & Thu thập tài liệu, khảo sát nghiệp vụ giao thông. Lựa chọn stack công nghệ và thiết kế kiến trúc. Setup Git và các công cụ làm việc. Họp thống nhất quy trình làm việc & Khởi tạo dự án thành công với kiến trúc Client-Server. \\ \hline
+        
+        \textbf{Giai đoạn 2:} Module Dashboard \& Thông tin Giao thông & Tuần 2 - Tuần 5 & Xử lý luồng ETL liên quan đến trạng thái giao thông hiện tại. Xử lý render 430.000 segment giao thông lên Mapbox map trên giao diện và các thông tin khác. & Luồng ETL Trafic Flow hoàn chỉnh cho TPHCM. Trang Dashboard Admin. \\ \hline
+        
+        \textbf{Giai đoạn 3:} Module Thống kê & Tuần 7 - Tuần 9 & Xây dựng các API liên quan đến thống kê. Phát triển UI \& chức năng Thống kê trên app dashboard. & Web Admin và App hoạt động ổn định. \\ \hline
+        
+        \textbf{Giai đoạn 4:} Module Dự báo \& Dẫn đường & Tuần 10 - Tuần 13 & Xây dựng \& train model dự báo kẹt xe trong 15 phút tới và tích hợp lên giao diện. Áp dụng thuật toán A* 2 chiều vào chức năng dẫn đường và phát triển giao diện mobile cho người dân. & Web Admin, Mobile App và hệ thống hoạt động ổn định. \\ \hline
+        
+        \textbf{Giai đoạn 5:} Triển khai \& Hoàn thiện báo cáo & Tuần 14 - Tuần 15 & Triển khai model, server lên Azure App Services. Triển khai giao diện lên Vercel. Viết tài liệu báo cáo đồ án, chuẩn bị slide và kịch bản Demo. & Quyển báo cáo. Slide thuyết trình. App production chạy ổn định. \\ \hline
+    \end{tabular}
 \end{table}
-
-\subsection{Phân tích chi tiết đóng góp của các thành viên}
-
-Dựa trên bảng phân chia tổng quát, mỗi thành viên đã tham gia sâu vào các khâu kỹ thuật cốt lõi của đồ án để đảm bảo tính nhất quán từ dữ liệu thô đến thông tin phân tích:
-
-\subsubsection{Thành viên Nguyễn Thành Dũng: Kiến trúc sư ETL và Schema}
-
-Với vai trò là kiến trúc sư chính, Nguyễn Thành Dũng chịu trách nhiệm định hình toàn bộ khung kỹ thuật và logic nghiệp vụ cho kho dữ liệu. Dũng đóng vai trò cầu nối giữa yêu cầu phân tích giao thông thực tế và việc hiện thực hóa các cấu trúc dữ liệu phức tạp trên nền tảng PostGIS cũng như hiện thực phần Demo App Saigon Traffic Monitor.
-
-\begin{itemize}
-    \item \textbf{Phân tích nghiệp vụ và Thiết kế Schema tiến hóa:} 
-    \begin{itemize}[leftmargin=*, nosep]
-        \item Chủ trì khâu phân tích luồng nghiệp vụ giao thông đô thị để xác định các thực thể chính, từ đó thiết kế bản thảo Schema sơ khai tập trung vào tính toàn vẹn dữ liệu.
-        \item Nghiên cứu và áp dụng các xu hướng thiết kế Kho dữ liệu hiện đại để chuyển đổi từ Star Schema truyền thống sang mô hình Galaxy Schema kết hợp Snowflake Dimensions cho các chiều không gian.
-        \item Tổng hợp kết quả từ khâu khảo sát nguồn dữ liệu và logic ETL để tinh chỉnh các thuộc tính, đảm bảo Schema cuối cùng tối ưu hóa được cả khâu lưu trữ lẫn khả năng mở rộng cho các bài toán dự báo trong tương lai.
-    \end{itemize}
-
-    \item \textbf{Hiện thực hóa lõi hệ thống ETL (Core ETL Implementation):} 
-    \begin{itemize}[leftmargin=*, nosep]
-        \item Xây dựng các script Python chủ đạo để điều phối quy trình trích xuất và biến đổi dữ liệu từ đa nguồn (AI, API, GIS).
-        \item Thiết kế và triển khai cơ chế \textbf{Batch Load}, cho phép hệ thống nạp đồng thời hàng triệu bản ghi lưu lượng vào cơ sở dữ liệu mà không gây ra hiện tượng nghẽn cổ chai hay xung đột tài nguyên.
-        \item Hiện thực các hàm xử lý logic nghiệp vụ phức tạp ngay trong quá trình nạp (như tính toán PCU, nhãn ca làm việc) để giảm tải cho tầng truy vấn báo cáo.
-    \end{itemize}
-
-    \item \textbf{Kỹ thuật Cơ sở dữ liệu và Tối ưu hóa hiệu năng (DB Engineering):} 
-    \begin{itemize}[leftmargin=*, nosep]
-        \item Trực tiếp khởi tạo và quản trị hệ thống cơ sở dữ liệu PostgreSQL tích hợp PostGIS, thiết lập các ràng buộc không gian chặt chẽ giữa các bảng.
-        \item Cấu hình kỹ thuật \textbf{Partitioning} (phân vùng bảng Fact theo tháng), giúp duy trì hiệu năng truy vấn ở mức cao ngay cả khi dữ liệu tích lũy qua nhiều năm.
-        \item Thiết lập hệ thống chỉ mục đa tầng, kết hợp giữa B-Tree cho dữ liệu định danh và \textbf{GIST Index} cho dữ liệu tọa độ không gian, đảm bảo các phép toán tìm kiếm lân cận hoặc Map Matching diễn ra với độ trễ tối thiểu.
-    \end{itemize}
-\end{itemize}
-
-\paragraph{Ý nghĩa đóng góp:} Những nỗ lực của Dũng trong khâu thiết kế và hiện thực lõi đã tạo ra một nền tảng vững chắc, giúp hệ thống không chỉ vận hành ổn định trong thời gian thực mà còn cung cấp cấu trúc dữ liệu "sạch" và tối ưu cho các thành viên khác thực hiện các phép phân tích chuyên sâu.
-
-\subsubsection{Thành viên Hồ Trần Ngọc Liêm: Chuyên gia Dữ liệu không gian và API}
-
-Với vai trò là chuyên gia phụ trách tầng dữ liệu không gian và kết nối dịch vụ bên thứ ba, Hồ Trần Ngọc Liêm đóng đóng góp then chốt trong việc làm giàu ngữ cảnh và đảm bảo tính chính xác về mặt địa lý cho kho dữ liệu. Liêm đã trực tiếp xử lý các thách thức về sự khác biệt cấu trúc giữa các nguồn dữ liệu để tạo ra một hệ quy chiếu không gian thống nhất.
-
-\begin{itemize}
-    \item \textbf{Tối ưu hóa Dimension không gian và Tiền xử lý GIS:} 
-    \begin{itemize}[leftmargin=*, nosep]
-        \item Đi sâu vào phân tích cấu trúc nội hàm của các bảng \texttt{dim\_segment} và \texttt{dim\_location}, xác định các thuộc tính trọng yếu cần thiết cho việc mô hình hóa mạng lưới đường bộ phức tạp.
-        \item Trực tiếp xử lý kỹ thuật tính toán góc \textbf{Azimuth} (hướng di chuyển) và chuẩn hóa các hệ tọa độ cho từng phân đoạn đường. Đây là bước tiền đề bắt buộc để thuật toán \textbf{Map Matching} có thể khớp chính xác dữ liệu vận tốc từ API vào đúng làn đường và hướng di chuyển thực tế.
-        \item Phân tích và số hóa ranh giới hành chính đa tầng, hỗ trợ thiết lập cơ chế \textbf{Spatial Join} tự động để gán thông tin Phường/Quận cho từng tọa độ lưu lượng.
-    \end{itemize}
-
-    \item \textbf{Phát triển module kết nối API đa nguồn (Data Ingestion):} 
-    \begin{itemize}[leftmargin=*, nosep]
-        \item Nghiên cứu và hiện thực các module giao tiếp với \textbf{TomTom Traffic API} để trích xuất vận tốc di chuyển thực tế và vận tốc tự do (free-flow speed) theo thời gian thực.
-        \item Xây dựng luồng thu thập dữ liệu từ \textbf{OpenWeatherMap (OWM)}, lấy các chỉ số về nhiệt độ, lượng mưa và tầm nhìn để tạo ra các biến giải thích (explanatory variables) cho bài toán phân tích tác động ngoại cảnh.
-        \item Khai thác \textbf{OpenStreetMap (OSM)} để xây dựng hệ thống hạ tầng tĩnh, đảm bảo dữ liệu nền tảng luôn có độ bao phủ rộng và cập nhật.
-    \end{itemize}
-
-    \item \textbf{Phân tích Database nguồn và Tinh chỉnh thuộc tính Schema:} 
-    \begin{itemize}[leftmargin=*, nosep]
-        \item Trực tiếp khảo sát và phân tích cấu trúc dữ liệu từ nguồn VOH để tìm kiếm các đặc tính giao thông tiềm năng có thể tích hợp vào kho dữ liệu.
-        \item Đề xuất và thực hiện cải tiến hệ thống thuộc tính cho các bảng Dimension (phiên bản 2), bổ sung các trường dữ liệu đặc trưng về loại đường và điều kiện hạ tầng dựa trên kết quả nghiên cứu các xu hướng DW-GIS hiện đại.
-        \item Thiết lập mối liên kết logic giữa các chỉ số thời tiết và tốc độ di chuyển, hỗ trợ đắc lực cho việc xây dựng các bảng Fact có độ giàu thông tin cao.
-    \end{itemize}
-\end{itemize}
-
-\paragraph{Ý nghĩa đóng góp:} Những nỗ lực của Liêm trong việc xử lý dữ liệu không gian và kết nối API đã giúp kho dữ liệu không chỉ dừng lại ở các con số thống kê khô khan mà trở thành một hệ thống giàu ngữ cảnh. Khả năng làm sạch và đối khớp dữ liệu GIS của Liêm là yếu tố quyết định giúp Dashboard hiển thị thông tin trực quan và chính xác trên bản đồ số.
-
-\subsubsection{Thành viên Đinh Nguyễn Việt Khiêm: Chuyên gia Fact và Tính toàn vẹn dữ liệu}
-
-Với vai trò là chuyên gia phụ trách tầng dữ liệu sự kiện và kiểm soát chất lượng, Đinh Nguyễn Việt Khiêm đảm nhiệm nhiệm vụ then chốt trong việc biến các con số đo lường thô thành các chỉ số có giá trị phân tích và dự báo cao. Khiêm đóng vai trò là "người gác cổng" cho tính chính xác của kho dữ liệu, đảm bảo mọi bản ghi sự kiện đều phản ánh đúng thực tế vận hành của mạng lưới giao thông.
-
-\begin{itemize}
-    \item \textbf{Thiết kế và Tối ưu hóa bảng Fact chuyên sâu:} 
-    \begin{itemize}[leftmargin=*, nosep]
-        \item Tập trung hiện thực và cải tiến bảng \texttt{fact\_traffic\_flow}, xác định độ mịn dữ liệu (Granularity) ở mức 1 phút/bản ghi. Đây là cấu trúc dữ liệu tối ưu giúp cung cấp tập dữ liệu đặc trưng (Features) phong phú cho việc huấn luyện các mô hình AI/ML về sau.
-        \item Cải tiến logic của các bảng Fact dựa trên việc phân tích sâu các yêu cầu nghiệp vụ thực tế, đảm bảo các chỉ số về vận tốc, lưu lượng và mật độ dòng xe được tính toán và lưu trữ một cách nhất quán.
-        \item Nghiên cứu các xu hướng thiết kế hiện đại để áp dụng vào việc tối ưu hóa Galaxy Schema, giúp các bảng Fact có khả năng liên kết linh hoạt với nhiều nhóm chiều khác nhau.
-    \end{itemize}
-
-    \item \textbf{Kiểm soát chất lượng và Đảm bảo tính toàn vẹn (QA \& Integrity):} 
-    \begin{itemize}[leftmargin=*, nosep]
-        \item Thực hiện các quy trình kiểm thử nghiêm ngặt về tính khả thuộc tính của Schema, đảm bảo mọi khóa ngoại trong bảng Fact đều tham chiếu chính xác đến các bản ghi tương ứng trong bảng Dimension.
-        \item Triển khai các cơ chế kiểm tra để loại bỏ triệt để tình trạng "dữ liệu mồ côi" và các sai sót trong báo cáo thống kê PCU (Passenger Car Unit), đảm bảo tính tin cậy tuyệt đối cho các phân tích vĩ mô.
-        \item Kiểm tra độ mịn của dữ liệu để đảm bảo không xảy ra hiện tượng mất mát thông tin hoặc trùng lặp bản ghi trong quá trình hợp nhất dữ liệu đa nguồn.
-    \end{itemize}
-
-    \item \textbf{Tìm kiếm và Hợp nhất nguồn dữ liệu bổ trợ:} 
-    \begin{itemize}[leftmargin=*, nosep]
-        \item Chủ động nghiên cứu và tìm kiếm các nguồn dữ liệu từ các nhóm nghiên cứu liên quan và các tệp dữ liệu lưu trữ để làm phong phú thêm kho dữ liệu.
-        \item Phân tích tính tương thích của các nguồn dữ liệu mới với cấu trúc Schema hiện tại, đề xuất các phương án tích hợp hiệu quả để mở rộng khả năng phân tích hành vi người dùng và hiệu quả giao thông.
-    \end{itemize}
-\end{itemize}
-
-
-
-\paragraph{Ý nghĩa đóng góp:} Những nỗ lực của Khiêm trong việc kiểm soát chất lượng và thiết kế bảng Fact đã biến kho dữ liệu thành một "mỏ dữ liệu sạch", đạt tiêu chuẩn để đưa vào các mô hình phân tích dự báo. Sự tỉ mỉ trong khâu kiểm tra độ mịn và tính toàn vẹn của Khiêm chính là yếu tố bảo chứng cho sự chính xác của các báo cáo hỗ trợ ra quyết định mà hệ thống cung cấp.
-
-\subsection{Kết chương }
-
-Chương 2 đã cung cấp cái nhìn tổng quan về bối cảnh, động lực và phương pháp luận tiếp cận của đề tài nghiên cứu. Thông qua việc xác định rõ tính cấp thiết của việc xây dựng một hệ thống Kho dữ liệu giao thông thông minh, chương này đã đặt nền móng quan trọng về mặt định hướng triển khai cho toàn bộ đồ án.
-
-Các nội dung trọng tâm đã được trình bày bao gồm:
-\textbf{Quản trị và Phân công:} Thiết lập một quy trình làm việc chuyên nghiệp dựa trên các công cụ hiện đại (Trello, GitHub) và phân chia nhiệm vụ chi tiết dựa trên thế mạnh của từng thành viên. Sự phối hợp chặt chẽ giữa các vai trò Kiến trúc sư ETL (Dũng), Chuyên gia GIS (Liêm) và Chuyên gia QA/Fact (Khiêm) chính là chìa khóa đảm bảo tính khả thi cho các giai đoạn tiếp theo.
-
-Với những mục tiêu và kế hoạch đã được xác lập cụ thể, chương tiếp theo sẽ đi sâu vào việc trình bày các \textbf{Kiến thức và Công nghệ nền tảng}, tạo cơ sở lý luận và kỹ thuật vững chắc để hiện thực hóa mô hình Galaxy Schema và Pipeline dữ liệu đã đề ra.
