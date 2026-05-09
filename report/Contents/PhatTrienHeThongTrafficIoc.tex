@@ -19,11 +19,14 @@ Hệ thống đóng vai trò là cầu nối cốt lõi, chuyển hóa dữ li�
 Thiết kế giao diện cho hệ thống giám sát giao thông đòi hỏi các tiêu chuẩn khắt khe về "Thời gian nhận thức" (Glanceability) — khả năng người dùng tiếp nhận thông tin chính xác chỉ trong vài phần mười giây. Nhóm đã tham khảo hệ thống nguyên tắc thiết kế \textit{Material Design} của Google (áp dụng trên Google Maps) và \textit{Ant Design} (chuyên biệt cho các Dashboard dữ liệu lớn) để xây dựng hệ thống thiết kế (Design System) riêng:
 
 \textbf{1. Hệ thống màu sắc (Color Semantics) theo tiêu chuẩn Giao thông:}
-Màu sắc trong hệ thống không được chọn theo sở thích thẩm mỹ mà tuân thủ nghiêm ngặt theo tiêu chuẩn Phân loại mức độ phục vụ \textbf{LOS (Level of Service)} của Cục Quản lý Đường bộ Liên bang Mỹ (FHWA).
+Màu sắc trong hệ thống không được chọn theo sở thích thẩm mỹ mà tuân thủ nghiêm ngặt theo 6 cấp độ của tiêu chuẩn Phân loại mức độ phục vụ \textbf{LOS (Level of Service)} do Cục Quản lý Đường bộ Liên bang Mỹ (FHWA) quy định. Cụ thể, các mã màu (Hex code) được áp dụng đồng bộ trên toàn hệ thống:
 \begin{itemize}
-    \item \textbf{Màu Xanh lá (Green - \#52c41a):} Tương ứng với LOS A-C, đại diện cho dòng chảy tự do (Free-flow), chỉ số $TTI < 1.15$.
-    \item \textbf{Màu Vàng/Cam (Orange - \#fa8c16):} Tương ứng với LOS D, cảnh báo dòng xe đông, di chuyển chậm, chỉ số $TTI$ từ $1.15 - 1.3$.
-    \item \textbf{Màu Đỏ (Red - \#ff4d4f):} Tương ứng với LOS E-F, báo động trạng thái ùn tắc, kẹt cứng, hệ thống hạ tầng vượt quá sức chứa, chỉ số $TTI > 1.3$.
+    \item \textbf{LOS A (Màu Xanh lá - \#52c41a):} Trạng thái thông thoáng, đại diện cho dòng chảy tự do (Free-flow).
+    \item \textbf{LOS B (Màu Xanh lơ - \#a0d911):} Trạng thái khá thông thoáng, các phương tiện di chuyển ổn định.
+    \item \textbf{LOS C (Màu Vàng - \#fadb14):} Trạng thái trung bình, tốc độ bắt đầu bị ảnh hưởng bởi dòng xe xung quanh.
+    \item \textbf{LOS D (Màu Cam - \#fa8c16):} Trạng thái mật độ cao, dòng xe đông, di chuyển chậm.
+    \item \textbf{LOS E (Màu Đỏ - \#f5222d):} Trạng thái đông xe, năng lực thông hành đạt giới hạn, thường xuyên dừng chờ.
+    \item \textbf{LOS F (Màu Đỏ sẫm - \#820014):} Trạng thái ùn tắc nghiêm trọng, kẹt cứng, hệ thống hạ tầng vượt quá sức chứa.
 \end{itemize}
 Việc đồng bộ hóa bảng màu này từ biểu đồ Web Admin cho đến nét vẽ tuyến đường trên Mobile App giúp giảm thiểu tối đa tải lượng nhận thức (Cognitive Load). Người quản lý hay tài xế không cần tốn thời gian "giải mã" màu sắc, mà ngay lập tức phản xạ theo bản năng thị giác (Màu đỏ = Dừng lại/Cảnh báo).
 
@@ -54,7 +57,15 @@ Phân hệ này đóng vai trò như một Trung tâm chỉ huy (Command Center)
 \end{itemize}
 
 \textbf{Cách tối ưu (Hiệu năng):}
-Việc tổng hợp các chỉ số KPI này đòi hỏi truy vấn quét qua toàn bộ dữ liệu sự kiện trong ngày. Nhóm đã tối ưu bằng cách triển khai cơ chế Caching (Redis) ở tầng Backend. Các chỉ số KPI được tính toán nền và cập nhật vào Cache mỗi 5 phút, giúp trang Dashboard tải tức thì (dưới 300ms) ngay khi nhà quản lý truy cập.
+\begin{itemize}
+    \item \textbf{Tối ưu tính toán KPI:} Việc tổng hợp các chỉ số KPI đòi hỏi truy vấn quét qua toàn bộ dữ liệu sự kiện trong ngày. Nhóm đã tối ưu bằng cách triển khai cơ chế Caching (Redis) ở tầng Backend. Các chỉ số KPI được tính toán nền và cập nhật vào Cache mỗi 5 phút, giúp trang Dashboard tải tức thì (dưới 300ms) ngay khi nhà quản lý truy cập.
+    \item \textbf{Tối ưu tải dữ liệu bản đồ (Map Rendering):} Việc truyền tải đồng thời dữ liệu không gian (Geometry) của 430000 đoạn đường lên Frontend là một thách thức lớn về băng thông. Nhóm đã áp dụng chuỗi giải pháp toàn diện:
+    \begin{itemize}
+        \item \textit{Tại Database:} Sử dụng hàm \texttt{ST\_Simplify} của PostGIS để giảm bớt số lượng đỉnh (vertices) không cần thiết của các hình học không gian, làm nhẹ đáng kể kích thước file GeoJSON.
+        \item \textit{Tại Backend:} Sử dụng thư viện \texttt{compression} (chuẩn nén Gzip/Brotli) để thu nhỏ luồng dữ liệu JSON trước khi phản hồi qua HTTP response.
+        \item \textit{Tại Frontend:} Ứng dụng \textbf{IndexedDB} để lưu cache toàn bộ tọa độ không gian tĩnh của 430000 đoạn đường ngay tại trình duyệt. Ở các lần tải trang sau, Frontend chỉ gọi API để lấy các thuộc tính biến động (TTI, Vận tốc, LOS) thay vì tải lại toàn bộ bản đồ gốc, giúp giảm tới 90\% băng thông mạng.
+    \end{itemize}
+\end{itemize}
 
 \begin{figure}[H]
     \centering
