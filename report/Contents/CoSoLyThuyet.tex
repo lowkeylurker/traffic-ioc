@@ -241,6 +241,57 @@ Bên cạnh tốc độ và lưu lượng, hệ thống còn tập trung vào t�
     \item \textbf{Chỉ số đệm (Buffer Time Index - BTI):} Phần trăm thời gian dôi thêm mà người lái xe cần dự phòng để đảm bảo đến nơi đúng giờ (với độ tin cậy 95\%). Đây là chỉ số quan trọng để đánh giá tác động của các sự cố (Incidents) lên mạng lưới.
 \end{itemize}
 
+\subsection{Cơ sở lý thuyết thuật toán và hệ thống}
+
+Nhằm đáp ứng các yêu cầu nghiệp vụ phức tạp của phân hệ Web Admin (quản trị, phân tích) và User (tìm đường cá nhân hóa), đề tài áp dụng một số nền tảng lý thuyết thuật toán và xử lý dữ liệu chuyên sâu:
+
+\textbf{a. Lý thuyết Đồ thị và Thuật toán Tìm đường (Routing Algorithms)}
+
+Mạng lưới giao thông được mô hình hóa toán học dưới dạng một Đồ thị có hướng $G = (V, E)$, trong đó $V$ (Vertices) là tập hợp các nút giao thông (Intersections) và $E$ (Edges) là tập hợp các đoạn đường (Segments) nối giữa các nút.
+
+Trong hệ thống định tuyến cho người dùng cuối (User App), mục tiêu là tìm đường đi tối ưu nhất. Thay vì sử dụng thuật toán Dijkstra truyền thống, đề tài áp dụng thuật toán \textbf{Bi-directional A* (A-Star hai chiều)} với cơ chế tìm kiếm đồng thời từ điểm xuất phát và điểm đích, kết hợp cùng hàm Heuristic ước lượng khoảng cách không gian để thu hẹp phạm vi duyệt đồ thị. 
+
+Điểm đột phá của hệ thống nằm ở \textbf{Hàm chi phí động (Dynamic Cost Function)} kết hợp với các mô hình toán học bù đắp dữ liệu thời gian thực được thực thi trực tiếp tại Data Warehouse:
+
+\begin{itemize}
+    \item \textbf{Mô hình Suy giảm độ tin cậy (Confidence Decay Model):} Tình trạng giao thông thay đổi liên tục, do đó giá trị của dữ liệu vận tốc ($v_{current}$) sẽ giảm dần theo hàm mũ dựa trên độ trễ thời gian ($\Delta t$ tính bằng phút) kể từ lúc thu thập:
+    $$C = e^{-\lambda \times \Delta t}$$
+    Với hằng số $\lambda = 0.046$ (tương đương độ tin cậy giảm 50\% sau 15 phút). Từ đó, vận tốc hiệu chỉnh ($v_{adj}$) được trượt dần về mức vận tốc dòng tự do ($v_{free}$) nhằm tránh sai lệch khi dữ liệu quá cũ:
+    $$v_{adj} = \max(5, v_{free} + (v_{current} - v_{free}) \times C)$$
+    
+    \item \textbf{Nội suy Không gian bằng IDW (Inverse Distance Weighting):} Khi một đoạn đường (Dark Segment) bị mất hoàn toàn tín hiệu, hệ thống nội suy vận tốc bằng thuật toán IDW dựa trên 3 đoạn đường lân cận gần nhất (KNN) thông qua khoảng cách không gian ($d_i$):
+    $$v_{imputed} = \frac{\sum_{i=1}^{3} (v_i / d_i^2)}{\sum_{i=1}^{3} (1 / d_i^2)}$$
+    
+    \item \textbf{Hàm Chi phí Phức hợp đa biến (Multi-variable Cost Function):} Để quyết định "trọng số" cuối cùng của một cạnh đồ thị, hệ thống tính toán chi phí (Cost) dựa trên sự kết hợp giữa Thời gian di chuyển (Travel Time), Khoảng cách thực tế (Distance) và Hệ số phạt rủi ro (Confidence Penalty):
+    $$Cost = (TravelTime + \alpha \times Distance) \times Penalty$$
+    Trong đó, $\alpha = 0.02$ là hệ số quy đổi (tương đương 1km đi đường vòng sẽ bị phạt thêm 20 giây), và $Penalty$ dao động từ $1.0$ (dữ liệu trực tiếp) đến $1.1$ (dữ liệu fallback). Hàm chi phí này giúp thuật toán ưu tiên những cung đường có dữ liệu thời gian thực xác thực, đồng thời chủ động "né" các vùng đang ùn tắc.
+\end{itemize}
+
+\textbf{b. Lý thuyết Xử lý Phân tích Trực tuyến (OLAP)}
+
+Để đáp ứng nhu cầu phân tích dữ liệu lớn và trích xuất tri thức trên Bảng điều khiển (Dashboard) của hệ thống Web Admin, đề tài vận dụng lý thuyết Xử lý Phân tích Trực tuyến (Online Analytical Processing - OLAP).
+\begin{itemize}
+    \item \textbf{Khối dữ liệu (Data Cube):} Thay vì truy vấn trực tiếp trên các bảng hai chiều (Relational Tables), dữ liệu giao thông được trừu tượng hóa thành các khối đa chiều (Không gian, Thời gian, Các loại phương tiện, Các chỉ số hiệu năng giao thông).
+    \item \textbf{Thao tác Roll-up và Drill-down:} Lý thuyết OLAP hỗ trợ người quản trị khả năng phân tích đa cấp độ. Người dùng có thể nhìn tổng thể tình hình toàn thành phố (Roll-up), sau đó "khoan sâu" (Drill-down) trực tiếp xuống chi tiết từng hành lang đường và từng phân đoạn (Segment) cụ thể trong các khung giờ nhất định để tìm ra nguyên nhân gốc rễ của hiện tượng suy giảm năng lực thông hành.
+\end{itemize}
+
+\textbf{c. Xử lý Không gian và Khớp bản đồ (Map Matching)}
+
+Việc theo dõi sự cố và vẽ biểu đồ lưu lượng đòi hỏi độ chính xác không gian tuyệt đối. Đề tài áp dụng lý thuyết Hình học tính toán (Computational Geometry) trong môi trường cơ sở dữ liệu:
+\begin{itemize}
+    \item \textbf{Khớp bản đồ (Map Matching):} Khi nhận được tọa độ GPS (Kinh độ, Vĩ độ) của một sự kiện bất thường (ví dụ: Tai nạn, Ngập nước), hệ thống sử dụng thuật toán chiếu điểm lên đường (Point-to-Line Projection) để tìm khoảng cách vuông góc ngắn nhất. Qua đó, sự kiện không gian được "gắn" chính xác vào thực thể đoạn đường tương ứng trên Đồ thị giao thông.
+    \item \textbf{Chỉ mục Không gian (Spatial Indexing):} Áp dụng cấu trúc cây R-Tree (GIST) để đóng khung các đối tượng hình học bằng các Hình chữ nhật bao quanh (Bounding Boxes). Lý thuyết này giúp hệ thống thu hẹp nhanh chóng phạm vi tìm kiếm không gian, giảm độ phức tạp truy vấn từ $O(N)$ xuống $O(\log N)$, duy trì hiệu năng cao cho bản đồ thời gian thực.
+    \item \textbf{Thực thi Phân tích Không gian (In-database Spatial Processing):} Toàn bộ các phép toán hình học phức tạp được xử lý trực tiếp tại tầng Cơ sở dữ liệu thông qua thư viện PostGIS, giúp giảm tải cho Backend. Các nhóm hàm chính đã được ứng dụng thực tế trong hệ thống bao gồm:
+    \begin{itemize}
+        \item \textit{Nhóm khởi tạo và cấu hình:} \texttt{ST\_MakePoint}, \texttt{ST\_GeomFromText}, \texttt{ST\_SetSRID}, \texttt{ST\_SRID} (Tạo đối tượng hình học từ tọa độ thô và gán hệ quy chiếu WGS84 - EPSG:4326).
+        \item \textit{Nhóm trích xuất thành phần:} \texttt{ST\_Centroid}, \texttt{ST\_X}, \texttt{ST\_Y}, \texttt{ST\_StartPoint}, \texttt{ST\_EndPoint} (Tìm trọng tâm và tọa độ các đầu mút của đoạn đường để phục vụ thuật toán tìm đường bdAstar).
+        \item \textit{Nhóm quan hệ không gian (Spatial Relationships):} \texttt{ST\_Contains}, \texttt{ST\_Within}, \texttt{ST\_Covers}, \texttt{ST\_Intersects} (Kiểm tra sự giao cắt và bao hàm giữa Vùng thời tiết, Vùng sự cố với Mạng lưới giao thông).
+        \item \textit{Nhóm khoảng cách và đo lường:} \texttt{ST\_Distance}, \texttt{ST\_DistanceSphere}, \texttt{ST\_DWithin}, \texttt{ST\_Area} (Tính toán khoảng cách vật lý thực tế giữa người dùng, sự kiện và các phân đoạn đường).
+        \item \textit{Nhóm biến đổi và hình thái học:} \texttt{ST\_Collect}, \texttt{ST\_UnaryUnion}, \texttt{ST\_Simplify}, \texttt{ST\_MakeEnvelope}, \texttt{ST\_Dump}, \texttt{ST\_VoronoiPolygons} (Làm mịn hình học, gộp các đoạn LineString rời rạc thành Hành lang tuyến, và sinh lưới Voronoi nội suy thời tiết).
+        \item \textit{Nhóm định dạng xuất (Export):} \texttt{ST\_AsGeoJSON} (Chuyển đổi trực tiếp Geometry sang chuẩn GeoJSON nguyên bản để Mapbox render trên Frontend).
+    \end{itemize}
+\end{itemize}
+
 \subsection{Công nghệ sử dụng}
 
 Để hiện thực hóa kiến trúc hệ thống Kho dữ liệu giao thông, đề tài lựa chọn bộ công nghệ (Tech stack) dựa trên tiêu chí: mã nguồn mở, hiệu năng cao, hỗ trợ mạnh mẽ dữ liệu không gian và khả năng mở rộng. Dưới đây là chi tiết các công nghệ cốt lõi được sử dụng.
@@ -296,6 +347,34 @@ Hệ thống tích hợp dữ liệu từ các nguồn uy tín sau:
 \begin{itemize}
     \item \textbf{Windows Task Scheduler:} Được sử dụng để lập lịch chạy các script Python (Batch Processing).
     \item \textbf{Cơ chế vận hành:} Các script được đóng gói thành các tác vụ (Tasks), được kích hoạt tự động theo chu kỳ 15 phút/lần (đối với dữ liệu Real-time như Traffic Flow, Incident) hoặc hàng năm (đối với dữ liệu tĩnh như Road Network), đảm bảo dữ liệu trong kho luôn phản ánh trạng thái mới nhất của hệ thống giao thông.
+\end{itemize}
+
+\subsubsection{Công nghệ xây dựng Máy chủ (Backend Framework)}
+
+Phân hệ Backend được xây dựng để xử lý hàng ngàn luồng truy vấn không gian phức tạp và trả về cho người dùng với độ trễ tối thiểu.
+\begin{itemize}
+    \item \textbf{Node.js \& ExpressJS:} Được sử dụng làm nền tảng máy chủ (Runtime) và Web Framework. ExpressJS cung cấp kiến trúc phân tầng Controller - Service - Repository tinh gọn, phân tách rõ ràng giữa lớp xử lý định tuyến (Routing API), lớp xử lý nghiệp vụ (Business Logic) và lớp tương tác cơ sở dữ liệu (Data Access).
+    \item \textbf{TypeScript:} Trình biên dịch mã nguồn mở của Microsoft, giúp bổ sung kiểu dữ liệu tĩnh (Static Typing) cho JavaScript. Việc sử dụng TypeScript giúp hệ thống hạn chế tối đa các lỗi Runtime (đặc biệt khi xử lý các Object JSON phức tạp từ Database) và cải thiện hiệu suất bảo trì mã nguồn.
+    \item \textbf{Redis:} Hệ quản trị cơ sở dữ liệu In-memory được dùng làm bộ đệm (Cache Layer). Redis lưu trữ tạm thời kết quả của các truy vấn Dashboard KPIs và dữ liệu tin tức giao thông, giúp giảm thiểu tải cho PostgreSQL và đẩy tốc độ phản hồi API xuống dưới mức 150ms.
+\end{itemize}
+
+\subsubsection{Công nghệ xây dựng Giao diện (Frontend Framework)}
+
+Phân hệ Frontend (Web Admin \& User App) đòi hỏi năng lực xử lý đồ họa cực cao để kết xuất (Render) bản đồ tương tác và biểu đồ phân tích thời gian thực.
+\begin{itemize}
+    \item \textbf{ReactJS \& Vite:} ReactJS là thư viện cốt lõi để xây dựng giao diện người dùng dựa trên các Components tái sử dụng. Vite được sử dụng làm công cụ đóng gói (Bundler) thế hệ mới, thay thế Webpack, giúp tốc độ Hot-Module-Replacement (HMR) tăng gấp nhiều lần.
+    \item \textbf{Mapbox GL JS:} Thư viện kết xuất bản đồ dựa trên công nghệ WebGL. Điểm mạnh của Mapbox là khả năng tải và hiển thị các lớp dữ liệu véc-tơ (Vector Tiles) trực tiếp lên GPU của trình duyệt, cho phép hiển thị và nội suy màu sắc hàng chục ngàn đoạn đường giao thông mượt mà tại tốc độ 60 khung hình/giây (FPS).
+    \item \textbf{Recharts:} Thư viện biểu đồ xây dựng bằng React và SVG, cung cấp các biểu đồ động (Dynamic Charts) như đường xu hướng, biểu đồ dải màu (Linear Gradient) dùng trong phân tích Hành lang giao thông.
+    \item \textbf{Tailwind CSS:} Framework Utility-first CSS giúp thiết kế giao diện thống nhất, phản hồi nhanh (Responsive) và hỗ trợ xây dựng phong cách giao diện IOC (Glassmorphism, Dark mode) một cách trực quan nhất.
+\end{itemize}
+
+\subsubsection{Công nghệ Triển khai và Đám mây (Deployment \& Cloud Services)}
+
+Hệ thống được đóng gói và vận hành trên môi trường điện toán đám mây hiện đại, hướng tới tính sẵn sàng và tính di động cao:
+\begin{itemize}
+    \item \textbf{Docker \& Docker Hub:} Mã nguồn Backend và AI-Core được "đóng gói" thành các Container độc lập với đầy đủ môi trường chạy (Runtime, Dependencies) thông qua các file cấu hình \texttt{Dockerfile}. Các bộ ảnh (Image) này được lưu trữ trên Docker Hub để sẵn sàng cho quy trình pull/push ở mọi nền tảng.
+    \item \textbf{Microsoft Azure App Service:} Nền tảng PaaS (Platform as a Service) của Azure được chọn để chạy các Docker Container backend. Đề tài sử dụng cấu hình \textbf{Basic B2} với khả năng quản lý tài nguyên linh hoạt, giúp duy trì API ổn định trong môi trường Production.
+    \item \textbf{Vercel:} Nền tảng chuyên biệt được sử dụng để triển khai phân hệ Frontend (React). Vercel tích hợp Vercel CLI, tự động tối ưu hóa tài nguyên tĩnh và phân phối nội dung thông qua mạng CDN toàn cầu, đảm bảo ứng dụng Frontend truy cập nhanh ở mọi vị trí địa lý.
 \end{itemize}
 
 \subsection{Kết chương}
