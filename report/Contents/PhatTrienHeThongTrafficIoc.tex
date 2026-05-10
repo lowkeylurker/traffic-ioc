@@ -69,7 +69,8 @@ Phân hệ này đóng vai trò như một Trung tâm chỉ huy (Command Center)
 
 \begin{figure}[H]
     \centering
-    % \includegraphics[width=0.9\textwidth]{images/admin_executive_dashboard.png}
+    \includegraphics[width=0.8\textwidth]{Images/Ch6/1.png}
+    \vspace{12pt}
     \caption{Bảng điều khiển Tổng quan với hệ thống thẻ KPI cơ bản}
     \label{fig:admin_executive_dashboard}
 \end{figure}
@@ -94,7 +95,8 @@ Dựa vào offset này, một thẻ \texttt{<defs>} chứa gradient dọc đư�
 
 \begin{figure}[H]
     \centering
-    % \includegraphics[width=0.9\textwidth]{images/admin_corridor_performance.png}
+    \includegraphics[width=0.9\textwidth]{Images/Ch6/2.png}
+    \vspace{12pt}
     \caption{Nghiệp vụ Giám sát Năng lực thông hành với hệ thống KPI và biểu đồ Split-color Gradient}
     \label{fig:admin_corridor}
 \end{figure}
@@ -116,7 +118,8 @@ Cách tối ưu này vừa giải quyết triệt để lỗi logic, vừa giả
 
 \begin{figure}[H]
     \centering
-    % \includegraphics[width=0.9\textwidth]{images/admin_reliability_modal.png}
+    \includegraphics[width=0.9\textwidth]{Images/Ch6/5.png}
+    \vspace{12pt}
     \caption{Popup chi tiết Phân tích Độ tin cậy hành lang và hiển thị phân vị $T_{95}$}
     \label{fig:admin_reliability}
 \end{figure}
@@ -137,7 +140,8 @@ Thay vì lãng phí không gian màn hình bằng việc liệt kê lại một 
 
 \begin{figure}[H]
     \centering
-    % \includegraphics[width=0.9\textwidth]{images/admin_bottleneck_ranking.png}
+    \includegraphics[width=0.9\textwidth]{Images/Ch6/3.png}
+    \vspace{12pt}
     \caption{Biểu đồ phân tách tính Nghiêm trọng và tính Kinh niên của Điểm nghẽn}
     \label{fig:admin_bottleneck}
 \end{figure}
@@ -180,7 +184,8 @@ Với tập dữ liệu hàng trăm ngàn bản ghi, việc truy vấn lịch s�
 
 \begin{figure}[H]
     \centering
-    % \includegraphics[width=0.9\textwidth]{images/admin_history_marquee.png}
+    \includegraphics[width=0.9\textwidth]{Images/Ch6/7.png}
+    \vspace{12pt}
     \caption{Giao diện Tra cứu lịch sử tích hợp thanh Tin nóng thời gian thực}
     \label{fig:admin_history}
 \end{figure}
@@ -193,6 +198,13 @@ Với tập dữ liệu hàng trăm ngàn bản ghi, việc truy vấn lịch s�
 Hệ thống gọi API đến Module Dự báo (Predictive Module) để lấy kết quả từ mô hình AI và trực quan hóa các điểm nghẽn có nguy cơ hình thành. Điểm nổi bật về UX nằm ở \textbf{Kiến trúc Bản đồ Kép (Dual-Map UI)}: Thay vì nhồi nhét mọi tương tác lên một màn hình gây rối mắt, hệ thống chia giao diện làm hai phần riêng biệt. 
 Một bản đồ phụ (Selection Map) được đặt ở bảng điều khiển bên phải chuyên dùng để tìm kiếm và chọn đoạn đường cần phân tích. Sau khi xác nhận, kết quả dự báo AI mới được render lên bản đồ chính (Predictive Map) cực lớn ở trung tâm, đi kèm biểu đồ đối chiếu tốc độ dự báo với baseline lịch sử trong ngày. Thiết kế này giúp tối ưu hóa không gian làm việc và ngăn chặn tình trạng thao tác nhầm lẫn (misclick).
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{Images/Ch6/6.png}
+    \vspace{12pt}
+    \caption{Giao diện Nghiệp vụ Mô phỏng \& Dự báo với kiến trúc Dual-Map}
+    \label{fig:admin_predictive}
+\end{figure}
 
 \subsection{Phân hệ Người dùng cuối (Citizen Mobile App)}
 
@@ -233,21 +245,22 @@ Bên cạnh tốc độ bứt phá từ việc ứng dụng \texttt{bdAstar}, gi
 Trong đó, các đại lượng được hệ thống định nghĩa như sau:
 \begin{itemize}
     \item \textbf{$TravelTime$ (Thời gian di chuyển):} Yếu tố cốt lõi của thuật toán. Hệ thống ưu tiên chọn các cung đường có thời gian di chuyển thấp nhất để né các điểm nghẽn ùn tắc.
-    \item \textbf{$\alpha \times Distance$ (Hệ số phạt đường vòng):} Với hệ số $\alpha = 0.02$ (tương đương đi vòng 1km sẽ bị phạt cộng thêm 20 giây vào $Cost$). Giá trị này được thiết lập dựa trên khái niệm \textbf{Giá trị Thời gian (Value of Travel Time - VoT)}\footnote{Trong kinh tế học giao thông, VoT đo lường mức độ sẵn sàng đánh đổi của người lái xe. Khảo sát cho thấy người dùng sẵn sàng tốn thêm 20 giây trên đường chính thay vì phải đánh lái ngoằn ngoèo thêm 1km trong hẻm.}. Nếu chỉ tối ưu bằng thời gian thuần túy, thuật toán sẽ có xu hướng lùa xe vào các ngõ hẻm nhỏ hẹp để tiết kiệm vài giây (hiện tượng Rat-running). Trọng số này ép thuật toán ưu tiên lộ trình thẳng/ngắn nhất.
-    \item \textbf{$ConfidencePenalty$ (Hệ số phạt độ tin cậy):} Bằng $1.0$ cho dữ liệu đo đạc trực tiếp, $1.05$ cho dữ liệu nội suy KNN-IDW, và $1.1$ cho dữ liệu tĩnh. Mức phạt 5\% đến 10\% này mô phỏng \textbf{Hành vi chọn đường e ngại rủi ro (Risk-averse Route Choice)}\footnote{Tham khảo \textit{Reliability-based routing}: Người lái xe có xu hướng tâm lý tự cộng thêm khoảng 10\% "thời gian đệm" (buffer time) vào nhận thức khi chuẩn bị đi vào những tuyến đường không rõ tình trạng kẹt xe.}. Hệ số này giúp thuật toán "thiên vị" việc điều hướng vào đoạn đường có dữ liệu rõ ràng, giảm thiểu rủi ro đi vào "điểm mù".
+    \item \textbf{$\alpha \times Distance$ (Hệ số phạt đường vòng):} Với hệ số $\alpha = 0.02$ (tương đương đi vòng 1km sẽ bị phạt cộng thêm 20 giây vào $Cost$). Giá trị này được thiết lập dựa trên khái niệm \textbf{Giá trị Thời gian (Value of Travel Time - VoT)}. Nếu chỉ tối ưu bằng thời gian thuần túy, thuật toán sẽ có xu hướng lùa xe vào các ngõ hẻm nhỏ hẹp để tiết kiệm vài giây (hiện tượng Rat-running). Trọng số này ép thuật toán ưu tiên lộ trình thẳng/ngắn nhất.
+    \item \textbf{$ConfidencePenalty$ (Hệ số phạt độ tin cậy):} Bằng $1.0$ cho dữ liệu đo đạc trực tiếp, $1.05$ cho dữ liệu nội suy KNN-IDW, và $1.1$ cho dữ liệu tĩnh. Mức phạt 5\% đến 10\% này mô phỏng \textbf{Hành vi chọn đường e ngại rủi ro (Risk-averse Route Choice)}. Hệ số này giúp thuật toán "thiên vị" việc điều hướng vào đoạn đường có dữ liệu rõ ràng, giảm thiểu rủi ro đi vào "điểm mù".
 \end{itemize}
 
 \textbf{Cách tối ưu (Bù đắp dữ liệu bằng Spatial-Temporal Imputation):}
 Trong thực tế, mạng lưới cảm biến luôn tồn tại các "điểm mù" (cả về không gian lẫn thời gian). Thay vì phụ thuộc vào các mô hình AI/Deep Learning vốn đòi hỏi tài nguyên máy chủ lớn và khó chạy thời gian thực bên trong Database, nhóm đã ứng dụng các phương pháp thống kê không gian - thời gian (Spatiotemporal Imputation) trực tiếp trên Materialized View:
 \begin{itemize}
-    \item \textbf{Điểm mù thời gian (Temporal Decay):} Khi một cảm biến mất kết nối, hệ thống không giữ nguyên trạng thái kẹt xe vĩnh viễn. Thay vào đó, kỹ thuật \textbf{Suy giảm hàm mũ (Exponential Decay)} được áp dụng. Hàm số $e^{-0.046 \times t}$ (với hằng số $\lambda = 0.046$ được thiết kế để độ tin cậy giảm chính xác 50\% sau mỗi chu kỳ 15 phút). Chu kỳ bán rã (Half-life) 15 phút này là một quy tắc kinh nghiệm phổ biến trong kỹ thuật giao thông, vì các biến động ngắn hạn thường tự triệt tiêu sau mốc này. Thuật toán từ từ "mượt mà" trả trạng thái giao thông về lại vận tốc mặc định (Free-flow)\footnote{Tham khảo ứng dụng của kỹ thuật làm mượt hàm mũ: \textit{Short-term traffic flow prediction with Holt-Winters exponential smoothing}.}.
-    \item \textbf{Điểm mù không gian (Inverse Distance Weighting - IDW):} Với những đoạn đường không có cảm biến, hệ thống dự đoán vận tốc thông qua thuật toán \textbf{K-Nearest Neighbors (KNN)} kết hợp \textbf{IDW}\footnote{Tham khảo: Bartier, P. M., \& Keller, C. P. (1996). \textit{Multivariate interpolation to incorporate thematic surface data using inverse distance weighting}. Đây là thuật toán cơ sở (baseline) kinh điển cho bài toán nội suy không gian trong hệ thống thông tin địa lý GIS.}. Dữ liệu được tính toán thuần túy bằng đại số SQL và toán tử không gian \texttt{<->} của PostGIS. Các đường càng gần nhau (khoảng cách $d$ nhỏ) sẽ đóng góp trọng số $(1/d^2)$ càng lớn vào kết quả. 
+    \item \textbf{Điểm mù thời gian (Temporal Decay):} Khi một cảm biến mất kết nối, hệ thống không giữ nguyên trạng thái kẹt xe vĩnh viễn. Thay vào đó, kỹ thuật \textbf{Suy giảm hàm mũ (Exponential Decay)} được áp dụng. Hàm số $e^{-0.046 \times t}$ (với hằng số $\lambda = 0.046$ được thiết kế để độ tin cậy giảm chính xác 50\% sau mỗi chu kỳ 15 phút). Chu kỳ bán rã (Half-life) 15 phút này là một quy tắc kinh nghiệm phổ biến trong kỹ thuật giao thông, vì các biến động ngắn hạn thường tự triệt tiêu sau mốc này. Thuật toán từ từ "mượt mà" trả trạng thái giao thông về lại vận tốc mặc định (Free-flow).
+    \item \textbf{Điểm mù không gian (Inverse Distance Weighting - IDW):} Với những đoạn đường không có cảm biến, hệ thống dự đoán vận tốc thông qua thuật toán \textbf{K-Nearest Neighbors (KNN)} kết hợp \textbf{IDW}. Dữ liệu được tính toán thuần túy bằng đại số SQL và toán tử không gian \texttt{<->} của PostGIS. Các đường càng gần nhau (khoảng cách $d$ nhỏ) sẽ đóng góp trọng số $(1/d^2)$ càng lớn vào kết quả. 
 \end{itemize}
 Cách tiếp cận Tất định (Deterministic) này giúp nội suy cấu trúc mạng lưới giao thông (Topology) hoàn chỉnh trong chưa tới 1 giây, tuân thủ chặt chẽ Định luật thứ nhất của Địa lý học (Tobler's First Law) và giúp thuật toán \texttt{pgRouting} luôn dẫn đường hợp lý nhất 24/7.
 
 \begin{figure}[H]
     \centering
-    % \includegraphics[width=0.9\textwidth]{images/app_smart_routing.png}
+    \includegraphics[width=0.5\textwidth]{Images/Ch6/9.png}
+    \vspace{12pt}
     \caption{Nghiệp vụ Tìm đường thông minh né điểm nghẽn}
     \label{fig:app_routing}
 \end{figure}
