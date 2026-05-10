@@ -729,7 +729,7 @@ Dự đoán xác suất xảy ra tai nạn hoặc sự cố giao thông (Inciden
     \item \textbf{Xây dựng tập dữ liệu huấn luyện:} Kết nối (Join) \texttt{fact\_incident} với dữ liệu thời tiết và lưu lượng tại cùng thời điểm xảy ra tai nạn để tạo thành các "Hồ sơ rủi ro" (Risk Profiles). Đồng thời, lấy mẫu các thời điểm bình thường (Negative samples) để cân bằng dữ liệu.
     \item \textbf{Mô hình hóa:} Sử dụng thuật toán \textbf{Random Forest} hoặc \textbf{Logistic Regression} để tính toán xác suất ($P$).
     \begin{itemize}
-        \item Đầu vào: $X = \{ \text{Lượng mưa}, \text{Mật độ xe}, \text{Giờ trong ngày}, \text{Loại đường} \}$.
+        \item Đầu vào: $X = \{$ Lượng mưa, Mật độ xe, Giờ trong ngày, Loại đường $\}$.
         \item Đầu ra: $Y = P(\text{Incident})$.
     \end{itemize}
     \item \textbf{Phân ngưỡng cảnh báo:}

@@ -1,0 +1,80 @@
+\section{Tổng kết và hướng phát triển}
+\label{ch:9}
+
+Đồ án tốt nghiệp "Hệ thống Dự báo và Cảnh báo sớm Ùn tắc Giao thông ứng dụng Trí tuệ Nhân tạo" đã được thực hiện và hoàn thành theo đúng các mục tiêu đề ra ban đầu. Vượt qua khuôn khổ của một bài toán Học máy đơn thuần, nhóm thực hiện đã xây dựng thành công một hệ sinh thái khép kín (End-to-End Pipeline) kết nối chặt chẽ giữa Kỹ thuật Dữ liệu, Trí tuệ Nhân tạo và Phát triển Ứng dụng.
+
+Dưới đây là những kết quả nổi bật đã đạt được, được phân chia theo 4 phương diện cốt lõi của hệ thống:
+
+\subsection{Kết quả đạt được của đồ án}
+
+\paragraph{a. Về phương diện Kỹ thuật Dữ liệu (Data Engineering)} \mbox{} \\
+\begin{itemize}
+    \item \textbf{Xây dựng Data Warehouse chuẩn hóa:} Đã thiết kế và triển khai thành công Kho dữ liệu (Data Warehouse) lưu trữ dữ liệu giao thông đô thị, phục vụ tốt cho các truy vấn phân tích và huấn luyện AI.
+    \item \textbf{Tự động hóa luồng ETL/ELT:} Xây dựng quy trình trích xuất, biến đổi và tải dữ liệu ổn định. Đặc biệt, hệ thống đã giải quyết hiệu quả các khiếm khuyết của dữ liệu cảm biến IoT thông qua các kỹ thuật điền khuyết (Forward Fill) và màng lọc nhiễu, đảm bảo nguồn dữ liệu đầu vào luôn ở trạng thái "sạch" và có tính sẵn sàng cao.
+\end{itemize}
+
+\paragraph{b. Về phương diện Trí tuệ Nhân tạo (Artificial Intelligence)} \mbox{} \\
+Đây là điểm sáng và là đóng góp mang tính học thuật lớn nhất của đồ án, thể hiện qua việc giải quyết thành công các thách thức hóc búa của dữ liệu chuỗi thời gian giao thông:
+\begin{itemize}
+    \item \textbf{Khắc phục triệt để rủi ro mất cân bằng dữ liệu:} Ứng dụng thành công mô hình Trí tuệ nhân tạo tạo sinh \textbf{CTGAN} để tổng hợp dữ liệu kịch bản kẹt xe. Đồng thời, thiết lập "Màng lọc hậu kiểm vật lý" (Physical Sanity Check) để loại bỏ các điểm dữ liệu phi lý, tạo ra Tập dữ liệu Vàng cho quá trình huấn luyện.
+    \item \textbf{Đề xuất và làm chủ Kiến trúc Hybrid Double DQN:} Xây dựng thành công Đặc vụ Học tăng cường (RL Agent) kết hợp mạng Nơ-ron đa nhánh (LSTM + Embedding). Hệ thống đã áp dụng chiến lược Học chuyển giao (Transfer Learning / Warm-start) để đưa tri thức từ mô hình giám sát vào Agent, triệt tiêu hoàn toàn hội chứng "khởi động lạnh".
+    \item \textbf{Chuyển dịch hệ quy chiếu đánh giá (Asymmetric Reward Shaping):} Đồ án đã mạnh dạn bác bỏ chỉ số Độ chính xác (Accuracy) mang tính đánh lừa, thiết lập Hàm phần thưởng không đối xứng với mức "Phạt sinh tử" cho lỗi bỏ lọt thảm họa. Kết quả thực chứng cho thấy mô hình Đề xuất đạt \textbf{Độ phủ (Recall) trên 85\%} tại các lớp kẹt xe nghiêm trọng (Lớp 4, Lớp 5), vượt trội hoàn toàn so với các mô hình truyền thống (chỉ đạt dưới 10\%).
+    \item \textbf{Minh bạch hóa hộp đen (XAI):} Tích hợp thành công phương pháp SHAP, chứng minh được các quyết định cảnh báo thảm họa của hệ thống được đưa ra dựa trên các động lực học vật lý hợp logic (sự suy giảm vận tốc, tăng chỉ số ùn tắc), củng cố độ tin cậy khi áp dụng vào thực tế.
+\end{itemize}
+
+\paragraph{c. Về phương diện Ứng dụng và Định tuyến (Application \& Routing)} \mbox{} \\
+\begin{itemize}
+    \item \textbf{Phát triển Ứng dụng Người dùng (Client-App):} Hoàn thiện giao diện ứng dụng (UI/UX) thân thiện, trực quan, cho phép người dùng dễ dàng theo dõi trạng thái giao thông thời gian thực.
+    \item \textbf{Tích hợp Thuật toán Định tuyến thông minh:} Ứng dụng thành công dữ liệu dự báo từ AI vào các thuật toán tìm đường, cung cấp cho người dùng các lộ trình di chuyển tối ưu nhất nhằm né tránh các điểm nóng kẹt xe sắp xảy ra.
+\end{itemize}
+
+\paragraph{d. Về phương diện Triển khai và Vận hành (MLOps \& Deployment)} \mbox{} \\
+\begin{itemize}
+    \item \textbf{Kiến trúc Vận hành chuẩn Công nghiệp:} Hệ thống không dừng lại ở mức độ nghiên cứu (Jupyter Notebook) mà đã được thiết kế kiến trúc Client-Server hoàn chỉnh, phân tách rõ ràng giữa AI Server, DB Server và App Server.
+    \item \textbf{Đóng gói và Tự động hóa:} Toàn bộ môi trường mã nguồn, hệ quy chiếu (Artifacts) và trọng số mô hình được container hóa bằng \textbf{Docker}. Nhóm cũng đã thiết lập nền tảng CI/CD cơ bản, sẵn sàng cho việc nhân bản (Scale) và triển khai lên môi trường Đám mây (Cloud), tối ưu hóa ngân sách và tài nguyên hệ thống.
+\end{itemize}
+
+\subsection{Những hạn chế còn tồn tại}
+Mặc dù đã đạt được những kết quả khả quan và xây dựng thành công một pipeline End-to-End, hệ thống "Dự báo và Cảnh báo sớm Ùn tắc Giao thông" vẫn còn những điểm giới hạn nhất định do rào cản về tài nguyên phần cứng, thời gian nghiên cứu và sự phức tạp nội tại của hệ thống giao thông đô thị. Cụ thể như sau:
+
+\paragraph{a. Giới hạn về Nhận thức Không gian và Lan truyền ùn tắc} \mbox{} \\
+\begin{itemize}
+    \item \textbf{Thiếu hụt liên kết Tô-pô (Topological Connectivity):} Mạng Q-Network hiện tại dù rất mạnh trong việc nắm bắt động lực học chuỗi thời gian (nhờ LSTM) nhưng lại xử lý các đoạn đường một cách tương đối độc lập (dựa trên Embedding ID). Hệ thống chưa mô hình hóa được mạng lưới đường bộ thành một Đồ thị (Graph), dẫn đến việc nắm bắt "hiệu ứng dội ngược" (Spillback) hoặc sự lan truyền ùn tắc từ ngã tư này sang ngã tư khác vẫn mang tính gián tiếp, chưa đạt độ chính xác tối đa.
+    \item \textbf{Cơ chế Fallback chỉ mang tính đối phó:} Giải pháp "Global Spatial Fallback" khi mất tín hiệu cảm biến hiện tại chỉ là phép xấp xỉ thống kê từ các đường lân cận, chưa phản ánh được luồng di chuyển vật lý của dòng xe.
+\end{itemize}
+
+\paragraph{b. Khoảng cách giữa Mô phỏng và Thực tế (Sim-to-Real Gap)} \mbox{} \\
+\begin{itemize}
+    \item \textbf{Nhiễu loạn ngoại lai (Black Swan Events):} Tập dữ liệu huấn luyện, dù đã được làm giàu bằng CTGAN, vẫn có độ "sạch" nhất định về mặt phân phối xác suất. Khi đối mặt với môi trường thực tế – nơi chứa đựng các sự cố tai nạn bất ngờ, lỗi ngắt kết nối phần cứng, hoặc tín hiệu GPS nhảy vọt vô lý – Đặc vụ (Agent) đôi khi vẫn có thể bị "sốc" do chưa từng quan sát thấy các mức nhiễu cực đoan này trong không gian học (Offline RL).
+    \item \textbf{Thiếu khả năng tự học liên tục:} Sau khi được triển khai (Deploy), trọng số của mạng Nơ-ron bị đóng băng. Hệ thống hiện tại chưa có cơ chế tự động thu thập phản hồi sai lệch từ luồng dữ liệu mới để tự tinh chỉnh (Fine-tuning) theo thời gian thực.
+\end{itemize}
+
+\paragraph{c. Nút thắt hiệu năng trong khâu Suy luận (Inference Latency at Scale)} \mbox{} \\
+Toàn bộ luồng suy luận hiện tại (từ tiền xử lý Scaler đến mạng Double DQN) đang được thực thi trên môi trường Python/PyTorch tiêu chuẩn. Đối với quy mô đồ án thử nghiệm, hệ thống hoạt động mượt mà. Tuy nhiên, nếu mở rộng (Scale-up) ra toàn bộ hàng vạn đoạn đường của một siêu đô thị, việc xử lý đồng thời sẽ sinh ra độ trễ (Latency) đáng kể do sự cồng kềnh của framework và giới hạn đa luồng của Python (GIL), ảnh hưởng đến tiêu chuẩn của một API cảnh báo thời gian thực.
+
+\paragraph{d. Rào cản về Chi phí và Hạ tầng luồng dữ liệu (Data Streaming Infrastructure)} \mbox{} \\
+\begin{itemize}
+    \item \textbf{Chi phí duy trì:} Việc liên tục kéo dữ liệu (Polling) từ các API bản đồ hoặc duy trì kết nối Kafka/WebSockets để truyền tải khối lượng dữ liệu IoT khổng lồ đòi hỏi băng thông và chi phí máy chủ Đám mây (Cloud) rất lớn. Đây là một rào cản khiến hệ thống khó duy trì tần suất cập nhật dữ liệu ở mức từng giây (real-time streaming) mà phải chấp nhận độ trễ trượt cửa sổ (batch-processing từng 10-15 phút) để tối ưu ngân sách.
+    \item \textbf{Độ trễ định tuyến (Routing Delay):} Ứng dụng người dùng (Client-App) hiện tại đề xuất đường đi dựa trên dự báo tại thời điểm truy vấn. Nếu một vụ kẹt xe đột ngột xảy ra ngay khi người dùng đang ở giữa hành trình, thuật toán tái định tuyến động (Dynamic Re-routing) trên ứng dụng vẫn còn độ trễ nhất định để cập nhật lộ trình mới.
+\end{itemize}
+
+\subsection{Hướng phát triển trong tương lai}
+Dựa trên những giới hạn đã được phân tích và đánh giá, nhóm nghiên cứu đề xuất lộ trình nâng cấp hệ thống trong tương lai, tập trung vào ba trụ cột chính: Đột phá kiến trúc AI, Tối ưu hóa hạ tầng vận hành và Mở rộng trải nghiệm người dùng.
+
+\paragraph{a. Đột phá Kiến trúc Trí tuệ Nhân tạo (AI Architecture Upgrades)} \mbox{} \\
+\begin{itemize}
+    \item \textbf{Tích hợp Mạng Nơ-ron Đồ thị (Graph Neural Networks - GNN):} Chuyển đổi mô hình không gian từ dạng chuỗi độc lập sang cấu trúc đồ thị động $G=(V, E)$. Việc áp dụng các kiến trúc tiên tiến như STGCN (Spatio-Temporal Graph Convolutional Networks) hoặc GAT (Graph Attention Networks) sẽ giúp Đặc vụ DQN có tầm nhìn toàn cảnh, tính toán chính xác mức độ ảnh hưởng của "hiệu ứng gợn sóng" (Ripple Effect) khi kẹt xe lan truyền giữa các ngã tư.
+    \item \textbf{Chuyển dịch sang Học tăng cường Trực tuyến (Online Reinforcement Learning):} Xây dựng một pipeline vòng kín (Closed-loop) cho phép hệ thống tự động đối chiếu dự báo với nhãn thực tế sau mỗi khung thời gian (ví dụ 15 phút). Agent sẽ sử dụng sai số này để cập nhật nhẹ trọng số (Fine-tuning) theo thời gian thực. Cơ chế "miễn dịch học tập" này sẽ thu hẹp triệt để khoảng cách Sim-to-Real, giúp AI liên tục thích nghi với các biến động mùa vụ hoặc sự thay đổi hạ tầng giao thông mới.
+\end{itemize}
+
+\paragraph{b. Tối ưu hóa Hiệu năng và Hạ tầng (MLOps \& Infrastructure)} \mbox{} \\
+\begin{itemize}
+    \item \textbf{Tăng tốc Suy luận (Inference Acceleration) với ONNX/TensorRT:} Để giải quyết nút thắt cổ chai về độ trễ, toàn bộ mạng Q-Network sẽ được xuất sang định dạng ONNX và biên dịch bằng NVIDIA TensorRT. Kỹ thuật lượng tử hóa (Quantization) từ FP32 xuống FP16 hoặc INT8 sẽ được áp dụng nhằm giảm thiểu dung lượng RAM/VRAM và tăng tốc độ xử lý lên hàng chục lần, đáp ứng SLA khắt khe của hệ thống thời gian thực.
+    \item \textbf{Áp dụng Điện toán Biên (Edge Computing) và Data Streaming:} Thay vì đẩy toàn bộ gánh nặng tính toán lên Cloud, kiến trúc hệ thống sẽ được phân tán. Một phần các mô hình tiền xử lý hoặc AI nhẹ sẽ được nhúng trực tiếp vào các thiết bị biên (Edge Devices) gần camera/cảm biến ngã tư. Kết hợp với nền tảng truyền phát dữ liệu hiệu năng cao như Apache Kafka, hệ thống sẽ chịu tải tốt hơn khi mở rộng quy mô toàn thành phố.
+\end{itemize}
+
+\paragraph{c. Nâng cấp Ứng dụng và Thuật toán Định tuyến (App \& Routing)} \mbox{} \\
+\begin{itemize}
+    \item \textbf{Định tuyến Động trong Hành trình (Dynamic In-trip Re-routing):} Nâng cấp thuật toán tìm đường (như A* hoặc Dijkstra tích hợp trọng số kẹt xe) để có thể "lắng nghe" luồng cảnh báo từ AI theo thời gian thực (ví dụ qua WebSockets). Nếu AI dự báo con đường phía trước sắp vỡ trận, ứng dụng sẽ ngay lập tức tính toán và gợi ý hướng rẽ mới cho người dùng ngay cả khi họ đang di chuyển giữa lộ trình.
+    \item \textbf{Tích hợp Dữ liệu Đám đông (Crowdsourcing):} Xây dựng tính năng cho phép người dùng ứng dụng chủ động báo cáo các sự cố bất ngờ (tai nạn, cây đổ, ngập lụt). Nguồn dữ liệu thời gian thực từ cộng đồng này sẽ được kết hợp với dữ liệu IoT để tăng cường độ nhạy và tính chính xác của các cảnh báo thảm họa giao thông.
+\end{itemize}
