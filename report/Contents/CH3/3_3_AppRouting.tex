@@ -1,0 +1,33 @@
+\subsection{Nền tảng Ứng dụng và Định tuyến}
+\label{sec:3_4}
+
+Để phục vụ nhu cầu của người dùng cuối và quản trị viên, hệ thống tích hợp các thuật toán tìm đường tối ưu và công nghệ phát triển web hiện đại.
+
+\subsubsection{Lý thuyết Đồ thị và Thuật toán Tìm đường (Routing Algorithms)}
+
+\paragraph{a. Mô hình hóa mạng lưới} \mbox{} \\
+Mạng lưới giao thông được mô hình hóa toán học dưới dạng một Đồ thị có hướng $G = (V, E)$, trong đó $V$ là tập hợp các nút giao thông và $E$ là tập hợp các đoạn đường nối giữa các nút. Hệ thống áp dụng thuật toán \textbf{Bi-directional A* (A-Star hai chiều)} kết hợp cùng hàm Heuristic ước lượng khoảng cách không gian để thu hẹp phạm vi duyệt đồ thị.
+
+\paragraph{b. Hàm chi phí động (Dynamic Cost Function)} \mbox{} \\
+Hệ thống sử dụng các mô hình toán học để bù đắp dữ liệu thời gian thực:
+\begin{itemize}
+    \item \textbf{Mô hình Suy giảm độ tin cậy (Confidence Decay Model):} Giá trị của dữ liệu vận tốc giảm dần theo hàm mũ dựa trên độ trễ thời gian $\Delta t$: $C = e^{-\lambda \times \Delta t}$.
+    \item \textbf{Nội suy Không gian bằng IDW (Inverse Distance Weighting):} Khi một đoạn đường bị mất tín hiệu, hệ thống nội suy vận tốc dựa trên 3 đoạn đường lân cận gần nhất (KNN).
+    \item \textbf{Hàm Chi phí Phức hợp đa biến:} Kết hợp giữa Thời gian di chuyển, Khoảng cách và Hệ số phạt rủi ro dữ liệu để ưu tiên các cung đường có dữ liệu xác thực.
+\end{itemize}
+
+\subsubsection{Xử lý Không gian và Khớp bản đồ (Map Matching)}
+
+\paragraph{a. Khớp bản đồ (Map Matching)} \mbox{} \\
+Khi nhận được tọa độ GPS của một sự kiện (tai nạn, ngập nước), hệ thống sử dụng thuật toán chiếu điểm lên đường (Point-to-Line Projection) để tìm khoảng cách vuông góc ngắn nhất, giúp gắn sự kiện chính xác vào đoạn đường tương ứng trên đồ thị.
+
+\paragraph{b. Chỉ mục và Thực thi Không gian} \mbox{} \\
+Áp dụng cấu trúc cây R-Tree (GIST) để thu hẹp phạm vi tìm kiếm không gian. Toàn bộ các phép toán hình học phức tạp được xử lý trực tiếp tại tầng Database thông qua thư viện PostGIS (như \texttt{ST\_DWithin}, \texttt{ST\_Contains}, \texttt{ST\_Intersects}), giúp giảm tải cho Backend.
+
+\subsubsection{Công nghệ phát triển Ứng dụng}
+
+\paragraph{a. Backend Framework (Node.js & ExpressJS)} \mbox{} \\
+Sử dụng Node.js với TypeScript để xây dựng API hiệu năng cao. ExpressJS cung cấp kiến trúc phân tầng Controller - Service - Repository tinh gọn. Redis được dùng làm bộ đệm (Cache Layer) để lưu trữ kết quả truy vấn Dashboard, giúp tốc độ phản hồi API luôn dưới mức 150ms.
+
+\paragraph{b. Frontend Framework (ReactJS & Mapbox GL JS)} \mbox{} \\
+ReactJS được dùng để xây dựng giao diện người dùng. Mapbox GL JS kết xuất bản đồ véc-tơ trực tiếp lên GPU thông qua WebGL, cho phép hiển thị hàng chục ngàn đoạn đường mượt mà. Recharts được dùng để vẽ các biểu đồ phân tích động cho Dashboard.

@@ -1,0 +1,83 @@
+\subsection{Nền tảng Kỹ thuật dữ liệu}
+\label{sec:3_1}
+
+Trong kỷ nguyên dữ liệu lớn (Big Data), việc quản lý và khai thác hiệu quả nguồn dữ liệu khổng lồ từ hệ thống giao thông thông minh (ITS) là một thách thức lớn. Phần này sẽ trình bày các cơ sở lý thuyết quan trọng làm nền tảng cho việc xây dựng hệ thống, bao gồm lý thuyết về Kho dữ liệu (Data Warehouse), mô hình hóa dữ liệu quan hệ và không gian, cũng như các nguyên lý cơ bản trong phân tích giao thông.
+
+\subsubsection{Tổng quan về Kho dữ liệu (Data Warehouse) và OLAP}
+
+\paragraph{a. Khái niệm} \mbox{} \\
+Kho dữ liệu (Data Warehouse - DWH) là một hệ thống được thiết kế để lưu trữ, quản lý và phân tích dữ liệu lịch sử từ nhiều nguồn khác nhau nhằm hỗ trợ quá trình ra quyết định (Decision Support System - DSS).
+
+Theo định nghĩa kinh điển của W.H. Inmon – người được coi là cha đẻ của Kho dữ liệu:
+\begin{quote}
+"Kho dữ liệu là một tập hợp dữ liệu hướng chủ đề (subject-oriented), tích hợp (integrated), biến đổi theo thời gian (time-variant) và bất biến (non-volatile) để hỗ trợ sự quản lý ra quyết định."
+\end{quote}
+
+\paragraph{b. Các đặc tính cốt lõi của Kho dữ liệu} \mbox{} \\
+Một hệ thống DWH chuẩn mực phải đảm bảo 4 đặc tính sau:
+\begin{itemize}
+    \item \textbf{Hướng chủ đề (Subject-Oriented):} Dữ liệu trong DWH được tổ chức theo các chủ đề chính của nghiệp vụ thay vì theo quy trình ứng dụng. Trong ngữ cảnh giao thông, các chủ đề có thể là "Lưu lượng xe", "Sự cố", hoặc "Người dùng".
+    \item \textbf{Tính tích hợp (Integrated):} Dữ liệu từ các nguồn không đồng nhất phải được làm sạch, chuẩn hóa và thống nhất về định dạng trước khi đưa vào kho.
+    \item \textbf{Biến đổi theo thời gian (Time-Variant):} Mọi dữ liệu trong DWH đều gắn liền với một mốc thời gian cụ thể, phục vụ phân tích xu hướng lâu dài.
+    \item \textbf{Tính bất biến (Non-Volatile):} Dữ liệu sau khi được nạp vào DWH sẽ không bị thay đổi hoặc xóa bỏ, đảm bảo tính toàn vẹn của lịch sử.
+\end{itemize}
+
+\paragraph{c. Kiến trúc tổng quát của hệ thống Kho dữ liệu} \mbox{} \\
+Kiến trúc của một hệ thống DWH thường bao gồm 3 lớp chính:
+\begin{itemize}
+    \item \textbf{Lớp nguồn dữ liệu (Data Source Layer):} Bao gồm các hệ thống bên ngoài cung cấp dữ liệu thô (API giao thông, file log).
+    \item \textbf{Lớp Staging (Staging Area):} Vùng đệm trung gian lưu trữ dữ liệu thô vừa trích xuất để không ảnh hưởng đến hệ thống nguồn.
+    \item \textbf{Lớp lưu trữ dữ liệu (Data Storage Layer):} Nơi chứa dữ liệu đã được làm sạch và mô hình hóa (thường theo dạng Star Schema hoặc Snowflake Schema).
+\end{itemize}
+
+\paragraph{d. Lý thuyết Xử lý Phân tích Trực tuyến (OLAP)} \mbox{} \\
+Để đáp ứng nhu cầu phân tích dữ liệu lớn và trích xuất tri thức, đề tài vận dụng lý thuyết OLAP (Online Analytical Processing):
+\begin{itemize}
+    \item \textbf{Khối dữ liệu (Data Cube):} Dữ liệu giao thông được trừu tượng hóa thành các khối đa chiều (Không gian, Thời gian, Chỉ số hiệu năng).
+    \item \textbf{Thao tác Roll-up và Drill-down:} Hỗ trợ người quản trị khả năng phân tích đa cấp độ, từ tổng thể thành phố xuống chi tiết từng đoạn đường cụ thể.
+\end{itemize}
+
+\subsubsection{Lý thuyết về Cơ sở dữ liệu quan hệ và SQL}
+
+\paragraph{a. Mô hình dữ liệu quan hệ (Relational Data Model)} \mbox{} \\
+Mô hình dữ liệu quan hệ tổ chức dữ liệu thành các bảng liên kết qua khóa chính và khóa ngoại. Các giao dịch tuân thủ nghiêm ngặt 4 tính chất ACID: Atomicity (Nguyên tố), Consistency (Nhất quán), Isolation (Cô lập) và Durability (Bền vững).
+
+\paragraph{b. Xử lý dữ liệu bán cấu trúc (JSONB)} \mbox{} \\
+Trong bối cảnh dữ liệu lớn, PostgreSQL tích hợp kiểu dữ liệu \textbf{JSONB (Binary JSON)} để lưu trữ dữ liệu bán cấu trúc từ API. JSONB cho phép truy xuất trực tiếp đến các khóa mà không cần phân tích cú pháp lại, giúp xây dựng lớp Staging linh hoạt (Schema-less).
+
+\paragraph{c. Các kỹ thuật tối ưu hóa lưu trữ} \mbox{} \\
+\begin{itemize}
+    \item \textbf{Phân vùng dữ liệu (Partitioning):} Chia bảng lớn thành các bảng con theo thời gian (Range Partitioning) để tăng tốc độ truy vấn.
+    \item \textbf{Đánh chỉ mục (Indexing):} Sử dụng B-Tree cho dữ liệu chuẩn và GIN/GiST cho dữ liệu JSONB hoặc không gian.
+\end{itemize}
+
+\subsubsection{Hệ thống thông tin địa lý (GIS) và Dữ liệu không gian}
+
+\paragraph{a. Mô hình dữ liệu Vector} \mbox{} \\
+Dữ liệu không gian được biểu diễn qua Điểm (vị trí sự cố), Đường (đoạn đường) và Vùng (đơn vị hành chính) tuân theo chuẩn Simple Features của OGC.
+
+\paragraph{b. Hệ quy chiếu tọa độ (CRS)} \mbox{} \\
+Hệ thống sử dụng chuẩn \textbf{WGS84 (EPSG:4326)} cho dữ liệu GPS và API. Đối với các phép tính toán khoảng cách và diện tích, kiểu dữ liệu \textbf{GEOGRAPHY} trong PostGIS được ưu tiên sử dụng để đảm bảo độ chính xác trên bề mặt cầu.
+
+\subsubsection{Lý thuyết về Giao thông (Traffic Flow Theory)}
+
+\paragraph{a. Các thông số cơ bản} \mbox{} \\
+Dòng giao thông vĩ mô được đặc trưng bởi: Lưu lượng ($q$), Tốc độ ($v$) và Mật độ ($k$). Mối quan hệ cơ bản: $q = k \times v$.
+
+\paragraph{b. Mô hình Greenshields} \mbox{} \\
+Hệ thống sử dụng mô hình Greenshields để ước lượng mật độ dựa trên tốc độ và tốc độ dòng tự do ($v_f$):
+$$v = v_f \times \left(1 - \frac{k}{k_j}\right)$$
+
+\paragraph{c. Mức độ phục vụ (Level of Service - LOS)} \mbox{} \\
+Đánh giá chất lượng vận hành từ mức A (Tự do) đến F (Ùn tắc) dựa trên tỷ số giữa tốc độ hiện tại và tốc độ tự do, phục vụ trực quan hóa Heatmap.
+
+\subsubsection{Công nghệ Kỹ thuật dữ liệu sử dụng}
+
+\paragraph{a. Ngôn ngữ Python và quy trình ETL} \mbox{} \\
+Sử dụng thư viện \textbf{Requests} để thu thập dữ liệu, \textbf{Pandas} để biến đổi và làm sạch, \textbf{SQLAlchemy} để nạp dữ liệu vào database và \textbf{OSMnx} để trích xuất cấu trúc mạng lưới từ OpenStreetMap.
+
+\paragraph{b. Hệ quản trị PostgreSQL và PostGIS} \mbox{} \\
+PostgreSQL đóng vai trò kép là Staging và Data Warehouse. PostGIS mở rộng khả năng xử lý không gian như \texttt{ST\_DWithin}, \texttt{ST\_Intersects} để thực hiện Map Matching và Spatial Join.
+
+\paragraph{c. Nguồn dữ liệu và Tự động hóa} \mbox{} \\
+Tích hợp dữ liệu từ TomTom Traffic API và OpenWeatherMap API. Quy trình được tự động hóa bằng Windows Task Scheduler với chu kỳ 15 phút/lần.
