@@ -1,0 +1,76 @@
+\thispagestyle {empty}
+\contentsline {figure}{\numberline {1}{\ignorespaces Các lược đồ Star Schema ban đầu}}{37}{figure.caption.10}%
+\contentsline {figure}{\numberline {2}{\ignorespaces Thiết kế bảng dim\_location ban đầu}}{38}{figure.caption.11}%
+\contentsline {figure}{\numberline {3}{\ignorespaces Thiết kế bảng dim\_time ban đầu}}{38}{figure.caption.12}%
+\contentsline {figure}{\numberline {4}{\ignorespaces Thiết kế bảng dim\_vehicle\_type ban đầu}}{39}{figure.caption.13}%
+\contentsline {figure}{\numberline {5}{\ignorespaces Mô hình Galaxy Schema hoàn chỉnh}}{44}{figure.caption.16}%
+\contentsline {figure}{\numberline {6}{\ignorespaces Bảng fact\_travel\_flow}}{45}{figure.caption.17}%
+\contentsline {figure}{\numberline {7}{\ignorespaces Bảng fact\_user\_mobility}}{46}{figure.caption.18}%
+\contentsline {figure}{\numberline {8}{\ignorespaces Bảng fact\_weather\_impact}}{47}{figure.caption.19}%
+\contentsline {figure}{\numberline {9}{\ignorespaces Bảng fact\_incident}}{48}{figure.caption.20}%
+\contentsline {figure}{\numberline {10}{\ignorespaces Cụm bảng fact\_trip\_recommendation và fact\_segment\_performance}}{48}{figure.caption.21}%
+\contentsline {figure}{\numberline {11}{\ignorespaces Bảng Dimension dim\_weather}}{49}{figure.caption.22}%
+\contentsline {figure}{\numberline {12}{\ignorespaces Bảng Dimension dim\_incident\_type}}{49}{figure.caption.23}%
+\contentsline {figure}{\numberline {13}{\ignorespaces Bảng Dimension dim\_vehicle\_type}}{50}{figure.caption.24}%
+\contentsline {figure}{\numberline {14}{\ignorespaces Nhóm Bảng Dimension: Người dùng}}{50}{figure.caption.25}%
+\contentsline {figure}{\numberline {15}{\ignorespaces Nhóm Bảng Dimension: Thời gian (Chi tiết thời gian trong ngày)}}{51}{figure.caption.26}%
+\contentsline {figure}{\numberline {16}{\ignorespaces Nhóm Bảng Dimension: Thời gian (Ngày/Tháng/Năm)}}{51}{figure.caption.27}%
+\contentsline {figure}{\numberline {17}{\ignorespaces Nhóm Bảng Dimension: Hạ tầng giao thông}}{51}{figure.caption.28}%
+\contentsline {figure}{\numberline {18}{\ignorespaces Sơ đồ kiến trúc tổng thể hệ thống ETL}}{72}{figure.caption.30}%
+\contentsline {figure}{\numberline {19}{\ignorespaces Cấu trúc thư mục dự án hệ thống ETL}}{73}{figure.caption.31}%
+\contentsline {figure}{\numberline {20}{\ignorespaces Cấu hình các tham số trong tệp .env}}{74}{figure.caption.32}%
+\contentsline {figure}{\numberline {21}{\ignorespaces Triển khai lớp DatabaseConfig trong Python}}{75}{figure.caption.33}%
+\contentsline {figure}{\numberline {22}{\ignorespaces Sơ đồ điều phối Pipeline đa tầng}}{76}{figure.caption.34}%
+\contentsline {figure}{\numberline {23}{\ignorespaces Dữ liệu cấu hình các ngày lễ trong bảng dim\_holiday}}{76}{figure.caption.35}%
+\contentsline {figure}{\numberline {24}{\ignorespaces Đoạn mã xử lý chuyển đổi lịch âm sang lịch dương cho ngày lễ}}{77}{figure.caption.36}%
+\contentsline {figure}{\numberline {25}{\ignorespaces Kết quả cập nhật cờ is\_holiday trong bảng dim\_date}}{77}{figure.caption.37}%
+\contentsline {figure}{\numberline {26}{\ignorespaces Tệp cấu hình vehicles.csv chứa hệ số PCU và tốc độ thiết kế}}{79}{figure.caption.38}%
+\contentsline {figure}{\numberline {27}{\ignorespaces Danh mục sự cố đã chuẩn hóa mã màu trong cơ sở dữ liệu}}{79}{figure.caption.39}%
+\contentsline {figure}{\numberline {28}{\ignorespaces Nhật ký thực thi nạp dữ liệu ranh giới hành chính Quận 1}}{80}{figure.caption.40}%
+\contentsline {figure}{\numberline {29}{\ignorespaces Dữ liệu ranh giới hành chính đã nạp vào bảng dim\_location}}{81}{figure.caption.41}%
+\contentsline {figure}{\numberline {30}{\ignorespaces Trực quan hóa đa giác ranh giới TP. Hồ Chí Minh từ PostGIS}}{81}{figure.caption.42}%
+\contentsline {figure}{\numberline {31}{\ignorespaces Dữ liệu góc Azimuth và hình học đa tầng trong bảng dim\_segment}}{82}{figure.caption.43}%
+\contentsline {figure}{\numberline {32}{\ignorespaces Câu lệnh SQL thực hiện phép giao không gian để cập nhật location\_key}}{82}{figure.caption.44}%
+\contentsline {figure}{\numberline {33}{\ignorespaces Cấu trúc dữ liệu JSON trả về từ TomTom Traffic API}}{83}{figure.caption.45}%
+\contentsline {figure}{\numberline {34}{\ignorespaces Trang web lấy hình ảnh camera tại Đường Cách Mạng Tháng Tám - Hòa Hưng}}{84}{figure.caption.46}%
+\contentsline {figure}{\numberline {35}{\ignorespaces Kết quả nhận diện và phân lớp phương tiện thời gian thực bằng YOLOv8x}}{85}{figure.caption.47}%
+\contentsline {figure}{\numberline {36}{\ignorespaces Khởi tạo mô hình YOLOv8 và cấu hình danh mục đối tượng mục tiêu}}{86}{figure.caption.48}%
+\contentsline {figure}{\numberline {37}{\ignorespaces Đoạn mã triển khai logic đếm đối tượng và tính toán PCU từ kết quả AI}}{87}{figure.caption.49}%
+\contentsline {figure}{\numberline {38}{\ignorespaces Mô tả các cấp độ phục vụ (LOS) trong kỹ thuật giao thông}}{88}{figure.caption.50}%
+\contentsline {figure}{\numberline {39}{\ignorespaces Cấu trúc các phân vùng bảng Fact theo tháng trong PostgreSQL}}{89}{figure.caption.51}%
+\contentsline {figure}{\numberline {40}{\ignorespaces Hàm xử lý logic tính toán chỉ số rủi ro ngập lụt}}{89}{figure.caption.52}%
+\contentsline {figure}{\numberline {41}{\ignorespaces Nhật ký nạp dữ liệu sự cố và kết quả đối khớp không gian thành công}}{90}{figure.caption.53}%
+\contentsline {figure}{\numberline {42}{\ignorespaces Giao diện Task Scheduler}}{91}{figure.caption.54}%
+\contentsline {figure}{\numberline {43}{\ignorespaces Set up Trigger theo lịch ETL}}{92}{figure.caption.55}%
+\contentsline {figure}{\numberline {44}{\ignorespaces Cấu trúc tệp lệnh Batch thực thi chu kỳ ETL tự động}}{93}{figure.caption.56}%
+\contentsline {figure}{\numberline {45}{\ignorespaces Nhật ký tổng hợp kết thúc quy trình Fact Pipeline thành công}}{94}{figure.caption.57}%
+\contentsline {figure}{\numberline {46}{\ignorespaces Bảng điều khiển Tổng quan với hệ thống thẻ KPI cơ bản}}{96}{figure.caption.58}%
+\contentsline {figure}{\numberline {47}{\ignorespaces Nghiệp vụ Giám sát Năng lực thông hành với hệ thống KPI và biểu đồ Split-color Gradient}}{97}{figure.caption.59}%
+\contentsline {figure}{\numberline {48}{\ignorespaces Popup chi tiết Phân tích Độ tin cậy hành lang và hiển thị phân vị $T_{95}$}}{97}{figure.caption.60}%
+\contentsline {figure}{\numberline {49}{\ignorespaces Biểu đồ phân tách tính Nghiêm trọng và tính Kinh niên của Điểm nghẽn}}{98}{figure.caption.61}%
+\contentsline {figure}{\numberline {50}{\ignorespaces Dashboard BI \& OLAP: Heatmap thời gian và Bubble Chart đánh giá hạ tầng}}{98}{figure.caption.62}%
+\contentsline {figure}{\numberline {51}{\ignorespaces Giao diện Tra cứu lịch sử tích hợp thanh Tin nóng thời gian thực}}{99}{figure.caption.63}%
+\contentsline {figure}{\numberline {52}{\ignorespaces Nghiệp vụ Tìm đường thông minh né điểm nghẽn}}{101}{figure.caption.65}%
+\contentsline {figure}{\numberline {53}{\ignorespaces Giao diện Bản đồ trạng thái giao thông và Cảnh báo cá nhân hóa}}{101}{figure.caption.66}%
+\contentsline {figure}{\numberline {54}{\ignorespaces Sơ đồ kiến trúc triển khai hệ thống trên nền tảng đám mây}}{102}{figure.caption.67}%
+\contentsline {figure}{\numberline {55}{\ignorespaces Biểu đồ minh họa hiện tượng Trễ pha của mô hình ARIMA}}{113}{figure.caption.68}%
+\contentsline {figure}{\numberline {56}{\ignorespaces Sơ đồ khối kiến trúc LSTM đơn giản}}{113}{figure.caption.69}%
+\contentsline {figure}{\numberline {57}{\ignorespaces Ma trận nhầm lẫn mô hình DL thuần túy}}{114}{figure.caption.70}%
+\contentsline {figure}{\numberline {58}{\ignorespaces Sơ đồ kiển trúc tổng thể}}{115}{figure.caption.71}%
+\contentsline {figure}{\numberline {59}{\ignorespaces Đồ thị hàm phần thưởng}}{116}{figure.caption.72}%
+\contentsline {figure}{\numberline {60}{\ignorespaces Sơ đồ minh họa cơ chế Cửa sổ trượt và Thuật toán kiểm tra tính liên tục}}{118}{figure.caption.73}%
+\contentsline {figure}{\numberline {61}{\ignorespaces So sánh One-hot Encoding vs Dense Embedding}}{119}{figure.caption.74}%
+\contentsline {figure}{\numberline {62}{\ignorespaces Sơ đồ luồng dữ liệu MLOps}}{122}{figure.caption.75}%
+\contentsline {figure}{\numberline {63}{\ignorespaces Ma trận Tương quan (Heatmap) thể hiện hiện tượng đa cộng tuyến giữa các đặc trưng giao thông}}{123}{figure.caption.76}%
+\contentsline {figure}{\numberline {64}{\ignorespaces Xếp hạng mức độ đóng góp của các đặc trưng dựa trên Gini Importance (Random Forest)}}{124}{figure.caption.77}%
+\contentsline {figure}{\numberline {65}{\ignorespaces So sánh Phân phối dữ liệu Gốc và Phân phối Vàng sau khi áp dụng Cân bằng Lai}}{125}{figure.caption.78}%
+\contentsline {figure}{\numberline {66}{\ignorespaces Sự vi phạm ràng buộc phi tuyến của phương pháp nội suy SMOTE}}{126}{figure.caption.79}%
+\contentsline {figure}{\numberline {67}{\ignorespaces Kiến trúc Chiến lược Cân bằng lai}}{127}{figure.caption.80}%
+\contentsline {figure}{\numberline {68}{\ignorespaces Cơ chế hoạt động của Màng lọc Hậu kiểm Vật lý}}{129}{figure.caption.81}%
+\contentsline {figure}{\numberline {69}{\ignorespaces Cơ chế điều hướng sự chú ý của Focal Loss so với Cross-Entropy}}{130}{figure.caption.82}%
+\contentsline {figure}{\numberline {70}{\ignorespaces Đánh giá hiệu suất Phân lớp của Mô hình Baseline}}{130}{figure.caption.83}%
+\contentsline {figure}{\numberline {71}{\ignorespaces Lợi ích thực chứng của Chuyển giao Trọng số lên tốc độ hội tụ Phần thưởng}}{132}{figure.caption.84}%
+\contentsline {figure}{\numberline {72}{\ignorespaces Kiến trúc Double DQN - Cơ chế kiểm chứng chéo}}{133}{figure.caption.85}%
+\contentsline {figure}{\numberline {73}{\ignorespaces Ma trận Thưởng/Phạt không đối xứng}}{135}{figure.caption.86}%
+\contentsline {figure}{\numberline {74}{\ignorespaces Biểu đồ so sánh hiệu năng thực tế giữa các mô hình}}{136}{figure.caption.88}%
+\contentsline {figure}{\numberline {75}{\ignorespaces Tích hợp Mạng Nơ-ron Đồ thị (GNN)}}{139}{figure.caption.89}%
