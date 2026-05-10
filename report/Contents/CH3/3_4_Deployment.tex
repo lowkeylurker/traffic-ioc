@@ -1,16 +1,10 @@
 \subsection{Nền tảng Triển khai}
 \label{sec:3_5}
 
-Hệ thống được đóng gói và vận hành trên môi trường điện toán đám mây hiện đại, hướng tới tính sẵn sàng và tính di động cao.
-
-\subsubsection{Công nghệ Container hóa (Docker)}
-Mã nguồn Backend và AI-Core được đóng gói thành các Docker Container độc lập thông qua các tệp cấu hình \texttt{Dockerfile}. Các bộ ảnh (Image) được lưu trữ trên Docker Hub để sẵn sàng cho quy trình pull/push ở mọi nền tảng, đảm bảo tính nhất quán tuyệt đối giữa môi trường phát triển và thực tế.
-
-\subsubsection{Điện toán đám mây (Azure & Vercel)}
+Hệ thống được đóng gói và vận hành trên môi trường điện toán đám mây hiện đại, hướng tới tính sẵn sàng và tính di động cao:
 \begin{itemize}
-    \item \textbf{Microsoft Azure App Service:} Nền tảng PaaS được chọn để chạy các Docker Container backend với khả năng quản lý tài nguyên linh hoạt và duy trì API ổn định trong môi trường Production.
-    \item \textbf{Vercel:} Nền tảng chuyên biệt được sử dụng để triển khai phân hệ Frontend (React), tự động tối ưu hóa tài nguyên tĩnh và phân phối nội dung thông qua mạng CDN toàn cầu.
+    \item \textbf{Docker \& Docker Hub:} Mã nguồn Backend và AI-Core được "đóng gói" thành các Container độc lập với đầy đủ môi trường chạy (Runtime, Dependencies) thông qua các file cấu hình \texttt{Dockerfile}. Các bộ ảnh (Image) này được lưu trữ trên Docker Hub để sẵn sàng cho quy trình pull/push ở mọi nền tảng.
+    \item \textbf{Microsoft Azure App Service:} Nền tảng PaaS (Platform as a Service) của Azure được chọn để chạy các Docker Container backend. Đề tài sử dụng cấu hình \textbf{Basic B2} với khả năng quản lý tài nguyên linh hoạt, giúp duy trì API ổn định trong môi trường Production.
+    \item \textbf{Vercel:} Nền tảng chuyên biệt được sử dụng để triển khai phân hệ Frontend (React). Vercel tích hợp Vercel CLI, tự động tối ưu hóa tài nguyên tĩnh và phân phối nội dung thông qua mạng CDN toàn cầu, đảm bảo ứng dụng Frontend truy cập nhanh ở mọi vị trí địa lý.
 \end{itemize}
 
-\subsubsection{Quy trình CI/CD và Quản lý phiên bản}
-Hệ thống áp dụng mô hình Git-flow để quản lý mã nguồn. Quy trình CI/CD được thiết lập để tự động hóa các bước kiểm thử, xây dựng image và triển khai lên Azure/Vercel ngay khi có thay đổi được phê duyệt, giúp tăng tốc độ phát triển và giảm thiểu sai sót thủ công.
