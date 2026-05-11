@@ -1,10 +1,104 @@
-\section{Kiến trúc tổng quan của Data Pipeline}
-\subsection{Sơ lược hệ thống ETL trong đồ án}
+\section{Hệ sinh thái dữ liệu và Data Warehouse}
+\subsection{Tổng quan về dữ liệu}
 Trong kiến trúc của hệ thống Thông tin Giao thông Thông minh (Traffic IoC), Data Pipeline không chỉ đơn thuần đóng vai trò truyền tải dữ liệu, mà hoạt động như một lớp hạ tầng cốt lõi đảm bảo tính nhất quán, độ tin cậy và khả năng sẵn sàng của Data Warehouse. Dữ liệu giao thông đặc thù mang tính chất chuỗi thời gian (time-series) kết hợp với dữ liệu không gian (spatial data), đòi hỏi một luồng xử lý cực kỳ nghiêm ngặt trước khi được lưu trữ vào hệ quản trị cơ sở dữ liệu PostgreSQL có tích hợp PostGIS.
 
 
 Toàn bộ luồng xử lý được chuẩn hóa theo mô hình ETL ba pha độc lập: Extract (Trích xuất) → Transform (Biến đổi) → Load (Nạp). Điểm đột phá của kiến trúc này nằm ở nguyên lý Separation of Concerns (Tách biệt mối quan tâm). Mỗi pha trong chu trình được giao phó một trách nhiệm duy nhất và không can thiệp vào logic của các pha khác. Extractor chỉ giao tiếp với API bên ngoài; Transformer đảm nhiệm việc áp dụng các quy tắc nghiệp vụ; Loader chịu trách nhiệm đóng gói và thực thi các giao dịch (transactions) vào cơ sở dữ liệu. Cách tiếp cận này giúp hệ thống đạt được tính mô-đun hóa (modularity) cao, dễ dàng bảo trì, mở rộng quy mô (scale) và cho phép tích hợp các nguồn dữ liệu mới mà không làm phá vỡ cấu trúc hiện tại.
 
+\subsubsection{Các nguồn dữ liệu chính}
+Phần này tập trung tìm hiểu và phân tích các nguồn data input, bao gồm 3 nguồn chính sau: TomTom, Google Maps và OpenStreetMap để xác thực độ khả thi của thiết kế tại mục 5.1.2, qua đó điều chỉnh để tính khả thi đạt 100\%.
+
+\subsubsubsection{TomTom}
+
+\textbf{Các loại dữ liệu và phạm vi cung cấp:} TomTom cung cấp một hệ sinh thái dữ liệu giao thông toàn diện, bao gồm cả dữ liệu thời gian thực (Real-time) với tần suất cập nhật mỗi phút và dữ liệu lịch sử phục vụ thống kê. Các nhóm dữ liệu chính bao gồm:
+\begin{itemize}
+    \item \textbf{Dữ liệu dòng giao thông (Traffic Flow):} Cung cấp các chỉ số về tốc độ quan sát thực tế (observed speed), thời gian di chuyển (travel time) và so sánh với tốc độ dòng chảy tự do (free-flow) cho từng phân đoạn đường (road segments).
+    \item \textbf{Sự cố giao thông (Traffic Incidents):} Thông tin chi tiết về các sự kiện gây cản trở giao thông như tai nạn, công trường thi công, hoặc đường đóng. Dữ liệu bao gồm vị trí bắt đầu/kết thúc, độ dài đoạn ảnh hưởng, loại sự cố và mức độ nghiêm trọng.
+    \item \textbf{Dữ liệu hiển thị và điều khiển:} Hỗ trợ các lớp bản đồ Vector Tiles cho luồng giao thông và sự cố, cùng với thông tin cập nhật giới hạn tốc độ động (Live speed restrictions) giúp tăng cường độ chính xác cho các ứng dụng dẫn đường.
+\end{itemize}
+
+\textbf{Cấu trúc và định dạng dữ liệu kỹ thuật:} Về mặt kỹ thuật, TomTom sử dụng các chuẩn dữ liệu phổ biến để đảm bảo tính tương thích cao.
+\begin{itemize}
+    \item Các phản hồi từ REST API (như thông tin sự cố, metadata, lỗi) được trả về dưới định dạng \textbf{JSON} tiêu chuẩn.
+    \item Đối với các dữ liệu yêu cầu hiệu năng hiển thị cao như Flow/Incident Tiles, TomTom sử dụng định dạng vector nhị phân (\textbf{Binary Protobuf/PBF-like}), được tuần tự hóa bởi Google Protocol Buffers theo schema riêng.
+    \item Các trường thông tin (key fields) quan trọng phục vụ cho việc mô hình hóa dữ liệu bao gồm: tọa độ không gian (\texttt{start/endLocation}), tên đường (\texttt{roadName}), tham số giao thông (\texttt{delay}, \texttt{speedObserved}, \texttt{speedFreeFlow}), độ tin cậy của dữ liệu (\texttt{confidence}) và nhãn thời gian (\texttt{timestamp}).
+\end{itemize}
+
+\textbf{Cơ chế truy cập và Chính sách sử dụng:} Để tích hợp vào hệ thống, nhà phát triển cần đăng ký API Key thông qua TomTom Developer Portal. Dữ liệu được truy xuất thông qua các RESTful API endpoints (như Traffic Incidents service) hoặc Vector Tile endpoints.
+\begin{itemize}
+    \item Về mặt giới hạn và chi phí, TomTom áp dụng mô hình giới hạn truy cập (Rate limits) dựa trên từng khóa API hoặc gói dịch vụ cụ thể.
+    \item Mô hình chi phí dựa trên mức độ sử dụng (pay-as-you-go). Đáng chú ý, độ trễ dữ liệu (latency) được duy trì ở mức thấp, cập nhật từng phút, phù hợp cho các bài toán điều hướng thời gian thực.
+\end{itemize}
+
+\textbf{Đánh giá khả năng ứng dụng tại TP.HCM:}
+\begin{itemize}
+    \item \textbf{Ưu điểm:} Dữ liệu có độ tin cậy cao, cập nhật nhanh (real-time), hỗ trợ Vector Tiles giúp việc hiển thị và streaming dữ liệu lên bản đồ số mượt mà, hiệu quả. Đây là nguồn dữ liệu lý tưởng cho các ứng dụng yêu cầu độ chính xác cao như điều phối xe hoặc dẫn đường.
+    \item \textbf{Nhược điểm và Thách thức:} Chi phí vận hành có thể tăng cao khi mở rộng quy mô (scale). Ngoài ra, độ phủ sóng dữ liệu (coverage) của TomTom tại TP.HCM chủ yếu tập trung tốt ở các đô thị lớn và đường trục chính; đối với hệ thống đường hẻm, đường nhánh nhỏ đặc thù của Việt Nam, lượng dữ liệu từ cảm biến/probe data có thể ít hơn.
+\end{itemize}
+
+\textbf{Kết luận:} Để tối ưu hóa hiệu quả và chi phí cho dự án, chiến lược đề xuất là chỉ sử dụng dữ liệu TomTom cho các tuyến đường trục chính, đường huyết mạch có vai trò quan trọng trong việc điều tiết giao thông toàn thành phố. Đối với các tuyến đường nhỏ hoặc hẻm không có tác động lớn đến luồng giao thông tổng thể, hệ thống sẽ cân nhắc sử dụng các nguồn dữ liệu thay thế.
+
+\subsubsubsection{Google Maps}
+
+\textbf{Các loại dữ liệu và phạm vi cung cấp:} Google Maps Platform cung cấp hệ sinh thái dữ liệu giao thông tập trung mạnh vào trải nghiệm dẫn đường và trực quan hóa.
+\begin{itemize}
+    \item \textbf{Dữ liệu giao thông thời gian thực (Real-time Traffic):} Cung cấp lớp hiển thị trực quan (\texttt{TrafficLayer}) trên bản đồ thông qua Maps JavaScript API.
+    \item \textbf{Định tuyến và thời gian di chuyển (Traffic-aware Routing):} Thông qua \textbf{Directions API} và \textbf{Routes API} (\texttt{ComputeRoutes}), cung cấp ước lượng thời gian di chuyển chính xác dựa trên tình trạng giao thông thực tế.
+    \item \textbf{Dữ liệu hạ tầng đường bộ:} \textbf{Roads API} hỗ trợ các tính năng như bám đường (snap-to-road), truy xuất giới hạn tốc độ (speed limits).
+    \item \textbf{Lưu ý về sự cố giao thông:} Khác với TomTom, Google không cung cấp một luồng dữ liệu (feed) riêng biệt và có cấu trúc cho các sự cố (tai nạn, công trường) qua REST API.
+\end{itemize}
+
+\textbf{Cấu trúc và định dạng dữ liệu kỹ thuật:}
+\begin{itemize}
+    \item Các phản hồi từ REST API được trả về dưới định dạng \textbf{JSON}.
+    \item Các trường thông tin quan trọng bao gồm: thời gian di chuyển trong điều kiện giao thông (\texttt{duration\_in\_traffic}), mô hình giao thông (\texttt{traffic\_model}), hình học tuyến đường (\texttt{geometry polyline}), phân đoạn hành trình (\texttt{legs/steps}) và giới hạn tốc độ (\texttt{speedLimits}).
+    \item Dữ liệu có độ trễ thấp, phù hợp cao cho các tác vụ thời gian thực.
+\end{itemize}
+
+\textbf{Cơ chế truy cập và Chính sách sử dụng:} Việc truy cập dữ liệu được quản lý chặt chẽ thông qua Google Cloud Console, yêu cầu bắt buộc phải có API Key và tài khoản thanh toán (Billing account). Chi phí tính theo mô hình pay-as-you-go, khá cao cho các tính năng nâng cao như \texttt{ComputeRoutes} ở quy mô lớn.
+
+\textbf{Đánh giá khả năng ứng dụng tại TP.HCM:}
+\begin{itemize}
+    \item \textbf{Ưu điểm:} Độ phủ dữ liệu (coverage) tại TP.HCM rất tốt nhờ lượng người dùng thiết bị di động khổng lồ. Khả năng tích hợp sâu với các SDK (Mobile, Web) hỗ trợ mạnh mẽ cho các bài toán định tuyến.
+    \item \textbf{Nhược điểm và Thách thức:} Rào cản lớn nhất là \textbf{chi phí vận hành}. Mô hình tính phí trên mỗi yêu cầu (request-based) tạo ra gánh nặng tài chính lớn khi thu thập dữ liệu liên tục cho Data Warehouse. Ngoài ra, việc thiếu API cung cấp dữ liệu sự cố dưới dạng cấu trúc gây khó khăn cho việc thống kê tự động.
+\end{itemize}
+
+\textbf{Kết luận:} Do các hạn chế về chi phí và cấu trúc dữ liệu sự cố, Google Maps Platform được xếp độ \textbf{ưu tiên thấp nhất} trong việc làm nguồn dữ liệu đầu vào cho Kho dữ liệu. Nguồn này sẽ chỉ được cân nhắc sử dụng cho các chức năng hiển thị (Visual layer) ở phía người dùng cuối.
+
+\subsubsubsection{OpenStreetMap}
+
+\textbf{Các loại dữ liệu và phạm vi cung cấp:} OpenStreetMap (OSM) là cơ sở dữ liệu bản đồ nguồn mở toàn cầu. OSM cung cấp nền tảng dữ liệu địa lý tĩnh phong phú (mạng lưới đường bộ, ranh giới hành chính, POIs). Tuy nhiên, hệ thống \textbf{không cung cấp sẵn} dữ liệu lưu lượng giao thông thời gian thực hay thông tin sự cố tức thời.
+
+\textbf{Cấu trúc và định dạng dữ liệu kỹ thuật:}
+\begin{itemize}
+    \item Dữ liệu OSM được tổ chức linh hoạt dựa trên mô hình thẻ (tags).
+    \item Sử dụng \textbf{PBF (Protocolbuffer Binary Format)} cho lưu trữ offline và \textbf{OSM XML} hoặc \textbf{Overpass JSON} cho API.
+    \item Các trường thông tin quan trọng: loại đường (\texttt{highway}), giới hạn tốc độ (\texttt{maxspeed}), chiều di chuyển (\texttt{oneway}), số làn xe (\texttt{lanes}), kết cấu mặt đường (\texttt{surface}).
+\end{itemize}
+
+\textbf{Cơ chế truy cập và Chính sách sử dụng:} OSM cung cấp cơ chế truy cập rất linh hoạt và mở (thông qua Geofabrik hoặc Overpass API). Dữ liệu hoàn toàn miễn phí dưới giấy phép \textbf{ODbL}. Chi phí thực tế chuyển dịch sang phần hạ tầng kỹ thuật (self-host) để tránh giới hạn truy cập.
+
+\textbf{Đánh giá khả năng ứng dụng tại TP.HCM:}
+\begin{itemize}
+    \item \textbf{Ưu điểm:} Thế mạnh lớn nhất là độ chi tiết về hình học đường bộ, đặc biệt là hệ thống \textbf{đường hẻm, ngõ nhỏ} và lối đi bộ. Đây là nguồn dữ liệu nền tảng tuyệt vời để xây dựng đồ thị giao thông (topology graph).
+    \item \textbf{Nhược điểm:} Thiếu dữ liệu traffic thời gian thực, không thể dùng độc lập để dự báo tắc nghẽn. Độ đồng nhất của dữ liệu thuộc tính tại ngoại ô có thể không cao.
+\end{itemize}
+
+\textbf{Kết luận:} OpenStreetMap là giải pháp tối ưu để giải quyết bài toán "phủ sóng" bản đồ tại các khu vực hẻm nhỏ của TP.HCM. Chiến lược đề xuất là sử dụng OSM làm \textbf{lớp bản đồ nền (Base Map)} và mạng lưới định tuyến cơ sở.
+
+% Bảng so sánh
+\begin{table}[H]
+\centering
+\caption{Bảng tóm tắt so sánh 3 nguồn dữ liệu}
+\begin{tabular}{|p{3cm}|p{4cm}|p{4cm}|p{4cm}|}
+\hline
+\textbf{Tiêu chí} & \textbf{TomTom} & \textbf{Google Maps Platform} & \textbf{OpenStreetMap (OSM)} \\ \hline
+Độ phủ (TP.HCM) & Rộng, commercial-grade; đường chính tốt. & Rất rộng; coverage cao ở đô thị lớn. & Geometries \& POI tốt ở khu vực cộng đồng active; mạnh về hẻm/chi tiết nhỏ. \\ \hline
+Độ chính xác & Cao cho road attributes \& traffic metrics trên đường lớn. & Rất cao; enterprise-grade map + signals từ user base lớn. & Rất tốt về geometry; attribute completeness biến thiên. \\ \hline
+Real-time & \textbf{Có} — real-time flow \& incident feeds (vector tiles). & \textbf{Có} — traffic-aware routing, TrafficLayer; không có incident feed công khai. & \textbf{Không} native. Cần tích hợp bên thứ ba. \\ \hline
+Chi phí & Commercial — tốn phí tùy volume; pricing theo API. & Commercial — pay-as-you-go; tốn kém ở scale lớn. & \textbf{Miễn phí} (ODbL). Chi phí ở hạ tầng (hosting). \\ \hline
+\end{tabular}
+\end{table}
 
 \subsection{Xây dựng và thiết kế hệ thống ETL trong đồ án}
 Hệ thống ứng dụng triệt để các Design Pattern, đặc biệt là Template Method Pattern, thông qua việc xây dựng một bộ framework ETL nội bộ dựa trên các lớp trừu tượng (abstract classes). Ba lớp nền tảng bao gồm BaseExtractor, BaseTransformer và BaseLoader. Thay vì triển khai logic tuần tự (procedural) ở từng script đơn lẻ, mọi pipeline cụ thể bắt buộc phải kế thừa và tuân thủ giao diện (interface) mà lớp cha định nghĩa.
@@ -36,15 +130,222 @@ Khả năng kiểm thử cô lập (Isolated Testing): Các unit test cho Transf
 \subsubsection{BaseLoader: Trừu tượng hóa Chiến lược Nạp dữ liệu vào Data Warehouse}
 BaseLoader đóng vai trò là một Database Gateway, ẩn giấu mọi sự phức tạp của quá trình đóng gói dữ liệu và quản lý giao dịch (transaction management). Kiến trúc này từ chối việc sử dụng các vòng lặp chèn dữ liệu (insert loops) thông thường để thay thế bằng việc chia lô (batching) và xử lý nguyên tử (atomic commits). Đặc biệt, BaseLoader có khả năng tự động nội suy cấu trúc bảng (table reflection) và hỗ trợ tự động sinh các phân vùng logic (table partitions) dựa trên trường date\_key, một kỹ thuật then chốt để tối ưu hóa hiệu suất truy vấn trong các hệ quản trị Big Data.
 
+\subsection{Thiết kế Data Warehouse Schema}
+\subsubsection{Phân tích nghiệp vụ nâng cao và xây dựng mô hình Galaxy Schema}
 
-\subsection{Quản lý ngân sách gọi API và tính bền vững}
+Nhóm nghiên cứu chuyển sang phân tích nghiệp vụ chuyên sâu và đề xuất mô hình \textbf{Galaxy Schema} – phù hợp khi nhiều quy trình nghiệp vụ chia sẻ chung một tập các bảng chiều chuẩn hóa.
+
+\subsubsubsection{Phân tích ma trận nghiệp vụ}
+Thông qua việc phân tích các nhóm nghiệp vụ từ BKTraffic, tài liệu liên quan, nhóm nhận thấy các luồng dữ liệu giao thông không tồn tại độc lập mà có mối quan hệ chặt chẽ với nhau. Các câu hỏi phân tích thực tế thường yêu cầu kết hợp dữ liệu từ nhiều nguồn khác nhau. Điều này làm nổi bật nhu cầu thiết kế mô hình dữ liệu tích hợp thay vì các Star Schema tách biệt.
+
+\begin{table}[H]
+\centering
+\caption{Ma trận quy trình nghiệp vụ và các chiều dữ liệu}
+\begin{tabular}{|l|c|c|c|c|c|c|}
+\hline
+\textbf{Quy trình nghiệp vụ} & \textbf{Time} & \textbf{Location} & \textbf{Vehicle} & \textbf{Weather} & \textbf{Incident} & \textbf{Source} \\ \hline
+Theo dõi lưu lượng & X & X & X & X & & X \\ \hline
+Giám sát sự cố & X & X & & X & X & X \\ \hline
+Vận tải công cộng & X & X & X & & & \\ \hline
+Dự báo thời tiết & X & X & & X & & \\ \hline
+Điều phối tín hiệu & X & X & & & & X \\ \hline
+\end{tabular}
+\end{table}
+
+Một số mối liên kết nghiệp vụ tiêu biểu:
+\begin{itemize}
+    \item Mối liên hệ giữa lưu lượng và an toàn giao thông\\
+    Các nghiệp vụ như “Dự báo ùn tắc đa yếu tố” và “Đánh giá rủi ro theo khu vực” yêu cầu đồng thời thông tin về mật độ lưu thông (từ fact\_traffic\_flow) và thông tin sự cố, tai nạn (từ fact\_incident). Đây là dạng phân tích phức hợp, không thể thực hiện hiệu quả khi hai hệ thống tồn tại độc lập.
+    \item Mối liên hệ giữa vận hành giao thông và yếu tố môi trường \\
+    Nghiệp vụ “Dự báo giao thông theo điều kiện khí hậu” đòi hỏi tích hợp dữ liệu mưa, nhiệt độ, sương mù từ nguồn thời tiết (fact\_external\_condition) để giải thích sự biến động của tốc độ dòng xe hoặc mức độ ùn ứ.
+    \item Mối liên hệ giữa sự kiện và nhu cầu giao thông\\
+    Nghiệp vụ “Dự báo mật độ quanh khu vực sự kiện” yêu cầu liên kết dữ liệu về sự kiện đô thị (fact\_event) với hạ tầng giao thông, tuyến đường, phân đoạn và mật độ tại từng khu vực.
+
+\end{itemize}
+
+Kết quả phân tích cho thấy cần xây dựng tập Conformed Dimensions dùng chung để xóa bỏ tình trạng “ốc đảo dữ liệu”, đảm bảo các bảng fact có thể truy vấn và kết hợp dữ liệu đồng nhất.
+
+\subsubsubsection{Thiết kế các Conformed Dimensions}
+
+Để xử lý được các nghiệp vụ đa chiều và phức hợp, các bảng Dimension được tái cấu trúc với mức độ chuẩn hóa và hàm chứa ngữ nghĩa cao hơn đáng kể so với giai đoạn thiết kế ban đầu.\\
+
+\textbf{1. Nhóm chiều Thời gian:}
+Cung cấp trục thời gian đa cấp độ, liên kết toàn bộ các bảng Fact.
+\begin{itemize}
+    \item \texttt{dim\_date}, \texttt{dim\_date\_time}: Trục thời gian lịch và timestamp thực.
+    \item \texttt{dim\_time\_of\_day}: Mô tả chi tiết 1.440 phút trong ngày, hỗ trợ bucket (5', 15').
+    \item \texttt{dim\_shift}: Quản lý ca làm việc, giờ cao điểm.
+    \item \texttt{dim\_holiday}, \texttt{bridge\_date\_holiday}: Quản lý ngày lễ, sự kiện đặc biệt.
+\end{itemize}
+
+\textbf{2. Nhóm chiều Không gian \& Hạ tầng:}
+Hệ tọa độ chung mô tả cấu trúc phân cấp mạng lưới.
+\begin{itemize}
+    \item \texttt{dim\_segment}: Đơn vị cơ bản (phân đoạn đường giữa 2 node).
+    \item \texttt{dim\_node}: Các nút giao, giao lộ.
+    \item \texttt{dim\_route}, \texttt{bridge\_route\_segment}: Lộ trình và thứ tự segment.
+    \item \texttt{dim\_way}, \texttt{dim\_road}: Cấp độ tuyến đường, trục chính.
+\end{itemize}
+
+\textbf{3. Nhóm chiều Đối tượng tham gia:}
+\begin{itemize}
+    \item \texttt{dim\_user}, \texttt{dim\_user\_detail}: Định danh và thuộc tính người dùng (SCD).
+    \item \texttt{dim\_vehicle\_type}: Chuẩn hóa danh mục phương tiện (PCU, khí thải...).
+\end{itemize}
+
+\textbf{4. Nhóm chiều Ngữ cảnh \& Sự cố:}
+\begin{itemize}
+    \item \texttt{dim\_incident\_type}: Phân loại sự cố (tai nạn, ngập, công trình).
+    \item \texttt{dim\_response\_unit}: Lực lượng phản ứng.
+    \item \texttt{dim\_weather}: Thời tiết thực tế (mưa, gió, tầm nhìn).
+\end{itemize}
+
+\subsubsubsection{Thiết kế các bảng Fact theo nghiệp vụ}
+Toàn bộ kiến trúc được tổ chức theo mô hình Galaxy Schema với 4 cụm nghiệp vụ:
+
+\begin{itemize}
+    \item \textbf{Cụm Vận hành Giao thông:}
+    \begin{itemize}
+        \item \texttt{fact\_traffic\_flow}: Lưu lượng tổng hợp, tốc độ trung bình, mức độ tắc nghẽn.
+        \item \texttt{fact\_traffic\_flow\_by\_vehicle}: Lưu lượng chi tiết theo loại xe.
+    \end{itemize}
+
+    \item \textbf{Cụm Hành vi Người dùng:}
+    \begin{itemize}
+        \item \texttt{fact\_user\_travel\_time}: Hiệu suất di chuyển từng chuyến đi.
+        \item \texttt{fact\_user\_mobility}: Thống kê hành vi tổng hợp.
+    \end{itemize}
+
+    \item \textbf{Cụm An toàn \& Sự cố:}
+    \begin{itemize}
+        \item \texttt{fact\_incident}: Ghi nhận sự cố, thời gian xử lý, mức độ nghiêm trọng.
+    \end{itemize}
+
+    \item \textbf{Cụm Hiệu quả Hệ thống:}
+    \begin{itemize}
+        \item \texttt{fact\_route\_recommendation}: Đánh giá hiệu quả gợi ý tuyến đường.
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Tổng quan toàn bộ Galaxy Schema}
+Mô hình Galaxy được xây dựng bằng cách sử dụng chung một tập hợp Dimensions chuẩn hóa. Tất cả các bảng Fact đều liên kết tới các Dimensions trong các chủ đề thời gian, không gian – hạ tầng, đối tượng tham gia và ngữ cảnh – sự cố, hình thành một cấu trúc phân tích đa chiều thống nhất.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Images/Picture5}
+    \vspace{6mm}
+    \caption{Mô hình Galaxy Schema hoàn chỉnh}
+\end{figure}
+
+\textbf{Các thành phần chính của hệ thống:}
+\begin{itemize}
+    \item \textbf{Hệ trục thời gian:} Bao trùm tất cả các Fact, hỗ trợ phân tích từ vi mô (phút) đến vĩ mô (năm).
+    \item \textbf{Hệ tọa độ không gian – hạ tầng:} Cung cấp chuẩn tham chiếu không gian nhất quán (Segment $\rightarrow$ Node $\rightarrow$ Way $\rightarrow$ Road).
+    \item \textbf{Hệ tham chiếu người dùng – phương tiện:} Phục vụ phân tích hành vi và tối ưu lộ trình.
+    \item \textbf{Hệ ngữ cảnh – sự cố:} Then chốt trong phân tích an toàn và tác động môi trường.
+\end{itemize}
+
+Cách tổ chức này đảm bảo tính nhất quán dữ liệu, tăng khả năng phân tích chéo và sẵn sàng mở rộng cho các nguồn dữ liệu IoT trong tương lai.
+
+\subsubsection{Bảng Fact}
+Các ảnh bảng Fact với đầy đủ kết nối đến bảng Dim.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Images/Picture6}
+    \vspace{6mm}
+    \caption{Bảng fact\_travel\_flow}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+   \includegraphics[width=1.0\textwidth]{Images/Picture7}
+    \vspace{6mm}
+    \caption{Bảng fact\_user\_mobility}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Images/Picture8}
+    \vspace{6mm}
+    \caption{Bảng fact\_weather\_impact}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+   \includegraphics[width=1.0\textwidth]{Images/Picture9}
+    \vspace{6mm}
+    \caption{Bảng fact\_incident}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Images/Picture10}
+    \vspace{6mm}
+    \caption{Cụm bảng fact\_trip\_recommendation và fact\_segment\_performance}
+\end{figure}
+
+\subsubsection{Bảng Dim}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Images/Picture11}
+    \vspace{6mm}
+    \caption{Bảng Dimension dim\_weather}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Images/Picture12}
+    \vspace{6mm}
+    \caption{Bảng Dimension dim\_incident\_type}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Images/Picture13}
+    \vspace{6mm}
+    \caption{Bảng Dimension dim\_vehicle\_type}
+\end{figure}
+
+% Nhóm hình ảnh các bảng Dim liên kết (User, Time, Infrastructure)
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Images/Picture14}
+    \vspace{6mm}
+    \caption{Nhóm Bảng Dimension: Người dùng}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Images/Picture15}
+    \vspace{6mm}
+    \caption{Nhóm Bảng Dimension: Thời gian (Chi tiết thời gian trong ngày)}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Images/Picture16}
+    \vspace{6mm}
+    \caption{Nhóm Bảng Dimension: Thời gian (Ngày/Tháng/Năm)}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Images/Picture17}
+    \vspace{6mm}
+    \caption{Nhóm Bảng Dimension: Hạ tầng giao thông}
+\end{figure}
+
+\subsection{Thiết kế và triển khai quy trình ETL}
+\subsubsection{Quản lý ngân sách gọi API và tính bền vững}
 Với nhịp độ thu thập dữ liệu dày đặc (mỗi 15 phút/lần), việc cạn kiệt hạn mức gọi API (API Quota Limit) là một rủi ro kiến trúc lớn. Hệ thống giải quyết bài toán này thông qua module quản lý TomTomKeyPool nội bộ.
 
 
 Mô hình này hoạt động dựa trên cơ chế xoay vòng (Round-Robin) kết hợp với nhận thức về trạng thái (State-Aware). Thay vì sử dụng một API Key tĩnh, hệ thống duy trì một danh sách các khóa và thuật toán sẽ luôn ưu tiên cấp phát khóa có số lượt sử dụng trong ngày (usage count) thấp nhất, miễn là khóa đó chưa đạt đến daily\_limit. Đột phá hơn, hệ thống triển khai mô hình Circuit Breaker (Ngắt mạch): ngay khi API đích trả về mã lỗi 403 (Forbidden/Quota Exceeded), khóa đó ngay lập tức bị cách ly (marked as blocked) và luồng dữ liệu tự động chuyển sang khóa kế tiếp mà không làm gián đoạn tiến trình (graceful degradation).
 
 
-\subsection{Tính lũy đẳng (Idempotency) và cơ chế xử lý xung đột dữ liệu}
+\subsubsection{Tính lũy đẳng (Idempotency) và cơ chế xử lý xung đột dữ liệu}
 Tính lũy đẳng (Idempotency) là nguyên tắc tối thượng của kiến trúc Data Warehouse được áp dụng trong dự án này. Một tác vụ ETL lũy đẳng đảm bảo rằng việc thực thi nó một hay nhiều lần vẫn tạo ra cùng một trạng thái trong cơ sở dữ liệu, không sinh ra bản ghi trùng lặp (duplicates).
 
 
@@ -60,7 +361,7 @@ Nếu đã tồn tại, hệ thống thực hiện cập nhật (UPDATE) các tr
 Đặc tính này là "chìa khóa" cho môi trường vận hành tự động. Khi luồng xử lý ngầm (daemon) bị khởi động lại, hay khi mạng bị lỗi gây ra các lượt chạy bù (retry), hệ thống không yêu cầu bất kỳ sự can thiệp dọn dẹp thủ công nào từ kỹ sư dữ liệu, bảo toàn tính chính xác tuyệt đối của các hệ thống Dashboard và Machine Learning downstream.
 
 
-\subsection{Cụ thể hóa trong các Pipeline nghiệp vụ}
+\subsubsection{Cụ thể hóa trong các Pipeline nghiệp vụ}
 Tính linh hoạt của framework cốt lõi được chứng minh qua việc triển khai các pipeline con:
 
 
@@ -70,8 +371,8 @@ Traffic Pipeline: Ứng dụng BaseTransformer để cô lập logic toán học
 Incident Pipeline: Do bản chất dữ liệu là không gian (spatial), pipeline này tích hợp sâu với toán tử tìm kiếm gần nhất <-> của PostGIS và các hàm như ST\_GeomFromText để xử lý hệ tọa độ địa lý, nạp chính xác các sự cố vào bảng fact\_incident với kiểu dữ liệu geometry(Point,4326).
 
 
-\subsection{Kiến trúc hệ thống và điều phối}
-\subsubsection{Sơ đồ kiến trúc:}
+\subsubsection{Kiến trúc hệ thống và điều phối}
+\subsubsubsection{Sơ đồ kiến trúc:}
 \begin{center}
 \includegraphics[width=0.85\linewidth]{Images/image17.png}
 \end{center}
@@ -109,7 +410,7 @@ Cuối cùng, BaseLoader đóng gói dữ liệu để chuẩn bị ghi vào kho
 Phân hệ Lưu trữ (Data Warehouse): Cơ sở dữ liệu PostgreSQL tích hợp PostGIS tiếp nhận dữ liệu từ Loader thông qua cơ chế UPSERT để đảm bảo tính lũy đẳng (Idempotency), lưu trữ phân tách rõ ràng giữa các bảng chiều (Dimensions) và bảng sự kiện (Facts)
 
 
-\subsubsection{Luồng thực thi tuần tự của chu kỳ ETL (Sequence Flow).}
+\subsubsubsection{Luồng thực thi tuần tự của chu kỳ ETL (Sequence Flow).}
 \begin{center}
 \includegraphics[width=0.85\linewidth]{Images/image7.png}
 \end{center}
@@ -141,15 +442,15 @@ Giai đoạn 3: Hậu xử lý và Ghi nhận Lũy đẳng (Bước 16 - 20):
     Sau khi vòng lặp hoàn tất, một tập dữ liệu sạch hoàn chỉnh được đẩy vào bảng \texttt{fact\_traffic\_flow} qua lệnh UPSERT. Cùng lúc, dữ liệu sự cố (Incidents) được thu thập theo dạng Bounding Box, xử lý không gian (PostGIS) và UPSERT vào \texttt{fact\_incident}. Tiến trình kết thúc bằng việc trả về trạng thái (status) cho bộ điều phối, khép lại một chu kỳ toàn vẹn và không tạo ra tác dụng phụ (side-effects) cho hệ thống.
 
 
-\subsubsection{Triển khai cấp độ điều phối}
+\subsubsubsection{Triển khai cấp độ điều phối}
 Để đảm bảo tính độc lập với môi trường chạy thực tế, toàn bộ kiến trúc ETL được đóng gói container hóa (Containerization) thông qua nền tảng Docker. Việc này cô lập các thư viện hệ thống phức tạp (đặc biệt là GDAL/PROJ phục vụ phân tích GIS) khỏi hệ điều hành máy chủ Azure VM.
 
 
 Ở cấp độ điều phối, kiến trúc triển khai loại bỏ việc phụ thuộc vào cronjob truyền thống để thay thế bằng mô hình Daemon-driven Execution (Thực thi bằng tiến trình ngầm) thông qua module run-cycle-daemon trong main.py. Module này giám sát chặt chẽ chu kỳ thời gian thực, có khả năng tự động tính toán lại độ trễ (drift correction), kiểm soát khung giờ vàng giao thông (ETL Window) và thực thi chiến lược định tuyến ưu tiên (Critical Segment Selection). Điều này không chỉ tối ưu hóa khối lượng API được gọi mà còn biến pipeline thành một khối dịch vụ (service block) tự chủ, mạnh mẽ và ổn định lâu dài trên đám mây.
 
 
-\subsection{Thu thập dữ liệu}
-\subsubsection{Ràng buộc tài nguyên trong Data Ingestion}
+\subsubsection{Thu thập dữ liệu}
+\subsubsubsection{Ràng buộc tài nguyên trong Data Ingestion}
 Trong các hệ thống Data Warehouse hiện đại, giai đoạn thu thập dữ liệu (Data Ingestion) thường phải đối mặt với bài toán tối ưu hóa đa mục tiêu: Tốc độ (Velocity), Khối lượng (Volume) và Giá trị (Value). Đối với dự án Traffic IoC, chiến lược Extraction không được thiết kế theo tư duy "quét toàn bộ không gian" (Brute-force/Full-scan) ở mỗi chu kỳ 15 phút. Nguyên nhân cốt lõi xuất phát từ hai ràng buộc kỹ thuật khắt khe:
 
 
@@ -162,8 +463,8 @@ Yêu cầu đảm bảo tính liên tục của luồng Data Pipeline (thực th
 Để giải quyết bài toán này, hệ thống áp dụng tư duy Budget-Aware, Priority-Driven, and Fault-Tolerant Ingestion (Thu thập dữ liệu chịu lỗi, định hướng ưu tiên và nhận thức ngân sách). Đây là một chiến lược tối ưu hóa kiến trúc, giúp cân bằng giữa độ phủ không gian của dữ liệu, chi phí vận hành API và tính ổn định của toàn bộ chu trình ETL.
 
 
-\subsubsection{Xây dựng kế hoạch "Budget-Safe Realtime" và lấy mẫu có trọng số}
-\subsubsubsection{Phân bổ ngân sách gọi API động (Dynamic Budget Allocation)}
+\subsubsubsection{Xây dựng kế hoạch "Budget-Safe Realtime" và lấy mẫu có trọng số}
+\textbf{Phân bổ ngân sách gọi API động (Dynamic Budget Allocation)}\\
 Để ngăn chặn luồng realtime bào mòn hạn mức API quá nhanh, hệ thống triển khai cơ chế tự động tính toán "ngưỡng an toàn" (budget limit) cho từng chu kỳ 15 phút. Việc tính toán này được tham số hóa hoàn toàn thông qua các biến môi trường, loại bỏ các giá trị hard-code cứng nhắc. Công thức phân bổ ngân sách lý thuyết được triển khai như sau:
 
 
@@ -204,30 +505,30 @@ Mức độ quan trọng của hành lang (Corridor Importance Level): Chỉ t�
 Thuật toán phân bổ ngân sách hoạt động theo phương pháp tiếp cận tham lam (Greedy Approach) qua hai vòng lặp (Pass 1 \& Pass 2), đảm bảo bao phủ tối thiểu toàn bộ các hành lang trọng điểm trước khi dùng ngân sách dư thừa để quét các đoạn đường ưu tiên cao. Về mặt học thuật, chiến lược này hy sinh độ phủ không gian tuyệt đối (Absolute Spatial Coverage) để tối ưu hóa giá trị thông tin thu về (Information Value Maximization), cung cấp một tập dữ liệu đầu vào cực kỳ chất lượng cho bảng fact\_traffic\_flow mà không gây lãng phí tài nguyên mạng.
 
 
-\subsection{Cơ chế quản lý khóa API động và cân bằng tải}
-\subsubsection{Nhận thức trạng thái}
+\subsubsection{Cơ chế quản lý khóa API động và cân bằng tải}
+\subsubsubsection{Nhận thức trạng thái}
 Với nhịp độ 15 phút/lần, việc dựa vào một API key duy nhất tạo ra một điểm nghẽn cổ chai (Single Point of Failure - SPOF) nghiêm trọng. Module TomTomKeyPool giải quyết triệt để vấn đề này bằng cách thiết lập một cơ chế Cân bằng tải vòng lặp (Round-Robin Load Balancing) có lưu trữ trạng thái.
 
 
 Hệ thống liên tục theo dõi biến usage (số lần đã gọi) của từng Key. Mỗi khi cần phát lệnh HTTP mới, thuật toán không chọn ngẫu nhiên mà luôn cấp phát Key đang có mức sử dụng thấp nhất và chưa đạt giới hạn daily\_limit.
 
 
-\subsubsection{Mẫu thiết kế Circuit Breaker và Failover tự động}
+\subsubsubsection{Mẫu thiết kế Circuit Breaker và Failover tự động}
 Đột phá của kiến trúc nằm ở khả năng tự động xử lý khi một Key bị từ chối dịch vụ (HTTP 403 Forbidden hoặc Quota Exceeded). Hệ thống áp dụng mẫu thiết kế Circuit Breaker (Ngắt mạch): ngay khi phát hiện chuỗi phản hồi 403, Key đó lập tức bị dán nhãn blocked (cách ly) cho đến hết ngày.
 
 
 Đồng thời, cơ chế Graceful Failover (Chuyển đổi dự phòng êm ái) được kích hoạt. Lớp Extractor tự động nạp Key khả dụng tiếp theo từ Pool và thử lại chính xác tọa độ bị lỗi trước đó mà không làm đứt gãy luồng thực thi vòng lặp hiện tại. Trạng thái của Pool (usage và blocked) được lưu trữ liên tục (persist) vào file JSON tại /app/cache/tomtom\_key\_pool\_state.json. Điều này đảm bảo tính toàn vẹn của trạng thái API (Statefulness) ngay cả khi môi trường Docker Container bị khởi động lại (restart), ngăn chặn việc tái sử dụng nhầm các Key đã cạn kiệt ngân sách.
 
 
-\subsection{Sức bền mạng và khả năng chịu lỗi}
-\subsubsection{Cơ chế Retry with Exponential Backoff}
+\subsubsection{Sức bền mạng và khả năng chịu lỗi}
+\subsubsubsection{Cơ chế Retry with Exponential Backoff}
 Trong môi trường điện toán đám mây phân tán, các lỗi mạng như rớt gói tin (packet loss), Timeout, hay HTTP 502/503/504 (Bad Gateway) là những "lỗi hiển nhiên" (transient faults) luôn xảy ra. Tầng BaseExtractor chặn đứng sự lan truyền của các lỗi này bằng cách sử dụng thư viện tenacity để tự động hóa chiến lược Retry with Backoff.
 
 
 Mọi truy vấn HTTP đều được bao bọc (wrapped) trong một bộ nguyên tắc chặt chẽ: thử lại tối đa 3 lần, khoảng cách chờ (wait interval) là 2 giây. Chiến lược này có khả năng hấp thụ (absorb) các cú sốc mạng ngắn hạn, giúp tỷ lệ thành công của các chu kỳ thu thập tiệm cận mức tuyệt đối.
 
 
-\subsubsection{Xử lý phân cực: lỗi tạm thời với lỗi hệ thống}
+\subsubsubsection{Xử lý phân cực: lỗi tạm thời với lỗi hệ thống}
 Về mặt nguyên lý hệ thống, BaseExtractor phân biệt cực kỳ rạch ròi giữa Lỗi Tạm thời (Transient Errors - mã HTTP 429, 5xx) và Lỗi Không thể phục hồi (Non-recoverable Errors - mã HTTP 400, 401, 404).
 
 
@@ -237,8 +538,8 @@ Các mã lỗi tạm thời được đẩy vào vòng lặp Retry để chờ m
 Các mã lỗi 4xx (ngoại trừ 429) phản ánh lỗi sai cú pháp hệ tọa độ, cấu hình URL sai hoặc thiếu quyền truy cập (Unauthorized). Hệ thống sẽ lập tức ném ra ngoại lệ DataExtractionError để cắt đứt ngay truy vấn đó thay vì Retry vô nghĩa, tránh việc rơi vào vòng lặp vô tận (Infinite Loop) làm treo (hang) tiến trình ETL hiện hành.
 
 
-\subsection{Đa dạng hóa nguồn thu thập và xử lý bất đồng bộ}
-\subsubsection{Thu thập dữ liệu tĩnh (Topology) vs. Động (Time-series)}
+\subsubsection{Đa dạng hóa nguồn thu thập và xử lý bất đồng bộ}
+\subsubsubsection{Thu thập dữ liệu tĩnh (Topology) vs. Động (Time-series)}
 Dự án thiết lập hai nhịp độ thu thập hoàn toàn tách biệt dựa trên đặc tính chu kỳ của dữ liệu:
 
 
@@ -252,8 +553,8 @@ Dữ liệu sự kiện động (Dynamic Time-series Facts): Luồng TomTom Traf
 Đối với luồng OpenWeatherMap bổ trợ cho bảng dim\_weather, thay vì gọi API cho từng tọa độ đoạn đường (segment) nhỏ lẻ một cách lãng phí, kiến trúc sư dữ liệu đã thiết kế chiến lược thu thập theo dạng Lưới không gian (Grid-based Extraction). Thành phố được chia thành các ô lưới (Grid size), và thời tiết được nội suy cho toàn bộ các đoạn đường nằm trong ô lưới đó. Điều này minh chứng cho tính linh hoạt của BaseExtractor: một khung kiến trúc nhưng áp dụng được nhiều kỹ thuật tối ưu không gian khác nhau, chuẩn bị hoàn hảo cho giai đoạn Transform phức tạp phía sau.
 
 
-\subsection{Trình tự nạp dữ liệu và ràng buộc}
-\subsubsection{Nguyên lý ràng buộc toàn vẹn tham chiếu và cấu trúc DAG}
+\subsubsection{Trình tự nạp dữ liệu và ràng buộc}
+\subsubsubsection{Nguyên lý ràng buộc toàn vẹn tham chiếu và cấu trúc DAG}
 Trong lý thuyết thiết kế Kho dữ liệu (Data Warehouse) sử dụng mô hình Galaxy Schema, luồng thực thi ETL không thể tiến hành nạp dữ liệu song song (parallel loading) một cách tùy ý cho tất cả các bảng. Về bản chất toán học, các bảng trong cơ sở dữ liệu và các Ràng buộc Khóa ngoại (Foreign Key Constraints) tạo thành một Đồ thị có hướng không chu trình (DAG - Directed Acyclic Graph). Trong đồ thị này, các đỉnh (nodes) đại diện cho các bảng, và các cạnh có hướng (directed edges) biểu diễn quan hệ phụ thuộc từ bảng chứa khóa ngoại (Bảng con) trỏ về bảng chứa khóa chính (Bảng cha).
 
 
@@ -264,7 +565,7 @@ Trong lý thuyết thiết kế Kho dữ liệu (Data Warehouse) sử dụng mô
 Để duy trì Ràng buộc Toàn vẹn Tham chiếu (Referential Integrity), chiến lược nạp dữ liệu bắt buộc phải tuân thủ thuật toán Sắp xếp Tô-pô (Topological Sort). Nếu pipeline vi phạm trình tự này (ví dụ: nạp dữ liệu luồng giao thông trước khi nạp thông tin đoạn đường), hệ quản trị PostgreSQL sẽ lập tức từ chối giao dịch (Transaction Rollback) kèm theo lỗi Foreign Key Violation. Do đó, kiến trúc Pipeline của dự án được phân rã thành 4 pha (Phases) thực thi tuần tự nghiêm ngặt.
 
 
-\subsubsection{Pha 1: Khởi tạo dữ liệu nền tảng}
+\subsubsubsection{Pha 1: Khởi tạo dữ liệu nền tảng}
 Pha đầu tiên tập trung giải quyết các đỉnh gốc (root nodes) của đồ thị DAG – đây là các bảng Chiều (Dimension Tables) không chứa khóa ngoại, hoặc chỉ chứa khóa ngoại tham chiếu lẫn nhau trong một cụm độc lập. Mục tiêu của pha này là xây dựng hệ quy chiếu về Không gian, Thời gian và Ngữ cảnh.
 
 
@@ -273,7 +574,7 @@ Hệ quy chiếu Thời gian (Temporal Dimensions): Dữ liệu được nạp t
 Chiều Ngữ cảnh (Contextual Dimension): Bảng dim\_weather đóng vai trò là một Slow Changing Dimension (SCD) cung cấp thông tin ngữ cảnh thời tiết. Vì thời tiết thay đổi liên tục, module thời tiết sẽ được kích hoạt nạp trước tiên trong chu kỳ 15 phút, sinh ra weather\_key để chuẩn bị gán vào các sự kiện giao thông phát sinh cùng thời điểm.
 
 
-\subsubsection{Pha 2: Xây dựng Topology Không gian}
+\subsubsubsection{Pha 2: Xây dựng Topology Không gian}
 Pha thứ hai là trái tim của mô hình Snowflake không gian, do module osm\_pipeline.py đảm nhiệm. Khác với các hệ thống thông thường, mạng lưới đường bộ có tính phụ thuộc hình học (Geometric Dependency) cực kỳ khắt khe. Dữ liệu bắt buộc phải được nạp (UPSERT) theo trình tự giải phẫu topology:
 
 
@@ -289,7 +590,7 @@ dim\_way (Phân đoạn OSM): Trỏ khóa ngoại road\_key về dim\_road, lưu
 dim\_segment (Đoạn đường vật lý): Là "nút hội tụ" cuối cùng của cụm không gian. Một đoạn đường thực tế được cấu thành từ một điểm đầu, một điểm cuối và thuộc về một tuyến đường. Do đó, dim\_segment bắt buộc phải nạp cuối cùng để có thể nhận đủ 3 khóa ngoại: from\_node\_key, to\_node\_key, và way\_key.
 
 
-\subsubsection{Pha 3: Nạp dữ liệu chuỗi thời gian}
+\subsubsubsection{Pha 3: Nạp dữ liệu chuỗi thời gian}
 Sau khi Pha 1 và Pha 2 hoàn tất, toàn bộ hệ quy chiếu đã sẵn sàng. Lúc này, luồng thực thi thời gian thực (traffic\_pipeline.py và incident\_pipeline.py) mới được kích hoạt.
 
 
@@ -305,7 +606,7 @@ Bảng fact\_incident cũng tương tự, kết hợp thêm dữ liệu không g
 Đặc biệt, ở Pha này, chiến lược nạp dữ liệu kết hợp trực tiếp với tính năng Table Partitioning của PostgreSQL. Hệ thống không ghi toàn bộ vào một bảng khổng lồ mà định tuyến dữ liệu vào các phân vùng theo tháng (ví dụ: fact\_traffic\_flow\_202603) dựa trên giá trị của date\_key. Điều này triệt tiêu tình trạng thắt cổ chai I/O (I/O Bottleneck) khi lưu lượng ghi vào database tăng đột biến ở các khung giờ cao điểm.
 
 
-\subsubsection{Pha 4: Hậu xử lý và dữ liệu phái sinh}
+\subsubsubsection{Pha 4: Hậu xử lý và dữ liệu phái sinh}
 Pha cuối cùng là các luồng phân tích theo lô (Batch Processing), tiêu biểu là pipeline hiệu suất hành lang (corridor\_pipeline.py).
 
 
@@ -575,5 +876,3 @@ Sự kết hợp giữa UPSERT và Table Partitioning chính là "chìa khóa" g
 
 \subsubsection{Kết luận}
 Chiến lược thiết kế cơ sở dữ liệu của dự án minh chứng cho sự kết hợp hài hòa giữa cấu trúc vật lý và logic nghiệp vụ. Việc lựa chọn khéo léo các phương pháp lập chỉ mục thế hệ mới (BRIN cho chuỗi thời gian, GiST cho không gian hình học, Partial Index cho cảnh báo nghiệp vụ) kết hợp với kỹ thuật phân mảnh Range Partitioning đã tạo ra một Data Warehouse "miễn nhiễm" với các giới hạn về độ lớn của bộ nhớ. Đây là một nền tảng vững chắc, vừa tối ưu hóa tốc độ ghi (write-optimized) trong các chu kỳ ETL 15 phút, vừa đảm bảo khả năng phản hồi tốc độ cao (read-optimized) cho các ứng dụng hiển thị và phân tích đầu cuối.
-
-
