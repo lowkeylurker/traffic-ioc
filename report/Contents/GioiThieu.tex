@@ -1,101 +1,140 @@
 \section{Giới thiệu}
 \subsection{Động cơ của đề tài}
 
-Trong bối cảnh đô thị hóa tăng tốc trong nhiều thập niên gần đây, Thành phố Hồ Chí Minh (TP.HCM) đang đối diện với các thách thức ngày càng phức tạp trong lĩnh vực giao thông vận tải. Sự bùng nổ của phương tiện cá nhân, đặc biệt là xe máy – vốn chiếm tỷ trọng lớn trong cơ cấu phương tiện lưu thông – kết hợp với sự quá tải của hạ tầng giao thông hiện hữu đã dẫn đến tình trạng ùn tắc nghiêm trọng tại nhiều khu vực trọng điểm. Tình trạng này không chỉ gây ảnh hưởng đến năng suất xã hội mà còn kéo theo những hệ lụy tiêu cực như ô nhiễm môi trường, tai nạn giao thông và suy giảm chất lượng sống của người dân đô thị.
+Trong bối cảnh tốc độ đô thị hóa và gia tăng dân số diễn ra mạnh mẽ trong nhiều năm gần đây, Thành phố Hồ Chí Minh (TP.HCM) đang phải đối mặt với những áp lực ngày càng lớn đối với hệ thống giao thông đô thị. Sự gia tăng nhanh chóng của phương tiện cá nhân, đặc biệt là xe máy và ô tô, trong khi năng lực hạ tầng giao thông chưa theo kịp tốc độ phát triển đô thị, đã dẫn đến tình trạng ùn tắc giao thông diễn ra thường xuyên tại nhiều tuyến đường và khu vực trọng điểm. Thực trạng này không chỉ làm suy giảm hiệu quả vận hành của đô thị mà còn gây ra nhiều hệ lụy nghiêm trọng như ô nhiễm môi trường, gia tăng thời gian di chuyển, tiêu hao năng lượng, tai nạn giao thông và ảnh hưởng trực tiếp đến chất lượng sống của người dân.
 
-Theo định hướng xây dựng Đô thị thông minh giai đoạn 2020–2025, TP.HCM xác định giao thông thông minh là một trụ cột quan trọng nhằm nâng cao năng lực quản lý, vận hành và tối ưu hóa hệ thống giao thông đô thị. Tuy nhiên, các hệ thống giám sát và quản lý hiện có mới chỉ đáp ứng được yêu cầu theo dõi thời gian thực, trong khi lại thiếu một nền tảng dữ liệu tích hợp, có khả năng lưu trữ, tổng hợp và phân tích dài hạn.
+Trước yêu cầu phát triển đô thị bền vững, TP.HCM đã định hướng xây dựng mô hình đô thị thông minh, trong đó giao thông thông minh (Intelligent Transportation System – ITS) được xem là một trong những lĩnh vực ưu tiên trọng điểm. Tuy nhiên, phần lớn các hệ thống giám sát và quản lý giao thông hiện nay mới chỉ tập trung vào chức năng quan sát và phản ứng theo thời gian thực, trong khi còn thiếu một nền tảng dữ liệu tập trung có khả năng tích hợp, lưu trữ và phân tích dữ liệu giao thông trên quy mô lớn và dài hạn. Điều này làm hạn chế khả năng khai thác dữ liệu phục vụ công tác thống kê, đánh giá xu hướng, tối ưu hóa vận hành và hỗ trợ ra quyết định chiến lược.
 
-Hiện nay, dữ liệu giao thông của TP.HCM được thu thập từ nhiều nguồn khác nhau như hệ thống camera giám sát (CCTV), cảm biến vòng từ, thiết bị giám sát hành trình (GPS), cũng như dữ liệu cộng đồng từ các ứng dụng di động. Tuy vậy, các nguồn dữ liệu này thường tồn tại ở dạng rời rạc, phân tán trên nhiều hệ thống tách biệt và thiếu sự chuẩn hóa. Điều này dẫn đến hạn chế trong việc khai thác chuyên sâu, đặc biệt là các phân tích theo chiều không gian – thời gian, vốn rất cần thiết cho công tác thống kê và dự báo xu hướng giao thông.
+Hiện nay, dữ liệu giao thông đô thị được hình thành từ nhiều nguồn dị biệt như hệ thống camera giám sát (CCTV), thiết bị định vị GPS, dữ liệu cảm biến giao thông, nền tảng bản đồ số, cũng như dữ liệu lưu lượng và sự cố được cung cấp từ các nền tảng giao thông trực tuyến. Các nguồn dữ liệu này có đặc trưng phân tán, không đồng nhất về cấu trúc và thiếu tính liên kết không gian – thời gian, dẫn đến khó khăn trong việc đồng bộ, tổng hợp và khai thác phân tích chuyên sâu. Đặc biệt, đối với các bài toán giao thông thông minh hiện đại, dữ liệu không gian địa lý (geospatial data) đóng vai trò then chốt trong việc mô hình hóa mạng lưới giao thông, xác định các tuyến trọng điểm, phân tích mật độ lưu thông và đánh giá mức độ ùn tắc theo từng khu vực.
 
-Kho dữ liệu (Data Warehouse) được xem là giải pháp nền tảng để khắc phục tình trạng phân mảnh dữ liệu, cho phép tích hợp các nguồn dữ liệu đa dạng, chuẩn hóa và lưu trữ theo cấu trúc đa chiều, hỗ trợ tốt các truy vấn phân tích phức tạp (OLAP). Không giống với các cơ sở dữ liệu giao dịch (OLTP) chủ yếu phục vụ thao tác cập nhật, kho dữ liệu được thiết kế tối ưu cho việc truy vấn phân tích khối lượng dữ liệu lớn và dài hạn, phù hợp cho các bài toán dự báo và hỗ trợ ra quyết định.
+Trong bối cảnh đó, mô hình kho dữ liệu giao thông (Traffic Data Warehouse) kết hợp với công nghệ dữ liệu không gian (Spatial Data Warehouse) được xem là giải pháp nền tảng nhằm giải quyết bài toán phân mảnh dữ liệu. Kho dữ liệu cho phép tích hợp dữ liệu từ nhiều nguồn khác nhau, chuẩn hóa và tổ chức dữ liệu theo cấu trúc đa chiều, hỗ trợ hiệu quả cho các truy vấn phân tích phức tạp, thống kê lịch sử và khai thác dữ liệu quy mô lớn. Khác với các hệ quản trị cơ sở dữ liệu giao dịch truyền thống (OLTP), kho dữ liệu được tối ưu hóa cho các tác vụ phân tích (OLAP), đặc biệt phù hợp với các bài toán xử lý dữ liệu giao thông theo chiều không gian – thời gian và phục vụ công tác điều hành đô thị thông minh.
 
-Bên cạnh đó, xu hướng chuyển đổi từ mô hình quản lý giao thông phản ứng thụ động ("reactive traffic management") sang chủ động ("proactive traffic management") đang đòi hỏi sự tham gia của các công nghệ trí tuệ nhân tạo và học máy. Các mô hình dự báo lưu lượng hay tốc độ giao thông chỉ có thể vận hành hiệu quả khi được xây dựng trên một nền dữ liệu sạch, thống nhất và có quy mô đủ lớn – những tiêu chí mà kho dữ liệu giao thông có thể đảm bảo.
+Bên cạnh đó, sự phát triển mạnh mẽ của trí tuệ nhân tạo (Artificial Intelligence – AI) và học máy (Machine Learning) đang thúc đẩy quá trình chuyển đổi từ mô hình quản lý giao thông mang tính phản ứng (reactive traffic management) sang mô hình quản lý chủ động và dự báo (proactive traffic management). Các mô hình AI có khả năng phân tích xu hướng lưu lượng, dự báo nguy cơ ùn tắc và hỗ trợ tối ưu hóa điều phối giao thông theo thời gian thực. Tuy nhiên, hiệu quả của các mô hình dự báo phụ thuộc rất lớn vào chất lượng dữ liệu đầu vào, đòi hỏi một hạ tầng dữ liệu đủ lớn, ổn định, được chuẩn hóa và cập nhật liên tục. Đây chính là vai trò cốt lõi của hệ thống kho dữ liệu giao thông tích hợp.
 
-Xuất phát từ nhu cầu cấp thiết đó, nhóm nghiên cứu quyết định thực hiện đề tài: "Mô hình kho dữ liệu (data warehouse) về giao thông phục vụ công tác thống kê, dự báo, hỗ trợ ra quyết định". Đề tài nhằm mục đích xây dựng nền tảng hạ tầng dữ liệu vững chắc, làm tiền đề cho các giải pháp điều khiển giao thông thông minh, góp phần giải quyết bài toán tổng thể về tích hợp dữ liệu giao thông và tạo nền tảng vững chắc cho các giải pháp phân tích, dự báo trong tương lai.
+Xuất phát từ những yêu cầu thực tiễn nêu trên, nhóm nghiên cứu quyết định thực hiện đề tài: “Mô hình kho dữ liệu giao thông phục vụ công tác thống kê, phân tích và dự báo hỗ trợ điều hành giao thông thông minh”. Đề tài tập trung xây dựng một nền tảng dữ liệu giao thông tích hợp trên cơ sở kết hợp dữ liệu thời gian thực từ các nguồn giao thông trực tuyến với dữ liệu không gian địa lý, triển khai quy trình ETL tự động nhằm thu thập, làm sạch, biến đổi và lưu trữ dữ liệu trong kho dữ liệu không gian. Đồng thời, hệ thống hướng đến việc ứng dụng các mô hình trí tuệ nhân tạo trong phân tích và dự báo tình trạng giao thông, kết hợp với nền tảng trực quan hóa và dashboard hỗ trợ giám sát, từ đó góp phần xây dựng nền tảng hạ tầng dữ liệu phục vụ phát triển hệ sinh thái giao thông thông minh và đô thị thông minh tại TP.HCM trong tương lai.
+
 
 \subsection{Mục tiêu}
 
-Mục tiêu tổng quát của đề tài là thiết kế và triển khai một mô hình kho dữ liệu giao thông có khả năng tích hợp đa nguồn dữ liệu, mở rộng linh hoạt và đáp ứng các yêu cầu phân tích – dự báo phục vụ quản lý giao thông đô thị. Để hiện thực hóa mục tiêu tổng quát đó, đề tài tập trung vào các mục tiêu cụ thể sau:
+Mục tiêu tổng quát của đề tài là nghiên cứu, thiết kế và triển khai một nền tảng kho dữ liệu giao thông thông minh có khả năng tích hợp dữ liệu đa nguồn, xử lý dữ liệu không gian – thời gian theo thời gian thực và hỗ trợ các tác vụ phân tích, dự báo phục vụ công tác quản lý và điều hành giao thông đô thị. Hệ thống được định hướng xây dựng theo mô hình kiến trúc dữ liệu hiện đại, bảo đảm khả năng mở rộng, tính ổn định và đáp ứng yêu cầu khai thác dữ liệu quy mô lớn trong bối cảnh phát triển đô thị thông minh.
+
+Để hiện thực hóa mục tiêu tổng quát nêu trên, đề tài tập trung vào các mục tiêu cụ thể sau:
+
 \begin{itemize}
-    \item \textbf{Nghiên cứu và đề xuất kiến trúc kho dữ liệu}\\
-    Xây dựng một kiến trúc kho dữ liệu phù hợp với đặc thù của dữ liệu giao thông hỗn hợp tại Việt Nam, vốn bao gồm nhiều loại dữ liệu cấu trúc và bán cấu trúc. Đề tài thiết kế mô hình dữ liệu đa chiều, sử dụng Star Schema hoặc Snowflake Schema nhằm tối ưu hóa hiệu năng truy vấn và hỗ trợ phân tích đa chiều.
-    \item \textbf{Xây dựng quy trình xử lý dữ liệu – ETL/ELT}\\
-    Thiết kế và xây dựng quy trình trích xuất (Extract), biến đổi (Transform) và tải (Load) nhằm tự động hóa quá trình thu thập dữ liệu thô từ nhiều nguồn khác nhau, xử lý nhiễu, chuẩn hóa định dạng và cập nhật đồng bộ vào kho dữ liệu trung tâm.
-    \item \textbf{Tích hợp mô hình dự báo lưu lượng giao thông}\\
-    Ứng dụng các mô hình học máy và học sâu như ARIMA, LSTM hoặc mô hình lai ghép (Hybrid Models) trên tập dữ liệu lịch sử đã được chuẩn hóa để dự báo lưu lượng phương tiện và mức độ tắc nghẽn trong tương lai gần dựa trên phân tích chuỗi thời gian.
-    \item \textbf{Phát triển chức năng hỗ trợ ra quyết định}\\
-    Xây dựng dashboard và các công cụ trực quan hóa dữ liệu nhằm cung cấp thông tin chi tiết cho các nhà quản lý tại Sở Giao thông Vận tải TP.HCM, hỗ trợ công tác phân luồng, điều tiết giao thông và hoạch định chính sách.
-    \item \textbf{Triển khai thử nghiệm và đánh giá hệ thống}\\
-    Tích hợp hệ thống mẫu với nền tảng UTraffic, từ đó đánh giá hiệu năng của kho dữ liệu và độ chính xác của mô hình dự báo trên dữ liệu thực tế hoặc dữ liệu được mô phỏng.
+
+    \item \textbf{Nghiên cứu và đề xuất kiến trúc kho dữ liệu giao thông thông minh}\\
+    Xây dựng kiến trúc tổng thể cho hệ thống kho dữ liệu giao thông theo mô hình đa tầng, bao gồm tầng thu thập dữ liệu, tầng lưu trữ dữ liệu không gian, tầng phân tích trí tuệ nhân tạo và tầng trực quan hóa dữ liệu. Đề tài tập trung thiết kế mô hình dữ liệu đa chiều phù hợp với đặc thù dữ liệu giao thông đô thị tại Việt Nam, kết hợp giữa dữ liệu cấu trúc, bán cấu trúc và dữ liệu không gian địa lý (geospatial data). Các mô hình Star Schema hoặc Snowflake Schema được nghiên cứu và áp dụng nhằm tối ưu hóa hiệu năng truy vấn, hỗ trợ hiệu quả cho các tác vụ phân tích dữ liệu lớn và xử lý theo chiều không gian – thời gian.
+
+    \item \textbf{Xây dựng quy trình xử lý dữ liệu ETL/ELT tự động}\\
+    Thiết kế và triển khai quy trình ETL/ELT nhằm tự động hóa quá trình thu thập, biến đổi và lưu trữ dữ liệu giao thông từ nhiều nguồn khác nhau như API giao thông thời gian thực, dữ liệu bản đồ số OpenStreetMap (OSM), dữ liệu sự cố giao thông và các nguồn dữ liệu hỗ trợ khác. Quy trình xử lý dữ liệu tập trung vào việc làm sạch dữ liệu, xử lý ngoại lệ, chuẩn hóa định dạng, tích hợp dữ liệu không gian và tối ưu khả năng cập nhật dữ liệu liên tục theo chu kỳ thời gian thực, bảo đảm tính toàn vẹn và độ tin cậy của dữ liệu trong kho dữ liệu trung tâm.
+
+    \item \textbf{Xây dựng kho dữ liệu không gian phục vụ phân tích giao thông}\\
+    Triển khai hệ quản trị cơ sở dữ liệu PostgreSQL kết hợp với phần mở rộng PostGIS nhằm hỗ trợ lưu trữ và xử lý dữ liệu không gian địa lý. Đề tài tập trung xây dựng mô hình dữ liệu phục vụ quản lý các thực thể giao thông như tuyến đường, đoạn đường, nút giao, vùng ảnh hưởng và dữ liệu lưu lượng theo không gian – thời gian. Đồng thời, hệ thống được tối ưu hóa nhằm đáp ứng các truy vấn phân tích không gian phức tạp và hỗ trợ trực quan hóa dữ liệu giao thông trên nền bản đồ số.
+
+    \item \textbf{Tích hợp và triển khai mô hình trí tuệ nhân tạo phục vụ dự báo giao thông}\\
+    Nghiên cứu và ứng dụng các mô hình học máy và học sâu trong bài toán dự báo tình trạng giao thông đô thị, bao gồm dự báo lưu lượng phương tiện, tốc độ lưu thông và nguy cơ ùn tắc. Các mô hình như ARIMA, LSTM hoặc các mô hình lai ghép (Hybrid Models) được huấn luyện và đánh giá trên tập dữ liệu lịch sử đã được chuẩn hóa từ kho dữ liệu giao thông. Quá trình huấn luyện và kiểm thử mô hình được thực hiện theo quy trình khoa học nhằm bảo đảm độ chính xác và khả năng ứng dụng thực tiễn của hệ thống dự báo.
+
+    \item \textbf{Phát triển hệ thống trực quan hóa và hỗ trợ ra quyết định}\\
+    Xây dựng nền tảng dashboard và web application phục vụ giám sát giao thông theo thời gian thực, hỗ trợ trực quan hóa dữ liệu dưới dạng biểu đồ, bản đồ nhiệt (heatmap), thống kê lưu lượng và cảnh báo ùn tắc. Hệ thống hướng đến việc cung cấp công cụ hỗ trợ ra quyết định cho các cơ quan quản lý giao thông đô thị, hỗ trợ công tác điều phối giao thông, phân luồng phương tiện và hoạch định chính sách phát triển hạ tầng giao thông thông minh.
+
+    \item \textbf{Triển khai thử nghiệm và đánh giá hiệu năng hệ thống}\\
+    Tiến hành triển khai thử nghiệm hệ thống trên hạ tầng điện toán đám mây Microsoft Azure, kết hợp với nền tảng container hóa Docker nhằm bảo đảm tính linh hoạt và khả năng mở rộng của hệ thống. Đề tài thực hiện đánh giá hiệu năng của quy trình xử lý dữ liệu thời gian thực, khả năng đáp ứng của kho dữ liệu, mức độ ổn định của hệ thống cũng như độ chính xác của mô hình dự báo trên dữ liệu thực tế. Các kết quả đánh giá được sử dụng làm cơ sở để phân tích tính khả thi và khả năng ứng dụng của hệ thống trong bài toán giao thông thông minh tại TP.HCM.
+
 \end{itemize}
 
 \subsection{Phạm vi}
 
-Để đảm bảo tính khả thi và tập trung vào chiều sâu chuyên môn, đề tài xác định phạm vi nghiên cứu như sau:
+Nhằm bảo đảm tính khả thi của đề tài trong điều kiện thời gian, nguồn lực và phạm vi nghiên cứu, hệ thống được giới hạn trong các nội dung nghiên cứu và triển khai cụ thể như sau:
 
 \begin{itemize}
-    \item \textbf{Về dữ liệu}\\
-    Đề tài tập trung vào các dạng dữ liệu giao thông có cấu trúc hoặc bán cấu trúc, bao gồm dữ liệu định vị GPS, dữ liệu đếm xe từ cảm biến hoặc camera, và dữ liệu trạng thái giao thông. Dữ liệu phi cấu trúc (như video thô) không thuộc phạm vi xử lý trực tiếp mà chỉ sử dụng khi đã được trích xuất thành dữ liệu dạng số.
-    \item \textbf{Về không gian nghiên cứu}\\
-    Hệ thống được thử nghiệm tại một số nút giao thông trọng điểm và các tuyến đường huyết mạch trên địa bàn Thành phố Hồ Chí Minh, làm cơ sở đánh giá tính hiệu quả và khả năng mở rộng của mô hình.
-    \item \textbf{Về công nghệ sử dụng}\\
-    Đề tài sử dụng các hệ quản trị cơ sở dữ liệu và nền tảng kho dữ liệu phổ biến như SQL Server, PostgreSQL hoặc các mô hình triển khai trên môi trường điện toán đám mây. Các mô hình phân tích và dự báo được xây dựng bằng Python thông qua các thư viện khoa học dữ liệu như Pandas, Scikit-learn, TensorFlow/PyTorch.
-    \item \textbf{Về chức năng hệ thống}\\
-    Nghiên cứu tập trung vào phần mềm và xử lý dữ liệu; không bao gồm thiết kế hoặc triển khai phần cứng như camera hay cảm biến ngoài thực tế. Dữ liệu đầu vào được giả định là sẵn có hoặc do GVHD/UTraffic cung cấp.
+
+    \item \textbf{Về dữ liệu nghiên cứu}\\
+    Đề tài tập trung khai thác và xử lý các loại dữ liệu giao thông có cấu trúc và bán cấu trúc phục vụ cho bài toán phân tích giao thông thông minh. Các nguồn dữ liệu chính bao gồm dữ liệu lưu lượng giao thông thời gian thực, dữ liệu tốc độ lưu thông, dữ liệu sự cố giao thông, dữ liệu định vị GPS và dữ liệu bản đồ số từ nền tảng OpenStreetMap (OSM). Ngoài ra, hệ thống có khả năng mở rộng để tích hợp dữ liệu từ các cảm biến IoT hoặc nền tảng giám sát giao thông trong tương lai. Đối với dữ liệu phi cấu trúc như video thô từ camera CCTV, đề tài không thực hiện xử lý trực tiếp mà chỉ sử dụng các dữ liệu đã được trích xuất và chuyển đổi sang dạng số liệu phục vụ phân tích.
+
+    \item \textbf{Về phạm vi không gian nghiên cứu}\\
+    Hệ thống được triển khai thử nghiệm và đánh giá trên một số tuyến đường trọng điểm, các hành lang giao thông chính và các khu vực có mật độ lưu thông cao tại Thành phố Hồ Chí Minh. Phạm vi nghiên cứu tập trung vào các tuyến đường thường xuyên xảy ra ùn tắc giao thông nhằm phục vụ việc phân tích lưu lượng, đánh giá mức độ quá tải và thử nghiệm khả năng dự báo tình trạng giao thông theo thời gian thực. Kết quả thử nghiệm được sử dụng làm cơ sở đánh giá tính khả thi và khả năng mở rộng của mô hình trong quy mô đô thị lớn.
+
+    \item \textbf{Về phạm vi công nghệ và hạ tầng triển khai}\\
+    Đề tài sử dụng hệ quản trị cơ sở dữ liệu PostgreSQL kết hợp với phần mở rộng PostGIS để xây dựng kho dữ liệu không gian phục vụ lưu trữ và xử lý dữ liệu giao thông. Quy trình ETL/ELT được phát triển bằng ngôn ngữ Python kết hợp với các thư viện hỗ trợ xử lý dữ liệu và kết nối cơ sở dữ liệu như SQLAlchemy, GeoAlchemy2 và Pandas. Hệ thống được triển khai trên nền tảng điện toán đám mây Microsoft Azure, sử dụng Docker và Docker Compose để quản lý môi trường thực thi và hỗ trợ khả năng mở rộng hệ thống. Các mô hình trí tuệ nhân tạo và học máy được xây dựng và huấn luyện thông qua các thư viện khoa học dữ liệu như Scikit-learn, TensorFlow hoặc PyTorch.
+
+    \item \textbf{Về phạm vi chức năng hệ thống}\\
+    Đề tài tập trung nghiên cứu và phát triển nền tảng phần mềm phục vụ thu thập, xử lý, lưu trữ, phân tích và trực quan hóa dữ liệu giao thông. Hệ thống hỗ trợ xây dựng dashboard giám sát giao thông, phân tích dữ liệu lịch sử và tích hợp mô hình dự báo tình trạng ùn tắc giao thông theo thời gian thực. Đề tài không bao gồm việc thiết kế hoặc triển khai hạ tầng phần cứng vật lý như camera giao thông, thiết bị IoT hoặc hệ thống cảm biến ngoài thực địa. Các nguồn dữ liệu đầu vào được giả định là có sẵn thông qua API, dữ liệu mở hoặc các nền tảng hỗ trợ nghiên cứu.
+
+    \item \textbf{Về phạm vi nghiên cứu mô hình dự báo}\\
+    Đề tài tập trung vào các bài toán dự báo ngắn hạn liên quan đến lưu lượng giao thông, tốc độ lưu thông và nguy cơ ùn tắc trên từng tuyến đường hoặc khu vực cụ thể. Các mô hình học máy và học sâu được xây dựng nhằm đánh giá khả năng ứng dụng của trí tuệ nhân tạo trong hỗ trợ điều hành giao thông thông minh, tuy nhiên chưa đi sâu vào các bài toán tối ưu điều khiển tín hiệu giao thông hoặc điều phối giao thông quy mô toàn thành phố.
+
 \end{itemize}
 
 \subsection{Ý nghĩa}
 
 \subsubsection{Ý nghĩa thực tiễn}
 
-Kết quả nghiên cứu có khả năng mang lại nhiều lợi ích thiết thực cho công tác quản lý giao thông tại TP.HCM:
+Đề tài mang ý nghĩa thực tiễn quan trọng trong bối cảnh nhu cầu xây dựng hệ thống giao thông thông minh và đô thị thông minh tại Thành phố Hồ Chí Minh ngày càng trở nên cấp thiết. Việc xây dựng nền tảng kho dữ liệu giao thông tích hợp không chỉ góp phần nâng cao hiệu quả quản lý dữ liệu mà còn tạo tiền đề cho việc ứng dụng các công nghệ phân tích dữ liệu lớn và trí tuệ nhân tạo trong công tác điều hành giao thông đô thị.
 
 \begin{itemize}
-    \item Công cụ hỗ trợ cho Sở GTVT: Kho dữ liệu giúp cung cấp góc nhìn toàn diện về hiện trạng giao thông, hỗ trợ đánh giá hiệu quả của các chính sách phân luồng và vận hành hạ tầng.
-    \item Tối ưu hóa nguồn lực xã hội: Các mô hình dự báo tắc nghẽn hỗ trợ lực lượng chức năng bố trí nhân sự hợp lý, giảm thiểu thời gian ùn tắc và chi phí nhiên liệu.
-    \item Nền tảng mở cho phát triển hệ sinh thái giao thông thông minh: Kiến trúc được thiết kế theo hướng mở, dễ dàng tích hợp thêm dữ liệu hoặc triển khai tại các đô thị khác.
+
+    \item \textbf{Hỗ trợ công tác quản lý và điều hành giao thông đô thị}\\
+    Hệ thống kho dữ liệu giao thông cho phép tập trung, chuẩn hóa và lưu trữ dữ liệu từ nhiều nguồn khác nhau trong một nền tảng thống nhất, giúp các cơ quan quản lý như Sở Giao thông Vận tải Thành phố Hồ Chí Minh có được cái nhìn toàn diện về hiện trạng giao thông theo không gian và thời gian. Thông qua hệ thống dashboard và các công cụ trực quan hóa dữ liệu, nhà quản lý có thể theo dõi lưu lượng giao thông theo thời gian thực, đánh giá mức độ ùn tắc tại các khu vực trọng điểm và hỗ trợ ra quyết định trong công tác phân luồng, điều phối giao thông cũng như hoạch định chính sách phát triển hạ tầng.
+
+    \item \textbf{Nâng cao hiệu quả khai thác và sử dụng dữ liệu giao thông}\\
+    Việc xây dựng quy trình ETL/ELT tự động và kho dữ liệu không gian giúp giải quyết tình trạng dữ liệu giao thông phân tán, thiếu đồng bộ và khó khai thác. Hệ thống cho phép lưu trữ dữ liệu lịch sử với quy mô lớn, hỗ trợ các tác vụ thống kê, phân tích xu hướng và truy vấn dữ liệu phức tạp, từ đó nâng cao hiệu quả sử dụng dữ liệu phục vụ nghiên cứu và vận hành thực tiễn.
+
+    \item \textbf{Hỗ trợ dự báo và giảm thiểu ùn tắc giao thông}\\
+    Việc tích hợp các mô hình trí tuệ nhân tạo và học máy vào hệ thống cho phép dự báo lưu lượng phương tiện, tốc độ lưu thông và nguy cơ ùn tắc trong tương lai gần. Các kết quả dự báo có thể hỗ trợ cơ quan quản lý chủ động trong công tác điều tiết giao thông, bố trí lực lượng chức năng hợp lý và đưa ra các giải pháp ứng phó kịp thời nhằm giảm thiểu tác động tiêu cực của ùn tắc giao thông đối với đời sống đô thị.
+
+    \item \textbf{Tạo nền tảng cho phát triển hệ sinh thái giao thông thông minh}\\
+    Hệ thống được thiết kế theo hướng kiến trúc mở và có khả năng mở rộng linh hoạt, cho phép tích hợp thêm nhiều nguồn dữ liệu và dịch vụ thông minh khác trong tương lai như dữ liệu IoT, camera giao thông, dữ liệu thời tiết hoặc các nền tảng giao thông công cộng. Điều này góp phần hình thành nền tảng hạ tầng dữ liệu phục vụ phát triển hệ sinh thái giao thông thông minh và đô thị thông minh tại Việt Nam.
+
+    \item \textbf{Khả năng ứng dụng và mở rộng thực tiễn}\\
+    Mô hình hệ thống được triển khai trên nền tảng điện toán đám mây và sử dụng các công nghệ mã nguồn mở phổ biến, qua đó bảo đảm tính linh hoạt, khả năng mở rộng và tối ưu chi phí triển khai. Kết quả nghiên cứu có thể được sử dụng làm cơ sở tham khảo cho các bài toán quản lý giao thông tại các đô thị lớn khác ở Việt Nam.
 
 \end{itemize}
 
 \subsubsection{Ý nghĩa khoa học}
+
+Bên cạnh giá trị thực tiễn, đề tài còn mang ý nghĩa khoa học trong lĩnh vực dữ liệu lớn, hệ thống thông tin địa lý và trí tuệ nhân tạo ứng dụng trong giao thông thông minh.
+
 \begin{itemize}
-    \item Đóng góp về mô hình hóa dữ liệu giao thông: Đề tài kiểm chứng khả năng áp dụng mô hình dữ liệu đa chiều cho dữ liệu giao thông spatio-temporal, một lĩnh vực còn ít được nghiên cứu trong bối cảnh Việt Nam.
-    \item Đánh giá thực nghiệm về ứng dụng AI trong giao thông Việt Nam: Việc thử nghiệm các mô hình dự báo trên dữ liệu dòng xe hỗn hợp góp phần bổ sung thêm bằng chứng khoa học về tính hiệu quả của các thuật toán hiện đại trong môi trường giao thông đặc thù của các quốc gia đang phát triển.
+
+    \item \textbf{Đóng góp về mô hình hóa dữ liệu giao thông không gian – thời gian}\\
+    Đề tài nghiên cứu và xây dựng mô hình kho dữ liệu giao thông theo hướng tích hợp dữ liệu không gian – thời gian (spatio-temporal data warehouse), kết hợp giữa dữ liệu giao thông thời gian thực và dữ liệu địa lý không gian. Việc áp dụng các mô hình dữ liệu đa chiều trong bối cảnh dữ liệu giao thông tại Việt Nam góp phần kiểm chứng tính khả thi của phương pháp tiếp cận này đối với các bài toán phân tích giao thông đô thị.
+
+    \item \textbf{Đóng góp trong lĩnh vực xử lý và tích hợp dữ liệu giao thông đa nguồn}\\
+    Nghiên cứu đề xuất quy trình ETL/ELT phục vụ thu thập, làm sạch, chuẩn hóa và tích hợp dữ liệu từ nhiều nguồn dị biệt khác nhau. Đây là cơ sở quan trọng cho việc xây dựng các hệ thống dữ liệu giao thông có khả năng xử lý dữ liệu lớn, dữ liệu thời gian thực và dữ liệu không gian trong môi trường đô thị thông minh.
+
+    \item \textbf{Đánh giá khả năng ứng dụng trí tuệ nhân tạo trong dự báo giao thông}\\
+    Đề tài thực hiện thử nghiệm các mô hình học máy và học sâu trên dữ liệu giao thông thực tế nhằm đánh giá hiệu quả dự báo lưu lượng và tình trạng ùn tắc giao thông. Kết quả nghiên cứu góp phần bổ sung cơ sở thực nghiệm cho việc ứng dụng trí tuệ nhân tạo trong lĩnh vực giao thông thông minh tại Việt Nam, đặc biệt trong bối cảnh giao thông hỗn hợp và có mật độ phương tiện cao.
+
+    \item \textbf{Đóng góp về kiến trúc hệ thống dữ liệu giao thông thông minh}\\
+    Kiến trúc hệ thống được xây dựng theo mô hình phân tầng bao gồm tầng thu thập dữ liệu, tầng kho dữ liệu không gian, tầng trí tuệ nhân tạo và tầng trực quan hóa. Mô hình này có thể được xem như một hướng tiếp cận tham khảo cho việc phát triển các nền tảng Traffic Integrated Operations Center (Traffic IOC) hoặc các hệ thống phân tích giao thông thông minh trong tương lai.
+
 \end{itemize}
 
-\subsection{Cấu trúc báo cáo}
+\subsection{Đóng góp của đề tài}
 
-Báo cáo đồ án được cấu trúc thành 11 chương, trình bày logic từ khâu đặt vấn đề, cơ sở lý thuyết đến hiện thực kỹ thuật và đánh giá kết quả:\\
-\\
-\textbf{Chương 1: Giới thiệu}\\
-Trình bày bối cảnh, động cơ chọn đề tài, mục tiêu cụ thể, phạm vi nghiên cứu và ý nghĩa thực tiễn của hệ thống kho dữ liệu giao thông thông minh.\\
-\\
-\textbf{Chương 2: Quản lý dự án và Phân công nhiệm vụ}\\
-Mô tả quy trình làm việc chuyên nghiệp của nhóm thông qua các công cụ quản lý (Trello, GitHub, Google Meet) và chi tiết hóa đóng góp chuyên môn của từng thành viên trong quá trình phát triển hệ thống.\\
-\\
-\textbf{Chương 3: Kiến thức và công nghệ nền tảng}\\
-Hệ thống hóa lý thuyết về Kho dữ liệu (DWH), GIS, PostGIS và các chỉ số giao thông. Đồng thời giới thiệu hệ sinh thái công nghệ sử dụng như Python, PostgreSQL và các nguồn cung cấp dữ liệu API (TomTom, OSM, OWM).\\
-\\
-\textbf{Chương 4: Công trình liên quan}\\
-Tổng quan các nghiên cứu khoa học và các hệ thống thực tế hiện có (UTraffic, Cổng thông tin giao thông TP.HCM). Từ đó xác định "khoảng trống nghiên cứu" để định vị sự khác biệt và tính mới của đề tài.\\
-\\
-\textbf{Chương 5: Nghiệp vụ thống kê, dự báo, hỗ trợ ra quyết định}\\
-Phân tích hiện trạng nghiệp vụ và đặc tả chi tiết ba nhóm yêu cầu phân tích trọng tâm: Thống kê mô tả (Descriptive), Phân tích dự báo (Predictive) và Hỗ trợ ra quyết định (Prescriptive).\\
-\\
-\textbf{Chương 6: Thiết kế DataWarehouse Schema}\\
-Trình bày quá trình tiến hóa của mô hình dữ liệu từ Star Schema sơ khởi đến cấu trúc Galaxy Schema hiện đại. Chương này cũng bao gồm phân tích tính khả thi của các nguồn dữ liệu và chi tiết hóa các bảng Fact, Dimension.\\
-\\
-\textbf{Chương 7: Ứng dụng Schema vào thực tiễn}\\
-Hiện thực hóa các bài toán nghiệp vụ cụ thể dựa trên cấu trúc Schema đã thiết kế, bao gồm các thuật toán tính toán LOS, chỉ số tin cậy hành trình, dự báo rủi ro sự cố và đề xuất lộ trình tối ưu.\\
-\\
-\textbf{Chương 8: Thiết kế và triển khai quy trình ETL}\\
-Chi tiết hóa kiến trúc đường ống dữ liệu (Data Pipeline), sự tích hợp của thị giác máy tính (YOLOv8x) vào quy trình nạp dữ liệu, cơ chế giả lập dữ liệu (Mock Data) và hệ thống tự động hóa vận hành.\\
-\\
-\textbf{Chương 9: Đánh giá hệ thống}\\
-Thực hiện đánh giá toàn diện về cấu trúc Schema (tính toàn vẹn, khả năng mở rộng) và kết quả thực thi sau ETL (hiệu năng nạp dữ liệu, quản trị dữ liệu lớn và tính sẵn sàng cho AI/ML).\\
-\\
-\textbf{Chương 10: Tổng kết}\\
-Tổng hợp các kết quả đạt được về mặt kỹ thuật và nghiệp vụ, nhìn nhận các hạn chế tồn tại và đề xuất kế hoạch phát triển chi tiết cho Đồ án tốt nghiệp.\\
-\\
-\textbf{Chương 11: Tài liệu tham khảo}\\
-Danh mục các nguồn tài liệu, bài báo khoa học và tài liệu kỹ thuật được sử dụng trong suốt quá trình thực hiện đồ án.
+Đề tài hướng đến việc xây dựng một nền tảng dữ liệu giao thông thông minh tích hợp nhiều thành phần công nghệ hiện đại, bao gồm kho dữ liệu không gian, xử lý dữ liệu thời gian thực, trí tuệ nhân tạo và hệ thống trực quan hóa phục vụ quản lý giao thông đô thị. Trên cơ sở đó, các đóng góp chính của đề tài được xác định như sau:
+
+\begin{itemize}
+
+    \item \textbf{Đề xuất mô hình kho dữ liệu giao thông tích hợp dữ liệu không gian – thời gian}\\
+    Đề tài xây dựng mô hình kho dữ liệu giao thông theo hướng tích hợp dữ liệu đa nguồn kết hợp với dữ liệu địa lý không gian (geospatial data). Mô hình dữ liệu được thiết kế nhằm hỗ trợ lưu trữ, quản lý và phân tích dữ liệu giao thông theo cả hai chiều không gian và thời gian, phục vụ hiệu quả cho các bài toán thống kê, phân tích lưu lượng và dự báo giao thông trong môi trường đô thị thông minh.
+
+    \item \textbf{Xây dựng quy trình ETL/ELT tự động cho dữ liệu giao thông thời gian thực}\\
+    Đề tài triển khai quy trình thu thập, xử lý và đồng bộ dữ liệu giao thông theo thời gian thực từ nhiều nguồn dữ liệu khác nhau thông qua API và dữ liệu bản đồ số. Quy trình ETL/ELT được tối ưu nhằm bảo đảm khả năng xử lý dữ liệu liên tục, tự động hóa việc làm sạch dữ liệu, xử lý ngoại lệ và chuẩn hóa dữ liệu trước khi lưu trữ vào kho dữ liệu trung tâm.
+
+    \item \textbf{Ứng dụng công nghệ cơ sở dữ liệu không gian trong quản lý giao thông}\\
+    Đề tài khai thác khả năng của PostgreSQL kết hợp với PostGIS để xây dựng kho dữ liệu không gian phục vụ lưu trữ và xử lý các thực thể giao thông như tuyến đường, đoạn đường, nút giao và dữ liệu lưu lượng theo vị trí địa lý. Việc ứng dụng công nghệ dữ liệu không gian góp phần nâng cao khả năng phân tích giao thông theo khu vực và hỗ trợ trực quan hóa dữ liệu trên nền bản đồ số.
+
+    \item \textbf{Tích hợp mô hình trí tuệ nhân tạo phục vụ dự báo giao thông}\\
+    Đề tài nghiên cứu và triển khai các mô hình học máy và học sâu nhằm dự báo tình trạng giao thông trong ngắn hạn, bao gồm dự báo lưu lượng phương tiện, tốc độ lưu thông và nguy cơ ùn tắc. Các mô hình được huấn luyện và đánh giá trên tập dữ liệu thực tế đã được xử lý và chuẩn hóa từ kho dữ liệu giao thông, qua đó kiểm chứng khả năng ứng dụng của trí tuệ nhân tạo trong bài toán giao thông đô thị tại Việt Nam.
+
+    \item \textbf{Xây dựng hệ thống trực quan hóa và hỗ trợ ra quyết định}\\
+    Đề tài phát triển nền tảng dashboard và web application phục vụ giám sát giao thông theo thời gian thực, hỗ trợ trực quan hóa dữ liệu dưới dạng biểu đồ, bản đồ nhiệt và thống kê lưu lượng giao thông. Hệ thống góp phần hỗ trợ cơ quan quản lý trong công tác điều hành, phân luồng và đánh giá hiện trạng giao thông đô thị.
+
+    \item \textbf{Đề xuất kiến trúc hệ thống giao thông thông minh có khả năng mở rộng}\\
+    Đề tài xây dựng kiến trúc hệ thống theo mô hình phân tầng bao gồm tầng thu thập dữ liệu, tầng kho dữ liệu, tầng trí tuệ nhân tạo và tầng giao diện người dùng. Hệ thống được triển khai trên nền tảng điện toán đám mây kết hợp với công nghệ container hóa, qua đó bảo đảm tính linh hoạt, khả năng mở rộng và khả năng tích hợp thêm các nguồn dữ liệu hoặc dịch vụ thông minh trong tương lai.
+
+    \item \textbf{Đóng góp về mặt thực nghiệm trong xử lý dữ liệu giao thông quy mô lớn}\\
+    Trong quá trình triển khai, đề tài thực hiện nhiều giải pháp tối ưu hóa hệ thống nhằm đáp ứng yêu cầu xử lý dữ liệu giao thông thời gian thực, bao gồm tối ưu hóa hiệu năng ETL, xử lý đa luồng, quản lý kết nối cơ sở dữ liệu và tối ưu hạ tầng triển khai trên môi trường điện toán đám mây. Các kết quả thực nghiệm góp phần cung cấp cơ sở tham khảo cho việc xây dựng các hệ thống dữ liệu giao thông thông minh trong thực tế.
+
+\end{itemize}

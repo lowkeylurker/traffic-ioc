@@ -19,7 +19,7 @@ Qua khảo sát thực tế trên cổng thông tin, hệ thống cung cấp cá
     \item \textbf{Hệ thống Camera giám sát (CCTV):} Cung cấp hình ảnh trực tiếp (Snapshot hoặc Video stream) từ hàng trăm camera giao thông lắp đặt tại các nút giao trọng điểm. Cho phép người dùng quan sát trực quan tình hình thực tế tại hiện trường.
     \item \textbf{Cảnh báo sự kiện hạ tầng:} Cung cấp thông tin về các lô cốt, rào chắn thi công, các điểm hạn chế tốc độ hoặc cấm đường. Thông tin được hiển thị dưới dạng các điểm (Points of Interest - POI) trên bản đồ số.
 \end{itemize}
-\\
+
 \textbf{c. Đánh giá ưu điểm và hạn chế dưới góc độ Khoa học dữ liệu}
 
 \begin{itemize}
@@ -28,7 +28,7 @@ Qua khảo sát thực tế trên cổng thông tin, hệ thống cung cấp cá
         \item \textit{Tính chính thống và tin cậy:} Dữ liệu được kiểm duyệt bởi cơ quan quản lý nhà nước, đảm bảo độ chính xác cao về mặt thông tin hạ tầng và quy hoạch.
         \item \textit{Khả năng giám sát tức thời (Real-time):} Hệ thống làm rất tốt vai trò của một hệ thống OLTP (Online Transaction Processing), cập nhật trạng thái giao thông liên tục với độ trễ thấp, đáp ứng nhu cầu "biết ngay lúc này" của người đi đường.
     \end{itemize}
-    
+
     \item \textbf{Hạn chế và Khoảng trống nghiệp vụ:} Tuy nhiên, hệ thống hiện tại bộc lộ những hạn chế lớn khi xét đến nhu cầu phân tích chuyên sâu và dự báo (OLAP):
     \begin{itemize}
         \item \textit{Thiếu khả năng truy xuất lịch sử (Historical Data Gap):} Người dùng không thể xem lại tình trạng giao thông của ngày hôm qua, tuần trước hay tháng trước. Dữ liệu sau khi hiển thị thường bị ghi đè hoặc lưu trữ dưới dạng log thô khó truy vấn, gây khó khăn cho việc nhận diện quy luật ùn tắc định kỳ.
@@ -52,7 +52,7 @@ Hệ thống thông tin giao thông BKTraffic là sản phẩm nghiên cứu kho
     \item \textbf{Dẫn đường và Cảnh báo ùn tắc:} Cung cấp chức năng tìm kiếm lộ trình đi lại trong thành phố. Tự động phát hiện các đoạn đường có vận tốc di chuyển thấp bất thường để cảnh báo người dùng tránh các điểm ùn tắc.
     \item \textbf{Bản đồ trực quan hóa:} Tương tự như các hệ thống khác, BKTraffic sử dụng thang màu để hiển thị mật độ giao thông. Tuy nhiên, độ phủ của dữ liệu phụ thuộc lớn vào mật độ người sử dụng ứng dụng tại thời điểm đó.
 \end{itemize}
-\\
+
 \textbf{c. Đánh giá ưu điểm và hạn chế dưới góc độ Khoa học dữ liệu}
 
 \begin{itemize}
@@ -62,7 +62,7 @@ Hệ thống thông tin giao thông BKTraffic là sản phẩm nghiên cứu kho
         \item \textit{Khả năng mở rộng linh hoạt:} Có thể thu thập dữ liệu ở bất kỳ đâu có sóng GPS và mạng di động, bao gồm cả những tuyến đường hẻm hoặc ngoại ô mà hệ thống camera giám sát chưa bao phủ tới.
         \item \textit{Dữ liệu phản ánh hành vi thực:} Dữ liệu GPS phản ánh chính xác vận tốc di chuyển thực tế của người lái xe trong dòng giao thông hỗn hợp.
     \end{itemize}
-    
+
     \item \textbf{Hạn chế và Khoảng trống nghiệp vụ:} Mặc dù có cách tiếp cận hiện đại, BKTraffic vẫn tồn tại những hạn chế khi xét đến yêu cầu của một hệ thống Phân tích \& Hỗ trợ ra quyết định toàn diện:
     \begin{itemize}
         \item \textit{Vấn đề về độ phủ dữ liệu (Data Sparsity):} Độ chính xác của hệ thống phụ thuộc hoàn toàn vào số lượng người dùng (Sample size). Ở những khung giờ thấp điểm hoặc tuyến đường ít người dùng BKTraffic, dữ liệu có thể bị gián đoạn hoặc thiếu tin cậy, gây khó khăn cho việc thống kê liên tục trong Data Warehouse.
@@ -81,12 +81,12 @@ Các khoảng trống nghiệp vụ chính bao gồm:
 
 \begin{description}
     \item[a. Sự thiếu hụt khả năng phân tích lịch sử (Historical Analysis Gap):] Các hệ thống hiện tại hoạt động theo cơ chế OLTP, tập trung vào tốc độ cập nhật trạng thái hiện tại. Dữ liệu lịch sử thường bị ghi đè hoặc lưu trữ dưới dạng log thô. Điều này khiến các nhà quản lý gặp khó khăn khi muốn trả lời các câu hỏi mang tính chu kỳ dài hạn.
-    
+
     \item[b. Dữ liệu bị cô lập (Data Silos):] Thông tin giao thông hiện đang bị tách biệt với các nguồn dữ liệu ngữ cảnh khác (như ngập nước, thời tiết). Việc thiếu một nền tảng tích hợp khiến cho việc phân tích nguyên nhân - hệ quả trở nên bất khả thi.
-    
+
     \item[c. Hạn chế trong năng lực Dự báo và Khuyến nghị (Lack of Predictive \& Prescriptive Analytics):] Hầu hết các chức năng hiện tại dừng lại ở mức Thống kê mô tả (Descriptive). Khoảng trống lớn nhất nằm ở khả năng Dự báo (Predictive) và Khuyến nghị (Prescriptive). Người tham gia giao thông cần biết trước rủi ro kẹt xe trước khi xuất phát, và cơ quan quản lý cần các kịch bản mô phỏng để điều tiết giao thông chủ động hơn.
 \end{description}
-\\
+
 \textbf{d. Sự cần thiết của Kho dữ liệu (Data Warehouse)}\\
 
 Để lấp đầy các khoảng trống nêu trên, việc xây dựng một hệ thống \textbf{Kho dữ liệu (Data Warehouse)} tập trung là yêu cầu cấp thiết. Hệ thống này không thay thế các ứng dụng hiện có mà đóng vai trò là tầng nền tảng phía sau, thực hiện các chức năng:
@@ -114,7 +114,7 @@ Nhóm này tập trung khai thác dữ liệu hiện tại và lịch sử để
     \end{itemize}
 
     \item[A2: Đánh giá Mức độ tắc nghẽn (Congestion Level)]\hfill
-    
+
     \begin{itemize}
         \item \textbf{Mục đích:} Chuẩn hóa tình trạng giao thông theo thang điểm 1-5 (Level of Service) để dễ dàng cảnh báo và so sánh giữa các khu vực.
         \item \textbf{Hạt (Grain):} \texttt{segment\_key} tại thời điểm hiện tại.
@@ -145,7 +145,7 @@ Nhóm này tập trung khai thác dữ liệu hiện tại và lịch sử để
         \item \textbf{Nguồn dữ liệu:} \texttt{fact\_incident}, \texttt{dim\_incident\_type}, \texttt{dim\_weather}.
         \item \textbf{Đầu ra:} Bản đồ nhiệt (Heatmap) điểm đen sự cố.
     \end{itemize}
-    
+
     \item[A6: Phân tích tác động của thời tiết đến tốc độ]\hfill
     \begin{itemize}
         \item \textbf{Mục đích:} Lượng hóa mức độ suy giảm vận tốc trung bình dưới các điều kiện thời tiết khác nhau.

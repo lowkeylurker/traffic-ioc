@@ -1,23 +1,23 @@
-\section{1. Kiến trúc tổng quan của Data Pipeline}
-\subsection{1.1. Sơ lược hệ thống ETL trong đồ án}
+\section{Kiến trúc tổng quan của Data Pipeline}
+\subsection{Sơ lược hệ thống ETL trong đồ án}
 Trong kiến trúc của hệ thống Thông tin Giao thông Thông minh (Traffic IoC), Data Pipeline không chỉ đơn thuần đóng vai trò truyền tải dữ liệu, mà hoạt động như một lớp hạ tầng cốt lõi đảm bảo tính nhất quán, độ tin cậy và khả năng sẵn sàng của Data Warehouse. Dữ liệu giao thông đặc thù mang tính chất chuỗi thời gian (time-series) kết hợp với dữ liệu không gian (spatial data), đòi hỏi một luồng xử lý cực kỳ nghiêm ngặt trước khi được lưu trữ vào hệ quản trị cơ sở dữ liệu PostgreSQL có tích hợp PostGIS.
 
 
 Toàn bộ luồng xử lý được chuẩn hóa theo mô hình ETL ba pha độc lập: Extract (Trích xuất) → Transform (Biến đổi) → Load (Nạp). Điểm đột phá của kiến trúc này nằm ở nguyên lý Separation of Concerns (Tách biệt mối quan tâm). Mỗi pha trong chu trình được giao phó một trách nhiệm duy nhất và không can thiệp vào logic của các pha khác. Extractor chỉ giao tiếp với API bên ngoài; Transformer đảm nhiệm việc áp dụng các quy tắc nghiệp vụ; Loader chịu trách nhiệm đóng gói và thực thi các giao dịch (transactions) vào cơ sở dữ liệu. Cách tiếp cận này giúp hệ thống đạt được tính mô-đun hóa (modularity) cao, dễ dàng bảo trì, mở rộng quy mô (scale) và cho phép tích hợp các nguồn dữ liệu mới mà không làm phá vỡ cấu trúc hiện tại.
 
 
-\subsection{1.2. Xây dựng và thiết kế hệ thống ETL trong đồ án}
+\subsection{Xây dựng và thiết kế hệ thống ETL trong đồ án}
 Hệ thống ứng dụng triệt để các Design Pattern, đặc biệt là Template Method Pattern, thông qua việc xây dựng một bộ framework ETL nội bộ dựa trên các lớp trừu tượng (abstract classes). Ba lớp nền tảng bao gồm BaseExtractor, BaseTransformer và BaseLoader. Thay vì triển khai logic tuần tự (procedural) ở từng script đơn lẻ, mọi pipeline cụ thể bắt buộc phải kế thừa và tuân thủ giao diện (interface) mà lớp cha định nghĩa.
 
 
-\subsubsection{1.2.1. BaseExtractor: Chuẩn hóa giao thức mạng và cơ chế chịu lỗi}
+\subsubsection{BaseExtractor: Chuẩn hóa giao thức mạng và cơ chế chịu lỗi}
 Lớp BaseExtractor hoạt động như một "resilience boundary" (ranh giới chịu lỗi) bảo vệ hệ thống khỏi các yếu tố bất định của mạng viễn thông và các dịch vụ API bên ngoài. Lớp này cung cấp một session HTTP dùng chung và chuẩn hóa các headers.
 
 
 Về mặt học thuật, việc tích hợp thư viện tenacity vào lớp này thể hiện một thiết kế hệ thống bền bỉ (resilient system design). Thay vì để pipeline sụp đổ khi gặp độ trễ mạng hoặc lỗi HTTP tạm thời (như 429 Too Many Requests, 502 Bad Gateway), BaseExtractor tự động thực hiện cơ chế Retry with Backoff. Hệ thống được cấu hình để thử lại tối đa 3 lần với khoảng thời gian chờ cố định là 2 giây giữa các lần thử đối với các exception liên quan đến ConnectionError hoặc Timeout. Điều này giúp triệt tiêu các lỗi nhiễu (noise) ngắn hạn, tăng tỷ lệ thành công của các chu kỳ thu thập dữ liệu thời gian thực.
 
 
-\subsubsection{1.2.2. BaseTransformer: Đảm bảo tính Toàn vẹn Dữ liệu bằng Pure Functions}
+\subsubsection{BaseTransformer: Đảm bảo tính Toàn vẹn Dữ liệu bằng Pure Functions}
 Trong kỹ nghệ phần mềm hiện đại, BaseTransformer áp dụng triết lý của Lập trình Hàm (Functional Programming) bằng cách định nghĩa các biến đổi dữ liệu dưới dạng Pure Functions (Hàm thuần túy). Lớp này hoàn toàn không có side-effect: không thực hiện I/O mạng, không truy vấn cơ sở dữ liệu và không ghi file. Nó chỉ nhận đầu vào là dữ liệu thô (raw data) và sinh ra đầu ra là một tập hợp các đối tượng (dictionaries) đã được chuẩn hóa.
 
 
@@ -33,18 +33,18 @@ Khả năng tái lập (Reproducibility): Khi xảy ra sự cố cần chạy l�
 Khả năng kiểm thử cô lập (Isolated Testing): Các unit test cho Transformer không cần phải thiết lập các Mock Object phức tạp cho Database hay API, gia tăng đáng kể độ bao phủ mã (code coverage).
 
 
-\subsubsection{1.2.3. BaseLoader: Trừu tượng hóa Chiến lược Nạp dữ liệu vào Data Warehouse}
+\subsubsection{BaseLoader: Trừu tượng hóa Chiến lược Nạp dữ liệu vào Data Warehouse}
 BaseLoader đóng vai trò là một Database Gateway, ẩn giấu mọi sự phức tạp của quá trình đóng gói dữ liệu và quản lý giao dịch (transaction management). Kiến trúc này từ chối việc sử dụng các vòng lặp chèn dữ liệu (insert loops) thông thường để thay thế bằng việc chia lô (batching) và xử lý nguyên tử (atomic commits). Đặc biệt, BaseLoader có khả năng tự động nội suy cấu trúc bảng (table reflection) và hỗ trợ tự động sinh các phân vùng logic (table partitions) dựa trên trường date\_key, một kỹ thuật then chốt để tối ưu hóa hiệu suất truy vấn trong các hệ quản trị Big Data.
 
 
-\subsection{1.3. Quản lý ngân sách gọi API và tính bền vững}
+\subsection{Quản lý ngân sách gọi API và tính bền vững}
 Với nhịp độ thu thập dữ liệu dày đặc (mỗi 15 phút/lần), việc cạn kiệt hạn mức gọi API (API Quota Limit) là một rủi ro kiến trúc lớn. Hệ thống giải quyết bài toán này thông qua module quản lý TomTomKeyPool nội bộ.
 
 
 Mô hình này hoạt động dựa trên cơ chế xoay vòng (Round-Robin) kết hợp với nhận thức về trạng thái (State-Aware). Thay vì sử dụng một API Key tĩnh, hệ thống duy trì một danh sách các khóa và thuật toán sẽ luôn ưu tiên cấp phát khóa có số lượt sử dụng trong ngày (usage count) thấp nhất, miễn là khóa đó chưa đạt đến daily\_limit. Đột phá hơn, hệ thống triển khai mô hình Circuit Breaker (Ngắt mạch): ngay khi API đích trả về mã lỗi 403 (Forbidden/Quota Exceeded), khóa đó ngay lập tức bị cách ly (marked as blocked) và luồng dữ liệu tự động chuyển sang khóa kế tiếp mà không làm gián đoạn tiến trình (graceful degradation).
 
 
-\subsection{1.4. Tính lũy đẳng (Idempotency) và cơ chế xử lý xung đột dữ liệu}
+\subsection{Tính lũy đẳng (Idempotency) và cơ chế xử lý xung đột dữ liệu}
 Tính lũy đẳng (Idempotency) là nguyên tắc tối thượng của kiến trúc Data Warehouse được áp dụng trong dự án này. Một tác vụ ETL lũy đẳng đảm bảo rằng việc thực thi nó một hay nhiều lần vẫn tạo ra cùng một trạng thái trong cơ sở dữ liệu, không sinh ra bản ghi trùng lặp (duplicates).
 
 
@@ -60,7 +60,7 @@ Nếu đã tồn tại, hệ thống thực hiện cập nhật (UPDATE) các tr
 Đặc tính này là "chìa khóa" cho môi trường vận hành tự động. Khi luồng xử lý ngầm (daemon) bị khởi động lại, hay khi mạng bị lỗi gây ra các lượt chạy bù (retry), hệ thống không yêu cầu bất kỳ sự can thiệp dọn dẹp thủ công nào từ kỹ sư dữ liệu, bảo toàn tính chính xác tuyệt đối của các hệ thống Dashboard và Machine Learning downstream.
 
 
-\subsection{1.5. Cụ thể hóa trong các Pipeline nghiệp vụ}
+\subsection{Cụ thể hóa trong các Pipeline nghiệp vụ}
 Tính linh hoạt của framework cốt lõi được chứng minh qua việc triển khai các pipeline con:
 
 
@@ -70,9 +70,8 @@ Traffic Pipeline: Ứng dụng BaseTransformer để cô lập logic toán học
 Incident Pipeline: Do bản chất dữ liệu là không gian (spatial), pipeline này tích hợp sâu với toán tử tìm kiếm gần nhất <-> của PostGIS và các hàm như ST\_GeomFromText để xử lý hệ tọa độ địa lý, nạp chính xác các sự cố vào bảng fact\_incident với kiểu dữ liệu geometry(Point,4326).
 
 
-\subsection{1.6. Kiến trúc hệ thống và điều phối}
-\subsubsection{1.6.1 Sơ đồ kiến trúc:}
-\subsubsection{}
+\subsection{Kiến trúc hệ thống và điều phối}
+\subsubsection{Sơ đồ kiến trúc:}
 \begin{center}
 \includegraphics[width=0.85\linewidth]{Images/image17.png}
 \end{center}
@@ -110,7 +109,7 @@ Cuối cùng, BaseLoader đóng gói dữ liệu để chuẩn bị ghi vào kho
 Phân hệ Lưu trữ (Data Warehouse): Cơ sở dữ liệu PostgreSQL tích hợp PostGIS tiếp nhận dữ liệu từ Loader thông qua cơ chế UPSERT để đảm bảo tính lũy đẳng (Idempotency), lưu trữ phân tách rõ ràng giữa các bảng chiều (Dimensions) và bảng sự kiện (Facts)
 
 
-\subsubsection{1.6.2 Luồng thực thi tuần tự của chu kỳ ETL (Sequence Flow).}
+\subsubsection{Luồng thực thi tuần tự của chu kỳ ETL (Sequence Flow).}
 \begin{center}
 \includegraphics[width=0.85\linewidth]{Images/image7.png}
 \end{center}
@@ -142,15 +141,15 @@ Giai đoạn 3: Hậu xử lý và Ghi nhận Lũy đẳng (Bước 16 - 20):
     Sau khi vòng lặp hoàn tất, một tập dữ liệu sạch hoàn chỉnh được đẩy vào bảng \texttt{fact\_traffic\_flow} qua lệnh UPSERT. Cùng lúc, dữ liệu sự cố (Incidents) được thu thập theo dạng Bounding Box, xử lý không gian (PostGIS) và UPSERT vào \texttt{fact\_incident}. Tiến trình kết thúc bằng việc trả về trạng thái (status) cho bộ điều phối, khép lại một chu kỳ toàn vẹn và không tạo ra tác dụng phụ (side-effects) cho hệ thống.
 
 
-\subsubsection{1.6.3 Triển khai cấp độ điều phối}
+\subsubsection{Triển khai cấp độ điều phối}
 Để đảm bảo tính độc lập với môi trường chạy thực tế, toàn bộ kiến trúc ETL được đóng gói container hóa (Containerization) thông qua nền tảng Docker. Việc này cô lập các thư viện hệ thống phức tạp (đặc biệt là GDAL/PROJ phục vụ phân tích GIS) khỏi hệ điều hành máy chủ Azure VM.
 
 
 Ở cấp độ điều phối, kiến trúc triển khai loại bỏ việc phụ thuộc vào cronjob truyền thống để thay thế bằng mô hình Daemon-driven Execution (Thực thi bằng tiến trình ngầm) thông qua module run-cycle-daemon trong main.py. Module này giám sát chặt chẽ chu kỳ thời gian thực, có khả năng tự động tính toán lại độ trễ (drift correction), kiểm soát khung giờ vàng giao thông (ETL Window) và thực thi chiến lược định tuyến ưu tiên (Critical Segment Selection). Điều này không chỉ tối ưu hóa khối lượng API được gọi mà còn biến pipeline thành một khối dịch vụ (service block) tự chủ, mạnh mẽ và ổn định lâu dài trên đám mây.
 
 
-\section{2. Thu thập dữ liệu}
-\subsection{2.1. Ràng buộc tài nguyên trong Data Ingestion}
+\subsection{Thu thập dữ liệu}
+\subsubsection{Ràng buộc tài nguyên trong Data Ingestion}
 Trong các hệ thống Data Warehouse hiện đại, giai đoạn thu thập dữ liệu (Data Ingestion) thường phải đối mặt với bài toán tối ưu hóa đa mục tiêu: Tốc độ (Velocity), Khối lượng (Volume) và Giá trị (Value). Đối với dự án Traffic IoC, chiến lược Extraction không được thiết kế theo tư duy "quét toàn bộ không gian" (Brute-force/Full-scan) ở mỗi chu kỳ 15 phút. Nguyên nhân cốt lõi xuất phát từ hai ràng buộc kỹ thuật khắt khe:
 
 
@@ -163,8 +162,8 @@ Yêu cầu đảm bảo tính liên tục của luồng Data Pipeline (thực th
 Để giải quyết bài toán này, hệ thống áp dụng tư duy Budget-Aware, Priority-Driven, and Fault-Tolerant Ingestion (Thu thập dữ liệu chịu lỗi, định hướng ưu tiên và nhận thức ngân sách). Đây là một chiến lược tối ưu hóa kiến trúc, giúp cân bằng giữa độ phủ không gian của dữ liệu, chi phí vận hành API và tính ổn định của toàn bộ chu trình ETL.
 
 
-\subsection{2.2. Xây dựng kế hoạch "Budget-Safe Realtime" và lấy mẫu có trọng số}
-\subsubsection{2.2.1. Phân bổ ngân sách gọi API động (Dynamic Budget Allocation)}
+\subsubsection{Xây dựng kế hoạch "Budget-Safe Realtime" và lấy mẫu có trọng số}
+\subsubsubsection{Phân bổ ngân sách gọi API động (Dynamic Budget Allocation)}
 Để ngăn chặn luồng realtime bào mòn hạn mức API quá nhanh, hệ thống triển khai cơ chế tự động tính toán "ngưỡng an toàn" (budget limit) cho từng chu kỳ 15 phút. Việc tính toán này được tham số hóa hoàn toàn thông qua các biến môi trường, loại bỏ các giá trị hard-code cứng nhắc. Công thức phân bổ ngân sách lý thuyết được triển khai như sau:
 
 
@@ -189,7 +188,7 @@ reserve và headroom: Vùng đệm an toàn để dự phòng cho các truy vấ
 Ý nghĩa kiến trúc của cơ chế này là biến một tiến trình batch-micro tĩnh thành một hệ thống nhận thức tài nguyên (Resource-aware System). Bất kể số lượng Key bị hao hụt hay bị khóa trong ngày, hệ thống tự động co giãn (scale down) số lượng đoạn đường cần quét, bảo vệ tính liên tục của pipeline trước rủi ro sụp đổ hệ thống (System Crash) do chạm ngưỡng giới hạn.
 
 
-\subsubsection{2.2.2. Kỹ thuật lựa chọn ưu tiên: Gold Corridors và Critical Score}
+\subsubsubsection{Kỹ thuật lựa chọn ưu tiên: Gold Corridors và Critical Score}
 Khi ngân sách truy vấn (budget) trong một chu kỳ nhỏ hơn tổng số đoạn đường thực tế trong bảng dim\_segment, hệ thống phải thực hiện thao tác cắt tỉa (pruning). Luồng định tuyến (Routing logic) sử dụng thuật toán Priority-Constrained Sampling (Lấy mẫu có ràng buộc ưu tiên).
 
 
@@ -205,30 +204,30 @@ Mức độ quan trọng của hành lang (Corridor Importance Level): Chỉ t�
 Thuật toán phân bổ ngân sách hoạt động theo phương pháp tiếp cận tham lam (Greedy Approach) qua hai vòng lặp (Pass 1 \& Pass 2), đảm bảo bao phủ tối thiểu toàn bộ các hành lang trọng điểm trước khi dùng ngân sách dư thừa để quét các đoạn đường ưu tiên cao. Về mặt học thuật, chiến lược này hy sinh độ phủ không gian tuyệt đối (Absolute Spatial Coverage) để tối ưu hóa giá trị thông tin thu về (Information Value Maximization), cung cấp một tập dữ liệu đầu vào cực kỳ chất lượng cho bảng fact\_traffic\_flow mà không gây lãng phí tài nguyên mạng.
 
 
-\subsection{2.3. Cơ chế quản lý khóa API động và cân bằng tải}
-\subsubsection{2.3.1. Nhận thức trạng thái}
+\subsection{Cơ chế quản lý khóa API động và cân bằng tải}
+\subsubsection{Nhận thức trạng thái}
 Với nhịp độ 15 phút/lần, việc dựa vào một API key duy nhất tạo ra một điểm nghẽn cổ chai (Single Point of Failure - SPOF) nghiêm trọng. Module TomTomKeyPool giải quyết triệt để vấn đề này bằng cách thiết lập một cơ chế Cân bằng tải vòng lặp (Round-Robin Load Balancing) có lưu trữ trạng thái.
 
 
 Hệ thống liên tục theo dõi biến usage (số lần đã gọi) của từng Key. Mỗi khi cần phát lệnh HTTP mới, thuật toán không chọn ngẫu nhiên mà luôn cấp phát Key đang có mức sử dụng thấp nhất và chưa đạt giới hạn daily\_limit.
 
 
-\subsubsection{2.3.2. Mẫu thiết kế Circuit Breaker và Failover tự động}
+\subsubsection{Mẫu thiết kế Circuit Breaker và Failover tự động}
 Đột phá của kiến trúc nằm ở khả năng tự động xử lý khi một Key bị từ chối dịch vụ (HTTP 403 Forbidden hoặc Quota Exceeded). Hệ thống áp dụng mẫu thiết kế Circuit Breaker (Ngắt mạch): ngay khi phát hiện chuỗi phản hồi 403, Key đó lập tức bị dán nhãn blocked (cách ly) cho đến hết ngày.
 
 
 Đồng thời, cơ chế Graceful Failover (Chuyển đổi dự phòng êm ái) được kích hoạt. Lớp Extractor tự động nạp Key khả dụng tiếp theo từ Pool và thử lại chính xác tọa độ bị lỗi trước đó mà không làm đứt gãy luồng thực thi vòng lặp hiện tại. Trạng thái của Pool (usage và blocked) được lưu trữ liên tục (persist) vào file JSON tại /app/cache/tomtom\_key\_pool\_state.json. Điều này đảm bảo tính toàn vẹn của trạng thái API (Statefulness) ngay cả khi môi trường Docker Container bị khởi động lại (restart), ngăn chặn việc tái sử dụng nhầm các Key đã cạn kiệt ngân sách.
 
 
-\subsection{2.4. Sức bền mạng và khả năng chịu lỗi}
-\subsubsection{2.4.1. Cơ chế Retry with Exponential Backoff}
+\subsection{Sức bền mạng và khả năng chịu lỗi}
+\subsubsection{Cơ chế Retry with Exponential Backoff}
 Trong môi trường điện toán đám mây phân tán, các lỗi mạng như rớt gói tin (packet loss), Timeout, hay HTTP 502/503/504 (Bad Gateway) là những "lỗi hiển nhiên" (transient faults) luôn xảy ra. Tầng BaseExtractor chặn đứng sự lan truyền của các lỗi này bằng cách sử dụng thư viện tenacity để tự động hóa chiến lược Retry with Backoff.
 
 
 Mọi truy vấn HTTP đều được bao bọc (wrapped) trong một bộ nguyên tắc chặt chẽ: thử lại tối đa 3 lần, khoảng cách chờ (wait interval) là 2 giây. Chiến lược này có khả năng hấp thụ (absorb) các cú sốc mạng ngắn hạn, giúp tỷ lệ thành công của các chu kỳ thu thập tiệm cận mức tuyệt đối.
 
 
-\subsubsection{2.4.2. Xử lý phân cực: lỗi tạm thời với lỗi hệ thống}
+\subsubsection{Xử lý phân cực: lỗi tạm thời với lỗi hệ thống}
 Về mặt nguyên lý hệ thống, BaseExtractor phân biệt cực kỳ rạch ròi giữa Lỗi Tạm thời (Transient Errors - mã HTTP 429, 5xx) và Lỗi Không thể phục hồi (Non-recoverable Errors - mã HTTP 400, 401, 404).
 
 
@@ -238,8 +237,8 @@ Các mã lỗi tạm thời được đẩy vào vòng lặp Retry để chờ m
 Các mã lỗi 4xx (ngoại trừ 429) phản ánh lỗi sai cú pháp hệ tọa độ, cấu hình URL sai hoặc thiếu quyền truy cập (Unauthorized). Hệ thống sẽ lập tức ném ra ngoại lệ DataExtractionError để cắt đứt ngay truy vấn đó thay vì Retry vô nghĩa, tránh việc rơi vào vòng lặp vô tận (Infinite Loop) làm treo (hang) tiến trình ETL hiện hành.
 
 
-\subsection{2.5. Đa dạng hóa nguồn thu thập và xử lý bất đồng bộ}
-\subsubsection{2.5.1. Thu thập dữ liệu tĩnh (Topology) vs. Động (Time-series)}
+\subsection{Đa dạng hóa nguồn thu thập và xử lý bất đồng bộ}
+\subsubsection{Thu thập dữ liệu tĩnh (Topology) vs. Động (Time-series)}
 Dự án thiết lập hai nhịp độ thu thập hoàn toàn tách biệt dựa trên đặc tính chu kỳ của dữ liệu:
 
 
@@ -249,12 +248,12 @@ Mạng lưới không gian tĩnh (Spatial Network Topology): Sử dụng thư vi
 Dữ liệu sự kiện động (Dynamic Time-series Facts): Luồng TomTom Traffic Flow và TomTom Incidents đại diện cho dữ liệu luồng (Streaming/Micro-batch). Chúng thay đổi liên tục từng phút, bắt buộc phải sử dụng chiến lược Real-time Extract với giới hạn ngân sách chặt chẽ như đã phân tích ở trên.
 
 
-\subsubsection{2.5.2. Mở rộng kích thước lưới cho dữ liệu bổ trợ}
+\subsubsection{Mở rộng kích thước lưới cho dữ liệu bổ trợ}
 Đối với luồng OpenWeatherMap bổ trợ cho bảng dim\_weather, thay vì gọi API cho từng tọa độ đoạn đường (segment) nhỏ lẻ một cách lãng phí, kiến trúc sư dữ liệu đã thiết kế chiến lược thu thập theo dạng Lưới không gian (Grid-based Extraction). Thành phố được chia thành các ô lưới (Grid size), và thời tiết được nội suy cho toàn bộ các đoạn đường nằm trong ô lưới đó. Điều này minh chứng cho tính linh hoạt của BaseExtractor: một khung kiến trúc nhưng áp dụng được nhiều kỹ thuật tối ưu không gian khác nhau, chuẩn bị hoàn hảo cho giai đoạn Transform phức tạp phía sau.
 
 
-\section{3. Trình tự nạp dữ liệu và ràng buộc}
-\subsection{3.1. Nguyên lý ràng buộc toàn vẹn tham chiếu và cấu trúc DAG}
+\subsection{Trình tự nạp dữ liệu và ràng buộc}
+\subsubsection{Nguyên lý ràng buộc toàn vẹn tham chiếu và cấu trúc DAG}
 Trong lý thuyết thiết kế Kho dữ liệu (Data Warehouse) sử dụng mô hình Galaxy Schema, luồng thực thi ETL không thể tiến hành nạp dữ liệu song song (parallel loading) một cách tùy ý cho tất cả các bảng. Về bản chất toán học, các bảng trong cơ sở dữ liệu và các Ràng buộc Khóa ngoại (Foreign Key Constraints) tạo thành một Đồ thị có hướng không chu trình (DAG - Directed Acyclic Graph). Trong đồ thị này, các đỉnh (nodes) đại diện cho các bảng, và các cạnh có hướng (directed edges) biểu diễn quan hệ phụ thuộc từ bảng chứa khóa ngoại (Bảng con) trỏ về bảng chứa khóa chính (Bảng cha).
 
 
@@ -265,25 +264,16 @@ Trong lý thuyết thiết kế Kho dữ liệu (Data Warehouse) sử dụng mô
 Để duy trì Ràng buộc Toàn vẹn Tham chiếu (Referential Integrity), chiến lược nạp dữ liệu bắt buộc phải tuân thủ thuật toán Sắp xếp Tô-pô (Topological Sort). Nếu pipeline vi phạm trình tự này (ví dụ: nạp dữ liệu luồng giao thông trước khi nạp thông tin đoạn đường), hệ quản trị PostgreSQL sẽ lập tức từ chối giao dịch (Transaction Rollback) kèm theo lỗi Foreign Key Violation. Do đó, kiến trúc Pipeline của dự án được phân rã thành 4 pha (Phases) thực thi tuần tự nghiêm ngặt.
 
 
-\subsection{3.2. Pha 1: Khởi tạo dữ liệu nền tảng}
+\subsubsection{Pha 1: Khởi tạo dữ liệu nền tảng}
 Pha đầu tiên tập trung giải quyết các đỉnh gốc (root nodes) của đồ thị DAG – đây là các bảng Chiều (Dimension Tables) không chứa khóa ngoại, hoặc chỉ chứa khóa ngoại tham chiếu lẫn nhau trong một cụm độc lập. Mục tiêu của pha này là xây dựng hệ quy chiếu về Không gian, Thời gian và Ngữ cảnh.
 
 
-Hệ quy chiếu Thời gian (Temporal Dimensions): Dữ liệu được nạp theo chuỗi phụ thuộc tuyến tính: dim\_month\_year  dim\_date và dim\_shift  dim\_time\_of\_day. Đây là các bảng tĩnh, thường được nạp sẵn dữ liệu (pre-populated) cho nhiều năm, làm nền tảng phân hoạch (partitioning) cho toàn bộ Data Warehouse.
-
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image9.png}
-\end{center}
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image9.png}
-\end{center}
+Hệ quy chiếu Thời gian (Temporal Dimensions): Dữ liệu được nạp theo chuỗi phụ thuộc tuyến tính: dim\_month\_year $\rightarrow$  dim\_date và dim\_shift $\rightarrow$ dim\_time\_of\_day. Đây là các bảng tĩnh, thường được nạp sẵn dữ liệu (pre-populated) cho nhiều năm, làm nền tảng phân hoạch (partitioning) cho toàn bộ Data Warehouse.
 
 Chiều Ngữ cảnh (Contextual Dimension): Bảng dim\_weather đóng vai trò là một Slow Changing Dimension (SCD) cung cấp thông tin ngữ cảnh thời tiết. Vì thời tiết thay đổi liên tục, module thời tiết sẽ được kích hoạt nạp trước tiên trong chu kỳ 15 phút, sinh ra weather\_key để chuẩn bị gán vào các sự kiện giao thông phát sinh cùng thời điểm.
 
 
-\subsection{3.3. Pha 2: Xây dựng Topology Không gian}
+\subsubsection{Pha 2: Xây dựng Topology Không gian}
 Pha thứ hai là trái tim của mô hình Snowflake không gian, do module osm\_pipeline.py đảm nhiệm. Khác với các hệ thống thông thường, mạng lưới đường bộ có tính phụ thuộc hình học (Geometric Dependency) cực kỳ khắt khe. Dữ liệu bắt buộc phải được nạp (UPSERT) theo trình tự giải phẫu topology:
 
 
@@ -299,7 +289,7 @@ dim\_way (Phân đoạn OSM): Trỏ khóa ngoại road\_key về dim\_road, lưu
 dim\_segment (Đoạn đường vật lý): Là "nút hội tụ" cuối cùng của cụm không gian. Một đoạn đường thực tế được cấu thành từ một điểm đầu, một điểm cuối và thuộc về một tuyến đường. Do đó, dim\_segment bắt buộc phải nạp cuối cùng để có thể nhận đủ 3 khóa ngoại: from\_node\_key, to\_node\_key, và way\_key.
 
 
-\subsection{3.4. Pha 3: Nạp dữ liệu chuỗi thời gian}
+\subsubsection{Pha 3: Nạp dữ liệu chuỗi thời gian}
 Sau khi Pha 1 và Pha 2 hoàn tất, toàn bộ hệ quy chiếu đã sẵn sàng. Lúc này, luồng thực thi thời gian thực (traffic\_pipeline.py và incident\_pipeline.py) mới được kích hoạt.
 
 
@@ -315,7 +305,7 @@ Bảng fact\_incident cũng tương tự, kết hợp thêm dữ liệu không g
 Đặc biệt, ở Pha này, chiến lược nạp dữ liệu kết hợp trực tiếp với tính năng Table Partitioning của PostgreSQL. Hệ thống không ghi toàn bộ vào một bảng khổng lồ mà định tuyến dữ liệu vào các phân vùng theo tháng (ví dụ: fact\_traffic\_flow\_202603) dựa trên giá trị của date\_key. Điều này triệt tiêu tình trạng thắt cổ chai I/O (I/O Bottleneck) khi lưu lượng ghi vào database tăng đột biến ở các khung giờ cao điểm.
 
 
-\subsection{3.5. Pha 4: Hậu xử lý và dữ liệu phái sinh}
+\subsubsection{Pha 4: Hậu xử lý và dữ liệu phái sinh}
 Pha cuối cùng là các luồng phân tích theo lô (Batch Processing), tiêu biểu là pipeline hiệu suất hành lang (corridor\_pipeline.py).
 
 
@@ -325,8 +315,8 @@ Bảng fact\_corridor\_performance lưu trữ Dữ liệu Phái sinh (Derived Da
 Vì tính chất này, logic điều phối (main.py) buộc phải lập lịch cho Pha 4 chạy vào cuối ngày (Nightly Batch), SAU KHI các bảng Fact ở Pha 3 đã thu thập đầy đủ và ổn định dữ liệu. Việc thiết lập quan hệ phụ thuộc thời gian (Temporal Dependency) giữa các tiến trình ETL đảm bảo các chỉ số tổng hợp (như travel\_time\_index hay corridor\_efficiency) phản ánh chính xác bức tranh giao thông của toàn bộ ngày vận hành.
 
 
-\section{4. Logic Biến đổi Dữ liệu}
-\subsection{4.1. Nguyên lý hàm thuần túy trong tầng biến đổi}
+\subsection{Logic Biến đổi Dữ liệu}
+\subsubsection{Nguyên lý hàm thuần túy trong tầng biến đổi}
 Trong kiến trúc của hệ thống Data Pipeline, pha Transform đóng vai trò là "hạt nhân tính toán" (Computational Engine). Về mặt kỹ nghệ phần mềm, toàn bộ các phép biến đổi nghiệp vụ tại lớp BaseTransformer được thiết kế tuân thủ nghiêm ngặt nguyên lý Hàm Thuần túy (Pure Functions) của Lập trình Hàm (Functional Programming).
 
 
@@ -342,137 +332,90 @@ Khả năng kiểm thử cô lập (Isolated Testability): Cho phép triển kha
 Tính tái lập (Reproducibility): Khi xảy ra sự cố cần nạp bù dữ liệu (backfill), kỹ sư dữ liệu có thể chạy lại luồng Transform một cách an toàn mà không lo ngại về trạng thái (state) hệ thống làm sai lệch kết quả.
 
 
-\subsection{4.2. Khai phá và biến đổi động lực học dòng xe}
+\subsubsection{Khai phá và biến đổi động lực học dòng xe}
 Dữ liệu đầu vào từ API TomTom chủ yếu là các tham số vận tốc. Nhiệm vụ của luồng traffic\_pipeline.py là sử dụng các mô hình toán học giao thông để chuyển đổi vận tốc thô thành các chỉ số mô tả bức tranh động lực học dòng xe, sau đó nạp vào bảng fact\_traffic\_flow.
 
 
-\subsubsection{4.2.1. Chuỗi biến đổi chỉ số cơ bản (Traffic Index, Delay \& LOS)}
+\subsubsubsection{Chuỗi biến đổi chỉ số cơ bản (Traffic Index, Delay \& LOS)}
 Hệ thống sử dụng các phép toán vô hướng để thiết lập các chỉ số cơ bản:
 
 
-Tỷ lệ vận tốc (Speed Ratio - r): Được định nghĩa là tỷ số giữa vận tốc thực tế (v) và vận tốc thiết kế/thông thoáng ().
+Tỷ lệ vận tốc (Speed Ratio - r): Được định nghĩa là tỷ số giữa vận tốc thực tế (v) và vận tốc thiết kế/thông thoáng ($v_f$).
 
 
 \begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image18.png}
-\end{center}
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image6.png}
+\includegraphics[width=0.1\linewidth]{Images/image6.png}
 \end{center}
 
 Chỉ số ùn tắc (Traffic Index - I): Biểu diễn mức độ suy giảm vận tốc so với điều kiện lý tưởng, được lưu vào cột traffic\_index.
 
 
 \begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image5.png}
+\includegraphics[width=0.5\linewidth]{Images/image5.png}
 \end{center}
 
-Độ trễ hành trình (Delay Seconds - ): Là phần thời gian chênh lệch mà phương tiện phải đánh đổi do sự suy giảm tốc độ.
-
+Độ trễ hành trình (Delay Seconds - $\Delta t$ ): Là phần thời gian chênh lệch mà phương tiện phải đánh đổi do sự suy giảm tốc độ.
 
 \begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image19.png}
+\includegraphics[width=0.5\linewidth]{Images/image14.png}
 \end{center}
 
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image14.png}
-\end{center}
+Phân cấp Mức độ Phục vụ (Level of Service - LOS): Dữ liệu định lượng (I) được rời rạc hóa (discretization) thành các nhãn định tính (từ A đến F) thông qua hệ luật chuyên gia (Rule-based mapping), lưu vào cột los\_level. Ví dụ: LOS A biểu thị dòng xe di chuyển tự do ($I \leq 0.15$), trong khi LOS F biểu thị trạng thái vỡ trận/tắc nghẽn nghiêm trọng ($I > 0.8$). Bước này rất quan trọng để hỗ trợ hệ thống Dashboard hiển thị màu cảnh báo tự động.
 
-Phân cấp Mức độ Phục vụ (Level of Service - LOS): Dữ liệu định lượng (I) được rời rạc hóa (discretization) thành các nhãn định tính (từ A đến F) thông qua hệ luật chuyên gia (Rule-based mapping), lưu vào cột los\_level. Ví dụ: LOS A biểu thị dòng xe di chuyển tự do (), trong khi LOS F biểu thị trạng thái vỡ trận/tắc nghẽn nghiêm trọng (). Bước này rất quan trọng để hỗ trợ hệ thống Dashboard hiển thị màu cảnh báo tự động.
-
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image1.png}
-\end{center}
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image22.png}
-\end{center}
-
-\subsubsection{4.2.2. Bài toán Ước lượng Lưu lượng bằng Nghịch đảo Hàm BPR}
+\subsubsubsection{Bài toán Ước lượng Lưu lượng bằng Nghịch đảo Hàm BPR}
 API của TomTom không cung cấp trực tiếp lưu lượng xe (Volume). Để lấp đầy khoảng trống dữ liệu này cho cột pcu\_volume trong bảng fact\_traffic\_flow, hệ thống đã áp dụng kỹ thuật xấp xỉ toán học thông qua hàm BPR (Bureau of Public Roads) nổi tiếng trong kỹ thuật giao thông.
 
 
-Hàm BPR nguyên thủy mô tả sự gia tăng thời gian di chuyển dựa trên tỷ số giữa lưu lượng và công suất ():
-
+Hàm BPR nguyên thủy mô tả sự gia tăng thời gian di chuyển dựa trên tỷ số giữa lưu lượng và công suất (q/C):
 
 \begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image20.png}
+\includegraphics[width=0.3\linewidth]{Images/image8.png}
+\end{center}
+
+\begin{itemize}
+    \item $t$: Thời gian hành trình thực tế (Current Travel Time).
+
+    \item $t_0$: Thời gian hành trình thông thoáng (Free-flow Travel Time).
+
+    \item $q$: Lưu lượng dòng xe cần tìm (Volume - PCU/h).
+
+    \item $C$: Công suất thiết kế của đoạn đường (Capacity), hệ thống tính bằng:
+
+    \[
+    C = n_{lane} \times 2000
+    \]
+
+    \item $\alpha, \beta$: Các hệ số hiệu chuẩn
+    (thường mặc định là $\alpha = 0.15, \beta = 4.0$).
+\end{itemize}
+
+Vì dữ liệu thu thập được là vận tốc, hệ thống thực hiện xấp xỉ \[
+\frac{t}{t_0} \approx \frac{v_f}{v}
+\] và nghịch đảo hàm BPR để tìm ra lưu lượng (q):
+
+\begin{center}
+\includegraphics[width=0.3\linewidth]{Images/image12.png}
 \end{center}
 
 \begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image8.png}
-\end{center}
-
-Trong đó:
-
-
-t: Thời gian hành trình thực tế (Current Travel Time).
-
-
-: Thời gian hành trình thông thoáng (Free-flow Travel Time).
-
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image26.png}
-\end{center}
-
-q: Lưu lượng dòng xe cần tìm (Volume - PCU/h).
-
-
-C: Công suất thiết kế của đoạn đường (Capacity), hệ thống tính bằng: .
-
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image15.png}
-\end{center}
-
-: Các hệ số hiệu chuẩn (thường mặc định là ).
-
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image2.png}
-\end{center}
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image13.png}
-\end{center}
-
-Vì dữ liệu thu thập được là vận tốc, hệ thống thực hiện xấp xỉ  và nghịch đảo hàm BPR để tìm ra lưu lượng (q):
-
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image24.png}
-\end{center}
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image12.png}
-\end{center}
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image27.png}
+\includegraphics[width=0.3\linewidth]{Images/image27.png}
 \end{center}
 
 Để đảm bảo tính ổn định số học trong môi trường production, luồng Transform áp dụng các hàm chặn (guard-rails):
 
 
 \begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image28.png}
+\includegraphics[width=0.5\linewidth]{Images/image28.png}
 \end{center}
 
-Trong đó,  (max\_vc\_ratio) là ngưỡng chặn trên (thường là 1.0 hoặc 1.2). Kỹ thuật này ngăn chặn hiện tượng tràn số (Overflow) hoặc rác dữ liệu sinh ra khi vận tốc v tiến dần về 0 trong các tình huống kẹt xe nghiêm trọng.
+Trong đó, $p_{max}$ (max\_vc\_ratio) là ngưỡng chặn trên (thường là 1.0 hoặc 1.2). Kỹ thuật này ngăn chặn hiện tượng tràn số (Overflow) hoặc rác dữ liệu sinh ra khi vận tốc v tiến dần về 0 trong các tình huống kẹt xe nghiêm trọng.
 
 
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image23.png}
-\end{center}
-
-\subsection{4.3. Xử lý không gian và thuật toán khớp bản đồ}
+\subsubsection{Xử lý không gian và thuật toán khớp bản đồ}
 Đối với luồng sự cố giao thông (incident\_pipeline.py), dữ liệu đầu vào là các tọa độ rời rạc (Latitude, Longitude) nằm trên hệ quy chiếu WGS84. Bài toán đặt ra là làm thế nào để "neo" (snap) các tọa độ này vào chính xác một đoạn đường (segment\_key thuộc bảng dim\_segment) để phân tích nguyên nhân - kết quả.
 
 
-\subsubsection{4.3.1. Truy vấn K-Nearest Neighbors (KNN) với PostGIS}
+\subsubsubsection{Truy vấn K-Nearest Neighbors (KNN) với PostGIS}
 Hệ thống giải quyết bài toán Map Matching bằng cách tận dụng sức mạnh của hệ cơ sở dữ liệu không gian PostGIS. Thay vì viết các vòng lặp tính khoảng cách Haversine kém hiệu quả trên Python, thuật toán sử dụng trực tiếp toán tử <-> (KNN - K-Nearest Neighbors) của PostgreSQL.
 
 
@@ -480,18 +423,9 @@ Hệ thống giải quyết bài toán Map Matching bằng cách tận dụng s�
 SQLSELECT ds.segment_key, ds.location_keyFROM dim_segment dsWHERE ds.geometry_center IS NOT NULLORDER BY ds.geometry_center <-> ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)LIMIT 1
 \end{lstlisting}
 
-Về mặt độ phức tạp thuật toán, toán tử <-> khai thác triệt để cấu trúc cây R-Tree của chỉ mục không gian (GiST Index) idx\_dim\_segment\_center\_gist. Nó so sánh khoảng cách giữa tọa độ sự cố với các hộp giới hạn (Bounding Boxes) của đoạn đường, giúp giảm độ phức tạp tìm kiếm từ  (Full Table Scan) xuống mức , đáp ứng hoàn hảo yêu cầu xử lý thời gian thực.
+Về mặt độ phức tạp thuật toán, toán tử <-> khai thác triệt để cấu trúc cây R-Tree của chỉ mục không gian (GiST Index) idx\_dim\_segment\_center\_gist. Nó so sánh khoảng cách giữa tọa độ sự cố với các hộp giới hạn (Bounding Boxes) của đoạn đường, giúp giảm độ phức tạp tìm kiếm từ O(N) (Full Table Scan) xuống mức O(log N), đáp ứng hoàn hảo yêu cầu xử lý thời gian thực.
 
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image4.png}
-\end{center}
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image11.png}
-\end{center}
-
-\subsubsection{4.3.2. Tiền xử lý hình học đa dạng (Geometry Preprocessing)}
+\subsubsubsection{Tiền xử lý hình học đa dạng (Geometry Preprocessing)}
 Trong trường hợp sự cố (Incident) trả về hình dạng là một tuyến kéo dài (LineString) thay vì một điểm (Point), BaseTransformer sẽ thực hiện nội suy tọa độ trọng tâm (Centroid) trên bộ nhớ Python:
 
 
@@ -502,7 +436,7 @@ centroid_lon, centroid_lat = linestring_centroid(geom.coordinates)
 Sau đó, nó được ép kiểu về định dạng Well-Known Text (WKT) POINT(lon lat) để BaseLoader sử dụng hàm ST\_GeomFromText(..., 4326) nạp chuẩn xác vào cột geometry kiểu geometry(Point,4326) trong bảng phân vùng fact\_incident.
 
 
-\subsection{4.4. Chuẩn hóa ngữ nghĩa và phân rã chiều thời gian}
+\subsubsection{Chuẩn hóa ngữ nghĩa và phân rã chiều thời gian}
 Để tương thích tuyệt đối với mô hình Snowflake Schema, mọi sự kiện phát sinh đều phải được phân rã khóa thời gian.
 
 
@@ -515,30 +449,23 @@ Phân rã trục thời gian: Dấu thời gian (Timestamp) được bóc tách 
 date\_key (Định dạng số nguyên YYYYMMDD): Dùng để liên kết với bảng dim\_date và đóng vai trò là khóa phân vùng (Partition Key) cho các bảng Fact.
 
 
-time\_key (Số phút tích lũy trong ngày): Được tính bằng công thức  (thuộc miền giá trị ). Việc ánh xạ sang dim\_time\_of\_day với độ phân giải tính bằng phút giúp Data Warehouse dễ dàng thực hiện các phép Roll-up (tổng hợp dữ liệu) theo khung 5 phút, 15 phút hoặc theo Ca trực (Shift) mà không cần dùng đến các hàm xử lý chuỗi thời gian nặng nề.
+time\_key (Số phút tích lũy trong ngày): Được tính bằng công thức
+\[
+\text{time\_key} = 60 \times \text{hour} + \text{minute}
+\]
+(thuộc miền giá trị \([0,1439]\)).
+
+Việc ánh xạ sang \texttt{dim\_time\_of\_day} với độ phân giải tính bằng phút giúp Data Warehouse dễ dàng thực hiện các phép Roll-up (tổng hợp dữ liệu) theo khung 5 phút, 15 phút hoặc theo Ca trực (Shift) mà không cần dùng đến các hàm xử lý chuỗi thời gian nặng nề.
+
+Chuẩn hóa Mức độ nghiêm trọng (Severity): Mức độ sự cố từ nhà cung cấp được ánh xạ tịnh tiến vào miền giá trị [0,4] thông qua hàm normalize\_magnitude(), đảm bảo sự đồng nhất ngữ nghĩa khi truy vấn dữ liệu từ nhiều nguồn khác nhau (như TomTom, OpenWeather, hay mạng xã hội).
 
 
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image21.png}
-\end{center}
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image25.png}
-\end{center}
-
-Chuẩn hóa Mức độ nghiêm trọng (Severity): Mức độ sự cố từ nhà cung cấp được ánh xạ tịnh tiến vào miền giá trị  thông qua hàm normalize\_magnitude(), đảm bảo sự đồng nhất ngữ nghĩa khi truy vấn dữ liệu từ nhiều nguồn khác nhau (như TomTom, OpenWeather, hay mạng xã hội).
-
-
-\begin{center}
-\includegraphics[width=0.85\linewidth]{Images/image16.png}
-\end{center}
-
-\subsection{4.5. Kết luận}
+\subsubsection{Kết luận}
 Pha Transform trong kiến trúc hệ thống không chỉ là bước "làm sạch" dữ liệu thông thường, mà là một khối phân tích chuyên sâu (Analytical Engine). Bằng việc tích hợp các mô hình toán học (nghịch đảo BPR) và sức mạnh của đại số không gian (PostGIS KNN), lớp Transformer đã thành công trong việc "chiết xuất" các giá trị tri thức ẩn (như lưu lượng xe quy đổi PCU, hay vị trí vật lý đích xác của sự cố) từ những byte dữ liệu thô. Sự kết hợp giữa nguyên lý Hàm thuần túy trên Python và xử lý đồ thị không gian dưới Database tạo ra một luồng dữ liệu vừa có tính toàn vẹn cao, vừa mang ý nghĩa nghiệp vụ sâu sắc để phục vụ cho các mô hình Dự báo (Machine Learning) ở các bước tiếp theo.
 
 
-\section{5. Kỹ thuật tối ưu hóa kho dữ liệu}
-\subsection{5.1. Mục tiêu tối ưu hóa}
+\subsection{Kỹ thuật tối ưu hóa kho dữ liệu}
+\subsubsection{Mục tiêu tối ưu hóa}
 Trong hệ thống Traffic IoC, Data Warehouse không chỉ đóng vai trò lưu trữ tĩnh mà phải tiếp nhận luồng dữ liệu thời gian thực với tần suất cao (chu kỳ 15 phút/lần). Đặc thù này đặt ra ba thách thức lớn cho hệ quản trị PostgreSQL:
 
 
@@ -554,12 +481,23 @@ Table Bloat (Phình to dữ liệu): Đặc thù của cơ chế MVCC (Multi-Ver
 Để giải quyết triệt để các vấn đề này, hệ thống áp dụng một chiến lược tối ưu hóa toàn diện, kết hợp giữa Phân mảnh dữ liệu vật lý (Partitioning), Chỉ mục đa hình (Polymorphic Indexing) và Cơ chế ghi lũy đẳng.
 
 
-\subsection{5.2. Chiến lược phân mảnh dữ liệu chuỗi thời gian}
+\subsubsection{Chiến lược phân mảnh dữ liệu chuỗi thời gian}
 Thay vì lưu trữ toàn bộ sự kiện giao thông vào một bảng nguyên khối (Monolithic Table) duy nhất, kiến trúc sư dữ liệu đã quyết định áp dụng kỹ thuật Range Partitioning (Phân vùng theo khoảng) dựa trên khóa phân vùng date\_key. Kỹ thuật này được áp dụng nhất quán trên các bảng sự kiện lõi như fact\_traffic\_flow, fact\_incident, và fact\_traffic\_risk\_prediction.
 
 
 \begin{lstlisting}[language=SQL]
-SQL-- Trích xuất từ DDL khai báo bảng fact_traffic_flowCREATE TABLE public.fact_traffic_flow (    traffic_flow_key bigint NOT NULL,    segment_key bigint NOT NULL,    time_key integer NOT NULL,    date_key integer NOT NULL,    -- ... các trường dữ liệu ...) PARTITION BY RANGE (date_key);-- Khởi tạo phân vùng vật lý riêng biệt cho tháng 03/2026CREATE TABLE public.fact_traffic_flow_202603 ( ... );ALTER TABLE ONLY public.fact_traffic_flow ATTACH PARTITION public.fact_traffic_flow_202603 FOR VALUES FROM (20260301) TO (20260401);
+CREATE TABLE public.fact_traffic_flow (
+    traffic_flow_key bigint NOT NULL,
+    segment_key bigint NOT NULL,
+    time_key integer NOT NULL,
+    date_key integer NOT NULL,
+) PARTITION BY RANGE (date_key);
+
+CREATE TABLE public.fact_traffic_flow_202603 ( ... );
+
+ALTER TABLE ONLY public.fact_traffic_flow
+    ATTACH PARTITION public.fact_traffic_flow_202603
+    FOR VALUES FROM (20260301) TO (20260401);
 \end{lstlisting}
 
 Về mặt nguyên lý hệ thống, kỹ thuật này mang lại các đột phá kiến trúc sau:
@@ -571,49 +509,62 @@ Partition Pruning (Cắt tỉa phân vùng): Khi một truy vấn (Query) từ D
 Tối ưu hóa quản trị bộ nhớ (Memory Management): Hệ điều hành máy chủ chỉ cần nạp (cache) các phân vùng của tháng hiện tại ("Hot Data") vào bộ nhớ RAM, đẩy các phân vùng của các tháng trước ("Cold Data") xuống ổ cứng, giúp tối ưu hóa Cache Hit Ratio một cách tuyệt đối.
 
 
-\subsection{5.3. Chiến lược đánh chỉ mục đa hình}
+\subsubsection{Chiến lược đánh chỉ mục đa hình}
 Lược đồ cơ sở dữ liệu (Database Schema) của dự án thể hiện sự am hiểu sâu sắc về cấu trúc dữ liệu bên dưới DBMS. Thay vì lạm dụng chỉ mục B-Tree mặc định, hệ thống triển khai một ma trận chỉ mục phức hợp để đáp ứng chính xác từng loại tải công việc (Workload).
 
 
-\subsubsection{5.3.1. Chỉ mục không gian GiST (Generalized Search Tree)}
+\subsubsubsection{Chỉ mục không gian GiST (Generalized Search Tree)}
 Đối với các trường dữ liệu mang tính chất tọa độ hình học (kiểu geometry(Point,4326) trong PostGIS), cấu trúc B-Tree truyền thống (vốn chỉ sắp xếp dữ liệu 1 chiều) hoàn toàn vô dụng. Hệ thống bắt buộc phải sử dụng GiST Index.
 
 
 \begin{lstlisting}[language=SQL]
-SQLCREATE INDEX idx_fact_incident_geom_gist ON ONLY public.fact_incident USING gist (geometry);CREATE INDEX idx_dim_segment_center_gist ON public.dim_segment USING gist (geometry_center);
+CREATE INDEX idx_fact_incident_geom_gist ON ONLY public.fact_incident
+    USING gist (geometry);
+
+CREATE INDEX idx_dim_segment_center_gist ON public.dim_segment
+    USING gist (geometry_center);
 \end{lstlisting}
 
 GiST hoạt động dựa trên nguyên lý của cây R-Tree, chia không gian thành các Hộp giới hạn (Bounding Boxes) lồng nhau. Nhờ GiST, các truy vấn Map Matching sử dụng toán tử K-Nearest Neighbor (<->) có thể đạt tốc độ \$O(\textbackslash\{\}log N)\$ thay vì quét tuần tự.
 
 
-\subsubsection{5.3.2. Chỉ mục khối dải BRIN (Block Range Index)}
+\subsubsubsection{Chỉ mục khối dải BRIN (Block Range Index)}
 Đây là một kỹ thuật tối ưu hóa bậc cao dành riêng cho dữ liệu Time-series. Cột timestamp và inserted\_at trong các bảng Fact mang đặc tính "chỉ chèn thêm" (append-heavy) và tăng dần theo thời gian.
 
 
 \begin{lstlisting}[language=SQL]
-SQLCREATE INDEX idx_fact_traffic_flow_ts_brin ON ONLY public.fact_traffic_flow USING brin ("timestamp") WITH (pages_per_range='32');
+CREATE INDEX idx_fact_traffic_flow_ts_brin ON ONLY public.fact_traffic_flow
+    USING brin ("timestamp") WITH (pages_per_range='32');
 \end{lstlisting}
 
 Nếu dùng B-Tree, hệ thống phải lưu trữ index cho từng dòng (row), làm kích thước index có thể phình to ngang ngửa kích thước bảng. Ngược lại, BRIN Index chỉ lưu trữ giá trị cực tiểu (MIN) và cực đại (MAX) cho mỗi khối dữ liệu (ví dụ: mỗi 32 pages). Khi truy vấn theo dải thời gian, DBMS kiểm tra xem khoảng thời gian yêu cầu có giao (overlap) với MIN-MAX của khối hay không. Điều này giúp BRIN có kích thước cực kỳ nhỏ (chỉ vài Kilobytes) nhưng lại mang tốc độ lọc dữ liệu chuỗi thời gian tương đương B-Tree.
 
 
-\subsubsection{5.3.3. Chỉ mục một phần (Partial Index) hỗ trợ Alerting}
+\subsubsubsection{Chỉ mục một phần (Partial Index) hỗ trợ Alerting}
 Để phục vụ hệ thống giám sát và cảnh báo thời gian thực (Real-time Dashboards) mà không gây tốn kém dung lượng lưu trữ, lược đồ sử dụng kỹ thuật Partial Index.
 
 
 \begin{lstlisting}[language=SQL]
-SQL-- Chỉ tạo index cho các sự cố có mức độ nghiêm trọng (severity_level) >= 4CREATE INDEX idx_fact_incident_severe ON ONLY public.fact_incident USING btree (severity_level, segment_key) WHERE (severity_level >= 4);-- Chỉ tạo index cho các đoạn đường bị ùn tắc nặng (LOS = E hoặc F)CREATE INDEX idx_fact_flow_bad_los ON ONLY public.fact_traffic_flow USING btree (los_level, segment_key) WHERE (los_level = ANY (ARRAY['E'::bpchar, 'F'::bpchar]));
+CREATE INDEX idx_fact_incident_severe ON ONLY public.fact_incident
+    USING btree (severity_level, segment_key)
+    WHERE (severity_level >= 4);
+
+CREATE INDEX idx_fact_flow_bad_los ON ONLY public.fact_traffic_flow
+    USING btree (los_level, segment_key)
+    WHERE (los_level = ANY (ARRAY['E'::bpchar, 'F'::bpchar]));
 \end{lstlisting}
 
 Kiến trúc này cho phép PostgreSQL tạo ra một cây chỉ mục với kích thước cực nhỏ (chỉ chứa các điểm đen giao thông). Các truy vấn đếm số lượng điểm ùn tắc từ Dashboard sẽ quét thẳng vào Partial Index này và trả về kết quả gần như tức thời (sub-millisecond latency).
 
 
-\subsection{5.4. Cơ chế UPSERT và Quản lý "Bloat" trong MVCC}
+\subsubsection{Cơ chế UPSERT và Quản lý "Bloat" trong MVCC}
 Tại tầng BaseLoader, hệ thống sử dụng cú pháp INSERT ... ON CONFLICT DO UPDATE (UPSERT) để bảo toàn tính lũy đẳng (Idempotency). PostgreSQL dựa vào các Ràng buộc Khóa chính (Primary Key Constraints) được định nghĩa chặt chẽ trên từng phân vùng vật lý để phát hiện xung đột:
 
 
 \begin{lstlisting}[language=SQL]
-SQLALTER TABLE ONLY public.fact_traffic_flow_202603    ADD CONSTRAINT fact_traffic_flow_202603_pkey PRIMARY KEY (traffic_flow_key, date_key);
+ALTER TABLE ONLY public.fact_traffic_flow_202603
+    ADD CONSTRAINT fact_traffic_flow_202603_pkey
+    PRIMARY KEY (traffic_flow_key, date_key);
 \end{lstlisting}
 
 Mặc dù UPSERT bảo vệ hệ thống khỏi rác dữ liệu trùng lặp (duplicates), quá trình cập nhật đè lên bản ghi cũ trong PostgreSQL sẽ đánh dấu row cũ là "dead tuple", gây ra hiện tượng phình to dữ liệu (Table Bloat) do cơ chế quản lý giao dịch MVCC.
@@ -622,7 +573,7 @@ Mặc dù UPSERT bảo vệ hệ thống khỏi rác dữ liệu trùng lặp (d
 Sự kết hợp giữa UPSERT và Table Partitioning chính là "chìa khóa" giải quyết vấn đề này. Nhờ việc dữ liệu bị băm nhỏ thành từng tháng, tiến trình dọn dẹp tự động (Auto-vacuum) của PostgreSQL chỉ cần tập trung quét dọn các "dead tuples" sinh ra trong phân vùng của tháng hiện tại (Active Partition) thay vì phải chật vật quét toàn bộ kho dữ liệu nhiều năm. Điều này triệt tiêu hoàn toàn chi phí bảo trì hệ thống và đảm bảo hiệu năng I/O luôn ở trạng thái tốt nhất.
 
 
-\subsection{5.5. Kết luận}
+\subsubsection{Kết luận}
 Chiến lược thiết kế cơ sở dữ liệu của dự án minh chứng cho sự kết hợp hài hòa giữa cấu trúc vật lý và logic nghiệp vụ. Việc lựa chọn khéo léo các phương pháp lập chỉ mục thế hệ mới (BRIN cho chuỗi thời gian, GiST cho không gian hình học, Partial Index cho cảnh báo nghiệp vụ) kết hợp với kỹ thuật phân mảnh Range Partitioning đã tạo ra một Data Warehouse "miễn nhiễm" với các giới hạn về độ lớn của bộ nhớ. Đây là một nền tảng vững chắc, vừa tối ưu hóa tốc độ ghi (write-optimized) trong các chu kỳ ETL 15 phút, vừa đảm bảo khả năng phản hồi tốc độ cao (read-optimized) cho các ứng dụng hiển thị và phân tích đầu cuối.
 
 

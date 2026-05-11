@@ -52,7 +52,7 @@ Trong đó:
     \item $n$: Tổng số mẫu phương tiện được ghi nhận trong khoảng thời gian 5 phút.
 \end{itemize}
 
-Trọng số hóa theo PCU 
+Trọng số hóa theo PCU
 
 Do đặc thù giao thông hỗn hợp, các phương tiện có kích thước lớn như xe buýt hoặc xe tải có ảnh hưởng đáng kể hơn đến khả năng lưu thông so với xe con. Vì vậy, hệ thống áp dụng cơ chế trọng số hóa theo đơn vị xe quy đổi (PCU) nhằm tính toán vận tốc đại diện cho toàn bộ dòng xe.
 
@@ -390,8 +390,9 @@ Xác định vận tốc Baseline
 
 Thay vì sử dụng một giá trị vận tốc cố định, hệ thống xác định vận tốc baseline $V_{base}$ một cách động, dựa trên dữ liệu lịch sử của chính phân đoạn đường đó trong điều kiện thời tiết thuận lợi (trời quang), tại cùng khung thời gian trong ngày. Cụ thể:
 \[
-V_{base}(s, t) = \operatorname{AVG}(\texttt{avg\_speed\_kmh}) 
-\;\middle|\; \text{Weather} = \text{``CLEAR''}
+V_{base}(s, t) =
+\mathbb{E}[\texttt{avg\_speed\_kmh}
+\mid \text{Weather} = \text{CLEAR}]
 \]
 
 Trong đó $s$ là phân đoạn đường (\texttt{segment\_key}) và $t$ là khung thời gian quan sát.\\
@@ -537,7 +538,7 @@ Phân tích nguyên nhân gốc rễ sai số (Root Cause Analysis -- RCA)
 Đối với các chuyến đi có giá trị \texttt{time\_diff\_min} vượt quá ngưỡng quy định, hệ thống thực hiện truy vấn chi tiết xuống bảng \texttt{fact\_segment\_performance} nhằm xác định các phân đoạn đường đóng góp chính vào sai số dự báo. Mức độ đóng góp sai số của từng phân đoạn được xác định như sau:
 
 \[
-Error\_Contribution = 
+Error\_Contribution =
 \frac{\sum (Segment\_Actual - Segment\_Predicted)}
 {Total\_Time\_Difference}
 \]
@@ -604,7 +605,7 @@ Chỉ số đóng góp tải trọng (PCU Contribution Index)
 Do mức độ ảnh hưởng của các loại phương tiện đến khả năng thông hành là không đồng đều, hệ thống sử dụng chỉ số đóng góp PCU để đo lường ``không gian chiếm dụng'' thực tế của từng loại xe trong dòng giao thông:
 
 \[
-PCU\_Impact_i = 
+PCU\_Impact_i =
 \frac{Count_i \times PCU\_Factor_i}
 {Total\_PCU}
 \times 100\%
@@ -629,18 +630,18 @@ Mô hình dự báo sẽ sử dụng dữ liệu lịch sử làm tập huấn l
         \item \textit{Biến mục tiêu (Target Variable):} \texttt{avg\_speed\_kmh} (tại thời điểm tương lai).
         \item \textit{Biến trễ (Lag features):} Sử dụng \texttt{avg\_speed\_kmh} và \texttt{vehicle\_count} tại các thời điểm quá khứ ($t-1$, $t-2$, $t-3$) để nắm bắt xu hướng tăng/giảm của dòng xe.
     \end{itemize}
-    
+
     \item \textbf{Bảng Dimension ngữ cảnh: \texttt{dim\_time} \& \texttt{dim\_date}}
     \begin{itemize}
         \item \textit{Tính chu kỳ:} Sử dụng \texttt{hour\_of\_day} (ví dụ: 17h chiều thường tắc đường) và \texttt{day\_of\_week} (Chủ nhật khác thứ Hai).
         \item \textit{Sự kiện đặc biệt:} Sử dụng trường \texttt{is\_holiday} trong \texttt{dim\_date} để điều chỉnh dự báo vào ngày lễ.
     \end{itemize}
-    
+
     \item \textbf{Bảng Fact tác động: \texttt{fact\_weather\_impact}}
     \begin{itemize}
         \item \textit{Yếu tố ngoại sinh:} Sử dụng \texttt{precipitation\_mm} (lượng mưa) và \texttt{visibility\_m} (tầm nhìn) làm biến đầu vào. Mưa lớn thường làm giảm tốc độ trung bình từ 10-20\%.
     \end{itemize}
-    
+
     \item \textbf{Bảng Dimension không gian: \texttt{dim\_segment}}
     \begin{itemize}
         \item \textit{Đặc trưng tĩnh:} Sử dụng \texttt{lane\_count} (số làn) và \texttt{road\_type} để mô hình hiểu được năng lực thông hành của đoạn đường.
@@ -689,7 +690,7 @@ Khác với các ứng dụng bản đồ thông thường chỉ lấy tốc đ�
         \item Thời gian qua đoạn $S_2$ ($T_2$) = Chiều dài $S_2$ / Tốc độ dự báo tại thời điểm ($t_0 + T_1$).
         \item \textit{Lưu ý:} Tốc độ tại $S_2$ phải là tốc độ dự báo trong tương lai, không phải hiện tại.
     \end{itemize}
-    \item \textbf{Tổng hợp:} 
+    \item \textbf{Tổng hợp:}
     \[ ETA_{total} = \sum_{i=1}^{n} T_i \]
 \end{enumerate}
 Logic này giúp loại bỏ sai số khi người dùng bắt đầu đi lúc đường thoáng nhưng đến giữa đường thì gặp giờ cao điểm.
@@ -759,14 +760,14 @@ Hệ thống xây dựng hàm trọng số chi phí (Cost Function) dựa trên 
         \item \textit{Nguồn:} Kết quả dự báo từ nghiệp vụ B1 (sử dụng \texttt{fact\_traffic\_flow}).
         \item \textit{Trường dữ liệu:} \texttt{predicted\_speed\_kmh} trên từng \texttt{segment\_key}.
     \end{itemize}
-    
+
     \item \textbf{Yếu tố Tin cậy (Reliability Cost):}
     \begin{itemize}
         \item \textit{Nguồn:} \texttt{fact\_traffic\_flow} (Lịch sử).
         \item \textit{Logic:} Tính toán độ lệch chuẩn (Standard Deviation) của vận tốc trong cùng khung giờ quá khứ.
         \item \textit{Trường phái sinh:} Nếu độ lệch chuẩn cao $\rightarrow$ Độ tin cậy thấp (phạt điểm đoạn đường này).
     \end{itemize}
-    
+
     \item \textbf{Yếu tố An toàn (Safety Risk Cost):}
     \begin{itemize}
         \item \textit{Nguồn 1:} \texttt{fact\_incident}. Tính tần suất tai nạn (\texttt{count}) và mức độ nghiêm trọng (\texttt{severity\_level}) trên đoạn đường.
