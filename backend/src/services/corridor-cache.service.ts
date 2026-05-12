@@ -22,6 +22,7 @@ export class CorridorCacheService {
         { data },
         { upsert: true, new: true }
       );
+      logger.log(`✓ Đã lưu cache cho ${corridorKey ?? 'TẤT CẢ'} vào ngày ${date}`);
     } catch (error) {
       logger.error(`Error setting cache for ${corridorKey} on ${date}`, error);
     }
@@ -34,6 +35,16 @@ export class CorridorCacheService {
     } catch (error) {
       logger.error(`Error getting updatedAt for ${corridorKey} on ${date}`, error);
       return null;
+    }
+  }
+
+  async hasDataForDate(date: string): Promise<boolean> {
+    try {
+      const count = await CorridorAnalytics.countDocuments({ date });
+      return count > 0;
+    } catch (error) {
+      logger.error(`Lỗi khi kiểm tra dữ liệu cho ngày ${date}`, error);
+      return false;
     }
   }
 

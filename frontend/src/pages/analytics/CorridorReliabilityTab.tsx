@@ -20,6 +20,7 @@ import {
   Col,
   Modal,
   Progress,
+  Radio,
   Row,
   Select,
   Space,
@@ -201,6 +202,7 @@ const fetchReliabilityCorridors = async (
   sortBy: ReliabilitySortBy,
   limit: number,
   corridorKey?: string,
+  sourcePeriod?: 'WEEKLY' | 'MONTHLY',
   signal?: AbortSignal
 ): Promise<CorridorReliabilityItem[]> => {
   const response = await analyticsApi.getCorridorReliability(
@@ -209,6 +211,7 @@ const fetchReliabilityCorridors = async (
       sortBy,
       limit,
       corridorKey,
+      sourcePeriod,
     },
     signal
   )
@@ -227,6 +230,7 @@ const fetchReliabilityCorridors = async (
 
 export const CorridorReliabilityTab: React.FC = () => {
   const [timeWindow, setTimeWindow] = useState<ReliabilityTimeWindow>('AM_PEAK')
+  const [sourcePeriod, setSourcePeriod] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY')
   const [viewMode, setViewMode] = useState<ReliabilityViewMode>('buffer_index')
   const [segmentSortBy, setSegmentSortBy] =
     useState<ReliabilitySortOption>('buffer_index')
@@ -353,6 +357,7 @@ export const CorridorReliabilityTab: React.FC = () => {
           'buffer_index',
           RELIABILITY_LIMIT_ALL,
           undefined,
+          sourcePeriod,
           controller.signal
         )
         setRows(result)
@@ -380,7 +385,7 @@ export const CorridorReliabilityTab: React.FC = () => {
     return () => {
       controller.abort()
     }
-  }, [timeWindow])
+  }, [timeWindow, sourcePeriod])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -1183,10 +1188,29 @@ export const CorridorReliabilityTab: React.FC = () => {
           }}
           bodyStyle={{ padding: '16px 20px' }}
           title={
-            <Space>
-              <FilterOutlined />
-              <span>Bộ lọc phân tích độ tin cậy hành lang</span>
-            </Space>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                width: '100%',
+              }}
+            >
+              <Space>
+                <FilterOutlined />
+                <span>Bộ lọc phân tích độ tin cậy hành lang</span>
+              </Space>
+              <Radio.Group
+                value={sourcePeriod}
+                onChange={(e) => setSourcePeriod(e.target.value)}
+                optionType="button"
+                buttonStyle="solid"
+                size="small"
+              >
+                <Radio.Button value="WEEKLY">7 ngày gần nhất</Radio.Button>
+                <Radio.Button value="MONTHLY">30 ngày gần nhất</Radio.Button>
+              </Radio.Group>
+            </div>
           }
         >
           <Row gutter={[12, 12]} align="middle">

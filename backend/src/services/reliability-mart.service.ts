@@ -21,6 +21,7 @@ export interface ReliabilityQuery {
   sortBy: ReliabilitySortBy;
   limit: number;
   corridorKey?: string;
+  sourcePeriod?: ReliabilitySourcePeriod;
 }
 
 interface ReliabilityApiRow {
@@ -327,6 +328,7 @@ export class ReliabilityMartService {
         SELECT MAX(period_end) AS period_end
         FROM report_reliability
         WHERE time_window = $1
+          AND source_period = $4
           AND ($2::bigint IS NULL OR corridor_key = $2::bigint)
       ),
       segment_geom AS (
@@ -357,6 +359,7 @@ export class ReliabilityMartService {
       INNER JOIN dim_segment s ON s.segment_key = rr.segment_key
       LEFT JOIN segment_geom sg ON sg.segment_key = rr.segment_key
       WHERE rr.time_window = $1
+        AND rr.source_period = $4
         AND ($2::bigint IS NULL OR rr.corridor_key = $2::bigint)
         AND rr.period_end = (SELECT period_end FROM latest_period)
       ORDER BY ${sortColumn} DESC NULLS LAST, rr.corridor_key ASC, rr.segment_key ASC
@@ -364,7 +367,8 @@ export class ReliabilityMartService {
     `;
 
     const corridorKey = query.corridorKey ? BigInt(query.corridorKey) : null;
-    const rows = await prisma.$queryRawUnsafe<ReliabilityApiRow[]>(sql, query.timeWindow, corridorKey, query.limit);
+    const sourcePeriod = query.sourcePeriod || 'WEEKLY';
+    const rows = await prisma.$queryRawUnsafe<ReliabilityApiRow[]>(sql, query.timeWindow, corridorKey, query.limit, sourcePeriod);
 
     return rows.map((row) => ({
       corridorKey: row.corridorKey.toString(),
@@ -389,6 +393,21 @@ export class ReliabilityMartService {
         construction: row.causeConstructionCount ?? 0,
       },
     }));
+  }
+
+  async clearOldReliabilityData(monthsToKeep: number = 3): Promise<{ deletedRows: number }> {
+    logger.log(`Đang dọn dẹp dữ liệu reliability cũ hơn ${monthsToKeep} tháng...`);
+    
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - monthsToKeep);
+
+    const result = await prisma.$executeRaw`
+      DELETE FROM report_reliability
+      WHERE period_end < ${cutoffDate}
+    `;
+
+    logger.log(`✓ Đã xóa ${result} dòng dữ liệu reliability cũ`);
+    return { deletedRows: result };
   }
 }
 

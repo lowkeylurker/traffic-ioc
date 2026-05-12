@@ -373,6 +373,7 @@ export interface CorridorReliabilityQueryParams {
   sortBy?: ReliabilitySortBy
   limit?: number
   corridorKey?: string
+  sourcePeriod?: 'WEEKLY' | 'MONTHLY'
 }
 
 // [hour, roadName, avgTrafficIndex]

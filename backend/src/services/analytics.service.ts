@@ -19,6 +19,7 @@ import { Logger } from '../utils/logger';
 import { reliabilityMartService } from './reliability-mart.service';
 
 import { corridorCacheService } from './corridor-cache.service';
+import { corridorReliabilityCacheService } from './corridor-reliability-cache.service';
 
 const logger = new Logger('AnalyticsService');
 
@@ -505,13 +506,11 @@ export class AnalyticsService {
       return cachedData;
     }
 
-    // If no cache (e.g. first time for today or backfill not yet run), compute it
+    // Nếu chưa có cache (ví dụ lần đầu gọi trong ngày hoặc chưa chạy backfill), tiến hành tính toán
     const data = await this.computeCorridorDashboard(query);
     
-    // For today, we might want to cache it immediately if it's the first run
-    if (isToday) {
-      await corridorCacheService.setCache(corridorKey, query.date, data);
-    }
+    // Lưu vào cache ngay lập tức để các lần gọi sau nhanh hơn
+    await corridorCacheService.setCache(corridorKey, query.date, data);
 
     return data;
   }
@@ -830,16 +829,42 @@ export class AnalyticsService {
 
   async getReliability(query: ReliabilityQueryParams): Promise<ReliabilityRecord[]> {
     try {
+      // Chỉ sử dụng cache nếu không có corridorKey cụ thể (lấy tất cả)
+      const corridorKeyStr = query.corridorKey || null;
+      const sourcePeriod = query.sourcePeriod || 'WEEKLY';
+      
+      if (corridorKeyStr === null) {
+        const cachedData = await corridorReliabilityCacheService.getCache(query.timeWindow, sourcePeriod, null);
+        if (cachedData) {
+          const metadata = await corridorReliabilityCacheService.getMetadata(query.timeWindow, sourcePeriod, null);
+          logger.log(`Sử dụng cache MongoDB cho reliability: ${query.timeWindow} - ${sourcePeriod} (Kỳ: ${metadata?.periodStart} - ${metadata?.periodEnd})`);
+          return cachedData;
+        }
+      }
+
       logger.log(
-        `Fetching reliability mart data: timeWindow=${query.timeWindow}, sortBy=${query.sortBy}, limit=${query.limit}`
+        `Đang truy vấn PostgreSQL cho dữ liệu reliability mart: timeWindow=${query.timeWindow}, sortBy=${query.sortBy}, limit=${query.limit}`
       );
 
       const records = await reliabilityMartService.getReliabilityFromMart(query);
-      logger.log(`Retrieved reliability mart rows: ${records.length}`);
+      logger.log(`Đã lấy ${records.length} dòng dữ liệu từ PostgreSQL mart`);
+
+      // Lưu vào cache nếu là kết quả tổng quát (không filter corridor)
+      if (corridorKeyStr === null && records.length > 0) {
+        const firstRecord = records[0];
+        await corridorReliabilityCacheService.setCache(
+          query.timeWindow,
+          sourcePeriod,
+          null,
+          firstRecord.periodStart,
+          firstRecord.periodEnd,
+          records
+        );
+      }
 
       return records;
     } catch (error) {
-      logger.error('Error fetching reliability mart data', error);
+      logger.error('Lỗi khi lấy dữ liệu reliability', error);
       throw error;
     }
   }

@@ -276,6 +276,7 @@ export interface ReliabilityQueryParams {
   sortBy: ReliabilitySortBy;
   limit: number;
   corridorKey?: string;
+  sourcePeriod?: 'WEEKLY' | 'MONTHLY';
 }
 
 export interface ReliabilityRootCauses {

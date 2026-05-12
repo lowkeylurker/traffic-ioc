@@ -46,6 +46,7 @@ class CorridorAnalyticsJobService {
     });
 
     await this.scheduleJobs();
+    await this.checkAndBackfillYesterday();
 
     logger.log('Dịch vụ Job Corridor Analytics đã khởi động');
   }
@@ -107,6 +108,20 @@ class CorridorAnalyticsJobService {
       },
       { connection: getRedisConnection() }
     );
+  }
+
+  private async checkAndBackfillYesterday(): Promise<void> {
+    if (!this.queue) return;
+
+    const yesterday = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+    const hasData = await corridorCacheService.hasDataForDate(yesterday);
+    
+    if (!hasData) {
+      logger.log(`[Backfill] Dữ liệu ngày hôm qua (${yesterday}) đang trống. Khởi động worker backfill...`);
+      await this.enqueueRefreshForDate(yesterday);
+    } else {
+      logger.log(`[Backfill] Đã có dữ liệu cho ngày hôm qua (${yesterday})`);
+    }
   }
 
   private async enqueueRefreshForDate(date: string): Promise<void> {
