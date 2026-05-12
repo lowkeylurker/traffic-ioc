@@ -18,6 +18,8 @@ import { AppError } from '../middlewares/error.middleware';
 import { Logger } from '../utils/logger';
 import { reliabilityMartService } from './reliability-mart.service';
 
+import { corridorCacheService } from './corridor-cache.service';
+
 const logger = new Logger('AnalyticsService');
 
 const metricConfig: Record<ComparisonMetric, { sqlExpr: string; unit: string; nonNegative: boolean }> = {
@@ -478,7 +480,43 @@ export class AnalyticsService {
     }
   }
 
-  async getCorridorDashboard(query: CorridorDashboardQuery): Promise<CorridorDashboardData> {
+  async getCorridorDashboard(query: CorridorDashboardQuery): Promise<any> {
+    const today = new Date().toISOString().substring(0, 10);
+    const isToday = query.date === today;
+    const corridorKey = query.corridorKey || null;
+
+    // Check cache
+    const cachedData = await corridorCacheService.getCache(corridorKey, query.date);
+
+    if (cachedData) {
+      if (isToday) {
+        const updatedAt = await corridorCacheService.getUpdatedAt(corridorKey, query.date);
+        const minutesAgo = updatedAt
+          ? Math.floor((Date.now() - updatedAt.getTime()) / 60000)
+          : 0;
+        return {
+          ...cachedData,
+          metadata: {
+            lastUpdated: minutesAgo === 0 ? 'vừa xong' : `Cập nhật ${minutesAgo} phút trước`,
+            updatedAt,
+          },
+        };
+      }
+      return cachedData;
+    }
+
+    // If no cache (e.g. first time for today or backfill not yet run), compute it
+    const data = await this.computeCorridorDashboard(query);
+    
+    // For today, we might want to cache it immediately if it's the first run
+    if (isToday) {
+      await corridorCacheService.setCache(corridorKey, query.date, data);
+    }
+
+    return data;
+  }
+
+  async computeCorridorDashboard(query: CorridorDashboardQuery): Promise<CorridorDashboardData> {
     try {
       const corridorKey = query.corridorKey ? BigInt(query.corridorKey) : null;
 

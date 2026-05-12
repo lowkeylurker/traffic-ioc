@@ -7,8 +7,10 @@ import { closeRedisConnection } from './config/redis';
 import { olapJobService } from './jobs/olap-job.service';
 import { reliabilityJobService } from './jobs/reliability-job.service';
 import { routingRefreshJobService } from './jobs/routing-refresh-job.service';
+import { corridorAnalyticsJobService } from './jobs/corridor-analytics-job.service';
 import { Logger } from './utils/logger';
 import { clearTrafficNewsQueueOnStartup, scheduleTrafficNewsJob } from './jobs/newsQueue';
+import { connectMongoDB, disconnectMongoDB } from './config/mongoose';
 import { trafficNewsWorker } from './jobs/trafficNewsWorker';
 
 const logger = new Logger('Server');
@@ -23,12 +25,16 @@ async function main() {
     await prisma.$queryRaw`SELECT 1`;
     logger.log('✓ Database connection successful');
 
+    // Kết nối MongoDB
+    await connectMongoDB();
+
     // Khởi tạo Express app
     const app = createApp();
 
     await olapJobService.start();
     await reliabilityJobService.start();
     await routingRefreshJobService.start();
+    await corridorAnalyticsJobService.start();
 
     // Khởi tạo News Ticker Job
     await clearTrafficNewsQueueOnStartup();
@@ -57,6 +63,8 @@ async function main() {
         await trafficNewsWorker.close();
         await reliabilityJobService.stop();
         await routingRefreshJobService.stop();
+        await corridorAnalyticsJobService.stop();
+        await disconnectMongoDB();
         await closeRedisConnection();
         await prisma.$disconnect();
         logger.log('✓ Server shut down successfully');
@@ -71,6 +79,8 @@ async function main() {
         await trafficNewsWorker.close();
         await reliabilityJobService.stop();
         await routingRefreshJobService.stop();
+        await corridorAnalyticsJobService.stop();
+        await disconnectMongoDB();
         await closeRedisConnection();
         await prisma.$disconnect();
         logger.log('✓ Server shut down successfully');
