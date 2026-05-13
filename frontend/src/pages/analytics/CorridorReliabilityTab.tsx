@@ -39,9 +39,7 @@ import Map, {
   Source,
 } from 'react-map-gl'
 import {
-  getCachedCorridorReliability,
   getCachedSegments,
-  setCachedCorridorReliability,
   setCachedSegments,
 } from '@/utils/segmentCache'
 
@@ -366,19 +364,6 @@ export const CorridorReliabilityTab: React.FC = () => {
       setLoading(true)
       setError(null)
       try {
-        // Try to load from cache first
-        const cachedResult = await getCachedCorridorReliability(
-          timeWindow,
-          sourcePeriod
-        )
-        if (cachedResult && !controller.signal.aborted) {
-          setRows(cachedResult)
-          setLoading(false)
-          // Optionally revalidate in background if needed, 
-          // but for now we follow "don't call again if cached"
-          return
-        }
-
         const result = await fetchReliabilityCorridors(
           timeWindow,
           'buffer_index',
@@ -387,12 +372,9 @@ export const CorridorReliabilityTab: React.FC = () => {
           sourcePeriod,
           controller.signal
         )
-
+ 
         if (!controller.signal.aborted) {
           setRows(result)
-          if (result.length > 0) {
-            await setCachedCorridorReliability(timeWindow, sourcePeriod, result)
-          }
         }
       } catch (fetchError) {
         if (

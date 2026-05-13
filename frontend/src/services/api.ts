@@ -21,6 +21,7 @@ import {
   OlapDrilldownParams,
   OlapDrilldownResponse,
   OlapHeatmapCell,
+  OlapQueryParams,
   PlaceSearchResult,
   PredictionRequestBody,
   PredictionResponse,
@@ -163,16 +164,20 @@ export const analyticsApi = {
 }
 
 export const olapApi = {
-  getHeatmap: (signal?: AbortSignal): Promise<ApiResponse<OlapHeatmapCell[]>> =>
-    axiosInstance.get('/olap/heatmap', { signal }),
+  getHeatmap: (
+    params?: OlapQueryParams,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<OlapHeatmapCell[]>> =>
+    axiosInstance.get('/olap/heatmap', { params, signal }),
 
   getCrossAnalysis: (
+    params?: OlapQueryParams,
     signal?: AbortSignal
   ): Promise<ApiResponse<OlapCrossAnalysisPoint[]>> =>
-    axiosInstance.get('/olap/cross-analysis', { signal }),
+    axiosInstance.get('/olap/cross-analysis', { params, signal }),
 
   getDrilldown: (
-    params?: Pick<OlapDrilldownParams, 'roadName'>,
+    params?: OlapDrilldownParams,
     signal?: AbortSignal
   ): Promise<ApiResponse<OlapDrilldownResponse>> =>
     axiosInstance.get('/olap/drilldown', { params, signal }),

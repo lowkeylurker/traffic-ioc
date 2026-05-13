@@ -52,16 +52,18 @@ export class OlapMartService {
     }
   }
 
-  async getHeatmap(): Promise<Array<[number, string, number]>> {
-    const rows = await prisma.$queryRaw<HeatmapRow[]>`
-      SELECT
+  async getHeatmap(district?: string): Promise<Array<[number, string, number]>> {
+    const rows = await prisma.$queryRawUnsafe<HeatmapRow[]>(
+      `SELECT
         hour_of_day,
         road_name,
         AVG(avg_traffic_index)::float8 AS avg_traffic_index
       FROM mv_olap_traffic_summary
+      ${district ? 'WHERE district = $1' : ''}
       GROUP BY hour_of_day, road_name
-      ORDER BY road_name ASC, hour_of_day ASC
-    `;
+      ORDER BY road_name ASC, hour_of_day ASC`,
+      ...(district ? [district] : [])
+    );
 
     return rows.map((row) => [
       Math.max(0, Math.min(23, Math.round(toFinite(row.hour_of_day, 0)))),
@@ -70,18 +72,20 @@ export class OlapMartService {
     ]);
   }
 
-  async getCrossAnalysis(): Promise<OlapCrossAnalysisPoint[]> {
-    const rows = await prisma.$queryRaw<CrossAnalysisRow[]>`
-      SELECT
+  async getCrossAnalysis(district?: string): Promise<OlapCrossAnalysisPoint[]> {
+    const rows = await prisma.$queryRawUnsafe<CrossAnalysisRow[]>(
+      `SELECT
         road_name,
         AVG(design_capacity)::float8 AS design_capacity,
         AVG(avg_traffic_index)::float8 AS avg_traffic_index,
         AVG(avg_pcu_volume)::float8 AS avg_pcu_volume,
         AVG(avg_delay_seconds)::float8 AS avg_delay_seconds
       FROM mv_olap_traffic_summary
+      ${district ? 'WHERE district = $1' : ''}
       GROUP BY road_name
-      ORDER BY road_name ASC
-    `;
+      ORDER BY road_name ASC`,
+      ...(district ? [district] : [])
+    );
 
     return rows.map((row) => ({
       roadName: row.road_name,
@@ -92,15 +96,17 @@ export class OlapMartService {
     }));
   }
 
-  async getRoadDelayDrilldown(): Promise<OlapDrilldownPoint[]> {
-    const rows = await prisma.$queryRaw<DrilldownRow[]>`
-      SELECT
+  async getRoadDelayDrilldown(district?: string): Promise<OlapDrilldownPoint[]> {
+    const rows = await prisma.$queryRawUnsafe<DrilldownRow[]>(
+      `SELECT
         road_name AS label,
         AVG(avg_delay_seconds)::float8 AS avg_delay_seconds
       FROM mv_olap_traffic_summary
+      ${district ? 'WHERE district = $1' : ''}
       GROUP BY road_name
-      ORDER BY avg_delay_seconds DESC, road_name ASC
-    `;
+      ORDER BY avg_delay_seconds DESC, road_name ASC`,
+      ...(district ? [district] : [])
+    );
 
     return rows.map((row) => ({
       label: row.label,
@@ -108,16 +114,19 @@ export class OlapMartService {
     }));
   }
 
-  async getSegmentDelayDrilldown(roadName: string): Promise<OlapDrilldownPoint[]> {
-    const rows = await prisma.$queryRaw<DrilldownRow[]>`
-      SELECT
+  async getSegmentDelayDrilldown(roadName: string, district?: string): Promise<OlapDrilldownPoint[]> {
+    const rows = await prisma.$queryRawUnsafe<DrilldownRow[]>(
+      `SELECT
         segment_id::text AS label,
         AVG(avg_delay_seconds)::float8 AS avg_delay_seconds
       FROM mv_olap_traffic_summary
-      WHERE road_name = ${roadName}
+      WHERE road_name = $1
+      ${district ? 'AND district = $2' : ''}
       GROUP BY segment_id
-      ORDER BY avg_delay_seconds DESC, segment_id ASC
-    `;
+      ORDER BY avg_delay_seconds DESC, segment_id ASC`,
+      roadName,
+      ...(district ? [district] : [])
+    );
 
     return rows.map((row) => ({
       label: row.label,

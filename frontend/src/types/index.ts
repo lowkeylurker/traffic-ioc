@@ -389,8 +389,13 @@ export interface OlapCrossAnalysisPoint {
 
 export type OlapDrillLevel = 'road' | 'segment'
 
+export interface OlapQueryParams {
+  district?: string
+}
+
 export interface OlapDrilldownParams {
   roadName?: string
+  district?: string
 }
 
 export interface OlapDrilldownPoint {

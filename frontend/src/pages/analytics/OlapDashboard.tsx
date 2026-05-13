@@ -11,42 +11,70 @@ import {
 } from '@/types'
 import { ReloadOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Card, Typography } from 'antd'
+import { Button, Card, Select, Typography } from 'antd'
 import React, { useState } from 'react'
 import './OlapDashboard.css'
 
 const { Text, Title } = Typography
 
+const DISTRICTS = [
+  'Quận 1',
+  'Quận 3',
+  'Quận 4',
+  'Quận 5',
+  'Quận 6',
+  'Quận 7',
+  'Quận 8',
+  'Quận 10',
+  'Quận 11',
+  'Quận 12',
+  'Quận Bình Thạnh',
+  'Quận Gò Vấp',
+  'Quận Phú Nhuận',
+  'Quận Tân Bình',
+  'Quận Tân Phú',
+  'Quận Bình Tân',
+  'TP Thủ Đức',
+  'Huyện Củ Chi',
+  'Huyện Hóc Môn',
+  'Huyện Bình Chánh',
+  'Huyện Nhà Bè',
+  'Huyện Cần Giờ',
+]
+
 export const OlapDashboard: React.FC = () => {
   const [bubbleMetric, setBubbleMetric] = useState<'pcu' | 'delay'>('pcu')
   const [activeRoadName, setActiveRoadName] = useState<string | null>(null)
+  const [district, setDistrict] = useState<string | undefined>('Quận 1')
 
   const heatmapQuery = useQuery({
-    queryKey: ['olap-heatmap-v2'],
+    queryKey: ['olap-heatmap-v2', district],
     queryFn: async (): Promise<OlapHeatmapCell[]> => {
-      const response = await olapApi.getHeatmap()
+      const response = await olapApi.getHeatmap({ district })
       return response.data ?? []
     },
     staleTime: 30_000,
   })
 
   const crossAnalysisQuery = useQuery({
-    queryKey: ['olap-cross-analysis-v2'],
+    queryKey: ['olap-cross-analysis-v2', district],
     queryFn: async (): Promise<OlapCrossAnalysisPoint[]> => {
-      const response = await olapApi.getCrossAnalysis()
+      const response = await olapApi.getCrossAnalysis({ district })
       return response.data ?? []
     },
     staleTime: 30_000,
   })
 
   const drilldownQuery = useQuery({
-    queryKey: ['olap-drilldown-v2', activeRoadName],
+    queryKey: ['olap-drilldown-v2', activeRoadName, district],
     queryFn: async (): Promise<{
       level: OlapDrillLevel
       points: OlapDrilldownPoint[]
     }> => {
       const response = await olapApi.getDrilldown(
-        activeRoadName ? { roadName: activeRoadName } : undefined
+        activeRoadName
+          ? { roadName: activeRoadName, district }
+          : { district }
       )
       return (
         response.data ?? {
@@ -73,6 +101,7 @@ export const OlapDashboard: React.FC = () => {
   const handleReset = () => {
     setBubbleMetric('pcu')
     setActiveRoadName(null)
+    setDistrict('Quận 1')
   }
 
   if (isLoading) {
@@ -99,9 +128,27 @@ export const OlapDashboard: React.FC = () => {
             </Text>
           </div>
 
-          <Button icon={<ReloadOutlined />} onClick={handleReset}>
-            Đặt lại biểu đồ
-          </Button>
+          <div className="olap-toolbar-actions">
+            <div className="olap-filter-item">
+              <Text strong style={{ marginRight: 8 }}>
+                Khu vực:
+              </Text>
+              <Select
+                placeholder="Chọn quận/huyện"
+                style={{ width: 180 }}
+                value={district}
+                onChange={setDistrict}
+                allowClear
+                options={[
+                  { label: 'Tất cả khu vực', value: undefined },
+                  ...DISTRICTS.map((d) => ({ label: d, value: d })),
+                ]}
+              />
+            </div>
+            <Button icon={<ReloadOutlined />} onClick={handleReset}>
+              Đặt lại biểu đồ
+            </Button>
+          </div>
         </div>
       </Card>
 

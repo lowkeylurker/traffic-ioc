@@ -21,6 +21,18 @@
   min-width: 280px;
 }
 
+.olap-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.olap-filter-item {
+  display: flex;
+  align-items: center;
+}
+
 .olap-filter-grid {
   margin-top: 16px;
   display: grid;

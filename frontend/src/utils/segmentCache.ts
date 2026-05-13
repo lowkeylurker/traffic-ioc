@@ -1,6 +1,5 @@
 import {
   CorridorAnalyticsOption,
-  CorridorReliabilityData,
   SegmentResponse,
   TrafficStatus,
 } from '@/types'
@@ -11,7 +10,6 @@ const STORE_NAME = 'app-cache'
 const SEGMENTS_KEY = 'segments'
 const TRAFFIC_STATUS_KEY = 'traffic-status'
 const CORRIDORS_KEY = 'corridors'
-const CORRIDOR_RELIABILITY_KEY = 'corridor-reliability'
 
 type TimestampedCache<T> = {
   cachedAt: number
@@ -259,71 +257,3 @@ export const setCachedCorridors = async (
   }
 }
 
-export const getCachedCorridorReliability = async (
-  timeWindow: string,
-  sourcePeriod: string
-): Promise<CorridorReliabilityData[] | null> => {
-  if (typeof window === 'undefined' || !window.indexedDB) {
-    return null
-  }
-
-  const key = `${CORRIDOR_RELIABILITY_KEY}-${timeWindow}-${sourcePeriod}`
-
-  try {
-    const db = await openCacheDb()
-    return await new Promise<CorridorReliabilityData[] | null>(
-      (resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readonly')
-        const store = tx.objectStore(STORE_NAME)
-        const request = store.get(key)
-
-        request.onsuccess = () => {
-          const value = request.result
-          resolve(Array.isArray(value) ? value : null)
-        }
-        request.onerror = () => reject(request.error)
-        tx.oncomplete = () => db.close()
-        tx.onerror = () => reject(tx.error)
-      }
-    )
-  } catch (error) {
-    console.warn(
-      'Unable to read corridor reliability cache from IndexedDB:',
-      error
-    )
-    return null
-  }
-}
-
-export const setCachedCorridorReliability = async (
-  timeWindow: string,
-  sourcePeriod: string,
-  data: CorridorReliabilityData[]
-): Promise<void> => {
-  if (typeof window === 'undefined' || !window.indexedDB) {
-    return
-  }
-
-  const key = `${CORRIDOR_RELIABILITY_KEY}-${timeWindow}-${sourcePeriod}`
-
-  try {
-    const db = await openCacheDb()
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite')
-      const store = tx.objectStore(STORE_NAME)
-      store.put(data, key)
-
-      tx.oncomplete = () => {
-        db.close()
-        resolve()
-      }
-      tx.onerror = () => reject(tx.error)
-      tx.onabort = () => reject(tx.error)
-    })
-  } catch (error) {
-    console.warn(
-      'Unable to write corridor reliability cache to IndexedDB:',
-      error
-    )
-  }
-}

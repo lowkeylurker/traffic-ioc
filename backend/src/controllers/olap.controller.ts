@@ -3,18 +3,20 @@ import { olapMartService } from '../services/olap-mart.service';
 import { ResponseUtil } from '../utils/response';
 
 export class OlapController {
-  async getHeatmap(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getHeatmap(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await olapMartService.getHeatmap();
+      const district = req.query.district ? String(req.query.district) : undefined;
+      const data = await olapMartService.getHeatmap(district);
       res.json(ResponseUtil.success(data, 'OLAP heatmap data retrieved successfully'));
     } catch (error) {
       next(error);
     }
   }
 
-  async getCrossAnalysis(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getCrossAnalysis(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await olapMartService.getCrossAnalysis();
+      const district = req.query.district ? String(req.query.district) : undefined;
+      const data = await olapMartService.getCrossAnalysis(district);
       res.json(ResponseUtil.success(data, 'OLAP cross-analysis data retrieved successfully'));
     } catch (error) {
       next(error);
@@ -24,9 +26,10 @@ export class OlapController {
   async getDrilldown(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const roadName = String(req.query.roadName || '').trim();
+      const district = req.query.district ? String(req.query.district) : undefined;
 
       if (roadName) {
-        const points = await olapMartService.getSegmentDelayDrilldown(roadName);
+        const points = await olapMartService.getSegmentDelayDrilldown(roadName, district);
         res.json(
           ResponseUtil.success(
             { level: 'segment', roadName, points },
@@ -36,7 +39,7 @@ export class OlapController {
         return;
       }
 
-      const points = await olapMartService.getRoadDelayDrilldown();
+      const points = await olapMartService.getRoadDelayDrilldown(district);
       res.json(ResponseUtil.success({ level: 'road', points }, 'OLAP road drilldown data retrieved successfully'));
     } catch (error) {
       next(error);
