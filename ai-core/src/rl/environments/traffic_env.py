@@ -65,7 +65,9 @@ class TrafficForecastingEnv(gym.Env):
 
         # 1. Accuracy Bonus (Thưởng đúng lớp, nhân trọng số lớp hiếm)
         if diff == 0:
-            components["accuracy_bonus"] = 20.0 * target_weight
+            # V9.0: Gấp đôi phần thưởng cho việc đoán đúng các lớp kẹt xe (3, 4, 5)
+            base_bonus = 40.0 if int(target) >= 3 else 20.0
+            components["accuracy_bonus"] = base_bonus * target_weight
         
         # 2. Adjacency Constraint (Sai lệch tối đa 1 lớp)
         if diff == 1:

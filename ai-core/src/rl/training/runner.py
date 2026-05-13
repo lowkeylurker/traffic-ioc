@@ -14,7 +14,7 @@ import numpy as np
 import torch
 from sklearn.preprocessing import LabelEncoder
 import logging
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
 from torch.utils.tensorboard import SummaryWriter
 
 from src.features.sliding_window import find_valid_window_starts
@@ -96,7 +96,7 @@ def _load_default_rl_training_config(mode: str) -> RLTrainingConfig:
     corridor_ids = _parse_corridor_ids(os.getenv("RL_CORRIDOR_IDS"))
     peak_hours_only = os.getenv("RL_PEAK_HOURS_ONLY", "1") == "1"
     batch_size = int(os.getenv("RL_BATCH_SIZE", "64"))
-    episodes = int(os.getenv("RL_EPISODES", "20"))
+    episodes = int(os.getenv("RL_EPISODES", "50"))
     max_steps_per_episode = int(os.getenv("RL_MAX_STEPS_PER_EPISODE", "10000"))
     window_size = int(os.getenv("RL_WINDOW_SIZE", "12"))
     eval_ratio = float(os.getenv("RL_EVAL_RATIO", "0.2"))
@@ -117,7 +117,7 @@ def _load_default_rl_training_config(mode: str) -> RLTrainingConfig:
 
     epsilon_min = float(os.getenv("RL_EPSILON_MIN", "0.05"))
     epsilon_decay = float(os.getenv("RL_EPSILON_DECAY", "0.98"))  # Slower decay for better exploration
-    learning_rate = float(os.getenv("RL_LEARNING_RATE", "0.00005")) # Conservative LR
+    learning_rate = float(os.getenv("RL_LEARNING_RATE", "0.0001")) # Increased for better adaptation in V9.0
     warmup_steps = int(os.getenv("RL_WARMUP_STEPS", "3000"))
     replay_capacity = int(os.getenv("RL_REPLAY_CAPACITY", "200000"))
     target_update = int(os.getenv("RL_TARGET_UPDATE", "10"))
@@ -488,7 +488,39 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
         print(f"  - Class {cls}: Train={train_counts[cls]:>6} | Val={eval_counts[cls]:>6}")
     print("-" * 50)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+    if config.use_window_balancing:
+        print("⚖️ Kích hoạt Cân bằng Cửa sổ (50/50 Binary Sampling)...")
+        # Get targets only for the training indices
+        train_targets = all_targets[train_indices]
+        
+        # Identify indices for congested vs non-congested classes
+        congested_mask = (train_targets >= 3)
+        non_congested_mask = ~congested_mask
+        
+        total_congested = np.sum(congested_mask)
+        total_non_congested = np.sum(non_congested_mask)
+        
+        if total_congested > 0 and total_non_congested > 0:
+            # Create weights: weight = 1.0 / count_of_that_category
+            # This ensures that both categories have equal probability of being sampled
+            weights = np.zeros_like(train_targets, dtype=float)
+            weights[congested_mask] = 1.0 / total_congested
+            weights[non_congested_mask] = 1.0 / total_non_congested
+            
+            # Weighted sampler for the train_dataset
+            sampler = WeightedRandomSampler(
+                weights=torch.DoubleTensor(weights),
+                num_samples=len(weights),
+                replacement=True
+            )
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler)
+            print(f"✅ Balanced Sampler created: Congested={total_congested} | Non-Congested={total_non_congested}")
+        else:
+            print("⚠️ Warning: One of the binary classes has 0 samples. Falling back to default loader.")
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    else:
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        
     eval_loader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=False)
 
     # --- DEVICE & ENVIRONMENT ---
