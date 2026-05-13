@@ -3,7 +3,6 @@
 import {
   AlertOutlined,
   CameraOutlined,
-  CloudOutlined,
   CompassOutlined,
   LineChartOutlined,
   NodeIndexOutlined,
@@ -19,15 +18,12 @@ interface MapControlsProps {
   onCompass?: () => void
   onCamera?: () => void
   onSegmentStatusToggle?: (enabled: boolean) => void
-  onWeatherToggle?: (enabled: boolean) => void
   onIncidentToggle?: (enabled: boolean) => void
   onRoutingToggle?: (enabled: boolean) => void
   showCamera?: boolean
   showRouting?: boolean
-  showWeather?: boolean
 
   defaultSegmentStatusLayerEnabled?: boolean
-  defaultWeatherLayerEnabled?: boolean
   defaultIncidentLayerEnabled?: boolean
 }
 
@@ -37,22 +33,16 @@ export const MapControls: React.FC<MapControlsProps> = ({
   onCompass,
   onCamera,
   onSegmentStatusToggle,
-  onWeatherToggle,
   onIncidentToggle,
   onRoutingToggle,
   showCamera = true,
   showRouting = true,
-  showWeather = true,
 
   defaultSegmentStatusLayerEnabled = true,
-  defaultWeatherLayerEnabled = false,
   defaultIncidentLayerEnabled = false,
 }) => {
   const [segmentStatusLayerEnabled, setSegmentStatusLayerEnabled] = useState(
     defaultSegmentStatusLayerEnabled
-  )
-  const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(
-    defaultWeatherLayerEnabled
   )
   const [incidentLayerEnabled, setIncidentLayerEnabled] = useState(
     defaultIncidentLayerEnabled
@@ -65,10 +55,6 @@ export const MapControls: React.FC<MapControlsProps> = ({
     onSegmentStatusToggle?.(!segmentStatusLayerEnabled)
   }
 
-  const handleWeatherToggle = () => {
-    setWeatherLayerEnabled(!weatherLayerEnabled)
-    onWeatherToggle?.(!weatherLayerEnabled)
-  }
 
   const handleIncidentToggle = () => {
     setIncidentLayerEnabled(!incidentLayerEnabled)
@@ -192,22 +178,6 @@ export const MapControls: React.FC<MapControlsProps> = ({
             />
           </Tooltip>
 
-          {showWeather && (
-            <Tooltip
-              placement="left"
-              title={
-                weatherLayerEnabled ? 'Tắt lớp thời tiết' : 'Bật lớp thời tiết'
-              }
-            >
-              <Button
-                type={weatherLayerEnabled ? 'primary' : 'text'}
-                size="small"
-                icon={<CloudOutlined style={{ fontSize: 18 }} />}
-                onClick={handleWeatherToggle}
-                style={{ width: '100%', textAlign: 'center' }}
-              />
-            </Tooltip>
-          )}
 
           <Tooltip
             placement="left"

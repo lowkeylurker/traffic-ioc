@@ -3,7 +3,6 @@ import { ErrorState, Loading } from '@/components/common'
 import IncidentImpactLayer from '@/components/map/IncidentImpactLayer'
 import { IncidentLayer } from '@/components/map/IncidentLayer'
 import { TrafficMap } from '@/components/map/TrafficMap'
-import WeatherVoronoiLayer from '@/components/map/WeatherVoronoiLayer'
 import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
 import {
@@ -212,8 +211,6 @@ export const DashboardPage: React.FC = () => {
 
   const [segmentStatusLayerEnabled, setSegmentStatusLayerEnabled] =
     useState(true)
-  const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(false)
-  const [weatherLayerLoading, setWeatherLayerLoading] = useState(false)
   const [incidentLayerEnabled, setIncidentLayerEnabled] = useState(true)
   const [selectedIncident, setSelectedIncident] =
     useState<IncidentFeature | null>(null)
@@ -1109,13 +1106,6 @@ export const DashboardPage: React.FC = () => {
         mapRef={mapRef}
         segmentStatusLayerEnabled={segmentStatusLayerEnabled}
       >
-        {weatherLayerEnabled && (
-          <WeatherVoronoiLayer
-            visible={weatherLayerEnabled}
-            mapRef={mapRef}
-            onLoadingChange={setWeatherLayerLoading}
-          />
-        )}
 
         {incidentLayerEnabled && (
           <IncidentLayer
@@ -1166,7 +1156,6 @@ export const DashboardPage: React.FC = () => {
         onZoomOut={handleZoomOut}
         onCompass={handleCompassReset}
         onSegmentStatusToggle={setSegmentStatusLayerEnabled}
-        onWeatherToggle={setWeatherLayerEnabled}
         onIncidentToggle={(enabled) => {
           setIncidentLayerEnabled(enabled)
           if (!enabled) {
@@ -1176,46 +1165,11 @@ export const DashboardPage: React.FC = () => {
         showCamera={false}
         showRouting={false}
         defaultSegmentStatusLayerEnabled={segmentStatusLayerEnabled}
-        defaultWeatherLayerEnabled={weatherLayerEnabled}
         defaultIncidentLayerEnabled={incidentLayerEnabled}
       />
 
       {mapFullscreen && <MapLegend />}
 
-      {weatherLayerEnabled && weatherLayerLoading && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 24,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.18)',
-            backdropFilter: 'blur(6px)',
-            WebkitBackdropFilter: 'blur(6px)',
-            pointerEvents: 'none',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              color: '#F8FAFC',
-              fontSize: 13,
-              fontWeight: 600,
-              padding: '10px 14px',
-              borderRadius: 999,
-              background: 'rgba(15, 23, 42, 0.62)',
-              border: '1px solid rgba(248, 250, 252, 0.18)',
-              boxShadow: '0 10px 24px rgba(2, 6, 23, 0.25)',
-            }}
-          >
-            Đang tải lớp thời tiết...
-          </div>
-        </div>
-      )}
 
       {incidentLayerEnabled && selectedIncident && (
         <div

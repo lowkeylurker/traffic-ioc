@@ -1203,15 +1203,10 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         onMoveEnd={updateViewportBounds}
       >
         {renderedSegmentData &&
-          renderedSegmentData.features.length > 0 &&
-          segmentStatusLayerEnabled && (
-            <Source
-              id="traffic-source"
-              type="geojson"
-              data={renderedSegmentData}
-            >
-              <Layer {...trafficOutlineLayerStyle} />
-              <Layer {...trafficLayerStyle} />
+          renderedSegmentData.features.length > 0 && (
+            <Source id="traffic-source" type="geojson" data={renderedSegmentData}>
+              {segmentStatusLayerEnabled && <Layer {...trafficOutlineLayerStyle} />}
+              {segmentStatusLayerEnabled && <Layer {...trafficLayerStyle} />}
             </Source>
           )}
 
@@ -1698,10 +1693,11 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
                         color: popUpData.statusColor,
                       }}
                     >
-                      {popUpData.status}
-                    </span>
-                  </div>
+                    {popUpData.status}
+                  </span>
                 </div>
+              </div>
+
 
                 <div
                   style={{
