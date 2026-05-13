@@ -48,33 +48,41 @@ class TrafficForecastingEnv(gym.Env):
         )
 
     def _calculate_reward_details(self, action, target):
+        """
+        Reward System V7.0: Strict Adjacency and Binary Boundary Enforcement.
+        """
         target_weight = float(self.class_weights[int(target)])
-        severe_class_idx = NUM_CLASSES - 1
+        
+        is_true_congested = (target >= 3)
+        is_pred_congested = (action >= 3)
+        diff = abs(int(action) - int(target))
+        
         components = {
-            "match_bonus": 0.0,
-            "near_miss_penalty": 0.0,
-            "far_miss_penalty": 0.0,
-            "severe_mismatch_penalty": 0.0,
+            "accuracy_bonus": 0.0,
+            "adjacency_penalty": 0.0,
+            "binary_error_penalty": 0.0,
         }
 
-        if action == target:
-            # Tăng thưởng cho việc đoán đúng các lớp thấp để tránh Agent bỏ qua chúng
-            if target <= 2:
-                components["match_bonus"] = 15.0 * target_weight
+        # 1. Accuracy Bonus (Thưởng đúng lớp, nhân trọng số lớp hiếm)
+        if diff == 0:
+            components["accuracy_bonus"] = 20.0 * target_weight
+        
+        # 2. Adjacency Constraint (Sai lệch tối đa 1 lớp)
+        if diff == 1:
+            # Sai 1 lớp: Tăng mức phạt để Agent thận trọng hơn (V8.0)
+            components["adjacency_penalty"] = -8.0 
+        elif diff > 1:
+            # Sai > 1 lớp: PHẠT CỰC NẶNG (V8.0)
+            components["adjacency_penalty"] = -20.0 * diff
+
+        # 3. Binary Boundary & Directional Bias (Quy tắc Kẹt / Không Kẹt)
+        if is_true_congested != is_pred_congested:
+            if is_true_congested and not is_pred_congested:
+                # Thực tế KẸT nhưng báo KHÔNG KẸT (Missed Jam) -> RỦI RO CHIẾN LƯỢC (V8.0)
+                components["binary_error_penalty"] = -60.0
             else:
-                components["match_bonus"] = 10.0 * target_weight
-        else:
-            diff = action - target
-            if abs(diff) == 1:
-                components["near_miss_penalty"] = -1.0 * target_weight # Giảm phạt sai lệch gần
-            elif abs(diff) >= 2:
-                components["far_miss_penalty"] = -3.0 * abs(diff) * target_weight # Giảm phạt sai lệch xa
-                
-                # Giảm bớt hình phạt 'tử hình' để Agent dám dự báo lớp thấp
-                if target >= severe_class_idx - 1 and action <= 1:
-                    components["severe_mismatch_penalty"] = -10.0 * target_weight
-                elif target <= 1 and action >= severe_class_idx - 1:
-                    components["severe_mismatch_penalty"] = -5.0
+                # Thực tế KHÔNG Kẹt nhưng báo KẸT (False Alarm) -> CHẤP NHẬN ĐƯỢC (V8.0)
+                components["binary_error_penalty"] = -15.0
 
         raw_reward = float(sum(components.values()))
         scaled_reward = float(np.clip(self.reward_scale * raw_reward, -self.reward_clip, self.reward_clip))

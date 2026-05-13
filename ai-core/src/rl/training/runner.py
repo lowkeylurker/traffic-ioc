@@ -78,7 +78,7 @@ class RLTrainingConfig:
     class_balance_synthetic_rows_class5: int = 20_000
     class_balance_enable_ctgan: bool = True
     reward_scale: float = 1.0
-    reward_clip: float = 30.0
+    reward_clip: float = 150.0
     run_id: str | None = None
     prediction_horizon_minutes: int = 15
     checkpoint_path: str | None = None
@@ -115,20 +115,20 @@ def _load_default_rl_training_config(mode: str) -> RLTrainingConfig:
     use_window_balancing_default = "1" if mode == "pure" else "0"
     use_class_balance_pipeline_default = "1" if mode == "pure" else "0"
 
-    epsilon_min = float(os.getenv("RL_EPSILON_MIN", epsilon_min_default))
-    epsilon_decay = float(os.getenv("RL_EPSILON_DECAY", epsilon_decay_default))
-    learning_rate = float(os.getenv("RL_LEARNING_RATE", learning_rate_default))
-    warmup_steps = int(os.getenv("RL_WARMUP_STEPS", warmup_steps_default))
-    replay_capacity = int(os.getenv("RL_REPLAY_CAPACITY", replay_capacity_default))
+    epsilon_min = float(os.getenv("RL_EPSILON_MIN", "0.05"))
+    epsilon_decay = float(os.getenv("RL_EPSILON_DECAY", "0.98"))  # Slower decay for better exploration
+    learning_rate = float(os.getenv("RL_LEARNING_RATE", "0.00005")) # Conservative LR
+    warmup_steps = int(os.getenv("RL_WARMUP_STEPS", "3000"))
+    replay_capacity = int(os.getenv("RL_REPLAY_CAPACITY", "200000"))
     target_update = int(os.getenv("RL_TARGET_UPDATE", "10"))
-    early_stop_patience = int(os.getenv("RL_EARLY_STOP_PATIENCE", "0"))
-    early_stop_min_delta = float(os.getenv("RL_EARLY_STOP_MIN_DELTA", "0.0"))
+    early_stop_patience = int(os.getenv("RL_EARLY_STOP_PATIENCE", "15")) # More patient
+    early_stop_min_delta = float(os.getenv("RL_EARLY_STOP_MIN_DELTA", "0.001"))
     early_stop_eval_interval = int(os.getenv("RL_EARLY_STOP_EVAL_INTERVAL", "1"))
-    early_stop_warmup_episodes = int(os.getenv("RL_EARLY_STOP_WARMUP_EPISODES", "0"))
+    early_stop_warmup_episodes = int(os.getenv("RL_EARLY_STOP_WARMUP_EPISODES", "25"))
     use_double_dqn = os.getenv("RL_USE_DOUBLE_DQN", "1") == "1"
-    use_class_aware_reward = os.getenv("RL_USE_CLASS_AWARE_REWARD", use_class_aware_reward_default) == "1"
-    use_window_balancing = os.getenv("RL_USE_WINDOW_BALANCING", use_window_balancing_default) == "1"
-    use_class_balance_pipeline = os.getenv("RL_USE_CLASS_BALANCE_PIPELINE", use_class_balance_pipeline_default) == "1"
+    use_class_aware_reward = os.getenv("RL_USE_CLASS_AWARE_REWARD", "1") == "1"
+    use_window_balancing = os.getenv("RL_USE_WINDOW_BALANCING", "1") == "1"
+    use_class_balance_pipeline = os.getenv("RL_USE_CLASS_BALANCE_PIPELINE", "1") == "1"
     class_balance_output_path = os.getenv("RL_CLASS_BALANCE_OUT")
     class_balance_report_path = os.getenv("RL_CLASS_BALANCE_REPORT")
     class_balance_seed = int(os.getenv("RL_CLASS_BALANCE_SEED", str(seed)))
@@ -136,7 +136,7 @@ def _load_default_rl_training_config(mode: str) -> RLTrainingConfig:
     class_balance_synthetic_rows_class5 = int(os.getenv("RL_CLASS_BALANCE_SYNTHETIC_ROWS_CLASS5", "20000"))
     class_balance_enable_ctgan = os.getenv("RL_CLASS_BALANCE_ENABLE_CTGAN", "1") == "1"
     reward_scale = float(os.getenv("RL_REWARD_SCALE", "1.0"))
-    reward_clip = float(os.getenv("RL_REWARD_CLIP", "30.0"))
+    reward_clip = float(os.getenv("RL_REWARD_CLIP", "150.0"))
     prediction_horizon_minutes = int(os.getenv("RL_PREDICTION_HORIZON_MINUTES", "15"))
     run_id = os.getenv("RL_RUN_ID", f"{mode}_seed{seed}_h{prediction_horizon_minutes}")
 
@@ -350,14 +350,17 @@ def _build_reward_class_weights(train_dataset: TrafficDataset | Subset) -> np.nd
 
     for i in range(NUM_CLASSES):
         if counts[i] > 0:
-            # Use sqrt for smoothing, and clip to avoid extreme outliers
-            raw_w = np.sqrt(focus_max / float(counts[i]))
-            # Apply a multiplier for severe congestion classes (3, 4, 5) to emphasize them
-            if i >= 3:
-                raw_w *= 1.1
-            weights[i] = float(np.clip(raw_w, 1.0, 2.5))
+            # Use smooth inverse frequency with focus on rare classes
+            raw_w = (focus_max / float(counts[i])) ** 0.4 
+            # Apply a multiplier for severe congestion classes (3, 4, 5)
+            # Extra boost for Class 3 (boundary) in V8.0
+            if i == 3:
+                raw_w *= 1.5
+            elif i > 3:
+                raw_w *= 1.2
+            weights[i] = float(np.clip(raw_w, 1.0, 4.0))
         else:
-            weights[i] = 2.0
+            weights[i] = 3.0
 
     return weights.astype(np.float32)
 

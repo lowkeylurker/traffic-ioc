@@ -63,10 +63,9 @@ def train_rl_agent(
         episode_preds = []
         episode_targets = []
         episode_reward_breakdown = {
-            "match_bonus": 0.0,
-            "near_miss_penalty": 0.0,
-            "far_miss_penalty": 0.0,
-            "severe_mismatch_penalty": 0.0,
+            "accuracy_bonus": 0.0,
+            "adjacency_penalty": 0.0,
+            "binary_error_penalty": 0.0,
         }
         q_values_buffer = []
         target_q_values_buffer = []
@@ -148,12 +147,18 @@ def train_rl_agent(
 
         ep_time = time.time() - start_time
 
+        avg_bonus = episode_reward_breakdown["accuracy_bonus"] / max(1, step_count)
+        avg_adj_penalty = episode_reward_breakdown["adjacency_penalty"] / max(1, step_count)
+        avg_bin_penalty = episode_reward_breakdown["binary_error_penalty"] / max(1, step_count)
+
         print(
             f"🎬 Episode {episode + 1:03d}/{num_episodes} | Steps: {step_count} | "
             f"Time: {ep_time:.1f}s | Reward: {total_reward:8.1f} | "
             f"Avg Loss: {avg_loss:.4f} | Epsilon: {agent.epsilon:.3f} | "
             f"Q: {mean_q_value:.4f} | TD: {mean_td_error:.4f}"
         )
+        print(f"💰 Reward Breakdown (avg/step) | Bonus: {avg_bonus:+.2f} | Adj Pen: {avg_adj_penalty:+.2f} | Bin Pen: {avg_bin_penalty:+.2f}")
+
         # Bổ sung log phân bổ hành động (Class counts)
         action_counts_str = " | ".join([f"C{i}:{int(action_counts[i])}" for i in range(NUM_CLASSES)])
         print(f"📊 Action Distribution: {action_counts_str}")
