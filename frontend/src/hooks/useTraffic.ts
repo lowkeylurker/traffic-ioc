@@ -7,7 +7,6 @@ import {
   ComparisonDataPoint,
   ComparisonMetric,
   ComparisonScopeType,
-  CorridorAnalyticsOption,
   CorridorDashboardData,
   GeoJSONFeature,
   RoadOption,
@@ -439,13 +438,19 @@ const emptyCorridorDashboard: CorridorDashboardData = {
 }
 
 export const useCorridorOptions = () => {
-  const [corridors, setCorridors] = useState<CorridorAnalyticsOption[]>([])
+  const { corridorOptions: corridors, setCorridorOptions: setCorridors } =
+    useAppStore()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
     const fetchCorridors = async () => {
+      // Avoid redundant fetching if global state is already populated
+      if (corridors.length > 0) {
+        return
+      }
+
       setLoading(true)
       try {
         // Try reading from cache first
@@ -480,7 +485,7 @@ export const useCorridorOptions = () => {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [corridors.length, setCorridors])
 
   return { corridors, loading, error }
 }

@@ -1,12 +1,13 @@
 // Global App Store (Zustand)
 
-import { Alert, SegmentResponse, TrafficStatus } from '@/types'
+import { Alert, CorridorAnalyticsOption, SegmentResponse, TrafficStatus } from '@/types'
 import { create } from 'zustand'
 
 interface AppStore {
   // State
   segmentData: SegmentResponse | null
   trafficStatus: TrafficStatus[]
+  corridorOptions: CorridorAnalyticsOption[]
   alerts: Alert[]
   selectedSegmentId: number | null
   isLoading: boolean
@@ -15,6 +16,7 @@ interface AppStore {
   // Actions
   setSegmentData: (segmentData: SegmentResponse | null) => void
   setTrafficStatus: (status: TrafficStatus[]) => void
+  setCorridorOptions: (corridors: CorridorAnalyticsOption[]) => void
   setAlerts: (alerts: Alert[]) => void
   selectSegment: (segmentId: number | null) => void
   setLoading: (loading: boolean) => void
@@ -26,6 +28,7 @@ export const useAppStore = create<AppStore>((set) => ({
   // Initial State
   segmentData: null,
   trafficStatus: [],
+  corridorOptions: [],
   alerts: [],
   selectedSegmentId: null,
   isLoading: false,
@@ -34,6 +37,7 @@ export const useAppStore = create<AppStore>((set) => ({
   // Actions
   setSegmentData: (segmentData) => set({ segmentData }),
   setTrafficStatus: (trafficStatus) => set({ trafficStatus }),
+  setCorridorOptions: (corridorOptions) => set({ corridorOptions }),
   setAlerts: (alerts) => set({ alerts }),
   selectSegment: (selectedSegmentId) => set({ selectedSegmentId }),
   setLoading: (isLoading) => set({ isLoading }),
@@ -42,6 +46,7 @@ export const useAppStore = create<AppStore>((set) => ({
     set({
       segmentData: null,
       trafficStatus: [],
+      corridorOptions: [],
       alerts: [],
       selectedSegmentId: null,
       isLoading: false,

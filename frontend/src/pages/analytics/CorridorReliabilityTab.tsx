@@ -38,6 +38,12 @@ import Map, {
   NavigationControl,
   Source,
 } from 'react-map-gl'
+import {
+  getCachedCorridorReliability,
+  getCachedSegments,
+  setCachedCorridorReliability,
+  setCachedSegments,
+} from '@/utils/segmentCache'
 
 const { Text } = Typography
 
@@ -315,14 +321,22 @@ export const CorridorReliabilityTab: React.FC = () => {
 
     const loadSegmentRoadKeys = async () => {
       try {
-        const response = await mapApi.getSegments()
+        let segments = await getCachedSegments()
 
-        if (!response.success || !response.data || controller.signal.aborted) {
+        if (!segments) {
+          const response = await mapApi.getSegments()
+          if (response.success && response.data) {
+            segments = response.data
+            await setCachedSegments(segments)
+          }
+        }
+
+        if (!segments || controller.signal.aborted) {
           return
         }
 
         const lookup: Record<string, string> = {}
-        response.data.features.forEach((feature: GeoJSONFeature) => {
+        segments.features.forEach((feature: GeoJSONFeature) => {
           const segmentId = String(feature.properties.segmentId)
           const roadKey = feature.properties.roadKey
           if (segmentId && roadKey) {
@@ -352,6 +366,19 @@ export const CorridorReliabilityTab: React.FC = () => {
       setLoading(true)
       setError(null)
       try {
+        // Try to load from cache first
+        const cachedResult = await getCachedCorridorReliability(
+          timeWindow,
+          sourcePeriod
+        )
+        if (cachedResult && !controller.signal.aborted) {
+          setRows(cachedResult)
+          setLoading(false)
+          // Optionally revalidate in background if needed, 
+          // but for now we follow "don't call again if cached"
+          return
+        }
+
         const result = await fetchReliabilityCorridors(
           timeWindow,
           'buffer_index',
@@ -360,7 +387,13 @@ export const CorridorReliabilityTab: React.FC = () => {
           sourcePeriod,
           controller.signal
         )
-        setRows(result)
+
+        if (!controller.signal.aborted) {
+          setRows(result)
+          if (result.length > 0) {
+            await setCachedCorridorReliability(timeWindow, sourcePeriod, result)
+          }
+        }
       } catch (fetchError) {
         if (
           fetchError instanceof Error &&
@@ -1329,7 +1362,7 @@ export const CorridorReliabilityTab: React.FC = () => {
                         initialViewState={{
                           latitude: 10.7769,
                           longitude: 106.7009,
-                          zoom: 11.3,
+                          zoom: 12.2,
                         }}
                         mapStyle={mapStyle}
                         mapboxAccessToken={mapboxToken}
