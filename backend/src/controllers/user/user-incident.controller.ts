@@ -77,34 +77,6 @@ export class UserIncidentController {
     }
   }
 
-  async updateOwnReport(req: AuthedRequest, res: Response, _next: NextFunction) {
-    try {
-      const reporterId = req.auth?.userId;
-      if (!reporterId) {
-        return res.status(401).json(ResponseUtil.error('Authentication required', 401));
-      }
-
-      const { id } = req.params;
-      const incidentType = req.body.incidentType as string | undefined;
-
-      let imageUrl: string | null | undefined;
-      if (req.file?.buffer) {
-        const safeName = `${Date.now()}-${reporterId}`;
-        imageUrl = await uploadIncidentImage(req.file.buffer, safeName);
-      }
-
-      await userIncidentService.updateOwnReport({
-        incidentId: id,
-        reporterId,
-        incidentType,
-        imageUrl,
-      });
-
-      return res.json(ResponseUtil.success(null, 'Report updated successfully'));
-    } catch (error) {
-      return res.status(400).json(ResponseUtil.badRequest((error as Error).message));
-    }
-  }
 
   async getOwnReports(req: AuthedRequest, res: Response, _next: NextFunction) {
     try {

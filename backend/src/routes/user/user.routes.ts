@@ -15,10 +15,6 @@ router.post('/report', authMiddleware, reportRateLimit, imageUpload.single('imag
   userIncidentController.submitReport(req, res, next)
 );
 
-// PATCH /api/v1/user/report/:id (owner only, pending only)
-router.patch('/report/:id', authMiddleware, imageUpload.single('image'), (req, res, next) =>
-  userIncidentController.updateOwnReport(req, res, next)
-);
 
 // GET /api/v1/user/reports/me (owner reports)
 router.get('/reports/me', authMiddleware, (req, res, next) => userIncidentController.getOwnReports(req, res, next));

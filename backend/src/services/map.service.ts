@@ -379,33 +379,6 @@ export class MapService {
     }
   }
 
-  /**
-   * Lấy danh sách tất cả đoạn đường dưới dạng GeoJSON
-   */
-  async getSegments(): Promise<any[]> {
-    try {
-      logger.log('Fetching all segments with GeoJSON');
-
-      const result = await query(`
-        SELECT
-          segment_key        AS "segmentId",
-          segment_id_source::text AS "segmentName",
-          ST_AsGeoJSON(geometry_linestring)::json AS geometry,
-          length_m           AS "numLanes",
-          is_one_way         AS "speedLimit"
-        FROM dim_segment
-        WHERE geometry_linestring IS NOT NULL
-        ORDER BY segment_key
-        LIMIT 5000
-      `);
-
-      logger.log(`Retrieved ${result.rows.length} segments`);
-      return result.rows;
-    } catch (error) {
-      logger.error('Error fetching segments', error);
-      throw error;
-    }
-  }
 
   /**
    * Lấy danh sách tuyến đường
@@ -492,50 +465,6 @@ export class MapService {
     }
   }
 
-  /**
-   * Lấy trạng thái của một đoạn đường cụ thể
-   */
-  async getSegmentStatus(segmentId: number): Promise<TrafficStatus | null> {
-    try {
-      logger.log(`Fetching status for segment ${segmentId}`);
-
-      const result = await query(
-        `
-        SELECT
-          s.segment_key          AS "segmentId",
-          COALESCE(r.name, s.segment_id_source::text) AS "segmentName",
-          f.current_speed_kmh    AS "currentSpeed",
-          f.current_speed_kmh    AS "avgSpeed",
-          f.los_level            AS "losGrade",
-          f.traffic_index        AS "losScore",
-          f.pcu_volume           AS "pcuValue",
-          NULL::float            AS "occupancyRate",
-          f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp
-        FROM dim_segment s
-        LEFT JOIN dim_way w ON w.way_key = s.way_key
-        LEFT JOIN dim_road r ON r.road_key = w.road_key
-        LEFT JOIN LATERAL (
-          SELECT *
-          FROM fact_traffic_flow ftf
-          WHERE ftf.segment_key = s.segment_key
-            AND ftf.timestamp >= NOW() - INTERVAL '15 minutes'
-            AND ftf.timestamp::date = CURRENT_DATE
-          ORDER BY ftf.timestamp DESC
-          LIMIT 1
-        ) f ON TRUE
-        WHERE s.segment_key = $1
-      `,
-        [segmentId]
-      );
-
-      const result_row = result.rows.length > 0 ? result.rows[0] : null;
-      logger.log(`Segment ${segmentId}: ${result_row ? 'Found' : 'Not found'}`);
-      return result_row as TrafficStatus | null;
-    } catch (error) {
-      logger.error(`Error fetching status for segment ${segmentId}`, error);
-      throw error;
-    }
-  }
 
   /**
    * Lấy danh sách mốc giờ snapshot có dữ liệu
