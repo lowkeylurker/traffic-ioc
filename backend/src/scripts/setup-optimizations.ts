@@ -26,6 +26,8 @@ async function main() {
         EXISTS (
           SELECT 1 FROM bridge_corridor_segment bcs WHERE bcs.segment_key = f.segment_key
         ) AS is_corridor,
+        ST_X(ST_Centroid(s.geometry_linestring)) AS lng,
+        ST_Y(ST_Centroid(s.geometry_linestring)) AS lat,
         ST_Transform(s.geometry_linestring, 3857) AS geom_3857
       FROM fact_traffic_flow f
       JOIN dim_segment s ON f.segment_key = s.segment_key

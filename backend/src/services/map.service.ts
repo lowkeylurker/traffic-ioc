@@ -424,68 +424,76 @@ export class MapService {
       let sql = '';
 
       if (asOf) {
-        queryParams.push(asOf);
-          sql = `
-            WITH latest_flow AS (
-              SELECT DISTINCT ON (segment_key)
-                segment_key, current_speed_kmh, los_level, traffic_index, pcu_volume, timestamp
-              FROM fact_traffic_flow
-              WHERE timestamp IS NOT NULL
-              AND DATE_TRUNC('minute', timestamp) = DATE_TRUNC('minute', $1::timestamptz AT TIME ZONE 'Asia/Ho_Chi_Minh')
-              ORDER BY segment_key, timestamp DESC
-            )
-            SELECT
-              f.segment_key          AS "segmentId",
-              COALESCE(r.name, s.segment_id_source::text) AS "segmentName",
-              r.road_key::text       AS "roadKey",
-              r.name                 AS "roadName",
-              f.current_speed_kmh    AS "currentSpeed",
-              f.current_speed_kmh    AS "avgSpeed",
-              f.los_level            AS "losGrade",
-              f.traffic_index        AS "losScore",
-              f.pcu_volume           AS "pcuValue",
-              NULL::float            AS "occupancyRate",
+        // Use a 15-minute window before the requested 'asOf' time to ensure data coverage
+        // while still using range-based filtering for index performance.
+        const asOfDate = new Date(asOf);
+        const startWindow = new Date(asOfDate.getTime() - 15 * 60 * 1000);
+        
+        queryParams.push(startWindow.toISOString(), asOfDate.toISOString());
+        
+        sql = `
+          WITH latest_flow AS (
+            SELECT DISTINCT ON (f.segment_key)
+              f.segment_key, 
+              f.current_speed_kmh, 
+              f.los_level, 
+              f.traffic_index, 
+              f.pcu_volume, 
+              f.timestamp,
+              COALESCE(r.name, s.segment_id_source::text) AS segment_name,
+              r.road_key::text AS road_key,
+              r.name AS road_name,
               EXISTS (
-                SELECT 1
-                FROM bridge_corridor_segment bcs
-                WHERE bcs.segment_key = f.segment_key
-              )                     AS "isCorridor",
-              f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp,
-              ST_X(ST_Centroid(s.geometry_linestring)) AS "lng",
-              ST_Y(ST_Centroid(s.geometry_linestring)) AS "lat"
-            FROM latest_flow f
-            LEFT JOIN dim_segment s ON f.segment_key = s.segment_key
-            LEFT JOIN dim_way w ON w.way_key = s.way_key
-            LEFT JOIN dim_road r ON r.road_key = w.road_key
-            WHERE s.geometry_linestring IS NOT NULL
-          `;
-        } else {
-          sql = `
-            SELECT
-              f.segment_key          AS "segmentId",
-              COALESCE(r.name, s.segment_id_source::text) AS "segmentName",
-              r.road_key::text       AS "roadKey",
-              r.name                 AS "roadName",
-              f.current_speed_kmh    AS "currentSpeed",
-              f.current_speed_kmh    AS "avgSpeed",
-              f.los_level            AS "losGrade",
-              f.traffic_index        AS "losScore",
-              f.pcu_volume           AS "pcuValue",
-              NULL::float            AS "occupancyRate",
-              EXISTS (
-                SELECT 1
-                FROM bridge_corridor_segment bcs
-                WHERE bcs.segment_key = f.segment_key
-              )                     AS "isCorridor",
-              f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp,
-              ST_X(ST_Centroid(s.geometry_linestring)) AS "lng",
-              ST_Y(ST_Centroid(s.geometry_linestring)) AS "lat"
-            FROM mv_latest_traffic_status f
-            LEFT JOIN dim_segment s ON f.segment_key = s.segment_key
-            LEFT JOIN dim_way w ON w.way_key = s.way_key
-            LEFT JOIN dim_road r ON r.road_key = w.road_key
-            WHERE s.geometry_linestring IS NOT NULL
-          `;
+                SELECT 1 FROM bridge_corridor_segment bcs WHERE bcs.segment_key = f.segment_key
+              ) AS is_corridor,
+              ST_X(ST_Centroid(s.geometry_linestring)) AS lng,
+              ST_Y(ST_Centroid(s.geometry_linestring)) AS lat
+            FROM fact_traffic_flow f
+            JOIN dim_segment s ON f.segment_key = s.segment_key
+            LEFT JOIN dim_way w ON s.way_key = w.way_key
+            LEFT JOIN dim_road r ON w.road_key = r.road_key
+            WHERE f.timestamp >= $1::timestamptz AND f.timestamp <= $2::timestamptz
+            ORDER BY f.segment_key, f.timestamp DESC
+          )
+          SELECT
+            segment_key          AS "segmentId",
+            segment_name         AS "segmentName",
+            road_key             AS "roadKey",
+            road_name            AS "roadName",
+            current_speed_kmh    AS "currentSpeed",
+            current_speed_kmh    AS "avgSpeed",
+            los_level            AS "losGrade",
+            traffic_index        AS "losScore",
+            pcu_volume           AS "pcuValue",
+            NULL::float          AS "occupancyRate",
+            is_corridor          AS "isCorridor",
+            timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp,
+            lng,
+            lat
+          FROM latest_flow;
+        `;
+      } else {
+        // Direct select from MV. Added a time check to ensure we only return recent data
+        // even if the MV hasn't been refreshed in a while.
+        sql = `
+          SELECT
+            f.segment_key          AS "segmentId",
+            f.segment_name         AS "segmentName",
+            f.road_key             AS "roadKey",
+            f.segment_name         AS "roadName", -- Road name is often same as segment name in MV
+            f.current_speed_kmh    AS "currentSpeed",
+            f.current_speed_kmh    AS "avgSpeed",
+            f.los_level            AS "losGrade",
+            f.traffic_index        AS "losScore",
+            f.pcu_volume           AS "pcuValue",
+            NULL::float            AS "occupancyRate",
+            f.is_corridor          AS "isCorridor",
+            f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp,
+            f.lng,
+            f.lat
+          FROM mv_latest_traffic_status f
+          WHERE f.timestamp >= NOW() - INTERVAL '30 minutes';
+        `;
       }
 
       const result = await query(sql, queryParams);
