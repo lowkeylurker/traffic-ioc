@@ -552,7 +552,7 @@ export class MapService {
 
       const result = await query(
         `
-        SELECT DISTINCT timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS snapshot_time
+        SELECT DISTINCT timestamp AS snapshot_time
         FROM fact_traffic_flow
         ${whereClause}
         ORDER BY snapshot_time DESC

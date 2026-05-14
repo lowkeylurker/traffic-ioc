@@ -100,10 +100,8 @@ export const HistoricalQueryPage: React.FC = () => {
   const [filters, setFilters] = useState<
     Omit<HistoryQueryParams, 'page' | 'limit'>
   >({
-    startDateTime: DEFAULT_RANGE[0]
-      .startOf('hour')
-      .format('YYYY-MM-DDTHH:mm:ss'),
-    endDateTime: DEFAULT_RANGE[1].startOf('hour').format('YYYY-MM-DDTHH:mm:ss'),
+    startDateTime: DEFAULT_RANGE[0].format('YYYY-MM-DDTHH:mm:ss'),
+    endDateTime: DEFAULT_RANGE[1].format('YYYY-MM-DDTHH:mm:ss'),
   })
   const [exporting, setExporting] = useState(false)
 
