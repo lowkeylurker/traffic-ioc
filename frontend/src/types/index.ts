@@ -448,6 +448,22 @@ export interface HistoryHotspotPoint {
   trafficIndex: number
 }
 
+export interface HistoryTrendPoint {
+  timestamp: string
+  value: number
+}
+
+export interface HistorySummary {
+  avgSpeedTrend: HistoryTrendPoint[]
+  congestionTrend: HistoryTrendPoint[]
+  totalPcu: number
+  flowEfficiency: number
+  totalDelay: number
+  losStability: number
+  avgSpeed: number
+  worstRoad: string
+}
+
 export interface ForecastData {
   segmentId: number
   predictedSpeed: number

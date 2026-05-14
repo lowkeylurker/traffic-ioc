@@ -13,6 +13,7 @@ import {
   HistoryHotspotPoint,
   HistoryQueryParams,
   HistoryResponse,
+  HistorySummary,
   IncidentCollection,
   IncidentImpactResponse,
   IncidentReportCreateResponse,
@@ -203,6 +204,11 @@ export const historyApi = {
       signal,
       responseType: 'blob',
     }),
+  getSummary: (
+    params: Omit<HistoryQueryParams, 'page' | 'limit'>,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<HistorySummary>> =>
+    axiosInstance.get('/history/summary', { params, signal }),
 }
 
 // Simulation API

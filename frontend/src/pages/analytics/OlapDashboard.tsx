@@ -9,9 +9,14 @@ import {
   OlapDrilldownPoint,
   OlapHeatmapCell,
 } from '@/types'
-import { ReloadOutlined } from '@ant-design/icons'
+import {
+  FileImageOutlined,
+  FilePdfOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons'
+import { exportToImage, exportToPdf } from '@/utils/exportUtils'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Card, Select, Typography } from 'antd'
+import { Button, Card, Dropdown, Menu, Select, Typography } from 'antd'
 import React, { useState } from 'react'
 import './OlapDashboard.css'
 
@@ -115,7 +120,7 @@ export const OlapDashboard: React.FC = () => {
   }
 
   return (
-    <div className="olap-dashboard">
+    <div id="olap-dashboard-container" className="olap-dashboard">
       <Card className="olap-card" bodyStyle={{ padding: 16 }}>
         <div className="olap-toolbar-header">
           <div className="olap-toolbar-title-block">
@@ -148,6 +153,40 @@ export const OlapDashboard: React.FC = () => {
             <Button icon={<ReloadOutlined />} onClick={handleReset}>
               Đặt lại biểu đồ
             </Button>
+            <Dropdown
+              overlay={
+                <Menu>
+                  <Menu.Item
+                    key="png"
+                    icon={<FileImageOutlined />}
+                    onClick={() =>
+                      exportToImage(
+                        'olap-dashboard-container',
+                        'traffic-analytics-report'
+                      )
+                    }
+                  >
+                    Xuất PNG
+                  </Menu.Item>
+                  <Menu.Item
+                    key="pdf"
+                    icon={<FilePdfOutlined />}
+                    onClick={() =>
+                      exportToPdf(
+                        'olap-dashboard-container',
+                        'traffic-analytics-report'
+                      )
+                    }
+                  >
+                    Xuất PDF
+                  </Menu.Item>
+                </Menu>
+              }
+            >
+              <Button type="primary" icon={<ReloadOutlined />}>
+                Xuất báo cáo
+              </Button>
+            </Dropdown>
           </div>
         </div>
       </Card>

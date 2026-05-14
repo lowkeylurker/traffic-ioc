@@ -240,6 +240,7 @@ interface TrafficMapProps {
   tomTomIncidentTilesUrl?: string
   useVectorTiles?: boolean
   showHoverPopup?: boolean
+  minimalTooltip?: boolean
   children?: React.ReactNode
 }
 
@@ -255,6 +256,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   tomTomIncidentTilesUrl,
   useVectorTiles,
   showHoverPopup = true,
+  minimalTooltip = false,
   children,
 }) => {
   const isUsingVectorTiles = useVectorTiles ?? !useTomTomFlowTiles
@@ -1650,6 +1652,42 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
           const legacyPopupGradientStart = toRgba(popUpData.statusColor, 0.24)
           const legacyPopupGradientEnd = toRgba(popUpData.statusColor, 0.1)
           const legacyPopupShadowColor = toRgba(popUpData.statusColor, 0.24)
+
+          if (minimalTooltip) {
+            return (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${mousePosition.x + 15}px`,
+                  top: `${mousePosition.y - 10}px`,
+                  zIndex: 20,
+                  pointerEvents: 'none',
+                }}
+              >
+                <div
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.95)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(0, 0, 0, 0.1)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                    fontFamily: 'Inter, sans-serif',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                  }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: '13px', color: '#1f2937', whiteSpace: 'nowrap' }}>
+                    {hoveredFeature.segmentName || 'Đoạn đường'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#4b5563' }}>
+                    Tốc độ: <span style={{ fontWeight: 700, color: popUpData.statusColor }}>{Math.round(hoveredFeature.avgSpeed || 0)} km/h</span>
+                  </div>
+                </div>
+              </div>
+            )
+          }
 
           return (
             <div

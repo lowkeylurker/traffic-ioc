@@ -23,4 +23,10 @@ router.get('/export', authMiddleware, adminOnly, (req, res, next) => historyCont
  */
 router.get('/hotspots', authMiddleware, adminOnly, (req, res, next) => historyController.getHotspots(req, res, next));
 
+/**
+ * GET /api/v1/history/summary
+ * Lấy tổng hợp xu hướng và các chỉ số thống kê
+ */
+router.get('/summary', authMiddleware, adminOnly, (req, res, next) => historyController.getSummary(req, res, next));
+
 export default router;
