@@ -238,6 +238,7 @@ interface TrafficMapProps {
   tomTomFlowTilesUrl?: string
   useTomTomIncidentTiles?: boolean
   tomTomIncidentTilesUrl?: string
+  useVectorTiles?: boolean
   showHoverPopup?: boolean
   children?: React.ReactNode
 }
@@ -252,9 +253,11 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
   tomTomFlowTilesUrl,
   useTomTomIncidentTiles = false,
   tomTomIncidentTilesUrl,
+  useVectorTiles,
   showHoverPopup = true,
   children,
 }) => {
+  const isUsingVectorTiles = useVectorTiles ?? !useTomTomFlowTiles
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
   const mapboxStyle = import.meta.env.VITE_MAPBOX_STYLE
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
@@ -276,6 +279,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     x: 0,
     y: 0,
   })
+  const [isMapLoaded, setIsMapLoaded] = useState(false)
   const [tomTomHoverPopup, setTomTomHoverPopup] =
     useState<TomTomHoverPopupState>({
       visible: false,
@@ -297,6 +301,10 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     if (currentZoom < 17) return 18000
     return 26000
   }, [currentZoom])
+
+  const trafficTilesUrl = useMemo(() => {
+    return `${apiOrigin}/api/v1/map/tiles/{z}/{x}/{y}.pbf`
+  }, [apiOrigin])
 
   const featureBounds = useMemo(() => {
     if (!segmentData?.features?.length) return []
@@ -324,7 +332,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
 
     if (!viewportBounds) {
       const featuresWithData = segmentData.features.filter(
-        (f) => f.properties.losIndex && f.properties.losIndex !== 'N/A'
+        (f) => f.properties.losGrade && f.properties.losGrade !== 'N/A'
       )
       return {
         ...segmentData,
@@ -336,7 +344,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
 
     for (let i = 0; i < segmentData.features.length; i += 1) {
       const feature = segmentData.features[i]
-      const los = feature.properties.losIndex
+      const los = feature.properties.losGrade
 
       if (!los || los === 'N/A') continue
 
@@ -569,11 +577,11 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
           ],
           'line-color': [
             'case',
-            ['==', ['get', 'losIndex'], 'N/A'],
+            ['==', ['get', 'losGrade'], 'N/A'],
             'rgba(0,0,0,0)',
             ['coalesce', ['get', 'color'], 'rgba(0,0,0,0)'],
           ],
-          'line-opacity': ['case', ['==', ['get', 'losIndex'], 'N/A'], 0, 0.92],
+          'line-opacity': ['case', ['==', ['get', 'losGrade'], 'N/A'], 0, 0.92],
         },
         layout: {
           'line-join': 'round',
@@ -581,6 +589,38 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         },
       }) as LayerProps,
     []
+  )
+
+  const trafficVectorLayerStyle = useMemo(
+    () =>
+      ({
+        id: 'traffic-vector-layer',
+        type: 'line',
+        source: 'traffic-vector-source',
+        'source-layer': 'traffic_segments',
+        paint: {
+          'line-width': (trafficLayerStyle.paint as any)?.['line-width'],
+          'line-color': [
+            'case',
+            ['==', ['get', 'losGrade'], 'N/A'],
+            'rgba(0,0,0,0)',
+            [
+              'match',
+              ['get', 'losGrade'],
+              'A', '#22c55e',
+              'B', '#84cc16',
+              'C', '#eab308',
+              'D', '#f97316',
+              'E', '#ef4444',
+              'F', '#7f1d1d',
+              'rgba(0,0,0,0)'
+            ],
+          ],
+          'line-opacity': 0.92,
+        },
+        layout: trafficLayerStyle.layout,
+      }) as LayerProps,
+    [trafficLayerStyle]
   )
 
   // Outline/Casing layer to increase contrast on street-v12 style
@@ -602,7 +642,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
             ['case', ['==', ['get', 'isCorridor'], true], 5.2, 3.0],
           ],
           'line-color': 'rgba(0, 0, 0, 0.35)',
-          'line-opacity': ['case', ['==', ['get', 'losIndex'], 'N/A'], 0, 0.5],
+          'line-opacity': ['case', ['==', ['get', 'losGrade'], 'N/A'], 0, 0.5],
         },
         layout: {
           'line-join': 'round',
@@ -830,11 +870,31 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     const layerConfigs = [
       {
         id: 'traffic-flow-layer',
-        enabled: Boolean(segmentData && segmentStatusLayerEnabled),
+        enabled: Boolean(!isUsingVectorTiles && segmentData && segmentStatusLayerEnabled),
         normalize: (
           properties: Record<string, unknown>
         ): HoveredTrafficFeature =>
           properties as unknown as HoveredTrafficFeature,
+      },
+      {
+        id: 'traffic-vector-layer',
+        enabled: Boolean(isUsingVectorTiles && segmentStatusLayerEnabled),
+        normalize: (
+          properties: Record<string, unknown>
+        ): HoveredTrafficFeature => ({
+          segmentId: Number(properties.segmentId ?? properties.segmentid),
+          segmentName: String(
+            properties.segmentName ?? properties.segmentname ?? ''
+          ),
+          avgSpeed: Number(properties.avgSpeed ?? properties.avgspeed),
+          losGrade: String(properties.losGrade ?? properties.losgrade),
+          losScore: Number(properties.losScore ?? properties.losscore),
+          isCorridor: Boolean(properties.isCorridor ?? properties.iscorridor),
+          color: String(properties.color || ''),
+          lastUpdated: String(
+            properties.timestamp ?? properties.lastupdated ?? ''
+          ),
+        }),
       },
     ]
 
@@ -909,6 +969,8 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
     segmentStatusLayerEnabled,
     tomTomFlowTilesUrl,
     useTomTomFlowTiles,
+    isUsingVectorTiles,
+    isMapLoaded,
   ])
 
   useEffect(() => {
@@ -1197,18 +1259,25 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         mapboxAccessToken={mapboxToken}
         onClick={onMapClick}
         onLoad={(e) => {
+          setIsMapLoaded(true)
           updateViewportBounds()
           loadTomTomIncidentIcons(e.target)
         }}
         onMoveEnd={updateViewportBounds}
       >
-        {renderedSegmentData &&
+        {isUsingVectorTiles ? (
+          <Source id="traffic-vector-source" type="vector" tiles={[trafficTilesUrl]} maxzoom={18}>
+            {segmentStatusLayerEnabled && <Layer {...trafficVectorLayerStyle} />}
+          </Source>
+        ) : (
+          renderedSegmentData &&
           renderedSegmentData.features.length > 0 && (
             <Source id="traffic-source" type="geojson" data={renderedSegmentData}>
               {segmentStatusLayerEnabled && <Layer {...trafficOutlineLayerStyle} />}
               {segmentStatusLayerEnabled && <Layer {...trafficLayerStyle} />}
             </Source>
-          )}
+          )
+        )}
 
         {useTomTomFlowTiles &&
           tomTomFlowTilesUrl &&
@@ -1521,7 +1590,7 @@ export const TrafficMap: React.FC<TrafficMapProps> = ({
         hoveredFeature &&
         (() => {
           const getPopUpData = (feature: GeoJSONFeature['properties']) => {
-            const los = (feature.losIndex || 'N/A').toUpperCase()
+            const los = (feature.losGrade || 'N/A').toUpperCase()
 
             switch (los) {
               case 'A':

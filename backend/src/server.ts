@@ -12,6 +12,7 @@ import { Logger } from './utils/logger';
 import { clearTrafficNewsQueueOnStartup, scheduleTrafficNewsJob } from './jobs/newsQueue';
 import { connectMongoDB, disconnectMongoDB } from './config/mongoose';
 import { trafficNewsWorker } from './jobs/trafficNewsWorker';
+import { trafficMVRefreshJobService } from './jobs/traffic-mv-refresh.service';
 
 const logger = new Logger('Server');
 
@@ -35,6 +36,7 @@ async function main() {
     await reliabilityJobService.start();
     await routingRefreshJobService.start();
     await corridorAnalyticsJobService.start();
+    await trafficMVRefreshJobService.start();
 
     // Khởi tạo News Ticker Job
     await clearTrafficNewsQueueOnStartup();
@@ -64,6 +66,7 @@ async function main() {
         await reliabilityJobService.stop();
         await routingRefreshJobService.stop();
         await corridorAnalyticsJobService.stop();
+        await trafficMVRefreshJobService.stop();
         await disconnectMongoDB();
         await closeRedisConnection();
         await prisma.$disconnect();
@@ -80,6 +83,7 @@ async function main() {
         await reliabilityJobService.stop();
         await routingRefreshJobService.stop();
         await corridorAnalyticsJobService.stop();
+        await trafficMVRefreshJobService.stop();
         await disconnectMongoDB();
         await closeRedisConnection();
         await prisma.$disconnect();

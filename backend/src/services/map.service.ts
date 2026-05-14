@@ -3,6 +3,7 @@
 
 import { query } from '../config/db';
 import { prisma } from '../config/prisma';
+import { getRedisConnection } from '../config/redis';
 import { TrafficStatus } from '../interfaces/index';
 import { COLOR_RULES, GeoJSONFeature, TrafficMapResponse } from '../interfaces/map.interface';
 import { Logger } from '../utils/logger';
@@ -408,57 +409,99 @@ export class MapService {
    */
   async getTrafficStatus(asOf?: string): Promise<TrafficStatus[]> {
     try {
+      const redis = getRedisConnection();
+      const cacheKey = asOf ? `traffic_status_${asOf}` : 'traffic_status_latest';
+      
+      // Try cache
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached) as TrafficStatus[];
+      }
+
       logger.log(asOf ? `Fetching traffic status snapshot as of ${asOf}` : 'Fetching traffic status (dynamic flow)');
 
       const queryParams: Array<string> = [];
-      const asOfCondition = asOf
-        ? (() => {
-            queryParams.push(asOf);
-            return `AND DATE_TRUNC('minute', timestamp) = DATE_TRUNC('minute', $${queryParams.length}::timestamptz AT TIME ZONE 'Asia/Ho_Chi_Minh')`;
-          })()
-        : `AND timestamp >= NOW() - INTERVAL '15 minutes' AND timestamp::date = CURRENT_DATE`;
+      let sql = '';
 
-      const result = await query(
-        `
-        WITH latest_flow AS (
-          SELECT DISTINCT ON (segment_key)
-            segment_key, current_speed_kmh, los_level, traffic_index, pcu_volume, timestamp
-          FROM fact_traffic_flow
-          WHERE timestamp IS NOT NULL
-          ${asOfCondition}
-          ORDER BY segment_key, timestamp DESC
-        )
-        SELECT
-          f.segment_key          AS "segmentId",
-          COALESCE(r.name, s.segment_id_source::text) AS "segmentName",
-          f.current_speed_kmh    AS "currentSpeed",
-          f.current_speed_kmh    AS "avgSpeed",
-          f.los_level            AS "losGrade",
-          f.traffic_index        AS "losScore",
-          f.pcu_volume           AS "pcuValue",
-          NULL::float            AS "occupancyRate",
-          EXISTS (
-            SELECT 1
-            FROM bridge_corridor_segment bcs
-            WHERE bcs.segment_key = f.segment_key
-          )                     AS "isCorridor",
-          f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp
-        FROM latest_flow f
-        LEFT JOIN dim_segment s ON f.segment_key = s.segment_key
-        LEFT JOIN dim_way w ON w.way_key = s.way_key
-        LEFT JOIN dim_road r ON r.road_key = w.road_key
-        WHERE s.geometry_linestring IS NOT NULL
-      `,
-        queryParams
-      );
+      if (asOf) {
+        queryParams.push(asOf);
+          sql = `
+            WITH latest_flow AS (
+              SELECT DISTINCT ON (segment_key)
+                segment_key, current_speed_kmh, los_level, traffic_index, pcu_volume, timestamp
+              FROM fact_traffic_flow
+              WHERE timestamp IS NOT NULL
+              AND DATE_TRUNC('minute', timestamp) = DATE_TRUNC('minute', $1::timestamptz AT TIME ZONE 'Asia/Ho_Chi_Minh')
+              ORDER BY segment_key, timestamp DESC
+            )
+            SELECT
+              f.segment_key          AS "segmentId",
+              COALESCE(r.name, s.segment_id_source::text) AS "segmentName",
+              r.road_key::text       AS "roadKey",
+              r.name                 AS "roadName",
+              f.current_speed_kmh    AS "currentSpeed",
+              f.current_speed_kmh    AS "avgSpeed",
+              f.los_level            AS "losGrade",
+              f.traffic_index        AS "losScore",
+              f.pcu_volume           AS "pcuValue",
+              NULL::float            AS "occupancyRate",
+              EXISTS (
+                SELECT 1
+                FROM bridge_corridor_segment bcs
+                WHERE bcs.segment_key = f.segment_key
+              )                     AS "isCorridor",
+              f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp,
+              ST_X(ST_Centroid(s.geometry_linestring)) AS "lng",
+              ST_Y(ST_Centroid(s.geometry_linestring)) AS "lat"
+            FROM latest_flow f
+            LEFT JOIN dim_segment s ON f.segment_key = s.segment_key
+            LEFT JOIN dim_way w ON w.way_key = s.way_key
+            LEFT JOIN dim_road r ON r.road_key = w.road_key
+            WHERE s.geometry_linestring IS NOT NULL
+          `;
+        } else {
+          sql = `
+            SELECT
+              f.segment_key          AS "segmentId",
+              COALESCE(r.name, s.segment_id_source::text) AS "segmentName",
+              r.road_key::text       AS "roadKey",
+              r.name                 AS "roadName",
+              f.current_speed_kmh    AS "currentSpeed",
+              f.current_speed_kmh    AS "avgSpeed",
+              f.los_level            AS "losGrade",
+              f.traffic_index        AS "losScore",
+              f.pcu_volume           AS "pcuValue",
+              NULL::float            AS "occupancyRate",
+              EXISTS (
+                SELECT 1
+                FROM bridge_corridor_segment bcs
+                WHERE bcs.segment_key = f.segment_key
+              )                     AS "isCorridor",
+              f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp,
+              ST_X(ST_Centroid(s.geometry_linestring)) AS "lng",
+              ST_Y(ST_Centroid(s.geometry_linestring)) AS "lat"
+            FROM mv_latest_traffic_status f
+            LEFT JOIN dim_segment s ON f.segment_key = s.segment_key
+            LEFT JOIN dim_way w ON w.way_key = s.way_key
+            LEFT JOIN dim_road r ON r.road_key = w.road_key
+            WHERE s.geometry_linestring IS NOT NULL
+          `;
+      }
+
+      const result = await query(sql, queryParams);
 
       logger.log(`Retrieved traffic status for ${result.rows.length} segments`);
 
       // Inject colors directly in result
-      return result.rows.map((row) => ({
+      const statuses = result.rows.map((row) => ({
         ...row,
         color: this.getColorByLOS(row.losGrade),
       })) as TrafficStatus[];
+
+      // Save to cache (30 seconds)
+      await redis.setex(cacheKey, 30, JSON.stringify(statuses));
+
+      return statuses;
     } catch (error) {
       logger.error('Error fetching traffic status', error);
       throw error;

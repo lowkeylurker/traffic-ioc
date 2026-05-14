@@ -1,6 +1,6 @@
 // Custom Hooks
 
-import { LOS_COLORS, POLLING_INTERVALS } from '@/config/constants'
+import { POLLING_INTERVALS } from '@/config/constants'
 import { analyticsApi, mapApi, weatherApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
 import {
@@ -8,7 +8,6 @@ import {
   ComparisonMetric,
   ComparisonScopeType,
   CorridorDashboardData,
-  GeoJSONFeature,
   RoadOption,
   SegmentResponse,
   TrafficStatus,
@@ -23,8 +22,9 @@ import {
   setCachedTrafficStatus,
 } from '@/utils/segmentCache'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import TrafficWorker from '../workers/traffic-processor.worker?worker'
 
-const TRAFFIC_STATUS_CACHE_MAX_AGE_MS = 15 * 60 * 1000
+const TRAFFIC_STATUS_CACHE_MAX_AGE_MS = 60 * 1000 // 1 minute (aligned with backend MV refresh)
 
 // Fetch segments hook (danh sách đoạn đường tĩnh ban đầu - deprecated for map rendering, use useTrafficMap instead)
 export const useSegments = () => {
@@ -102,6 +102,7 @@ export const useRoads = () => {
 export const useTrafficMap = (asOf?: string | null) => {
   const segmentData = useSegments()
   const [trafficMap, setTrafficMap] = useState<SegmentResponse | null>(null)
+  const workerRef = useRef<Worker | null>(null)
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | undefined
@@ -118,42 +119,23 @@ export const useTrafficMap = (asOf?: string | null) => {
 
       try {
         const mergeAndSetTrafficMap = (statuses: TrafficStatus[]) => {
-          const statusMap = new Map()
-          for (const s of statuses) {
-            statusMap.set(String(s.segmentId), s)
+          if (!workerRef.current) {
+            workerRef.current = new TrafficWorker()
           }
 
-          const newFeatures = segmentData.features.map(
-            (feature: GeoJSONFeature) => {
-              const stat = statusMap.get(String(feature.properties.segmentId))
-              if (stat) {
-                const backendColor = (stat as unknown as { color?: string })
-                  .color
-                const derivedColor =
-                  backendColor ?? LOS_COLORS[String(stat.losGrade)] ?? null
-                return {
-                  ...feature,
-                  properties: {
-                    ...feature.properties,
-                    avgSpeed: stat.avgSpeed,
-                    losIndex: stat.losGrade,
-                    color: derivedColor,
-                    isCorridor:
-                      stat.isCorridor ?? feature.properties.isCorridor,
-                    lastUpdated: stat.timestamp,
-                  },
-                }
-              }
-              return feature
+          workerRef.current.onmessage = (e) => {
+            if (e.data.features && mounted) {
+              setTrafficMap({
+                type: 'FeatureCollection',
+                features: e.data.features,
+              })
             }
-          )
-
-          if (mounted) {
-            setTrafficMap({
-              type: 'FeatureCollection',
-              features: newFeatures,
-            })
           }
+
+          workerRef.current.postMessage({
+            segmentFeatures: segmentData.features,
+            statuses,
+          })
         }
 
         if (!asOf) {
@@ -198,6 +180,10 @@ export const useTrafficMap = (asOf?: string | null) => {
       mounted = false
       if (interval) {
         clearInterval(interval)
+      }
+      if (workerRef.current) {
+        workerRef.current.terminate()
+        workerRef.current = null
       }
     }
   }, [asOf, segmentData])
@@ -245,8 +231,8 @@ export const useTrafficStatus = (asOf?: string | null) => {
     }
 
     fetchStatus()
-    // Polling every 2 minutes for live mode only.
-    const interval = asOf ? undefined : setInterval(fetchStatus, 120000)
+    // Polling every 1 minute for live mode only (matches backend MV refresh rate).
+    const interval = asOf ? undefined : setInterval(fetchStatus, 60000)
 
     return () => {
       if (interval) {

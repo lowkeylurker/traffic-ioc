@@ -2,6 +2,7 @@
 
 import { Router } from 'express';
 import { mapController } from '../controllers/map.controller';
+import { tileController } from '../controllers/tile.controller';
 
 const router = Router();
 
@@ -28,6 +29,12 @@ router.get('/status', (req, res, next) => mapController.getTrafficStatus(req, re
  * Lấy danh sách mốc giờ có dữ liệu traffic
  */
 router.get('/status/snapshots', (req, res, next) => mapController.getTrafficStatusSnapshots(req, res, next));
+ 
+ /**
+  * GET /api/v1/map/tiles/:z/:x/:y.pbf
+  * Lấy Vector Tile (MVT) cho traffic segments
+  */
+router.get('/tiles/:z/:x/:y.pbf', (req, res) => tileController.getTrafficTiles(req, res));
 
 
 export default router;

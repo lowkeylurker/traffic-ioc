@@ -250,8 +250,9 @@ export const HistoricalQueryPage: React.FC = () => {
       type: 'FeatureCollection',
       features: liveMapData.features.map((feature) => {
         const status = statusBySegment.get(String(feature.properties.segmentId))
+        const los = String(status?.losGrade || 'N/A').toUpperCase()
         const derivedColor = status
-          ? (LOS_COLORS[String(status.losGrade)] ?? feature.properties.color)
+          ? (LOS_COLORS[los] ?? feature.properties.color)
           : undefined
 
         return {
@@ -259,7 +260,7 @@ export const HistoricalQueryPage: React.FC = () => {
           properties: {
             ...feature.properties,
             avgSpeed: status?.avgSpeed,
-            losIndex: status?.losGrade ?? 'N/A',
+            losGrade: los,
             color: derivedColor,
             lastUpdated: status?.timestamp
               ? String(status.timestamp)
@@ -659,6 +660,7 @@ export const HistoricalQueryPage: React.FC = () => {
                       segmentStatusLayerEnabled
                       useTomTomFlowTiles={false}
                       useTomTomIncidentTiles={false}
+                      useVectorTiles={false}
                       showHoverPopup={false}
                     />
                   </div>

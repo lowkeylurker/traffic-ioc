@@ -13,7 +13,8 @@ export interface GeoJSONFeature {
     roadName?: string
     isCorridor?: boolean
     avgSpeed?: number
-    losIndex?: string
+    losGrade?: string
+    losScore?: number
     color?: string
     lastUpdated?: string
     district?: string
@@ -55,6 +56,8 @@ export interface Segment {
 export interface TrafficStatus {
   segmentId: number
   segmentName: string
+  roadKey?: string
+  roadName?: string
   currentSpeed: number
   avgSpeed: number
   losGrade: 'A' | 'B' | 'C' | 'D' | 'E' | 'F'
@@ -63,6 +66,8 @@ export interface TrafficStatus {
   occupancyRate: number
   isCorridor?: boolean
   timestamp: Date
+  lng?: number
+  lat?: number
 }
 
 export interface Alert {

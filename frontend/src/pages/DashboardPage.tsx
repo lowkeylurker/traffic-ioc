@@ -10,7 +10,7 @@ import {
   POLLING_INTERVALS,
   TRAFFIC_COLORS,
 } from '@/config/constants'
-import { useTrafficMap, useTrafficStatus } from '@/hooks/useTraffic'
+import { useTrafficStatus } from '@/hooks/useTraffic'
 import { mapApi } from '@/services/api'
 import { useAppStore } from '@/stores/useAppStore'
 import {
@@ -48,7 +48,13 @@ import type { TooltipItem } from 'chart.js'
 import dayjs from 'dayjs'
 import 'dayjs/locale/vi'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Bar } from 'react-chartjs-2'
 import CountUp from 'react-countup'
 import { useLocation } from 'react-router-dom'
@@ -217,8 +223,8 @@ export const DashboardPage: React.FC = () => {
   const [mapFullscreen, setMapFullscreen] = useState(false)
   const lastHandledDeepLinkRef = useRef<string | null>(null)
 
-  const segmentData = useTrafficMap()
   const trafficStatus = useTrafficStatus()
+  const segmentData = null // No longer fetching 12k GeoJSON segments for admin dashboard
 
   useEffect(() => {
     const contentEl = document.querySelector(
@@ -295,17 +301,11 @@ export const DashboardPage: React.FC = () => {
   const impactedSegments = impactResponse?.impactedSegments ?? []
 
   const derived = useMemo(() => {
-    const features = segmentData?.features ?? []
-
-    const statusBySegmentId = new Map<string, TrafficStatus>()
-    for (const stat of trafficStatus ?? []) {
-      if (!stat) continue
-      statusBySegmentId.set(String(stat.segmentId), stat)
-    }
+    const statuses = trafficStatus ?? []
 
     const losDist = defaultLosDistribution()
     const speedValues: number[] = []
-    const jamSegments: GeoJSONFeature[] = []
+    const jamSegments: TrafficStatus[] = []
 
     const corridorGroupMap = new Map<
       string,
@@ -320,32 +320,22 @@ export const DashboardPage: React.FC = () => {
     let corridorCount = 0
     let segmentStatusCount = 0
 
-    for (const feature of features) {
-      const segIdKey = String(feature?.properties?.segmentId)
-      const stat = statusBySegmentId.get(segIdKey)
+    for (const stat of statuses) {
+      if (!stat) continue
+      segmentStatusCount += 1
 
-      if (stat) {
-        segmentStatusCount += 1
-      }
-
-      const los = toLosBucket(stat?.losGrade ?? feature?.properties?.losIndex)
+      const los = toLosBucket(stat.losGrade)
       losDist[los] += 1
 
-      const speed = toFiniteNumber(
-        stat?.avgSpeed ??
-          stat?.currentSpeed ??
-          (feature.properties as unknown as { avgSpeed?: unknown })?.avgSpeed
-      )
+      const speed = toFiniteNumber(stat.avgSpeed ?? stat.currentSpeed)
 
-      const isCorridor = Boolean(
-        stat?.isCorridor ?? feature.properties?.isCorridor
-      )
+      const isCorridor = Boolean(stat.isCorridor)
 
       if (isCorridor) {
         corridorCount += 1
       }
 
-      const updatedRaw = stat?.timestamp ?? feature.properties?.lastUpdated
+      const updatedRaw = stat.timestamp
       const updatedIso = updatedRaw
         ? new Date(String(updatedRaw)).toISOString()
         : null
@@ -360,32 +350,13 @@ export const DashboardPage: React.FC = () => {
         }
       }
 
-      const enrichedFeature: GeoJSONFeature = {
-        ...feature,
-        properties: {
-          ...feature.properties,
-          ...(speed !== null ? { avgSpeed: speed } : {}),
-          losIndex: los === 'N/A' ? 'N/A' : los,
-          ...(updatedIso ? { lastUpdated: updatedIso } : {}),
-          ...(isCorridor ? { isCorridor: true } : {}),
-        },
-      }
-
       if (speed !== null) {
         speedValues.push(speed)
 
-        const roadKeyRaw = enrichedFeature.properties?.roadKey
-        const roadKey =
-          typeof roadKeyRaw === 'string' || typeof roadKeyRaw === 'number'
-            ? String(roadKeyRaw)
-            : null
+        const roadKey = stat.roadKey
+        const segIdKey = String(stat.segmentId)
 
-        const label =
-          (typeof enrichedFeature.properties?.roadName === 'string' &&
-            enrichedFeature.properties.roadName.trim()) ||
-          (typeof enrichedFeature.properties?.segmentName === 'string'
-            ? enrichedFeature.properties.segmentName
-            : 'Không tên')
+        const label = (stat.roadName && stat.roadName.trim()) || stat.segmentName || 'Không tên'
 
         const groupKey = roadKey ? `road:${roadKey}` : `seg:${segIdKey}`
 
@@ -411,7 +382,7 @@ export const DashboardPage: React.FC = () => {
       }
 
       if (los === 'E' || los === 'F') {
-        jamSegments.push(enrichedFeature)
+        jamSegments.push(stat)
       }
     }
 
@@ -466,7 +437,7 @@ export const DashboardPage: React.FC = () => {
       speedSampleCount: speedValues.length,
       segmentStatusCount,
       corridorCount,
-      totalSegments: features.length,
+      totalSegments: statuses.length,
       losDist,
       jamSegments,
       lastUpdated,
@@ -475,13 +446,20 @@ export const DashboardPage: React.FC = () => {
       severityCounts,
       incidentScore,
     }
-  }, [incidents, segmentData, trafficStatus])
+  }, [incidents, trafficStatus])
 
-  const handleSegmentClick = (segment: GeoJSONFeature, zoom = 16) => {
+  const handleSegmentClick = useCallback((segment: GeoJSONFeature | TrafficStatus, zoom = 16) => {
     if (!mapRef.current?.getMap) return
 
     const map = mapRef.current.getMap()
-    const center = getSegmentCenter(segment)
+    let center: { lng: number; lat: number } | null = null
+
+    if ('geometry' in segment) {
+      center = getSegmentCenter(segment)
+    } else if (segment.lng && segment.lat) {
+      center = { lng: segment.lng, lat: segment.lat }
+    }
+
     if (!center) return
 
     map.flyTo({
@@ -489,7 +467,7 @@ export const DashboardPage: React.FC = () => {
       zoom,
       duration: 1000,
     })
-  }
+  }, [mapRef])
 
   const handleZoomIn = () => {
     if (mapRef.current) {
@@ -514,7 +492,7 @@ export const DashboardPage: React.FC = () => {
   }
 
   useEffect(() => {
-    if (!segmentData?.features?.length) {
+    if (!trafficStatus?.length) {
       return
     }
 
@@ -531,13 +509,13 @@ export const DashboardPage: React.FC = () => {
     const roadKey = params.get('roadKey')
 
     if (segmentId) {
-      const selectedFeature = segmentData.features.find(
-        (feature: GeoJSONFeature) =>
-          String(feature.properties.segmentId) === segmentId
+      const selectedStat = trafficStatus.find(
+        (stat: TrafficStatus) =>
+          String(stat.segmentId) === segmentId
       )
 
-      if (selectedFeature) {
-        handleSegmentClick(selectedFeature)
+      if (selectedStat) {
+        handleSegmentClick(selectedStat)
       }
 
       lastHandledDeepLinkRef.current = location.search
@@ -545,49 +523,18 @@ export const DashboardPage: React.FC = () => {
     }
 
     if (roadKey) {
-      const roadSegments = segmentData.features.filter(
-        (feature: GeoJSONFeature) => feature.properties.roadKey === roadKey
+      const roadStats = trafficStatus.filter(
+        (stat: TrafficStatus) => stat.roadKey === roadKey
       )
 
-      if (roadSegments.length > 0) {
-        const centers = roadSegments
-          .map((segment) => ({
-            segment,
-            center: getSegmentCenter(segment),
-          }))
-          .filter(
-            (
-              item
-            ): item is {
-              segment: GeoJSONFeature
-              center: { lng: number; lat: number }
-            } => item.center !== null
-          )
-
-        if (centers.length > 0) {
-          const centroid = centers.reduce(
-            (acc, item) => ({
-              lng: acc.lng + item.center.lng,
-              lat: acc.lat + item.center.lat,
-            }),
-            { lng: 0, lat: 0 }
-          )
-
-          centroid.lng /= centers.length
-          centroid.lat /= centers.length
-
-          const representative = centers.reduce((best, current) => {
-            const bestDistance =
-              (best.center.lng - centroid.lng) ** 2 +
-              (best.center.lat - centroid.lat) ** 2
-            const currentDistance =
-              (current.center.lng - centroid.lng) ** 2 +
-              (current.center.lat - centroid.lat) ** 2
-            return currentDistance < bestDistance ? current : best
-          })
-
-          handleSegmentClick(representative.segment, 15)
-        }
+      if (roadStats.length > 0) {
+        // Pick the center-most segment or the one with worst traffic
+        const bestStat = roadStats.reduce((best, current) => {
+          const bAvg = best.avgSpeed ?? best.currentSpeed ?? 999
+          const cAvg = current.avgSpeed ?? current.currentSpeed ?? 999
+          return cAvg < bAvg ? current : best
+        })
+        handleSegmentClick(bestStat, 15)
       }
 
       lastHandledDeepLinkRef.current = location.search
@@ -595,7 +542,7 @@ export const DashboardPage: React.FC = () => {
     }
 
     lastHandledDeepLinkRef.current = location.search
-  }, [location.search, segmentData])
+  }, [location.search, trafficStatus, handleSegmentClick])
 
   const losDonutData = useMemo(() => {
     const buckets = LOS_LEGEND_ITEMS.map((item) => item.bucket)
@@ -1293,7 +1240,7 @@ export const DashboardPage: React.FC = () => {
     </div>
   )
 
-  if (!segmentData || segmentData.features.length === 0) {
+  if (!trafficStatus || trafficStatus.length === 0) {
     return (
       <div
         style={{
@@ -1556,14 +1503,14 @@ export const DashboardPage: React.FC = () => {
                         size="small"
                         dataSource={[...derived.jamSegments]
                           .sort((a, b) => {
-                            const sa = Number(a.properties.avgSpeed ?? 999)
-                            const sb = Number(b.properties.avgSpeed ?? 999)
+                            const sa = a.avgSpeed ?? a.currentSpeed ?? 999
+                            const sb = b.avgSpeed ?? b.currentSpeed ?? 999
                             return sa - sb
                           })
                           .slice(0, 10)}
-                        renderItem={(segment) => {
+                        renderItem={(stat: TrafficStatus) => {
                           const los = String(
-                            segment.properties.losIndex ?? 'N/A'
+                            stat.losGrade ?? 'N/A'
                           ).toUpperCase()
                           const losColor =
                             los === 'F'
@@ -1574,13 +1521,13 @@ export const DashboardPage: React.FC = () => {
 
                           return (
                             <List.Item
-                              key={segment.properties.segmentId}
+                              key={stat.segmentId}
                               style={{
                                 cursor: 'pointer',
                                 paddingLeft: 6,
                                 paddingRight: 6,
                               }}
-                              onClick={() => handleSegmentClick(segment)}
+                              onClick={() => handleSegmentClick(stat)}
                             >
                               <List.Item.Meta
                                 title={
@@ -1598,7 +1545,7 @@ export const DashboardPage: React.FC = () => {
                                         lineHeight: 1.2,
                                       }}
                                     >
-                                      {segment.properties.segmentName}
+                                      {stat.segmentName}
                                     </span>
                                     <Tag
                                       color={los === 'F' ? 'red' : 'volcano'}
@@ -1621,7 +1568,7 @@ export const DashboardPage: React.FC = () => {
                                     <span>
                                       Vận tốc:{' '}
                                       {Number(
-                                        segment.properties.avgSpeed ?? 0
+                                        stat.avgSpeed ?? stat.currentSpeed ?? 0
                                       ).toFixed(1)}{' '}
                                       km/h
                                     </span>
