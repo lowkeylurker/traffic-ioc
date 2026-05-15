@@ -1,8 +1,5 @@
 -- OLAP materialized view for BI dashboard (no weather dependency)
--- Noise filtering principle:
--- - Source starts from fact_traffic_flow (live traffic only)
--- - INNER JOIN to dimensions ensures only roads/segments with real live data are included
--- - No weather attributes are used anywhere in this view
+-- Updated to include osm_highway_type for filtering
 
 DROP MATERIALIZED VIEW IF EXISTS mv_olap_traffic_summary;
 
@@ -19,6 +16,7 @@ SELECT
     ) AS road_name,
     COALESCE(dl.district, 'N/A') AS district,
     COALESCE(dw.design_capacity, 0) AS design_capacity,
+    dw.osm_highway_type, -- Added for filtering
     COALESCE(
         dt.bucket_60min_key,
         FLOOR(COALESCE(dt.hhmm, 0) / 100.0)::int
@@ -45,6 +43,7 @@ GROUP BY
     road_name,
     district,
     dw.design_capacity,
+    dw.osm_highway_type,
     hour_of_day;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_olap_traffic_summary_unique ON mv_olap_traffic_summary (segment_key, hour_of_day);

@@ -12,5 +12,8 @@ router.get('/cross-analysis', authMiddleware, adminOnly, (req, res, next) =>
 );
 
 router.get('/drilldown', authMiddleware, adminOnly, (req, res, next) => olapController.getDrilldown(req, res, next));
+router.get('/summary', authMiddleware, adminOnly, (req, res, next) => olapController.getSummary(req, res, next));
+router.get('/district-ranking', authMiddleware, adminOnly, (req, res, next) => olapController.getDistrictRanking(req, res, next));
+router.get('/road-type-comparison', authMiddleware, adminOnly, (req, res, next) => olapController.getRoadTypeComparison(req, res, next));
 
 export default router;

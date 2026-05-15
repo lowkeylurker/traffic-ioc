@@ -1,6 +1,6 @@
 import { EmptyState } from '@/components/common'
 import { OlapCrossAnalysisPoint } from '@/types'
-import { Alert, Card, Radio, Space, Tag, Typography } from 'antd'
+import { Alert, Card, Radio, Space, Spin, Tag, Typography } from 'antd'
 import type { EChartsOption } from 'echarts'
 import React, { useMemo } from 'react'
 import ReactECharts from 'echarts-for-react'
@@ -16,12 +16,13 @@ type ScatterTooltipParam = {
 interface CrossAnalysisBubbleChartProps {
   data: OlapCrossAnalysisPoint[]
   bubbleMetric: BubbleMetric
+  loading?: boolean
   onBubbleMetricChange: (value: BubbleMetric) => void
 }
 
 export const CrossAnalysisBubbleChart: React.FC<
   CrossAnalysisBubbleChartProps
-> = ({ data, bubbleMetric, onBubbleMetricChange }) => {
+> = ({ data, bubbleMetric, loading = false, onBubbleMetricChange }) => {
   const option = useMemo<EChartsOption>(() => {
     const zValues = data.map((item) =>
       bubbleMetric === 'pcu' ? item.avgPcuVolume : item.avgDelaySeconds
@@ -150,10 +151,10 @@ export const CrossAnalysisBubbleChart: React.FC<
       className="olap-card"
       extra={<Tag color="cyan">Bubble</Tag>}
     >
-      {data.length === 0 ? (
+      {data.length === 0 && !loading ? (
         <EmptyState message="Chưa có dữ liệu cross-analysis" />
       ) : (
-        <>
+        <div style={{ position: 'relative' }}>
           <div className="olap-filter-panel" style={{ marginBottom: 12 }}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <Text strong>Chọn đại lượng kích thước bóng (Z-axis):</Text>
@@ -178,6 +179,22 @@ export const CrossAnalysisBubbleChart: React.FC<
             lazyUpdate
           />
 
+          {loading && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(255, 255, 255, 0.55)',
+                zIndex: 2,
+              }}
+            >
+              <Spin size="large" tip="Đang tải bubble chart..." />
+            </div>
+          )}
+
           <Alert
             showIcon
             className="olap-chart-note"
@@ -185,7 +202,7 @@ export const CrossAnalysisBubbleChart: React.FC<
             message="Gợi ý đọc biểu đồ"
             description="Biểu đồ này dùng để đánh giá hiệu quả hạ tầng theo từng tuyến. Trục X là sức chứa thiết kế, trục Y là mức độ kẹt xe trung bình, còn màu sắc thể hiện độ stress cấu trúc của tuyến theo V/C Ratio = PCU / Design Capacity: xanh là còn dư công suất, vàng là tiệm cận giới hạn, đỏ là quá tải. Bóng càng lớn nghĩa là tải vận hành càng cao theo chỉ số bạn chọn (PCU hoặc thời gian trễ). Cách đọc này giúp phát hiện các tuyến nhìn qua có Traffic Index còn ổn nhưng thực tế đang bị nhồi xe vượt thiết kế, dễ xuống cấp hoặc chực kẹt khi có một sự cố nhỏ."
           />
-        </>
+        </div>
       )}
     </Card>
   )

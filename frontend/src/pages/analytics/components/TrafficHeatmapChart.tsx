@@ -1,6 +1,6 @@
 import { EmptyState } from '@/components/common'
 import { OlapHeatmapCell } from '@/types'
-import { Alert, Card, Tag } from 'antd'
+import { Alert, Card, Spin, Tag } from 'antd'
 import type { EChartsOption } from 'echarts'
 import React, { useMemo } from 'react'
 import ReactECharts from 'echarts-for-react'
@@ -11,10 +11,12 @@ type HeatmapTooltipParam = {
 
 interface TrafficHeatmapChartProps {
   data: OlapHeatmapCell[]
+  loading?: boolean
 }
 
 export const TrafficHeatmapChart: React.FC<TrafficHeatmapChartProps> = ({
   data,
+  loading = false,
 }) => {
   const option = useMemo<EChartsOption>(() => {
     const roads = Array.from(new Set(data.map((item) => item[1]))).sort(
@@ -120,16 +122,31 @@ export const TrafficHeatmapChart: React.FC<TrafficHeatmapChartProps> = ({
       className="olap-card"
       extra={<Tag color="processing">Heatmap</Tag>}
     >
-      {data.length === 0 ? (
+      {data.length === 0 && !loading ? (
         <EmptyState message="Chưa có dữ liệu heatmap" />
       ) : (
-        <>
+        <div style={{ position: 'relative' }}>
           <ReactECharts
             option={option}
             style={{ height: 420 }}
             notMerge
             lazyUpdate
           />
+          {loading && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(255, 255, 255, 0.55)',
+                zIndex: 2,
+              }}
+            >
+              <Spin size="large" tip="Đang tải heatmap..." />
+            </div>
+          )}
           <Alert
             showIcon
             className="olap-chart-note"
@@ -137,7 +154,7 @@ export const TrafficHeatmapChart: React.FC<TrafficHeatmapChartProps> = ({
             message="Gợi ý đọc biểu đồ"
             description="Mỗi hàng là một tuyến đường, mỗi cột là một khung giờ. Màu càng nóng (vàng/đỏ) nghĩa là mức độ kẹt xe trung bình càng cao ở tuyến đường đó theo từng giờ."
           />
-        </>
+        </div>
       )}
     </Card>
   )

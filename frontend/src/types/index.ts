@@ -396,11 +396,38 @@ export type OlapDrillLevel = 'road' | 'segment'
 
 export interface OlapQueryParams {
   district?: string
+  period?: 'weekly' | 'monthly' | 'all'
+  roadTypes?: string[]
 }
 
 export interface OlapDrilldownParams {
   roadName?: string
   district?: string
+  period?: 'weekly' | 'monthly' | 'all'
+  roadTypes?: string[]
+}
+
+export interface OlapSummary {
+  avgVcRatio: number
+  avgDelaySeconds: number
+  avgTrafficIndex: number
+  roadCount: number
+  congestionRate: number
+  economicLoss: number
+  reliabilityIndex: number
+}
+
+export interface OlapDistrictRankingItem {
+  district: string
+  avgTrafficIndex: number
+  avgVcRatio: number
+  totalDelaySeconds: number
+}
+
+export interface OlapRoadTypeEfficiencyItem {
+  type: string
+  avgTrafficIndex: number
+  avgVcRatio: number
 }
 
 export interface OlapDrilldownPoint {

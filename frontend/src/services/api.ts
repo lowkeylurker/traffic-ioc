@@ -19,10 +19,13 @@ import {
   IncidentReportCreateResponse,
   NewsFeedResponse,
   OlapCrossAnalysisPoint,
+  OlapDistrictRankingItem,
   OlapDrilldownParams,
   OlapDrilldownResponse,
   OlapHeatmapCell,
   OlapQueryParams,
+  OlapRoadTypeEfficiencyItem,
+  OlapSummary,
   PlaceSearchResult,
   PredictionRequestBody,
   PredictionResponse,
@@ -182,6 +185,24 @@ export const olapApi = {
     signal?: AbortSignal
   ): Promise<ApiResponse<OlapDrilldownResponse>> =>
     axiosInstance.get('/olap/drilldown', { params, signal }),
+
+  getSummary: (
+    params?: OlapQueryParams,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<OlapSummary>> =>
+    axiosInstance.get('/olap/summary', { params, signal }),
+
+  getDistrictRanking: (
+    params?: OlapQueryParams,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<OlapDistrictRankingItem[]>> =>
+    axiosInstance.get('/olap/district-ranking', { params, signal }),
+
+  getRoadTypeComparison: (
+    params?: { period?: string },
+    signal?: AbortSignal
+  ): Promise<ApiResponse<OlapRoadTypeEfficiencyItem[]>> =>
+    axiosInstance.get('/olap/road-type-comparison', { params, signal }),
 }
 
 export const historyApi = {
