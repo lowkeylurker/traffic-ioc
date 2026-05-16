@@ -4,8 +4,11 @@ import { Logger } from '../utils/logger';
 import {
   ReliabilityBatchPayload,
   ReliabilitySourcePeriod,
+  ReliabilityTimeWindow,
   reliabilityMartService,
 } from '../services/reliability-mart.service';
+import { analyticsService } from '../services/analytics.service';
+import { corridorReliabilityCacheService } from '../services/corridor-reliability-cache.service';
 
 const logger = new Logger('ReliabilityJobService');
 
@@ -112,25 +115,52 @@ class ReliabilityJobService {
         logger.log(`Started reliability job ${job.id}`, job.data);
 
         const isRecurringJob = Boolean(job.opts.repeat);
-        const effectivePayload: ReliabilityBatchPayload = isRecurringJob
-          ? {
-              ...job.data,
-              ...getPeriodRange(job.data.sourcePeriod),
-            }
-          : job.data;
+        
+        const periodsToCompute: ReliabilitySourcePeriod[] = isRecurringJob 
+          ? ['WEEKLY', 'MONTHLY'] 
+          : [job.data.sourcePeriod];
 
-        logger.log(
-          `Executing reliability job ${job.id} (${isRecurringJob ? 'recurring' : 'manual'}) for ${effectivePayload.sourcePeriod}: ${effectivePayload.periodStart} -> ${effectivePayload.periodEnd}`
-        );
+        let totalUpserted = 0;
 
-        const result = await reliabilityMartService.computeReliabilityPeriod({
-          ...effectivePayload,
-          jobRunId: job.id,
-        });
+        for (const period of periodsToCompute) {
+          const effectivePayload: ReliabilityBatchPayload = {
+            ...job.data,
+            sourcePeriod: period,
+            ...getPeriodRange(period),
+          };
+
+          logger.log(
+            `Đang thực thi job reliability ${job.id} (${isRecurringJob ? 'định kỳ' : 'thủ công'}) cho ${period}: ${effectivePayload.periodStart} -> ${effectivePayload.periodEnd}`
+          );
+
+          const result = await reliabilityMartService.computeReliabilityPeriod({
+            ...effectivePayload,
+            jobRunId: `${job.id}-${period}`,
+          });
+          
+          totalUpserted += result.upsertedRows;
+
+          // Sau khi tính toán xong mart trong PostgreSQL, cập nhật cache MongoDB cho period này
+          logger.log(`Đang làm mới cache MongoDB cho reliability (${period})...`);
+          const timeWindows: ReliabilityTimeWindow[] = ['AM_PEAK', 'PM_PEAK', 'OFF_PEAK'];
+          for (const tw of timeWindows) {
+            await analyticsService.getReliability({
+              timeWindow: tw,
+              sourcePeriod: period,
+              sortBy: 'buffer_index',
+              limit: 10000
+            });
+          }
+        }
+        
+        logger.log(`✓ Đã hoàn tất tính toán và làm mới cache cho tất cả chu kỳ`);
+
+        // Dọn dẹp dữ liệu cũ (mặc định giữ 3 tháng)
+        await reliabilityMartService.clearOldReliabilityData(3);
 
         const durationMs = Date.now() - startedAt;
-        logger.log(`Completed reliability job ${job.id} in ${durationMs}ms, upserted=${result.upsertedRows}`);
-        return result;
+        logger.log(`Hoàn thành job reliability ${job.id} trong ${durationMs}ms, tổng dòng cập nhật=${totalUpserted}`);
+        return { totalUpserted };
       },
       {
         connection,
@@ -148,6 +178,7 @@ class ReliabilityJobService {
 
     await this.enqueueScheduledJobs();
     await this.enqueueBootstrapJobIfMartEmpty();
+    await this.checkAndBackfillCache();
     logger.log('Reliability queue and worker started');
   }
 
@@ -177,6 +208,30 @@ class ReliabilityJobService {
     logger.log(
       `Reliability mart is empty, enqueued bootstrap job for ${sourcePeriod}: ${payload.periodStart} -> ${payload.periodEnd}`
     );
+  }
+
+  private async checkAndBackfillCache(): Promise<void> {
+    if (!this.queue) return;
+
+    const cacheEmpty = await corridorReliabilityCacheService.isCacheEmpty();
+    if (cacheEmpty) {
+      logger.log('[Backfill] Cache Reliability trong MongoDB đang trống. Khởi động worker nạp cache...');
+      // Nạp cho cả WEEKLY và MONTHLY
+      const periods: ReliabilitySourcePeriod[] = ['WEEKLY', 'MONTHLY'];
+      for (const period of periods) {
+        const range = getPeriodRange(period);
+        const payload: ReliabilityBatchPayload = {
+          periodStart: range.periodStart,
+          periodEnd: range.periodEnd,
+          sourcePeriod: period,
+        };
+        await this.queue.add(JOB_NAME, payload, {
+          jobId: `bootstrap-cache-${period}-${Date.now()}`,
+        });
+      }
+    } else {
+      logger.log('[Backfill] Cache Reliability đã có dữ liệu');
+    }
   }
 
   private async enqueueScheduledJobs(): Promise<void> {

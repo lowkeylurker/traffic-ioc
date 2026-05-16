@@ -13,7 +13,8 @@ export interface GeoJSONFeature {
     roadName?: string
     isCorridor?: boolean
     avgSpeed?: number
-    losIndex?: string
+    losGrade?: string
+    losScore?: number
     color?: string
     lastUpdated?: string
     district?: string
@@ -55,6 +56,8 @@ export interface Segment {
 export interface TrafficStatus {
   segmentId: number
   segmentName: string
+  roadKey?: string
+  roadName?: string
   currentSpeed: number
   avgSpeed: number
   losGrade: 'A' | 'B' | 'C' | 'D' | 'E' | 'F'
@@ -63,6 +66,8 @@ export interface TrafficStatus {
   occupancyRate: number
   isCorridor?: boolean
   timestamp: Date
+  lng?: number
+  lat?: number
 }
 
 export interface Alert {
@@ -373,6 +378,7 @@ export interface CorridorReliabilityQueryParams {
   sortBy?: ReliabilitySortBy
   limit?: number
   corridorKey?: string
+  sourcePeriod?: 'WEEKLY' | 'MONTHLY'
 }
 
 // [hour, roadName, avgTrafficIndex]
@@ -388,8 +394,40 @@ export interface OlapCrossAnalysisPoint {
 
 export type OlapDrillLevel = 'road' | 'segment'
 
+export interface OlapQueryParams {
+  district?: string
+  period?: 'weekly' | 'monthly' | 'all'
+  roadTypes?: string[]
+}
+
 export interface OlapDrilldownParams {
   roadName?: string
+  district?: string
+  period?: 'weekly' | 'monthly' | 'all'
+  roadTypes?: string[]
+}
+
+export interface OlapSummary {
+  avgVcRatio: number
+  avgDelaySeconds: number
+  avgTrafficIndex: number
+  roadCount: number
+  congestionRate: number
+  economicLoss: number
+  reliabilityIndex: number
+}
+
+export interface OlapDistrictRankingItem {
+  district: string
+  avgTrafficIndex: number
+  avgVcRatio: number
+  totalDelaySeconds: number
+}
+
+export interface OlapRoadTypeEfficiencyItem {
+  type: string
+  avgTrafficIndex: number
+  avgVcRatio: number
 }
 
 export interface OlapDrilldownPoint {
@@ -437,6 +475,22 @@ export interface HistoryHotspotPoint {
   trafficIndex: number
 }
 
+export interface HistoryTrendPoint {
+  timestamp: string
+  value: number
+}
+
+export interface HistorySummary {
+  avgSpeedTrend: HistoryTrendPoint[]
+  congestionTrend: HistoryTrendPoint[]
+  totalPcu: number
+  flowEfficiency: number
+  totalDelay: number
+  losStability: number
+  avgSpeed: number
+  worstRoad: string
+}
+
 export interface ForecastData {
   segmentId: number
   predictedSpeed: number
@@ -449,6 +503,24 @@ export interface RoutingData {
   route: GeoJSON.LineString
   totalDistance: number
   estimatedTime: number
+}
+
+export interface SimulationRoutingResult {
+  baseline: {
+    distance: number
+    duration: number
+    route: GeoJSON.FeatureCollection
+  }
+  rerouted: {
+    distance: number
+    duration: number
+    route: GeoJSON.FeatureCollection
+  }
+  blockedSegments: string[]
+  expandedBlockedSegments: string[]
+  blockedRouteSegments: string[]
+  rerouteAvailable?: boolean
+  rerouteFailureReason?: string
 }
 
 export interface PlaceSearchResult {

@@ -1,4 +1,8 @@
-import { CorridorAnalyticsOption, SegmentResponse, TrafficStatus } from '@/types'
+import {
+  CorridorAnalyticsOption,
+  SegmentResponse,
+  TrafficStatus,
+} from '@/types'
 
 const DB_NAME = 'traffic-ioc-cache'
 const DB_VERSION = 1
@@ -252,3 +256,4 @@ export const setCachedCorridors = async (
     console.warn('Unable to write corridor cache to IndexedDB:', error)
   }
 }
+

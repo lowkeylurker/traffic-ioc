@@ -66,6 +66,26 @@ export class HistoryController {
       next(error);
     }
   }
+
+  /**
+   * GET /api/v1/history/summary
+   * Lấy tổng hợp xu hướng và các chỉ số thống kê
+   */
+  async getSummary(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      logger.log('GET /history/summary');
+
+      const parsed = HistoryExportQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        throw new AppError(400, 'Invalid history summary params', 'BAD_REQUEST');
+      }
+
+      const summary = await historyService.getHistorySummary(parsed.data);
+      res.json(ResponseUtil.success(summary, 'History summary retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const historyController = new HistoryController();

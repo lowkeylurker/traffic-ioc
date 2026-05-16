@@ -4,6 +4,8 @@ import cors from 'cors';
 import express, { Express } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import * as Sentry from '@sentry/node';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import { API_VERSIONS, ROUTE_PATHS } from './constants/messages';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { Logger } from './utils/logger';
@@ -28,6 +30,18 @@ const logger = new Logger('App');
 export const createApp = (): Express => {
   const app = express();
 
+  // Initialize Sentry
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      integrations: [
+        nodeProfilingIntegration(),
+      ],
+      tracesSampleRate: 1.0,
+      profilesSampleRate: 1.0,
+    });
+  }
+
   // ============================================================================
   // Middleware
   app.use(clerkMiddleware());
@@ -50,7 +64,14 @@ export const createApp = (): Express => {
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   // Logging
-  app.use(morgan('combined'));
+  const morganFormat = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
+  app.use(
+    morgan(morganFormat, {
+      stream: {
+        write: (message: string) => logger.http(message.trim()),
+      },
+    })
+  );
 
   // ============================================================================
   // Health Check
@@ -99,6 +120,11 @@ export const createApp = (): Express => {
   // ============================================================================
   // Error Handling
   // ============================================================================
+
+  // The error handler must be before any other error middleware and after all controllers
+  if (process.env.SENTRY_DSN) {
+    Sentry.setupExpressErrorHandler(app);
+  }
 
   // 404 handler
   app.use(notFoundHandler);

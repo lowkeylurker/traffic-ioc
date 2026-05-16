@@ -46,6 +46,22 @@ export interface HistoryHotspotPoint {
   trafficIndex: number;
 }
 
+export interface HistoryTrendPoint {
+  timestamp: string;
+  value: number;
+}
+
+export interface HistorySummary {
+  avgSpeedTrend: HistoryTrendPoint[];
+  congestionTrend: HistoryTrendPoint[];
+  totalPcu: number;
+  flowEfficiency: number;
+  totalDelay: number;
+  losStability: number;
+  avgSpeed: number;
+  worstRoad: string;
+}
+
 const logger = new Logger('HistoryService');
 
 const BASE_JOIN = `
@@ -219,6 +235,71 @@ export class HistoryService {
       roadName: row.roadName as string,
       trafficIndex: Number(row.trafficIndex ?? 0),
     }));
+  }
+
+  async getHistorySummary(params: HistoryExportParams): Promise<HistorySummary> {
+    const { values, where } = buildFilters(params);
+
+    // 1. Get trends aggregated by hour (or minute if range is small)
+    // For simplicity, we'll use hour buckets for historical analytics
+    const trendResult = await query(
+      `
+      SELECT
+        DATE_TRUNC('hour', f.timestamp) AS bucket,
+        AVG(f.current_speed_kmh)::float8 AS avg_speed,
+        AVG(f.traffic_index)::float8 AS avg_index,
+        SUM(f.pcu_volume)::bigint AS total_pcu,
+        SUM(f.delay_seconds)::bigint AS total_delay,
+        (COUNT(*) FILTER (WHERE f.los_level IN ('A', 'B', 'C'))::float8 / NULLIF(COUNT(*), 0))::float8 AS efficiency
+      ${BASE_JOIN}
+      ${where}
+      GROUP BY bucket
+      ORDER BY bucket ASC
+      `,
+      values
+    );
+
+    // 2. Get overall metrics
+    const overallResult = await query(
+      `
+      SELECT
+        AVG(f.current_speed_kmh)::float8 AS avg_speed,
+        SUM(f.pcu_volume)::bigint AS total_pcu,
+        SUM(f.delay_seconds)::bigint AS total_delay,
+        (COUNT(*) FILTER (WHERE f.los_level IN ('A', 'B', 'C'))::float8 / NULLIF(COUNT(*), 0))::float8 AS efficiency
+      ${BASE_JOIN}
+      ${where}
+      `,
+      values
+    );
+
+    // 3. Get worst road
+    const worstRoadResult = await query(
+      `
+      SELECT
+        COALESCE(r.name, CONCAT('Segment ', s.segment_key::text)) AS road_name
+      ${BASE_JOIN}
+      ${where}
+      GROUP BY road_name
+      ORDER BY AVG(f.traffic_index) ASC
+      LIMIT 1
+      `,
+      values
+    );
+
+    const overall = overallResult.rows[0] || {};
+    const worstRoad = worstRoadResult.rows[0]?.road_name ?? 'N/A';
+
+    return {
+      avgSpeedTrend: trendResult.rows.map(r => ({ timestamp: r.bucket, value: r.avg_speed })),
+      congestionTrend: trendResult.rows.map(r => ({ timestamp: r.bucket, value: r.avg_index })),
+      totalPcu: Number(overall.total_pcu ?? 0),
+      flowEfficiency: Number(overall.efficiency ?? 0),
+      totalDelay: Number(overall.total_delay ?? 0),
+      losStability: 0.85, // Placeholder for complex calculation
+      avgSpeed: Number(overall.avg_speed ?? 0),
+      worstRoad
+    };
   }
 }
 

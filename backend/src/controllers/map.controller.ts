@@ -21,18 +21,6 @@ export class MapController {
     }
   }
 
-  /**
-   * GET /segments - Lấy danh sách tất cả đoạn đường (GeoJSON)
-   */
-  async getSegments(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      logger.log('GET /segments');
-      const segments = await mapService.getSegments();
-      res.json(ResponseUtil.success(segments, 'Segments retrieved successfully'));
-    } catch (error) {
-      next(error);
-    }
-  }
 
   /**
    * GET /roads - Lấy danh sách tuyến đường
@@ -82,24 +70,41 @@ export class MapController {
   }
 
   /**
-   * GET /status/:segmentId - Lấy trạng thái của một đoạn đường cụ thể
+   * GET /roads/:roadKey/segments - Lấy danh sách segment_key của một trục đường
    */
-  async getSegmentStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getRoadSegments(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { segmentId } = req.params;
-      logger.log(`GET /status/${segmentId}`);
-
-      const status = await mapService.getSegmentStatus(parseInt(segmentId));
-      if (!status) {
-        res.status(404).json(ResponseUtil.notFound(`Segment ${segmentId} not found`));
-        return;
-      }
-
-      res.json(ResponseUtil.success(status, 'Segment status retrieved successfully'));
+      const { roadKey } = req.params;
+      logger.log(`GET /roads/${roadKey}/segments`);
+      const segments = await mapService.getRoadSegments(roadKey);
+      res.json(ResponseUtil.success(segments, 'Road segments retrieved successfully'));
     } catch (error) {
       next(error);
     }
   }
+
+  /**
+   * GET /api/v1/map/roads/:roadKey/geojson - Lấy GeoJSON của một trục đường (hỗ trợ lọc theo tọa độ)
+   */
+  async getRoadGeoJson(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { roadKey } = req.params;
+      const { lat, lng } = req.query;
+
+      logger.log(`GET /api/v1/map/roads/${roadKey}/geojson${lat ? `?lat=${lat}&lng=${lng}` : ''}`);
+
+      const geojson = await mapService.getRoadGeoJson(
+        roadKey,
+        lat ? Number(lat) : undefined,
+        lng ? Number(lng) : undefined
+      );
+
+      res.json(ResponseUtil.success(geojson, 'Road GeoJSON retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
 }
 
 export const mapController = new MapController();

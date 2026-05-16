@@ -3,6 +3,7 @@
 
 import { query } from '../config/db';
 import { prisma } from '../config/prisma';
+import { getRedisConnection } from '../config/redis';
 import { TrafficStatus } from '../interfaces/index';
 import { COLOR_RULES, GeoJSONFeature, TrafficMapResponse } from '../interfaces/map.interface';
 import { Logger } from '../utils/logger';
@@ -379,48 +380,30 @@ export class MapService {
     }
   }
 
-  /**
-   * Lấy danh sách tất cả đoạn đường dưới dạng GeoJSON
-   */
-  async getSegments(): Promise<any[]> {
-    try {
-      logger.log('Fetching all segments with GeoJSON');
-
-      const result = await query(`
-        SELECT
-          segment_key        AS "segmentId",
-          segment_id_source::text AS "segmentName",
-          ST_AsGeoJSON(geometry_linestring)::json AS geometry,
-          length_m           AS "numLanes",
-          is_one_way         AS "speedLimit"
-        FROM dim_segment
-        WHERE geometry_linestring IS NOT NULL
-        ORDER BY segment_key
-        LIMIT 5000
-      `);
-
-      logger.log(`Retrieved ${result.rows.length} segments`);
-      return result.rows;
-    } catch (error) {
-      logger.error('Error fetching segments', error);
-      throw error;
-    }
-  }
 
   /**
-   * Lấy danh sách tuyến đường
+   * Lấy danh sách tuyến đường kèm thông tin quận để phân biệt
    */
   async getRoads(): Promise<Array<{ roadKey: string; roadName: string }>> {
     try {
-      logger.log('Fetching all roads');
+      logger.log('Fetching all roads with district context');
 
+      // Join roads -> ways -> segments -> locations to get district context
       const result = await query(`
         SELECT
-          road_key::text AS "roadKey",
-          name AS "roadName"
-        FROM dim_road
-        WHERE name IS NOT NULL
-        ORDER BY name ASC
+          r.road_key::text AS "roadKey",
+          r.name AS "pureName",
+          COALESCE(
+            r.name || ' (' || STRING_AGG(DISTINCT l.district, ', ' ORDER BY l.district) || ')',
+            r.name
+          ) AS "roadName"
+        FROM dim_road r
+        LEFT JOIN dim_way w ON r.road_key = w.road_key
+        LEFT JOIN dim_segment s ON w.way_key = s.way_key
+        LEFT JOIN dim_location l ON s.location_key = l.location_key
+        WHERE r.name IS NOT NULL
+        GROUP BY r.road_key, r.name
+        ORDER BY r.name ASC
       `);
 
       return result.rows as Array<{ roadKey: string; roadName: string }>;
@@ -435,107 +418,113 @@ export class MapService {
    */
   async getTrafficStatus(asOf?: string): Promise<TrafficStatus[]> {
     try {
+      const redis = getRedisConnection();
+      const cacheKey = asOf ? `traffic_status_${asOf}` : 'traffic_status_latest';
+
+      // Try cache
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached) as TrafficStatus[];
+      }
+
       logger.log(asOf ? `Fetching traffic status snapshot as of ${asOf}` : 'Fetching traffic status (dynamic flow)');
 
       const queryParams: Array<string> = [];
-      const asOfCondition = asOf
-        ? (() => {
-            queryParams.push(asOf);
-            return `AND DATE_TRUNC('minute', timestamp) = DATE_TRUNC('minute', $${queryParams.length}::timestamptz AT TIME ZONE 'Asia/Ho_Chi_Minh')`;
-          })()
-        : `AND timestamp >= NOW() - INTERVAL '15 minutes' AND timestamp::date = CURRENT_DATE`;
+      let sql = '';
 
-      const result = await query(
-        `
-        WITH latest_flow AS (
-          SELECT DISTINCT ON (segment_key)
-            segment_key, current_speed_kmh, los_level, traffic_index, pcu_volume, timestamp
-          FROM fact_traffic_flow
-          WHERE timestamp IS NOT NULL
-          ${asOfCondition}
-          ORDER BY segment_key, timestamp DESC
-        )
-        SELECT
-          f.segment_key          AS "segmentId",
-          COALESCE(r.name, s.segment_id_source::text) AS "segmentName",
-          f.current_speed_kmh    AS "currentSpeed",
-          f.current_speed_kmh    AS "avgSpeed",
-          f.los_level            AS "losGrade",
-          f.traffic_index        AS "losScore",
-          f.pcu_volume           AS "pcuValue",
-          NULL::float            AS "occupancyRate",
-          EXISTS (
-            SELECT 1
-            FROM bridge_corridor_segment bcs
-            WHERE bcs.segment_key = f.segment_key
-          )                     AS "isCorridor",
-          f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp
-        FROM latest_flow f
-        LEFT JOIN dim_segment s ON f.segment_key = s.segment_key
-        LEFT JOIN dim_way w ON w.way_key = s.way_key
-        LEFT JOIN dim_road r ON r.road_key = w.road_key
-        WHERE s.geometry_linestring IS NOT NULL
-      `,
-        queryParams
-      );
+      if (asOf) {
+        // Use a 15-minute window before the requested 'asOf' time to ensure data coverage
+        // while still using range-based filtering for index performance.
+        const asOfDate = new Date(asOf);
+        const startWindow = new Date(asOfDate.getTime() - 15 * 60 * 1000);
+
+        queryParams.push(startWindow.toISOString(), asOfDate.toISOString());
+
+        sql = `
+          WITH latest_flow AS (
+            SELECT DISTINCT ON (f.segment_key)
+              f.segment_key,
+              f.current_speed_kmh,
+              f.los_level,
+              f.traffic_index,
+              f.pcu_volume,
+              f.timestamp,
+              COALESCE(r.name, s.segment_id_source::text) AS segment_name,
+              r.road_key::text AS road_key,
+              r.name AS road_name,
+              EXISTS (
+                SELECT 1 FROM bridge_corridor_segment bcs WHERE bcs.segment_key = f.segment_key
+              ) AS is_corridor,
+              ST_X(ST_Centroid(s.geometry_linestring)) AS lng,
+              ST_Y(ST_Centroid(s.geometry_linestring)) AS lat
+            FROM fact_traffic_flow f
+            JOIN dim_segment s ON f.segment_key = s.segment_key
+            LEFT JOIN dim_way w ON s.way_key = w.way_key
+            LEFT JOIN dim_road r ON w.road_key = r.road_key
+            WHERE f.timestamp >= $1::timestamptz AND f.timestamp <= $2::timestamptz
+            ORDER BY f.segment_key, f.timestamp DESC
+          )
+          SELECT
+            segment_key          AS "segmentId",
+            segment_name         AS "segmentName",
+            road_key             AS "roadKey",
+            road_name            AS "roadName",
+            current_speed_kmh    AS "currentSpeed",
+            current_speed_kmh    AS "avgSpeed",
+            los_level            AS "losGrade",
+            traffic_index        AS "losScore",
+            pcu_volume           AS "pcuValue",
+            NULL::float          AS "occupancyRate",
+            is_corridor          AS "isCorridor",
+            timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp,
+            lng,
+            lat
+          FROM latest_flow;
+        `;
+      } else {
+        // Direct select from MV. Added a time check to ensure we only return recent data
+        // even if the MV hasn't been refreshed in a while.
+        sql = `
+          SELECT
+            f.segment_key          AS "segmentId",
+            f.segment_name         AS "segmentName",
+            f.road_key             AS "roadKey",
+            f.segment_name         AS "roadName", -- Road name is often same as segment name in MV
+            f.current_speed_kmh    AS "currentSpeed",
+            f.current_speed_kmh    AS "avgSpeed",
+            f.los_level            AS "losGrade",
+            f.traffic_index        AS "losScore",
+            f.pcu_volume           AS "pcuValue",
+            NULL::float            AS "occupancyRate",
+            f.is_corridor          AS "isCorridor",
+            f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp,
+            f.lng,
+            f.lat
+          FROM mv_latest_traffic_status f
+          WHERE f.timestamp >= NOW() - INTERVAL '30 minutes';
+        `;
+      }
+
+      const result = await query(sql, queryParams);
 
       logger.log(`Retrieved traffic status for ${result.rows.length} segments`);
 
       // Inject colors directly in result
-      return result.rows.map((row) => ({
+      const statuses = result.rows.map((row) => ({
         ...row,
         color: this.getColorByLOS(row.losGrade),
       })) as TrafficStatus[];
+
+      // Save to cache (30 seconds)
+      await redis.setex(cacheKey, 30, JSON.stringify(statuses));
+
+      return statuses;
     } catch (error) {
       logger.error('Error fetching traffic status', error);
       throw error;
     }
   }
 
-  /**
-   * Lấy trạng thái của một đoạn đường cụ thể
-   */
-  async getSegmentStatus(segmentId: number): Promise<TrafficStatus | null> {
-    try {
-      logger.log(`Fetching status for segment ${segmentId}`);
-
-      const result = await query(
-        `
-        SELECT
-          s.segment_key          AS "segmentId",
-          COALESCE(r.name, s.segment_id_source::text) AS "segmentName",
-          f.current_speed_kmh    AS "currentSpeed",
-          f.current_speed_kmh    AS "avgSpeed",
-          f.los_level            AS "losGrade",
-          f.traffic_index        AS "losScore",
-          f.pcu_volume           AS "pcuValue",
-          NULL::float            AS "occupancyRate",
-          f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp
-        FROM dim_segment s
-        LEFT JOIN dim_way w ON w.way_key = s.way_key
-        LEFT JOIN dim_road r ON r.road_key = w.road_key
-        LEFT JOIN LATERAL (
-          SELECT *
-          FROM fact_traffic_flow ftf
-          WHERE ftf.segment_key = s.segment_key
-            AND ftf.timestamp >= NOW() - INTERVAL '15 minutes'
-            AND ftf.timestamp::date = CURRENT_DATE
-          ORDER BY ftf.timestamp DESC
-          LIMIT 1
-        ) f ON TRUE
-        WHERE s.segment_key = $1
-      `,
-        [segmentId]
-      );
-
-      const result_row = result.rows.length > 0 ? result.rows[0] : null;
-      logger.log(`Segment ${segmentId}: ${result_row ? 'Found' : 'Not found'}`);
-      return result_row as TrafficStatus | null;
-    } catch (error) {
-      logger.error(`Error fetching status for segment ${segmentId}`, error);
-      throw error;
-    }
-  }
 
   /**
    * Lấy danh sách mốc giờ snapshot có dữ liệu
@@ -572,7 +561,7 @@ export class MapService {
 
       const result = await query(
         `
-        SELECT DISTINCT timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS snapshot_time
+        SELECT DISTINCT timestamp AS snapshot_time
         FROM fact_traffic_flow
         ${whereClause}
         ORDER BY snapshot_time DESC
@@ -587,6 +576,126 @@ export class MapService {
         .map((value) => new Date(value).toISOString());
     } catch (error) {
       logger.error('Error fetching traffic status snapshots', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy danh sách segment_key của một trục đường
+   */
+  async getRoadSegments(roadKey: string): Promise<number[]> {
+    try {
+      logger.log(`Fetching segments for road: ${roadKey}`);
+      const sql = `
+        SELECT s.segment_key
+        FROM dim_segment s
+        JOIN dim_way w ON s.way_key = w.way_key
+        WHERE w.road_key::text = $1
+      `;
+      const { query } = await import('../config/db');
+      const result = await query(sql, [roadKey]);
+      return result.rows.map(row => Number(row.segment_key));
+    } catch (error) {
+      logger.error(`Error fetching segments for road ${roadKey}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy GeoJSON của một trục đường (kèm lọc không gian 1km để tránh lỗi gộp đường xa nhau)
+   */
+  async getRoadGeoJson(roadKey: string, refLat?: number, refLng?: number): Promise<any> {
+    try {
+      logger.log(`Fetching GeoJSON for road: ${roadKey}${refLat ? ` near ${refLat},${refLng}` : ''}`);
+
+      const params: any[] = [roadKey];
+
+      const featureSelectSql = `
+        SELECT
+          jsonb_build_object(
+            'type', 'FeatureCollection',
+            'features', COALESCE(jsonb_agg(
+              jsonb_build_object(
+                'type', 'Feature',
+                'geometry', ST_AsGeoJSON(s.geometry_linestring)::jsonb,
+                'properties', jsonb_build_object(
+                  'segmentId', s.segment_key::text,
+                  'segmentName', COALESCE(r.name, s.segment_id_source::text),
+                  'roadKey', r.road_key::text,
+                  'roadName', r.name,
+                  'losGrade', UPPER(TRIM(COALESCE(f.los_level, 'A'))),
+                  'losNumeric', CASE UPPER(TRIM(COALESCE(f.los_level, 'A')))
+                    WHEN 'A' THEN 0
+                    WHEN 'B' THEN 1
+                    WHEN 'C' THEN 2
+                    WHEN 'D' THEN 3
+                    WHEN 'E' THEN 4
+                    WHEN 'F' THEN 5
+                    ELSE 0
+                  END,
+                  'speed', f.current_speed_kmh
+                )
+              )
+              ORDER BY s.segment_key
+            ), '[]'::jsonb)
+          ) as geojson
+        FROM dim_segment s
+        JOIN dim_way w ON s.way_key = w.way_key
+        JOIN dim_road r ON w.road_key = r.road_key
+        LEFT JOIN mv_latest_traffic_status f ON s.segment_key = f.segment_key
+      `;
+
+      let sql: string;
+      if (refLat !== undefined && refLng !== undefined) {
+        params.push(refLng, refLat);
+        sql = `
+          WITH RECURSIVE selected_road AS (
+            SELECT name
+            FROM dim_road
+            WHERE road_key::text = $1
+            LIMIT 1
+          ),
+          candidates AS (
+            SELECT s.segment_key, s.geometry_linestring
+            FROM dim_segment s
+            JOIN dim_way w ON s.way_key = w.way_key
+            JOIN dim_road r ON w.road_key = r.road_key
+            JOIN selected_road sr ON r.name = sr.name
+            WHERE s.geometry_linestring IS NOT NULL
+          ),
+          seed AS (
+            SELECT segment_key
+            FROM candidates
+            ORDER BY geometry_linestring <-> ST_SetSRID(ST_MakePoint($2, $3), 4326)
+            LIMIT 1
+          ),
+          cluster(segment_key) AS (
+            SELECT segment_key FROM seed
+            UNION
+            SELECT c.segment_key
+            FROM candidates c
+            JOIN candidates anchor ON ST_DWithin(
+              c.geometry_linestring::geography,
+              anchor.geometry_linestring::geography,
+              1000
+            )
+            JOIN cluster cl ON anchor.segment_key = cl.segment_key
+          )
+          ${featureSelectSql}
+          JOIN cluster c ON s.segment_key = c.segment_key
+        `;
+      } else {
+        sql = `
+          ${featureSelectSql}
+          WHERE r.road_key::text = $1
+        `;
+      }
+
+      const { query } = await import('../config/db');
+      const result = await query(sql, params);
+      return result.rows[0]?.geojson || { type: 'FeatureCollection', features: [] };
+    } catch (error) {
+      logger.error(`Error fetching GeoJSON for road ${roadKey}`, error);
       throw error;
     }
   }

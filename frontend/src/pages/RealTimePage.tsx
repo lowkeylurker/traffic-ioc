@@ -1,7 +1,6 @@
 import { Loading } from '@/components'
 import { RoutingMapboxLayer } from '@/components/map/RoutingMapboxLayer'
 import { TrafficMap } from '@/components/map/TrafficMap'
-import WeatherVoronoiLayer from '@/components/map/WeatherVoronoiLayer'
 import { MapControls } from '@/components/widgets/MapControls'
 import { MapLegend } from '@/components/widgets/MapLegend'
 import { RoutingPanel } from '@/components/widgets/RoutingPanel'
@@ -34,8 +33,6 @@ const RealTimeMapOnly: React.FC<{ isSignedIn: boolean }> = ({
 
   const [segmentStatusLayerEnabled, setSegmentStatusLayerEnabled] =
     useState(true)
-  const [weatherLayerEnabled, setWeatherLayerEnabled] = useState(false)
-  const [weatherLayerLoading, setWeatherLayerLoading] = useState(false)
   const [incidentLayerEnabled, setIncidentLayerEnabled] = useState(true)
 
   // Routing states
@@ -417,13 +414,6 @@ const RealTimeMapOnly: React.FC<{ isSignedIn: boolean }> = ({
         tomTomIncidentTilesUrl={tomTomIncidentTileProxyUrl}
         onMapClick={handleMapClickForRouting}
       >
-        {weatherLayerEnabled && (
-          <WeatherVoronoiLayer
-            visible={weatherLayerEnabled}
-            mapRef={mapRef}
-            onLoadingChange={setWeatherLayerLoading}
-          />
-        )}
 
         {initialUserLocation && (
           <Marker
@@ -577,7 +567,6 @@ const RealTimeMapOnly: React.FC<{ isSignedIn: boolean }> = ({
         onZoomOut={handleZoomOut}
         onCompass={handleCompassReset}
         onSegmentStatusToggle={setSegmentStatusLayerEnabled}
-        onWeatherToggle={setWeatherLayerEnabled}
         onIncidentToggle={(enabled) => {
           setIncidentLayerEnabled(enabled)
         }}
@@ -590,48 +579,12 @@ const RealTimeMapOnly: React.FC<{ isSignedIn: boolean }> = ({
         }}
         showCamera={false}
         showRouting={isSignedIn}
-        showWeather={isSignedIn}
         defaultSegmentStatusLayerEnabled={segmentStatusLayerEnabled}
-        defaultWeatherLayerEnabled={weatherLayerEnabled}
         defaultIncidentLayerEnabled={incidentLayerEnabled}
       />
 
       <MapLegend />
 
-      {weatherLayerEnabled && weatherLayerLoading && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 24,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.18)',
-            backdropFilter: 'blur(6px)',
-            WebkitBackdropFilter: 'blur(6px)',
-            pointerEvents: 'none',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              color: '#F8FAFC',
-              fontSize: 13,
-              fontWeight: 600,
-              padding: '10px 14px',
-              borderRadius: 999,
-              background: 'rgba(15, 23, 42, 0.62)',
-              border: '1px solid rgba(248, 250, 252, 0.18)',
-              boxShadow: '0 10px 24px rgba(2, 6, 23, 0.25)',
-            }}
-          >
-            Đang tải lớp thời tiết...
-          </div>
-        </div>
-      )}
     </div>
   )
 }

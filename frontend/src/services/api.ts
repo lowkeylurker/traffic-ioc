@@ -13,21 +13,28 @@ import {
   HistoryHotspotPoint,
   HistoryQueryParams,
   HistoryResponse,
+  HistorySummary,
   IncidentCollection,
   IncidentImpactResponse,
   IncidentReportCreateResponse,
   NewsFeedResponse,
   OlapCrossAnalysisPoint,
+  OlapDistrictRankingItem,
   OlapDrilldownParams,
   OlapDrilldownResponse,
   OlapHeatmapCell,
+  OlapQueryParams,
+  OlapRoadTypeEfficiencyItem,
+  OlapSummary,
   PlaceSearchResult,
   PredictionRequestBody,
   PredictionResponse,
+  PredictionItem,
   RelativeComparisonResult,
   ReliabilityRankData,
   RoadOption,
   RoutingData,
+  SimulationRoutingResult,
   SegmentResponse,
   SpeedComparisonData,
   TrafficStatus,
@@ -128,6 +135,12 @@ export const mapApi = {
     axiosInstance.get(`/incidents/${incidentId}/impact-propagation`, {
       params,
     }),
+  getRoadSegments: (roadKey: string): Promise<ApiResponse<number[]>> =>
+    axiosInstance.get(`/map/roads/${roadKey}/segments`),
+  getRoadGeoJson: (roadKey: string, lat?: number, lng?: number): Promise<ApiResponse<any>> =>
+    axiosInstance.get(`/map/roads/${roadKey}/geojson`, {
+      params: { lat, lng }
+    }),
 }
 
 // Analytics API
@@ -163,19 +176,41 @@ export const analyticsApi = {
 }
 
 export const olapApi = {
-  getHeatmap: (signal?: AbortSignal): Promise<ApiResponse<OlapHeatmapCell[]>> =>
-    axiosInstance.get('/olap/heatmap', { signal }),
+  getHeatmap: (
+    params?: OlapQueryParams,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<OlapHeatmapCell[]>> =>
+    axiosInstance.get('/olap/heatmap', { params, signal }),
 
   getCrossAnalysis: (
+    params?: OlapQueryParams,
     signal?: AbortSignal
   ): Promise<ApiResponse<OlapCrossAnalysisPoint[]>> =>
-    axiosInstance.get('/olap/cross-analysis', { signal }),
+    axiosInstance.get('/olap/cross-analysis', { params, signal }),
 
   getDrilldown: (
-    params?: Pick<OlapDrilldownParams, 'roadName'>,
+    params?: OlapDrilldownParams,
     signal?: AbortSignal
   ): Promise<ApiResponse<OlapDrilldownResponse>> =>
     axiosInstance.get('/olap/drilldown', { params, signal }),
+
+  getSummary: (
+    params?: OlapQueryParams,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<OlapSummary>> =>
+    axiosInstance.get('/olap/summary', { params, signal }),
+
+  getDistrictRanking: (
+    params?: OlapQueryParams,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<OlapDistrictRankingItem[]>> =>
+    axiosInstance.get('/olap/district-ranking', { params, signal }),
+
+  getRoadTypeComparison: (
+    params?: { period?: string },
+    signal?: AbortSignal
+  ): Promise<ApiResponse<OlapRoadTypeEfficiencyItem[]>> =>
+    axiosInstance.get('/olap/road-type-comparison', { params, signal }),
 }
 
 export const historyApi = {
@@ -198,6 +233,11 @@ export const historyApi = {
       signal,
       responseType: 'blob',
     }),
+  getSummary: (
+    params: Omit<HistoryQueryParams, 'page' | 'limit'>,
+    signal?: AbortSignal
+  ): Promise<ApiResponse<HistorySummary>> =>
+    axiosInstance.get('/history/summary', { params, signal }),
 }
 
 // Simulation API
@@ -205,8 +245,8 @@ export const simulationApi = {
   runRouting: (
     startPoint: [number, number],
     endPoint: [number, number],
-    blockedSegments?: number[]
-  ): Promise<ApiResponse<RoutingData>> =>
+    blockedSegments?: string[]
+  ): Promise<ApiResponse<SimulationRoutingResult>> =>
     axiosInstance.post('/simulation/routing', {
       startPoint,
       endPoint,
@@ -293,6 +333,33 @@ export const predictionApi = {
     axiosInstance.post('/congestion-prediction/batch', data, {
       baseURL: aiCoreURL,
     }),
+  getRoadPrediction: async (roadKey: string, options: { horizon: number }): Promise<ApiResponse<PredictionItem[]>> => {
+    // 1. Get segments for the road
+    const segmentsResponse = await mapApi.getRoadSegments(roadKey);
+    if (!segmentsResponse.success || !segmentsResponse.data || segmentsResponse.data.length === 0) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: 'No segments found for this road',
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // 2. Get batch prediction
+    const batchResponse = await predictionApi.getBatchPrediction({
+      segment_ids: segmentsResponse.data,
+      request_time: new Date().toISOString(),
+      prediction_horizon_minutes: options.horizon
+    });
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: 'Road prediction retrieved successfully',
+      data: batchResponse.items,
+      timestamp: new Date().toISOString()
+    };
+  }
 }
 
 export default axiosInstance

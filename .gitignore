@@ -58,3 +58,6 @@ data-pipeline/cache/tomtom_key_pool_state.json
 # OS rác
 .DS_Store
 Thumbs.db
+
+# Project Specs
+.spec/

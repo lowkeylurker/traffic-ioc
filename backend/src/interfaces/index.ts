@@ -1,5 +1,5 @@
 // Interfaces cho custom types
-import { LineString } from 'geojson';
+import { FeatureCollection, LineString } from 'geojson';
 
 export interface TrafficSegment {
   segmentId: number;
@@ -44,13 +44,25 @@ export interface ForecastResponse {
 export interface RoutingRequest {
   startPoint: [number, number];
   endPoint: [number, number];
-  blockedSegments?: number[];
+  blockedSegments?: string[];
 }
 
 export interface RoutingResponse {
-  route: LineString;
-  totalDistance: number;
-  estimatedTime: number;
+  baseline: {
+    route: FeatureCollection;
+    distance: number;
+    duration: number;
+  };
+  rerouted: {
+    route: FeatureCollection;
+    distance: number;
+    duration: number;
+  };
+  blockedSegments: string[];
+  expandedBlockedSegments: string[];
+  blockedRouteSegments: string[];
+  rerouteAvailable?: boolean;
+  rerouteFailureReason?: string;
 }
 
 // Incident Monitoring Interfaces (A2)
@@ -276,6 +288,7 @@ export interface ReliabilityQueryParams {
   sortBy: ReliabilitySortBy;
   limit: number;
   corridorKey?: string;
+  sourcePeriod?: 'WEEKLY' | 'MONTHLY';
 }
 
 export interface ReliabilityRootCauses {

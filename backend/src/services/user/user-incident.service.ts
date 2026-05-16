@@ -231,31 +231,6 @@ export class UserIncidentService {
     };
   }
 
-  async updateOwnReport(input: {
-    incidentId: string;
-    reporterId: string;
-    incidentType?: string;
-    imageUrl?: string | null;
-  }): Promise<void> {
-    const reportKey = BigInt(input.incidentId);
-    const nextIncidentType = input.incidentType ? normalizeType(input.incidentType) : null;
-
-    const updatedRows = await prisma.$queryRaw<Array<{ report_key: bigint }>>(Prisma.sql`
-      UPDATE fact_citizen_report
-      SET
-        incident_type = COALESCE(${nextIncidentType}::varchar(50), incident_type),
-        image_url = COALESCE(${input.imageUrl || null}::text, image_url),
-        updated_at = NOW()
-      WHERE report_key = ${reportKey}
-        AND reporter_id = ${input.reporterId}
-        AND status = 'PENDING'::citizen_report_status
-      RETURNING report_key
-    `);
-
-    if (updatedRows.length === 0) {
-      throw new Error('Report not found or not editable');
-    }
-  }
 
   async getOwnReports(reporterId: string, status?: string): Promise<CitizenReportItem[]> {
     if (!reporterId) {
