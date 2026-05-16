@@ -1,0 +1,36 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches and logs
+.pytest_cache/
+*.log
+cache/
+
+# Environments
+.venv/
+venv/
+ENV/
+.env
+
+# ML Artifacts and Data (IMPORTANT: Ignore these to avoid "invalid file request" errors)
+# These are handled via volumes in docker-compose for development
+artifacts/
+data/
+models/
+notebooks/
+
+# Images and Docs
+docs/
+*.png
+*.jpg
+*.jpeg
+*.gif
+pictures/
+
+# OS/IDE files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

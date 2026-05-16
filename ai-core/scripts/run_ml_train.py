@@ -20,7 +20,14 @@ from src.ml.data.dataset import prepare_dataloaders
 from src.ml.artifacts import get_ml_checkpoint_path, get_ml_metrics_path, get_ml_preprocessing_path
 from src.ml.models.traffic_model import TrafficCongestionModel
 from src.ml.training.loop import train_model
-from src.ml.feature_contract import NUM_CLASSES, TARGET_COL, WINDOW_STEP_MINUTES
+from src.ml.feature_contract import (
+    NUM_CLASSES, 
+    TARGET_COL, 
+    WINDOW_STEP_MINUTES,
+    DYNAMIC_FEATURE_COLS,
+    STATIC_MODEL_FEATURE_COLS,
+    CATEGORICAL_FEATURE_COLS
+)
 from src.features.sliding_window import find_valid_window_starts
 from src.utils.data_loader import load_bulk_corridor_data
 
@@ -35,16 +42,20 @@ CHECKPOINT_PATH = str(get_ml_checkpoint_path(run_id=RUN_ID))
 PREPROCESSING_OUT = str(get_ml_preprocessing_path(run_id=RUN_ID))
 METRICS_OUT = str(get_ml_metrics_path(run_id=RUN_ID))
 
-USE_WEIGHTED_SAMPLER = False
-USE_CLASS_WEIGHTS = True
-CLASS_WEIGHT_CLIP_MIN = 1.0
-CLASS_WEIGHT_CLIP_MAX = 1.6
+USE_WEIGHTED_SAMPLER = True
+USE_CLASS_WEIGHTS = False
+CLASS_WEIGHT_CLIP_MIN = 0.5
+CLASS_WEIGHT_CLIP_MAX = 25.0
+# Manual class weights: None = dùng auto-computed (inverse frequency)
+# Dùng khi clip_min=1.0 không cho phép phân biệt Class 0, 1, 2 (tất cả = 1.0)
+# [C0, C1, C2, C3, C4, C5] — tăng cường phạt Class 1 và 2 để buộc mô hình học ranh giới rõ hơn
+MANUAL_CLASS_WEIGHTS = None
 TRAIN_EPOCHS = 50
-LEARNING_RATE = 0.001
-PATIENCE = 12
+LEARNING_RATE = 0.0003  # Giảm từ 0.001 → 0.0003: Grad Norm max = 99 là dấu hiệu gradient explosion
+PATIENCE = 20           # Tăng từ 12 → 20: LR Scheduler cần thêm thời gian sau mỗi lần giảm
 BATCH_SIZE = 256
 LOSS_TYPE = "focal"
-FOCAL_GAMMA = 1.5
+FOCAL_GAMMA = 2.0
 CLASS_BALANCED_BETA = 0.9999
 LABEL_SMOOTHING = 0.05
 WEIGHT_DECAY = 0.0001
@@ -179,6 +190,13 @@ def main() -> None:
 
     # 1. Nạp dữ liệu (Ưu tiên từ Parquet đã balanced, fallback về Database)
     input_parquet = os.getenv("ML_INPUT_DATA_PATH")
+    print("\n" + "="*50)
+    print("🚀 CẤU HÌNH FEATURES SỬ DỤNG:")
+    print(f"🔹 DYNAMIC    : {DYNAMIC_FEATURE_COLS}")
+    print(f"🔹 STATIC     : {STATIC_MODEL_FEATURE_COLS}")
+    print(f"🔹 CATEGORICAL: {CATEGORICAL_FEATURE_COLS}")
+    print("="*50 + "\n")
+
     if input_parquet and Path(input_parquet).exists():
         print(f"📦 LOADING BALANCED DATA FROM PARQUET: {input_parquet}")
         df_master = pd.read_parquet(input_parquet)
@@ -266,6 +284,7 @@ def main() -> None:
         use_class_weights=USE_CLASS_WEIGHTS,
         class_weight_clip_min=CLASS_WEIGHT_CLIP_MIN,
         class_weight_clip_max=CLASS_WEIGHT_CLIP_MAX,
+        manual_class_weights=MANUAL_CLASS_WEIGHTS,
         loss_type=LOSS_TYPE,
         focal_gamma=FOCAL_GAMMA,
         class_balanced_beta=CLASS_BALANCED_BETA,

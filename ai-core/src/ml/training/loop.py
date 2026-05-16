@@ -38,6 +38,7 @@ def train_model(
     use_class_weights: bool = True,
     class_weight_clip_min: float = 0.5,
     class_weight_clip_max: float = 25.0,
+    manual_class_weights: list | None = None,
     loss_type: str = "ce",
     focal_gamma: float = 2.0,
     class_balanced_beta: float = 0.9999,
@@ -59,14 +60,18 @@ def train_model(
     writer = SummaryWriter(log_dir=tensorboard_log_dir)
 
     class_weights = None
-    if use_class_weights:
+    if manual_class_weights is not None:
+        # Uu tien manual weights: override hoan toan auto-computed weights
+        class_weights = torch.tensor(manual_class_weights, dtype=torch.float32).to(device)
+        print(f"\U0001f4ca Class Weights (MANUAL): {np.round(class_weights.cpu().numpy(), 3)}")
+    elif use_class_weights:
         class_weights = get_class_weights(
             train_dataset,
             clip_min=class_weight_clip_min,
             clip_max=class_weight_clip_max,
         ).to(device)
     else:
-        print("📊 Class Weights: OFF")
+        print("\U0001f4ca Class Weights: OFF")
 
     cb_weights = None
     if loss_type == "cb_focal":
@@ -137,7 +142,7 @@ def train_model(
                 return history
 
             loss.backward()
-            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)  # Tăng từ 1.0 → 5.0
             grad_norms.append(float(grad_norm))
             optimizer.step()
 

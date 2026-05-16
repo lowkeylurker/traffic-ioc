@@ -13,7 +13,7 @@ from src.ml.feature_contract import (
 class TrafficForecastingEnv(gym.Env):
     """Gym environment for congestion-level forecasting decisions."""
 
-    def __init__(self, dataloader, device="cpu", class_weights=None, reward_scale: float = 1.0, reward_clip: float = 30.0):
+    def __init__(self, dataloader, device="cpu", class_weights=None, reward_scale: float = 1.0, reward_clip: float = 250.0):
         super(TrafficForecastingEnv, self).__init__()
 
         self.dataloader = dataloader
@@ -49,7 +49,8 @@ class TrafficForecastingEnv(gym.Env):
 
     def _calculate_reward_details(self, action, target):
         """
-        Reward System V7.0: Strict Adjacency and Binary Boundary Enforcement.
+        Reward System V10.0: "BETTER SAFE THAN SORRY" (Extreme Asymmetry).
+        Prioritizes safety by heavily penalizing missed jams while minimizing false alarm cost.
         """
         target_weight = float(self.class_weights[int(target)])
         
@@ -63,28 +64,26 @@ class TrafficForecastingEnv(gym.Env):
             "binary_error_penalty": 0.0,
         }
 
-        # 1. Accuracy Bonus (Thưởng đúng lớp, nhân trọng số lớp hiếm)
+        # 1. Accuracy Bonus (V11.0: Balanced priority)
         if diff == 0:
-            # V9.0: Gấp đôi phần thưởng cho việc đoán đúng các lớp kẹt xe (3, 4, 5)
-            base_bonus = 40.0 if int(target) >= 3 else 20.0
+            # Ưu tiên kẹt xe (>=3) chỉ cao hơn một chút (45 vs 35)
+            base_bonus = 45.0 if int(target) >= 3 else 35.0
             components["accuracy_bonus"] = base_bonus * target_weight
         
-        # 2. Adjacency Constraint (Sai lệch tối đa 1 lớp)
+        # 2. Adjacency Constraint (V10.0: Increased penalty for class drift)
         if diff == 1:
-            # Sai 1 lớp: Tăng mức phạt để Agent thận trọng hơn (V8.0)
-            components["adjacency_penalty"] = -8.0 
+            components["adjacency_penalty"] = -10.0 
         elif diff > 1:
-            # Sai > 1 lớp: PHẠT CỰC NẶNG (V8.0)
-            components["adjacency_penalty"] = -20.0 * diff
+            components["adjacency_penalty"] = -50.0 * diff
 
-        # 3. Binary Boundary & Directional Bias (Quy tắc Kẹt / Không Kẹt)
+        # 3. Binary Boundary & Directional Bias (V11.0: Near-Symmetric)
         if is_true_congested != is_pred_congested:
             if is_true_congested and not is_pred_congested:
-                # Thực tế KẸT nhưng báo KHÔNG KẸT (Missed Jam) -> RỦI RO CHIẾN LƯỢC (V8.0)
-                components["binary_error_penalty"] = -60.0
-            else:
-                # Thực tế KHÔNG Kẹt nhưng báo KẸT (False Alarm) -> CHẤP NHẬN ĐƯỢC (V8.0)
-                components["binary_error_penalty"] = -15.0
+                # Bỏ lỡ kẹt xe phạt -120
+                components["binary_error_penalty"] = -120.0
+            elif not is_true_congested and is_pred_congested:
+                # Báo nhầm kẹt xe phạt -100
+                components["binary_error_penalty"] = -100.0
 
         raw_reward = float(sum(components.values()))
         scaled_reward = float(np.clip(self.reward_scale * raw_reward, -self.reward_clip, self.reward_clip))

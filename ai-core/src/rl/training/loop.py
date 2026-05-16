@@ -199,8 +199,33 @@ def train_rl_agent(
             and (episode + 1) % max(1, early_stop_eval_interval) == 0
         )
         if should_eval:
+            print("\n" + "🔍" + " VALIDATION SNAPSHOT (Episode " + f"{episode + 1:03d}" + ") " + "🔍")
             eval_summary = eval_fn() or {}
             eval_macro_f1 = float(eval_summary.get("macro_f1", 0.0))
+            eval_per_class = eval_summary.get("per_class_metrics", {})
+            
+            # Print a clean table for validation metrics
+            print("-" * 65)
+            print(f"{'Class':<10} | {'Recall':<10} | {'Precision':<10} | {'F1-Score':<10} | {'Support':<8}")
+            print("-" * 65)
+            for cls_idx in range(NUM_CLASSES):
+                cls_m = eval_per_class.get(f"class_{cls_idx}", {})
+                r = cls_m.get("recall", 0.0)
+                p = cls_m.get("precision", 0.0)
+                f = cls_m.get("f1", 0.0)
+                s = cls_m.get("support", 0)
+                marker = "⚠️ " if cls_idx >= 4 else "  "
+                print(f"{marker}Class {cls_idx} | {r:<10.4f} | {p:<10.4f} | {f:<10.4f} | {s:<8}")
+            print("-" * 65)
+            print(f"✅ VAL MACRO-F1: {eval_macro_f1:.4f} | ACCURACY: {eval_summary.get('accuracy', 0.0):.4f}")
+            
+            # Print Binary Metrics ({0,1,2} vs {3,4,5})
+            bin_m = eval_summary.get("binary_metrics", {})
+            print(f"🚨 JAM DETECTION RECALL (3,4,5): {bin_m.get('congested_recall', 0.0)*100:>6.2f}%")
+            print(f"📉 MISSED JAM RATE          : {bin_m.get('miss_rate', 0.0)*100:>6.2f}% (CRITICAL)")
+            print(f"📣 FALSE ALARM RATE         : {bin_m.get('false_alarm_rate', 0.0)*100:>6.2f}%")
+            print("-" * 65 + "\n")
+
             history["eval_macro_f1"].append(eval_macro_f1)
             history["eval_events"].append(
                 {
@@ -208,7 +233,8 @@ def train_rl_agent(
                     "macro_f1": eval_macro_f1,
                     "accuracy": float(eval_summary.get("accuracy", 0.0)),
                     "num_samples": int(eval_summary.get("num_samples", 0)),
-                    "per_class_metrics": eval_summary.get("per_class_metrics", {}),
+                    "per_class_metrics": eval_per_class,
+                    "binary_metrics": bin_m,
                 }
             )
 

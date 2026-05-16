@@ -162,97 +162,102 @@ def _augment_minority_classes(df: pd.DataFrame, config: ClassBalanceConfig) -> T
         if 0 <= label <= 5: class_window_ends[label].append(idx)
     synthetic_parts = []
     current_new_key = 8000000000000000
-    from src.ml.feature_contract import WINDOW_STEP_MINUTES
-    from src.features.temporal_features import create_temporal_features
-    CORE_FEATURES = ["current_speed_kmh", "traffic_index", "delay_seconds", "free_flow_speed_kmh", "time_sin", "time_cos", "day_of_week"]
+
+    # =====================================================================
+    # Physics Constraints học từ REAL data (đã kiểm tra từ parquet thực tế)
+    # Mục tiêu: Synthetic phải tuân thủ đặc trưng vật lý của kẹt xe thật
+    # =====================================================================
+    PHYSICS_CONSTRAINTS = {
+        4: {
+            "speed_max": 22.0,          # P90 REAL Class 4
+            "speed_min": 5.0,           # P10 REAL Class 4
+            "traffic_index_min": 0.45,  # P10 REAL Class 4
+            "delay_min": 100.0,         # Ngưỡng vật lý tối thiểu (mean=361s)
+            "is_peak_hour_prob": 0.79,  # Học từ REAL Class 4
+            "is_weekend_prob": 0.11,    # Học từ REAL Class 4
+        },
+        5: {
+            "speed_max": 18.0,          # P90 REAL Class 5 (chặt hơn Class 4)
+            "speed_min": 1.0,           # P10 REAL Class 5
+            "traffic_index_min": 0.55,  # P10 REAL Class 5
+            "delay_min": 100.0,         # Ngưỡng vật lý tối thiểu (mean=365s)
+            "is_peak_hour_prob": 0.66,  # Học từ REAL Class 5
+            "is_weekend_prob": 0.30,    # Học từ REAL Class 5
+        },
+    }
+
+    # Giới hạn seed repetition: mỗi seed chỉ được dùng tối đa MAX_REPEATS lần
+    # Tránh hiện tượng mô hình học vẹt khi seed bị lặp lại quá nhiều
+    MAX_REPEATS_PER_SEED = 30
+
     for label in [5, 4]:
         target = getattr(config, f"synthetic_rows_class{label}", 0)
         if target <= 0: continue
         ends = class_window_ends[label]
         seeds = [df_clean.iloc[idx - W : idx + 1].copy() for idx in ends]
         if not seeds: continue
-        print(f"🧬 CTGAN Augmenting Class {label}: {len(seeds)} seeds -> {target} windows")
-        try:
-            from sdv.single_table import CTGANSynthesizer
-            from sdv.metadata import SingleTableMetadata
-            # Prepare flat data for CTGAN with STRICT column filtering
-            flat_frames = []
-            for s in seeds:
-                # ONLY keep core features to avoid stray string columns causing errors
-                f = s[CORE_FEATURES].copy()
-                f['row_offset'] = np.arange(len(s))
-                
-                # Enforce strict types for CTGAN compatibility
-                for col in CORE_FEATURES:
-                    if any(x in col for x in ["speed", "index", "delay", "sin", "cos", "gap"]):
-                        f[col] = pd.to_numeric(f[col], errors='coerce').fillna(0).astype(float)
-                    else:
-                        f[col] = f[col].astype(str)
-                flat_frames.append(f)
-            
-            flat_df = pd.concat(flat_frames, ignore_index=True)
-            
-            metadata = SingleTableMetadata()
-            metadata.detect_from_dataframe(flat_df)
-            
-            # Explicitly set SDV column types
-            for col in CORE_FEATURES:
-                if any(x in col for x in ["speed", "index", "delay", "sin", "cos", "gap"]):
-                    metadata.update_column(column_name=col, sdtype='numerical')
-                else:
-                    metadata.update_column(column_name=col, sdtype='categorical')
-            
-            # Special case for the row_offset
-            if 'row_offset' in flat_df.columns:
-                metadata.update_column(column_name='row_offset', sdtype='numerical')
-            
-            syn = CTGANSynthesizer(metadata, epochs=50, verbose=False)
-            syn.fit(flat_df)
-            new_flat = syn.sample(num_rows=target * window_size)
-            
-            # POISON-PROOF: Only use the time range of REAL data (avoiding 2086/2108 dates)
-            real_timestamps = pd.to_datetime(df_clean[df_clean['timestamp'].dt.year <= 2026]['timestamp'])
-            if real_timestamps.empty:
-                min_ts = pd.to_datetime("2026-03-25")
-                max_ts = pd.to_datetime("2026-04-26")
-            else:
-                min_ts = real_timestamps.min()
-                max_ts = real_timestamps.max()
-            
-            time_span_seconds = (max_ts - min_ts).total_seconds()
-            
-            # TỐI ƯU HÓA: Thu thập dữ liệu vào list và tạo DF một lần duy nhất
-            rows_to_collect = []
-            for i in range(target):
-                random_offset = np.random.randint(0, max(1, int(time_span_seconds - 13*15*60)))
-                start_ts = min_ts + pd.Timedelta(seconds=random_offset)
-                win_ts = [start_ts + pd.Timedelta(minutes=j*15) for j in range(window_size)]
-                
-                start_row = i * window_size
-                win_data = new_flat.iloc[start_row : start_row + window_size].copy()
-                
-                for j in range(len(win_data)):
-                    r = win_data.iloc[j].to_dict()
-                    r.update({"timestamp": win_ts[j], "segment_key": current_new_key, config.target_col: label, "synthetic_flag": 1})
-                    
-                    # Chuyển kiểu ngay lập tức để tiết kiệm RAM
-                    for c in ["weather_key", "day_of_week", "shift_code", "is_peak_hour", "is_business_hours", "is_weekend"]:
-                        if c in r: r[c] = np.int64(float(r[c]))
-                    rows_to_collect.append(r)
-                current_new_key += 1
-            
-            synthetic_parts.append(pd.DataFrame(rows_to_collect))
-            del rows_to_collect # Giải phóng bộ nhớ tạm
+
+        # Giới hạn số window thực tế có thể tạo ra dựa trên số seed thật
+        max_possible = len(seeds) * MAX_REPEATS_PER_SEED
+        actual_target = min(target, max_possible)
+        if actual_target < target:
+            print(f"⚠️  Class {label}: Giới hạn từ {target} xuống {actual_target} windows "
+                  f"(chỉ có {len(seeds)} seeds × {MAX_REPEATS_PER_SEED} lần tối đa/seed)")
+        print(f"🧬 Reality-based Augmenting Class {label}: {len(seeds)} seeds -> {actual_target} windows")
+
+        c = PHYSICS_CONSTRAINTS[label]
+        rows_to_collect = []
+
+        for i in range(actual_target):
+            # Chọn seed theo vòng tròn (round-robin) để đảm bảo tất cả seeds được dùng đều nhau
+            seed = seeds[i % len(seeds)].copy()
+
+            # Noise tăng theo số lần lặp để tạo đa dạng hơn
+            # Lần lặp thứ 1 (i < n_seeds): noise 4% | Lần 2: 8% | Lần 3+: 12%
+            repeat_cycle = i // len(seeds)
+            noise_std = 0.04 + min(repeat_cycle, 2) * 0.04  # 0.04, 0.08, 0.12
+            rng = np.random.default_rng(i + getattr(config, 'random_seed', 42))
+            noise_factor = rng.normal(1.0, noise_std)
+
+            # === Dynamic features: Jittering có ràng buộc vật lý ===
+            # Bước 1: Chỉ jitter current_speed_kmh — đây là biến độc lập duy nhất
+            jittered_speed = (
+                seed['current_speed_kmh'] * noise_factor
+            ).clip(c["speed_min"], c["speed_max"])
+            seed['current_speed_kmh'] = jittered_speed
+
+            # Bước 2: free_flow_speed_kmh GIỮ NGUYÊN từ seed (đặc tính cố định của đoạn đường)
+            # Bước 3: Tính lại traffic_index từ speed đã jitter để đảm bảo nhất quán vật lý
+            # Công thức: traffic_index = 1 - (current_speed / free_flow_speed)
+            # Đây là định nghĩa chuẩn của TomTom Traffic Index
+            free_flow = seed['free_flow_speed_kmh'].replace(0, np.nan).fillna(jittered_speed)
+            derived_traffic_index = (1.0 - jittered_speed / free_flow).clip(
+                c["traffic_index_min"], 1.09
+            )
+            seed['traffic_index'] = derived_traffic_index
+
+            # Bước 4: delay_seconds phải nhất quán với speed — khi speed giảm, delay tăng
+            # Áp dụng cùng hệ số ngược (inverse noise) và buộc đúng ngưỡng vật lý
+            seed['delay_seconds'] = (
+                seed['delay_seconds'] * (2.0 - noise_factor)
+            ).clip(c["delay_min"], 3600.0)
+
+            # === Static features: Tái tạo theo phân phối REAL (không copy từ seed) ===
+            seed['is_peak_hour'] = int(rng.random() < c["is_peak_hour_prob"])
+            seed['is_weekend']   = int(rng.random() < c["is_weekend_prob"])
+            # time_sin, time_cos: GIỮ NGUYÊN từ seed (bối cảnh thời gian của sự kiện thật)
+
+            # Cập nhật định danh
+            seed['segment_key'] = current_new_key
+            seed['synthetic_flag'] = 1
+
+            rows_to_collect.append(seed)
+            current_new_key += 1
+
+        if rows_to_collect:
+            synthetic_parts.append(pd.concat(rows_to_collect, ignore_index=True))
             import gc
             gc.collect()
-        except Exception as e:
-            print(f"⚠️ CTGAN failed, using jitter: {e}")
-            for i in range(target):
-                seed = seeds[i % len(seeds)].copy()
-                seed['segment_key'] = current_new_key
-                seed['synthetic_flag'] = 1
-                synthetic_parts.append(seed)
-                current_new_key += 1
     if not synthetic_parts: return pd.DataFrame(), {"applied": False}
     return pd.concat(synthetic_parts, ignore_index=True), {"applied": True}
 

@@ -5,17 +5,16 @@ from __future__ import annotations
 from typing import Any
 
 DYNAMIC_FEATURE_COLS = [
-    "current_speed_kmh",
+    "speed_ratio",        # = current_speed / free_flow_speed (tương đối)
+    "speed_ratio_delta",  # = thay đổi speed_ratio giữa 2 bước liên tiếp (xu hướng)
     "traffic_index",
     "delay_seconds",
 ]
 
 STATIC_MODEL_FEATURE_COLS = [
-    "free_flow_speed_kmh",
     "time_sin",
     "time_cos",
     "is_peak_hour",
-    "is_business_hours",
     "is_weekend",
 ]
 
@@ -26,7 +25,7 @@ STATIC_SCALER_FEATURE_COLS = [
 CATEGORICAL_FEATURE_COLS = [
     "tomtom_frc",
     "weather_key",
-    "shift_code",
+    # "shift_code" — BỎ: chỉ có 1 category duy nhất → embedding không học được gì
     "day_of_week",
 ]
 

@@ -6,7 +6,7 @@
 # ════════════════════════════════════════════════════════════════════════════════
 # STAGE 1: BASE IMAGE - Python 3.9 slim
 # ════════════════════════════════════════════════════════════════════════════════
-FROM python:3.9-slim as base
+FROM python:3.9-slim AS base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \

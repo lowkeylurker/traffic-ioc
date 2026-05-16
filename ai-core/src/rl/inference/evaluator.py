@@ -59,11 +59,28 @@ def evaluate_policy_net(policy_net, dataloader, device: str = "cpu") -> dict:
 
     cm = confusion_matrix(all_targets, all_preds, labels=list(range(NUM_CLASSES)))
 
+    # --- BINARY METRICS ({0,1,2} vs {3,4,5}) ---
+    y_true_bin = (np.array(all_targets) >= 3).astype(int)
+    y_pred_bin = (np.array(all_preds) >= 3).astype(int)
+    
+    bin_precision, bin_recall, bin_f1, _ = precision_recall_fscore_support(
+        y_true_bin, y_pred_bin, labels=[0, 1], average=None, zero_division=0
+    )
+    
+    binary_metrics = {
+        "congested_recall": float(bin_recall[1]),
+        "congested_precision": float(bin_precision[1]),
+        "normal_recall": float(bin_recall[0]),
+        "miss_rate": float(1.0 - bin_recall[1]),
+        "false_alarm_rate": float(1.0 - bin_recall[0]),
+    }
+
     return {
         "num_samples": int(len(all_targets)),
         "accuracy": float(accuracy_score(all_targets, all_preds)),
         "macro_f1": macro_f1,
         "per_class_metrics": per_class,
+        "binary_metrics": binary_metrics,
         "confusion_matrix": cm.tolist(),
     }
 

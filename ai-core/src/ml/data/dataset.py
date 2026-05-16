@@ -36,6 +36,24 @@ class TrafficDataset(Dataset):
         self.timestamps = pd.to_datetime(self.df["timestamp"]).values
         self.segment_keys = self.df["segment_key"].values
 
+        # Tính speed_ratio on-the-fly nếu cần (= current_speed / free_flow_speed)
+        if "speed_ratio" in self.dynamic_cols and "speed_ratio" not in self.df.columns:
+            self.df = self.df.copy()
+            free_flow = self.df["free_flow_speed_kmh"].replace(0, np.nan)
+            self.df["speed_ratio"] = (self.df["current_speed_kmh"] / free_flow).clip(0.0, 1.5).fillna(1.0)
+
+        # Tính speed_ratio_delta on-the-fly: thay đổi speed_ratio giữa 2 timestep liên tiếp
+        # Groupby segment_key để tránh contamination tại ranh giới segment
+        if "speed_ratio_delta" in self.dynamic_cols and "speed_ratio_delta" not in self.df.columns:
+            if not hasattr(self, '_df_copy_done'):
+                self.df = self.df.copy()
+            self.df["speed_ratio_delta"] = (
+                self.df.groupby("segment_key")["speed_ratio"]
+                .diff()
+                .fillna(0.0)   # Điểm đầu segment không có delta → 0
+                .clip(-0.5, 0.5)
+            )
+
         self.dynamic_features = self.df[self.dynamic_cols].astype(np.float32).values
         self.static_features = self.df[self.static_cols].astype(np.float32).values
         self.cat_features = self.df[self.cat_cols].astype(np.int64).values
@@ -175,12 +193,17 @@ def prepare_dataloaders(
         # Correctly get targets for the training subset
         all_targets = full_dataset_scaled.get_training_targets()
         train_targets = all_targets[train_win_indices]
-        
+
         class_counts = np.bincount(train_targets, minlength=NUM_CLASSES)
+        # Square-root weighting: ưu tiên lớp hiếm nhưng ít cực đoan hơn 1/count
+        # Tỷ lệ Class5/Class0: sqrt -> 3.6x (thay vì 12.6x với 1/count)
+        sqrt_counts = np.sqrt(class_counts.astype(np.float64))
         sample_weights = np.array(
-            [1.0 / class_counts[target] if class_counts[target] > 0 else 0.0 for target in train_targets],
+            [1.0 / sqrt_counts[target] if sqrt_counts[target] > 0 else 0.0 for target in train_targets],
             dtype=np.float64,
         )
+        print(f"\u2696️ Weighted Sampler (sqrt): "
+              f"{', '.join(f'C{i}:{1/sqrt_counts[i]:.4f}' for i in range(NUM_CLASSES))}")
         train_sampler = WeightedRandomSampler(
             weights=torch.as_tensor(sample_weights, dtype=torch.double),
             num_samples=len(sample_weights),

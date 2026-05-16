@@ -20,7 +20,14 @@ from torch.utils.tensorboard import SummaryWriter
 from src.features.sliding_window import find_valid_window_starts
 from src.ml.data.dataset import TrafficDataset
 from src.ml.artifacts import get_ml_checkpoint_path, get_ml_preprocessing_path
-from src.ml.feature_contract import CATEGORICAL_FEATURE_COLS, TARGET_COL, WINDOW_STEP_MINUTES, NUM_CLASSES
+from src.ml.feature_contract import (
+    CATEGORICAL_FEATURE_COLS, 
+    TARGET_COL, 
+    WINDOW_STEP_MINUTES, 
+    NUM_CLASSES,
+    DYNAMIC_FEATURE_COLS,
+    STATIC_MODEL_FEATURE_COLS
+)
 from src.data_access import get_segments_in_corridor
 from src.rl.artifacts import (
     get_rl_checkpoint_path,
@@ -78,7 +85,7 @@ class RLTrainingConfig:
     class_balance_synthetic_rows_class5: int = 20_000
     class_balance_enable_ctgan: bool = True
     reward_scale: float = 1.0
-    reward_clip: float = 150.0
+    reward_clip: float = 250.0
     run_id: str | None = None
     prediction_horizon_minutes: int = 15
     checkpoint_path: str | None = None
@@ -136,7 +143,7 @@ def _load_default_rl_training_config(mode: str) -> RLTrainingConfig:
     class_balance_synthetic_rows_class5 = int(os.getenv("RL_CLASS_BALANCE_SYNTHETIC_ROWS_CLASS5", "20000"))
     class_balance_enable_ctgan = os.getenv("RL_CLASS_BALANCE_ENABLE_CTGAN", "1") == "1"
     reward_scale = float(os.getenv("RL_REWARD_SCALE", "1.0"))
-    reward_clip = float(os.getenv("RL_REWARD_CLIP", "150.0"))
+    reward_clip = float(os.getenv("RL_REWARD_CLIP", "250.0"))
     prediction_horizon_minutes = int(os.getenv("RL_PREDICTION_HORIZON_MINUTES", "15"))
     run_id = os.getenv("RL_RUN_ID", f"{mode}_seed{seed}_h{prediction_horizon_minutes}")
 
@@ -425,6 +432,12 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
         f"horizon={prediction_horizon_minutes}m | target_offset_steps={target_offset_steps} | "
         f"checkpoint={checkpoint_path}"
     )
+    print("\n" + "="*50)
+    print("🚀 CẤU HÌNH FEATURES SỬ DỤNG:")
+    print(f"🔹 DYNAMIC    : {DYNAMIC_FEATURE_COLS}")
+    print(f"🔹 STATIC     : {STATIC_MODEL_FEATURE_COLS}")
+    print(f"🔹 CATEGORICAL: {CATEGORICAL_FEATURE_COLS}")
+    print("="*50 + "\n")
 
     print("⏳ Đang kéo dữ liệu Sàn đấu...")
     df_rl = _load_rl_dataframe(
@@ -501,12 +514,12 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
         total_non_congested = np.sum(non_congested_mask)
         
         if total_congested > 0 and total_non_congested > 0:
-            # Create weights: weight = 1.0 / count_of_that_category
-            # This ensures that both categories have equal probability of being sampled
+            # 70/30 Binary Sampling: 70% Non-congested, 30% Congested
+            # Gần hơn với phân phối thực tế → giảm Distribution Shift khi eval trên Val set
             weights = np.zeros_like(train_targets, dtype=float)
-            weights[congested_mask] = 1.0 / total_congested
-            weights[non_congested_mask] = 1.0 / total_non_congested
-            
+            weights[congested_mask]     = 0.30 / total_congested       # 30% cho kẹt xe
+            weights[non_congested_mask] = 0.70 / total_non_congested   # 70% cho đường thoáng
+
             # Weighted sampler for the train_dataset
             sampler = WeightedRandomSampler(
                 weights=torch.DoubleTensor(weights),
@@ -514,7 +527,7 @@ def run_rl_training(mode: str, config: RLTrainingConfig | None = None) -> None:
                 replacement=True
             )
             train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler)
-            print(f"✅ Balanced Sampler created: Congested={total_congested} | Non-Congested={total_non_congested}")
+            print(f"✅ Balanced Sampler created (70/30): Congested={total_congested} | Non-Congested={total_non_congested}")
         else:
             print("⚠️ Warning: One of the binary classes has 0 samples. Falling back to default loader.")
             train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
