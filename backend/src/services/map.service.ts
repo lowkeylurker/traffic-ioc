@@ -382,19 +382,28 @@ export class MapService {
 
 
   /**
-   * Lấy danh sách tuyến đường
+   * Lấy danh sách tuyến đường kèm thông tin quận để phân biệt
    */
   async getRoads(): Promise<Array<{ roadKey: string; roadName: string }>> {
     try {
-      logger.log('Fetching all roads');
+      logger.log('Fetching all roads with district context');
 
+      // Join roads -> ways -> segments -> locations to get district context
       const result = await query(`
         SELECT
-          road_key::text AS "roadKey",
-          name AS "roadName"
-        FROM dim_road
-        WHERE name IS NOT NULL
-        ORDER BY name ASC
+          r.road_key::text AS "roadKey",
+          r.name AS "pureName",
+          COALESCE(
+            r.name || ' (' || STRING_AGG(DISTINCT l.district, ', ' ORDER BY l.district) || ')',
+            r.name
+          ) AS "roadName"
+        FROM dim_road r
+        LEFT JOIN dim_way w ON r.road_key = w.road_key
+        LEFT JOIN dim_segment s ON w.way_key = s.way_key
+        LEFT JOIN dim_location l ON s.location_key = l.location_key
+        WHERE r.name IS NOT NULL
+        GROUP BY r.road_key, r.name
+        ORDER BY r.name ASC
       `);
 
       return result.rows as Array<{ roadKey: string; roadName: string }>;
@@ -411,7 +420,7 @@ export class MapService {
     try {
       const redis = getRedisConnection();
       const cacheKey = asOf ? `traffic_status_${asOf}` : 'traffic_status_latest';
-      
+
       // Try cache
       const cached = await redis.get(cacheKey);
       if (cached) {
@@ -428,17 +437,17 @@ export class MapService {
         // while still using range-based filtering for index performance.
         const asOfDate = new Date(asOf);
         const startWindow = new Date(asOfDate.getTime() - 15 * 60 * 1000);
-        
+
         queryParams.push(startWindow.toISOString(), asOfDate.toISOString());
-        
+
         sql = `
           WITH latest_flow AS (
             SELECT DISTINCT ON (f.segment_key)
-              f.segment_key, 
-              f.current_speed_kmh, 
-              f.los_level, 
-              f.traffic_index, 
-              f.pcu_volume, 
+              f.segment_key,
+              f.current_speed_kmh,
+              f.los_level,
+              f.traffic_index,
+              f.pcu_volume,
               f.timestamp,
               COALESCE(r.name, s.segment_id_source::text) AS segment_name,
               r.road_key::text AS road_key,
@@ -567,6 +576,126 @@ export class MapService {
         .map((value) => new Date(value).toISOString());
     } catch (error) {
       logger.error('Error fetching traffic status snapshots', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy danh sách segment_key của một trục đường
+   */
+  async getRoadSegments(roadKey: string): Promise<number[]> {
+    try {
+      logger.log(`Fetching segments for road: ${roadKey}`);
+      const sql = `
+        SELECT s.segment_key
+        FROM dim_segment s
+        JOIN dim_way w ON s.way_key = w.way_key
+        WHERE w.road_key::text = $1
+      `;
+      const { query } = await import('../config/db');
+      const result = await query(sql, [roadKey]);
+      return result.rows.map(row => Number(row.segment_key));
+    } catch (error) {
+      logger.error(`Error fetching segments for road ${roadKey}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy GeoJSON của một trục đường (kèm lọc không gian 1km để tránh lỗi gộp đường xa nhau)
+   */
+  async getRoadGeoJson(roadKey: string, refLat?: number, refLng?: number): Promise<any> {
+    try {
+      logger.log(`Fetching GeoJSON for road: ${roadKey}${refLat ? ` near ${refLat},${refLng}` : ''}`);
+
+      const params: any[] = [roadKey];
+
+      const featureSelectSql = `
+        SELECT
+          jsonb_build_object(
+            'type', 'FeatureCollection',
+            'features', COALESCE(jsonb_agg(
+              jsonb_build_object(
+                'type', 'Feature',
+                'geometry', ST_AsGeoJSON(s.geometry_linestring)::jsonb,
+                'properties', jsonb_build_object(
+                  'segmentId', s.segment_key::text,
+                  'segmentName', COALESCE(r.name, s.segment_id_source::text),
+                  'roadKey', r.road_key::text,
+                  'roadName', r.name,
+                  'losGrade', UPPER(TRIM(COALESCE(f.los_level, 'A'))),
+                  'losNumeric', CASE UPPER(TRIM(COALESCE(f.los_level, 'A')))
+                    WHEN 'A' THEN 0
+                    WHEN 'B' THEN 1
+                    WHEN 'C' THEN 2
+                    WHEN 'D' THEN 3
+                    WHEN 'E' THEN 4
+                    WHEN 'F' THEN 5
+                    ELSE 0
+                  END,
+                  'speed', f.current_speed_kmh
+                )
+              )
+              ORDER BY s.segment_key
+            ), '[]'::jsonb)
+          ) as geojson
+        FROM dim_segment s
+        JOIN dim_way w ON s.way_key = w.way_key
+        JOIN dim_road r ON w.road_key = r.road_key
+        LEFT JOIN mv_latest_traffic_status f ON s.segment_key = f.segment_key
+      `;
+
+      let sql: string;
+      if (refLat !== undefined && refLng !== undefined) {
+        params.push(refLng, refLat);
+        sql = `
+          WITH RECURSIVE selected_road AS (
+            SELECT name
+            FROM dim_road
+            WHERE road_key::text = $1
+            LIMIT 1
+          ),
+          candidates AS (
+            SELECT s.segment_key, s.geometry_linestring
+            FROM dim_segment s
+            JOIN dim_way w ON s.way_key = w.way_key
+            JOIN dim_road r ON w.road_key = r.road_key
+            JOIN selected_road sr ON r.name = sr.name
+            WHERE s.geometry_linestring IS NOT NULL
+          ),
+          seed AS (
+            SELECT segment_key
+            FROM candidates
+            ORDER BY geometry_linestring <-> ST_SetSRID(ST_MakePoint($2, $3), 4326)
+            LIMIT 1
+          ),
+          cluster(segment_key) AS (
+            SELECT segment_key FROM seed
+            UNION
+            SELECT c.segment_key
+            FROM candidates c
+            JOIN candidates anchor ON ST_DWithin(
+              c.geometry_linestring::geography,
+              anchor.geometry_linestring::geography,
+              1000
+            )
+            JOIN cluster cl ON anchor.segment_key = cl.segment_key
+          )
+          ${featureSelectSql}
+          JOIN cluster c ON s.segment_key = c.segment_key
+        `;
+      } else {
+        sql = `
+          ${featureSelectSql}
+          WHERE r.road_key::text = $1
+        `;
+      }
+
+      const { query } = await import('../config/db');
+      const result = await query(sql, params);
+      return result.rows[0]?.geojson || { type: 'FeatureCollection', features: [] };
+    } catch (error) {
+      logger.error(`Error fetching GeoJSON for road ${roadKey}`, error);
       throw error;
     }
   }

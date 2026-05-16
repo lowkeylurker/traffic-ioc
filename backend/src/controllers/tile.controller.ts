@@ -24,12 +24,14 @@ class TileController {
         ),
         mvt_geom AS (
           SELECT 
-            f.segment_key          AS "segmentId",
+            f.segment_key::text    AS "segmentId",
             f.segment_name         AS "segmentName",
             f.current_speed_kmh    AS "avgSpeed",
             f.los_level            AS "losGrade",
             f.traffic_index        AS "losScore",
             f.is_corridor          AS "isCorridor",
+            f.road_key             AS "roadKey",
+            f.road_name            AS "roadName",
             f.timestamp::text      AS "timestamp",
             ST_AsMVTGeom(
               f.geom_3857, 

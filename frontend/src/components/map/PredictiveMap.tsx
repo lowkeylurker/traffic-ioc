@@ -1,83 +1,55 @@
-import { FlyToInterpolator } from '@deck.gl/core'
+import { FlyToInterpolator, WebMercatorViewport } from '@deck.gl/core'
 import { GeoJsonLayer } from '@deck.gl/layers'
-import DeckGL from '@deck.gl/react'
-import { Card, Spin, Typography } from 'antd'
-import React, { useEffect, useMemo, useState } from 'react'
-import Map from 'react-map-gl'
+import { MapboxOverlay, MapboxOverlayProps } from '@deck.gl/mapbox'
+import { Typography, Menu } from 'antd'
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react'
+import ReactMapGL, { Source, Layer, LayerProps, Marker, useControl } from 'react-map-gl'
+import { EnvironmentFilled } from '@ant-design/icons'
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '@/config/constants'
-import { useSegments } from '@/hooks/useTraffic'
-import { GeoJSONFeature, SegmentResponse, PredictionItem } from '@/types'
-import { WebMercatorViewport } from '@deck.gl/core'
-import * as turf from '@turf/turf'
+import { PredictionItem } from '@/types'
 
 const { Text, Title } = Typography
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 const MAP_STYLE = import.meta.env.VITE_MAPBOX_STYLE
 
+// Custom hook to use MapboxOverlay with react-map-gl (Recommended for v7/v9)
+function DeckGLOverlay(props: MapboxOverlayProps) {
+  const overlay = useControl<MapboxOverlay>(() => new MapboxOverlay(props))
+  overlay.setProps(props)
+  return null
+}
+
 interface PredictiveMapProps {
-  segmentData?: SegmentResponse | null
+  segmentData?: any
   predictionData?: PredictionItem[]
-  viewMode?: 'real-time' | 'forecast'
+  viewMode?: 'real-time' | 'forecast' | 'simulation'
   selectedRoad?: {
     roadName: string
     roadKey?: string
     segmentCount: number
-    segmentIds: number[]
+    segmentIds: string[]
+    center?: [number, number]
+    geojson?: any
   } | null
   isLoading?: boolean
   style?: React.CSSProperties
+  blockedSegmentIds?: string[]
+  simulatedRoute?: any
+  simulatedRouteColor?: [number, number, number, number]
+  simulationStart?: [number, number] | null
+  simulationEnd?: [number, number] | null
+  onSelectPoint?: (type: 'start' | 'end', point: [number, number]) => void
+  showSummaryCard?: boolean
 }
 
-interface FeatureProperties {
-  segmentId: number
-  segmentName: string
-  congestionLevel: number
-  predictionInfo?: PredictionItem
-}
-
-const LOS_COLOR_MAP: Record<number, [number, number, number, number]> = {
-  0: [34, 197, 94, 255],
-  1: [234, 179, 8, 255],
-  2: [249, 115, 22, 255],
-  3: [239, 68, 68, 255],
-}
-
-const LOS_TEXT_MAP: Record<
-  number,
-  { los: 'A' | 'B' | 'C' | 'D'; label: string }
-> = {
-  0: { los: 'A', label: 'Thông thoáng' },
-  1: { los: 'B', label: 'Ổn định' },
-  2: { los: 'C', label: 'Đông đúc' },
-  3: { los: 'D', label: 'Ùn tắc cao' },
-}
-
-const getReasonDescription = (
-  reasonCode?: string,
-  usedFallback?: boolean
-): string => {
-  if (!reasonCode) {
-    return usedFallback
-      ? 'Hệ thống đã dùng nguồn thay thế gần nhất để đảm bảo có dự báo.'
-      : 'Hệ thống đánh giá theo biểu hiện lưu thông gần nhất trên đoạn đường này.'
-  }
-
-  const normalized = reasonCode.toUpperCase()
-
-  if (normalized.includes('INCIDENT'))
-    return 'Ảnh hưởng sự cố giao thông làm tốc độ giảm đáng kể.'
-  if (normalized.includes('PEAK'))
-    return 'Khung giờ cao điểm khiến lưu lượng tăng.'
-  if (normalized.includes('WEATHER'))
-    return 'Điều kiện thời tiết không thuận lợi ảnh hưởng tốc độ.'
-  if (normalized.includes('FALLBACK') || usedFallback) {
-    return 'Hệ thống sử dụng mẫu lưu thông từ đoạn đường tương đồng vì dữ liệu trực tiếp còn thiếu.'
-  }
-  if (normalized.includes('HISTORICAL'))
-    return 'Dự báo dựa trên mẫu lịch sử cùng khung giờ và ngày tương tự.'
-
-  return 'Dự báo tổng hợp từ mô hình AI trên dữ liệu giao thông hiện tại và lịch sử.'
+const LOS_COLORS: Record<number, string> = {
+  0: '#22c55e', // A
+  1: '#84cc16', // B
+  2: '#eab308', // C
+  3: '#f97316', // D
+  4: '#ef4444', // E
+  5: '#7f1d1d', // F
 }
 
 const formatForecastTime = (forecastTime?: string): string => {
@@ -94,47 +66,44 @@ const formatForecastTime = (forecastTime?: string): string => {
   }).format(date)
 }
 
-const isValidCoordPair = (coord: unknown): coord is [number, number] => {
-  if (!Array.isArray(coord) || coord.length < 2) return false
-  const lng = Number(coord[0])
-  const lat = Number(coord[1])
-  return Number.isFinite(lng) && Number.isFinite(lat)
+const collectCoordinates = (value: unknown): [number, number][] => {
+  if (!Array.isArray(value)) return []
+  if (value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
+    return [[value[0] as number, value[1] as number]]
+  }
+  return value.flatMap((item) => collectCoordinates(item))
 }
 
-const extractLineCoordinates = (coordinates: unknown): [number, number][] => {
-  if (!Array.isArray(coordinates)) return []
-
-  if (coordinates.every((item) => isValidCoordPair(item))) {
-    return (coordinates as unknown[]).filter(isValidCoordPair)
+const collectGeoJsonCoordinates = (geojson: any): [number, number][] => {
+  if (!geojson) return []
+  if (geojson.type === 'FeatureCollection') {
+    return (geojson.features || []).flatMap((feature: any) =>
+      collectGeoJsonCoordinates(feature)
+    )
   }
-
-  const flattened: [number, number][] = []
-  for (const part of coordinates) {
-    flattened.push(...extractLineCoordinates(part))
+  if (geojson.type === 'Feature') {
+    return collectGeoJsonCoordinates(geojson.geometry)
   }
-  return flattened
+  return collectCoordinates(geojson.coordinates)
 }
 
 export const PredictiveMap: React.FC<PredictiveMapProps> = ({
-  segmentData: propSegmentData,
-  predictionData: propPredictionData = [],
+  predictionData = [],
   viewMode = 'real-time',
   selectedRoad,
-  isLoading = false,
   style,
+  blockedSegmentIds = [],
+  simulatedRoute,
+  simulatedRouteColor,
+  simulationStart,
+  simulationEnd,
+  onSelectPoint,
 }) => {
-  const hookSegments = useSegments()
-  const segmentData =
-    propSegmentData !== undefined ? propSegmentData : hookSegments
-  const predictionData = propPredictionData
-
-  const [hoverInfo, setHoverInfo] = useState<{
-    x: number
-    y: number
-    object: GeoJSONFeature | null
-  } | null>(null)
-
-  const containerRef = React.useRef<HTMLDivElement>(null)
+  const [hoverInfo, setHoverInfo] = useState<any>(null)
+  const [lastCoordinate, setLastCoordinate] = useState<[number, number] | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, coordinate: [number, number] } | null>(null)
+  const [opacityPhase, setOpacityPhase] = useState(1.0)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const [viewState, setViewState] = useState({
     longitude: DEFAULT_MAP_CENTER[0],
@@ -142,486 +111,404 @@ export const PredictiveMap: React.FC<PredictiveMapProps> = ({
     zoom: DEFAULT_MAP_ZOOM,
     pitch: 45,
     bearing: 0,
-    transitionDuration: 0,
-    transitionInterpolator: new FlyToInterpolator(),
   })
 
-  // Fly-to effect when selectedRoad changes
   useEffect(() => {
-    if (!selectedRoad || !segmentData || !containerRef.current) return
+    setHoverInfo(null)
+    setContextMenu(null)
+    setLastCoordinate(null)
+  }, [viewMode])
 
-    const selectedSegmentIds = new Set(
-      selectedRoad.segmentIds.map((id) => Number(id))
-    )
-    const selectedSegments = segmentData.features.filter((f) =>
-      selectedSegmentIds.has(Number(f.properties.segmentId))
-    )
-
-    if (selectedSegments.length === 0) return
-
-    // Collect all points for the selected segments to calculate bbox
-    const allPoints: number[][] = []
-    selectedSegments.forEach((f) => {
-      const coords = extractLineCoordinates(f.geometry?.coordinates)
-      allPoints.push(...coords)
-    })
-
-    if (allPoints.length === 0) return
-
-    // Calculate bbox using turf
-    const line = turf.lineString(allPoints)
-    const [minX, minY, maxX, maxY] = turf.bbox(line)
-
-    const { width, height } = containerRef.current.getBoundingClientRect()
-
-    if (width > 0 && height > 0) {
-      try {
-        // Use WebMercatorViewport to calculate zoom/center that fits the bbox
-        const viewport = new WebMercatorViewport({ width, height })
-        const { longitude, latitude, zoom } = viewport.fitBounds(
-          [
-            [minX, minY],
-            [maxX, maxY],
-          ],
-          {
-            padding: 40, // Padding in pixels
-            maxZoom: 17,
-          }
-        )
-
-        setViewState((prev) => ({
-          ...prev,
-          longitude,
-          latitude,
-          zoom,
-          transitionDuration: 1000,
-          transitionInterpolator: new FlyToInterpolator(),
-        }))
-      } catch (error) {
-        console.error('Error fitting bounds:', error)
-      }
-    }
-  }, [selectedRoad, segmentData])
-
-  const [blink, setBlink] = useState(true)
+  // Blinking effect
   useEffect(() => {
-    let interval: any = null
+    const shouldBlink = (viewMode === 'forecast' && predictionData.length > 0) ||
+                        (viewMode === 'simulation' && simulatedRoute)
 
-    if (isLoading) {
-      interval = setInterval(() => {
-        setBlink((b) => !b)
-      }, 400)
+    if (shouldBlink) {
+      const interval = setInterval(() => {
+        setOpacityPhase(v => (v === 1.0 ? 0.3 : 1.0))
+      }, 700)
+      return () => clearInterval(interval)
     } else {
-      setBlink(true)
+      setOpacityPhase(prev => prev !== 1.0 ? 1.0 : prev)
     }
+  }, [viewMode, predictionData.length, simulatedRoute])
 
-    return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [isLoading])
+  // Fly-to logic
+  useEffect(() => {
+    const routeCoordinates = collectGeoJsonCoordinates(simulatedRoute)
+    const roadCoordinates = collectGeoJsonCoordinates(selectedRoad?.geojson)
+    const odCoordinates = [simulationStart, simulationEnd].filter(Boolean) as [number, number][]
+    const baseCoordinates =
+      routeCoordinates.length > 0
+        ? routeCoordinates
+        : roadCoordinates.length > 0
+          ? roadCoordinates
+          : selectedRoad?.center
+            ? [selectedRoad.center]
+            : []
+    const coordinates = [...baseCoordinates, ...odCoordinates]
 
-  const combinedGeoJson = useMemo(() => {
-    if (!segmentData) return null
+    if (coordinates.length === 0) return
 
-    const featureBySegmentId = new globalThis.Map<number, GeoJSONFeature>()
-    segmentData.features.forEach((feature) => {
-      featureBySegmentId.set(Number(feature.properties.segmentId), feature)
-    })
-
-    // Forecast mode: build GeoJSON directly from prediction response
-    if (viewMode === 'forecast' && predictionData.length > 0) {
-      const forecastFeatures = predictionData
-        .map((prediction) => {
-          const segId = Number(prediction.segment_id)
-          const baseFeature = featureBySegmentId.get(segId)
-          if (!baseFeature) return null
-
-          const validCoords = extractLineCoordinates(
-            baseFeature.geometry?.coordinates
-          )
-          if (validCoords.length < 2) return null
-
-          return {
-            ...baseFeature,
-            geometry: {
-              ...baseFeature.geometry,
-              type: 'LineString',
-              coordinates: validCoords,
-            },
-            properties: {
-              ...baseFeature.properties,
-              segmentName:
-                baseFeature.properties.segmentName || `Segment ${segId}`,
-              congestionLevel: Number(prediction.congestion_level),
-              predictionInfo: prediction,
-            },
-          }
-        })
-        .filter(Boolean)
-
-      return {
-        type: 'FeatureCollection',
-        features: forecastFeatures as GeoJSONFeature[],
-      } as SegmentResponse
-    }
-
-    // Real-time mode: show selected road segments only
-    if (!selectedRoad) {
-      return { type: 'FeatureCollection', features: [] } as SegmentResponse
-    }
-
-    const selectedSegmentIds = new Set(
-      selectedRoad.segmentIds.map((id) => Number(id))
-    )
-    const selectedFeatures = segmentData.features
-      .filter((f) => selectedSegmentIds.has(Number(f.properties.segmentId)))
-      .map((f) => {
-        const segId = Number(f.properties.segmentId)
-        const validCoords = extractLineCoordinates(f.geometry?.coordinates)
-        if (validCoords.length < 2) return null
-
-        return {
-          ...f,
-          geometry: {
-            ...f.geometry,
-            type: 'LineString',
-            coordinates: validCoords,
-          },
-          properties: {
-            ...f.properties,
-            segmentName: f.properties.segmentName || `Segment ${segId}`,
-            congestionLevel: -1,
-            predictionInfo: undefined,
-          },
-        }
-      })
-      .filter(Boolean)
-
-    return {
-      type: 'FeatureCollection',
-      features: selectedFeatures as GeoJSONFeature[],
-    } as SegmentResponse
-  }, [segmentData, predictionData, viewMode, selectedRoad])
-
-  const getLineColor = React.useCallback(
-    (f: any): [number, number, number, number] => {
-      const props = (f.properties || {}) as FeatureProperties
-      const level = props.congestionLevel
-      const opacity = isLoading ? (blink ? 255 : 50) : 255
-
-      if (level === -1)
-        return viewMode === 'forecast'
-          ? [156, 163, 175, opacity]
-          : [24, 144, 255, opacity]
-
-      if (level in LOS_COLOR_MAP) {
-        const [r, g, b] = LOS_COLOR_MAP[level]
-        return [r, g, b, opacity]
-      }
-
-      return [100, 100, 100, opacity]
-    },
-    [blink, isLoading, viewMode]
-  )
-
-  const layers = useMemo(() => {
-    if (!combinedGeoJson) return []
-
-    return [
-      new GeoJsonLayer({
-        id: 'predictive-traffic-lines',
-        data: combinedGeoJson,
-        pickable: true,
-        stroked: true,
-        filled: false,
-        lineWidthScale: 1,
-        lineWidthMinPixels: 4,
-        lineWidthMaxPixels: 12,
-        getLineColor,
-        getLineWidth: 6,
-        updateTriggers: {
-          getLineColor: [
-            getLineColor,
-            blink,
-            isLoading,
-            predictionData,
-            viewMode,
-          ],
-        },
-        onHover: (info) => setHoverInfo(info as any),
-      }),
+    const lngValues = coordinates.map(([lng]) => lng)
+    const latValues = coordinates.map(([, lat]) => lat)
+    const bounds: [[number, number], [number, number]] = [
+      [Math.min(...lngValues), Math.min(...latValues)],
+      [Math.max(...lngValues), Math.max(...latValues)],
     ]
+    const rect = containerRef.current?.getBoundingClientRect()
+
+    if (
+      rect &&
+      rect.width > 0 &&
+      rect.height > 0 &&
+      bounds[0][0] !== bounds[1][0] &&
+      bounds[0][1] !== bounds[1][1]
+    ) {
+      const viewport = new WebMercatorViewport({
+        width: rect.width,
+        height: rect.height,
+      })
+      const { longitude, latitude, zoom } = viewport.fitBounds(bounds, {
+        padding: 48,
+        maxZoom: 16,
+      })
+
+      setViewState(prev => ({
+        ...prev,
+        longitude,
+        latitude,
+        zoom,
+        transitionDuration: 1200,
+        transitionInterpolator: new FlyToInterpolator() as any,
+      }))
+    }
   }, [
-    combinedGeoJson,
-    getLineColor,
-    blink,
-    isLoading,
-    predictionData,
-    viewMode,
+    selectedRoad?.roadKey,
+    selectedRoad?.center,
+    selectedRoad?.geojson,
+    simulatedRoute,
+    simulationStart,
+    simulationEnd,
   ])
 
-  const renderTooltip = () => {
-    if (!hoverInfo || !hoverInfo.object) return null
-    const props = hoverInfo.object.properties as unknown as FeatureProperties
-    const predInfo = props.predictionInfo
-    const congestionLevel = Number(predInfo?.congestion_level)
-    const losInfo = LOS_TEXT_MAP[congestionLevel]
-    const readableDescription =
-      predInfo?.status_description ||
-      'Dự báo cho thấy lưu thông có dấu hiệu chậm hơn bình thường.'
-    const reasonDescription = getReasonDescription(
-      predInfo?.reason_code,
-      predInfo?.used_fallback
-    )
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+  const tilesUrl = useMemo(() => {
+    const origin = apiBaseUrl.startsWith('http') ? new URL(apiBaseUrl).origin : window.location.origin
+    return `${origin}/api/v1/map/tiles/{z}/{x}/{y}.pbf?v=segment-id-text`
+  }, [apiBaseUrl])
 
-    return (
-      <div
-        className="deckgl-tooltip"
-        style={{
-          position: 'absolute',
-          zIndex: 100,
-          pointerEvents: 'none',
-          left: hoverInfo.x + 15,
-          top: hoverInfo.y + 15,
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          padding: '12px 16px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          fontFamily: 'sans-serif',
-          minWidth: '240px',
-        }}
-      >
-        <div
-          style={{
-            fontWeight: 'bold',
-            fontSize: '14px',
-            marginBottom: '8px',
-            color: '#1f2937',
-            borderBottom: '1px solid #f0f0f0',
-            paddingBottom: '4px',
-          }}
-        >
-          {props.segmentName}
-        </div>
+  const forecastMap = useMemo(() => {
+    const fMap = new Map<string, PredictionItem>()
+    predictionData.forEach(item => {
+      fMap.set(String(item.segment_id), item)
+    })
+    return fMap
+  }, [predictionData])
 
-        {predInfo ? (
-          <>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginBottom: '4px',
-              }}
-            >
-              <span style={{ fontSize: '13px', color: '#4b5563' }}>
-                Mức phục vụ (LOS):
-              </span>
-              <span style={{ fontWeight: 'bold', color: '#1f2937' }}>
-                {losInfo
-                  ? `LOS ${losInfo.los} - ${losInfo.label}`
-                  : `Muc ${predInfo.congestion_level}`}
-              </span>
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginBottom: '4px',
-              }}
-            >
-              <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                Thời điểm dự báo:
-              </span>
-              <span
-                style={{ fontSize: '12px', color: '#374151', fontWeight: 600 }}
-              >
-                {formatForecastTime(predInfo.forecast_for_time)}
-              </span>
-            </div>
-            <div
-              style={{
-                fontSize: '12px',
-                color: '#374151',
-                marginBottom: '6px',
-              }}
-            >
-              <strong>Diễn giải:</strong> {readableDescription}
-            </div>
-            <div
-              style={{
-                fontSize: '12px',
-                color: '#4b5563',
-                marginBottom: '4px',
-              }}
-            >
-              <strong>Nguyên nhân chính:</strong> {reasonDescription}
-            </div>
-            <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-              Mã tham chiếu:{' '}
-              <span style={{ color: '#6b7280' }}>
-                {predInfo.reason_code || 'Không có'}
-              </span>
-            </div>
-          </>
-        ) : (
-          <div style={{ fontSize: '13px', color: '#6b7280' }}>
-            Đoạn này chưa có kết quả dự báo trong lần chạy hiện tại.
-          </div>
-        )}
-      </div>
-    )
-  }
+  const vectorLayers = useMemo(() => {
+    const layers: LayerProps[] = []
+    const relevantSegmentIds = new Set<string>()
+    forecastMap.forEach((_, id) => relevantSegmentIds.add(id))
+    if (selectedRoad) {
+      selectedRoad.segmentIds.forEach(id => relevantSegmentIds.add(String(id)))
+    }
+    blockedSegmentIds.forEach(id => relevantSegmentIds.add(String(id)))
+
+    const pairs: string[] = []
+    forecastMap.forEach((pred, id) => {
+      pairs.push(id)
+      pairs.push(LOS_COLORS[Number(pred.congestion_level)] || '#94a3b8')
+    })
+
+    layers.push({
+      id: 'predictive-base-layer',
+      type: 'line',
+      'source-layer': 'traffic_segments',
+      paint: {
+        'line-width': viewMode === 'forecast' ? 8 : 6,
+        'line-color': viewMode === 'forecast' && pairs.length > 0
+          ? [
+              'match',
+              ['to-string', ['get', 'segmentId']],
+              ...pairs,
+              '#e2e8f0'
+            ] as any
+          : [
+              'match',
+              ['get', 'losGrade'],
+              'A', '#22c55e', '0', '#22c55e',
+              'B', '#84cc16', '1', '#84cc16',
+              'C', '#eab308', '2', '#eab308',
+              'D', '#f97316', '3', '#f97316',
+              'E', '#ef4444', '4', '#ef4444',
+              'F', '#7f1d1d', '5', '#7f1d1d',
+              '#cbd5e1'
+            ] as any,
+        'line-opacity': [
+          'case',
+          ['in', ['to-string', ['get', 'segmentId']], ['literal', Array.from(relevantSegmentIds)]],
+          viewMode === 'forecast' && forecastMap.size > 0
+            ? ['case', ['in', ['to-string', ['get', 'segmentId']], ['literal', Array.from(forecastMap.keys())]], opacityPhase, 0.5] as any
+            : 0.95,
+          0
+        ] as any,
+        'line-blur': viewMode === 'forecast' ? 1.0 : 0,
+      },
+      layout: { 'line-join': 'round', 'line-cap': 'round' }
+    })
+
+    if (viewMode !== 'forecast' && (viewMode === 'simulation' || blockedSegmentIds.length > 0)) {
+      // White casing for blocked roads
+      layers.push({
+        id: 'predictive-blocked-casing',
+        type: 'line',
+        'source-layer': 'traffic_segments',
+        paint: {
+          'line-width': 10,
+          'line-color': '#ffffff',
+          'line-opacity': [
+            'case',
+            ['in', ['to-string', ['get', 'segmentId']], ['literal', blockedSegmentIds.map(String)]],
+            0.8,
+            0
+          ] as any
+        },
+        layout: { 'line-join': 'round', 'line-cap': 'round' }
+      })
+      // Core black line
+      layers.push({
+        id: 'predictive-blocked-layer',
+        type: 'line',
+        'source-layer': 'traffic_segments',
+        paint: {
+          'line-width': 6,
+          'line-color': '#0f172a', // Slate-900 for premium feel
+          'line-opacity': [
+            'case',
+            ['in', ['to-string', ['get', 'segmentId']], ['literal', blockedSegmentIds.map(String)]],
+            1.0,
+            0
+          ] as any
+        },
+        layout: { 'line-join': 'round', 'line-cap': 'round' }
+      })
+    }
+    return layers
+  }, [viewMode, forecastMap, blockedSegmentIds, opacityPhase, selectedRoad])
+
+  const deckLayers = useMemo(() => {
+    const list: any[] = []
+    if (simulatedRoute && viewMode !== 'forecast') {
+      const baseColor = simulatedRouteColor || [114, 46, 209, 255]
+      const routeOpacity = viewMode === 'simulation' ? opacityPhase : 1
+      const routeColor: [number, number, number, number] = [
+        baseColor[0], baseColor[1], baseColor[2],
+        Math.round((baseColor[3] ?? 255) * routeOpacity),
+      ]
+
+      list.push(
+        new GeoJsonLayer({
+          id: 'simulated-route-glow-outer',
+          data: simulatedRoute,
+          pickable: false,
+          stroked: true,
+          filled: false,
+          lineWidthMinPixels: 18,
+          getLineColor: [baseColor[0], baseColor[1], baseColor[2], 40],
+          getLineWidth: 20,
+        }),
+        new GeoJsonLayer({
+          id: 'simulated-route-glow-inner',
+          data: simulatedRoute,
+          pickable: false,
+          stroked: true,
+          filled: false,
+          lineWidthMinPixels: 12,
+          getLineColor: [baseColor[0], baseColor[1], baseColor[2], 90],
+          getLineWidth: 14,
+        }),
+        new GeoJsonLayer({
+          id: 'simulated-route-casing',
+          data: simulatedRoute,
+          pickable: false,
+          stroked: true,
+          filled: false,
+          lineWidthMinPixels: 9,
+          getLineColor: [255, 255, 255, 255],
+          getLineWidth: 10,
+        }),
+        new GeoJsonLayer({
+          id: 'simulated-route-deck',
+          data: simulatedRoute,
+          pickable: true,
+          stroked: true,
+          filled: false,
+          lineWidthMinPixels: 6,
+          getLineColor: routeColor,
+          getLineWidth: 7,
+        })
+      )
+    }
+    return list
+  }, [simulatedRoute, simulatedRouteColor, opacityPhase, viewMode])
+
+  const onHover = useCallback((e: any) => {
+    const feature = e.features?.[0]
+    if (feature) {
+      const segId = feature.properties.segmentId
+      const predInfo = forecastMap.get(String(segId))
+      setHoverInfo({
+        x: e.point.x,
+        y: e.point.y,
+        properties: { ...feature.properties, predictionInfo: predInfo }
+      })
+      setLastCoordinate([e.lngLat.lng, e.lngLat.lat])
+    } else {
+      setHoverInfo(null)
+    }
+  }, [forecastMap])
 
   return (
-    <div
-      ref={containerRef}
-      style={{ position: 'relative', width: '100%', height: '100%', ...style }}
-    >
-      <DeckGL
-        viewState={viewState}
-        onViewStateChange={({ viewState: nextViewState }: any) =>
-          setViewState(nextViewState)
-        }
-        controller={true}
-        layers={layers as any[]}
+    <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', ...style }}>
+      <ReactMapGL
+        {...viewState}
+        onMove={evt => setViewState(evt.viewState)}
+        mapStyle={MAP_STYLE}
+        mapboxAccessToken={MAPBOX_TOKEN}
+        onMouseMove={onHover}
+        onContextMenu={(e: any) => {
+          if (!onSelectPoint) return
+          e.preventDefault()
+          const rect = containerRef.current?.getBoundingClientRect()
+          if (rect && lastCoordinate) {
+            setContextMenu({
+              x: e.point.x,
+              y: e.point.y,
+              coordinate: [e.lngLat.lng, e.lngLat.lat]
+            })
+          }
+        }}
+        onClick={() => setContextMenu(null)}
+        interactiveLayerIds={['predictive-base-layer']}
       >
-        <Map mapStyle={MAP_STYLE} mapboxAccessToken={MAPBOX_TOKEN} reuseMaps />
-        {renderTooltip()}
-      </DeckGL>
+        <DeckGLOverlay layers={deckLayers} />
 
-      {/* Road Info Overlay (Top Right) */}
-      {selectedRoad && (
-        <Card
-          size="small"
-          style={{
-            position: 'absolute',
-            top: 16,
-            right: 16,
-            width: 240,
-            zIndex: 10,
-            background: 'rgba(255,255,255,0.9)',
-            backdropFilter: 'blur(4px)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            border: 'none',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <Title
-              level={5}
-              style={{ margin: 0, fontSize: '14px', color: '#1890ff' }}
-            >
-              {selectedRoad.roadName}
-            </Title>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
+        <Source id="predictive-vector-source" type="vector" tiles={[tilesUrl]}>
+          {vectorLayers.map(layer => <Layer key={layer.id} {...layer} />)}
+        </Source>
+
+        {selectedRoad?.geojson && (
+          <Source id="selected-road-source" type="geojson" data={selectedRoad.geojson}>
+            <Layer
+              id="selected-road-layer"
+              type="line"
+              paint={{
+                'line-width': viewMode === 'forecast' ? 10 : 8,
+                'line-color': [
+                  'match',
+                  ['to-number', ['get', 'losNumeric']],
+                  0, '#22c55e', 1, '#84cc16', 2, '#eab308', 3, '#f97316', 4, '#ef4444', 5, '#7f1d1d', '#22c55e'
+                ] as any,
+                'line-opacity': viewMode === 'forecast' ? 0.6 : 0.95,
+                'line-blur': viewMode === 'forecast' ? 1.0 : 0
               }}
-            >
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                Số phân đoạn:
-              </Text>
-              <Text strong style={{ fontSize: '12px' }}>
-                {selectedRoad.segmentCount}
-              </Text>
-            </div>
-            {viewMode === 'forecast' && (
-              <div
-                style={{
-                  marginTop: 4,
-                  paddingTop: 4,
-                  borderTop: '1px solid #f0f0f0',
-                }}
-              >
-                <Text type="danger" strong style={{ fontSize: '12px' }}>
-                  Dữ liệu dự báo (15p)
-                </Text>
-              </div>
-            )}
-            {isLoading && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  marginTop: 4,
-                }}
-              >
-                <Spin size="small" />
-                <Text type="secondary" style={{ fontSize: '11px' }}>
-                  Đang chạy mô phỏng...
-                </Text>
-              </div>
-            )}
-          </div>
-        </Card>
-      )}
+              layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+            />
+          </Source>
+        )}
 
-      {/* Legend */}
-      {viewMode === 'forecast' && predictionData.length > 0 && (
+        {viewMode === 'forecast' && predictionData.length > 0 && selectedRoad?.geojson && (
+          <Source id="forecast-road-source" type="geojson" data={selectedRoad.geojson}>
+            <Layer
+              id="forecast-road-layer"
+              type="line"
+              paint={{
+                'line-width': 10,
+                'line-color': [
+                  'match',
+                  ['to-string', ['get', 'segmentId']],
+                  ...(() => {
+                      const pairs: string[] = []
+                      forecastMap.forEach((pred, id) => {
+                        pairs.push(id)
+                        pairs.push(LOS_COLORS[Number(pred.congestion_level)] || '#94a3b8')
+                      })
+                      return pairs
+                  })(),
+                  'transparent'
+                ] as any,
+                'line-opacity': opacityPhase,
+                'line-blur': 1.5,
+              }}
+              layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+            />
+          </Source>
+        )}
+
+        {simulationStart && (
+          <Marker longitude={simulationStart[0]} latitude={simulationStart[1]} anchor="bottom">
+            <EnvironmentFilled style={{ color: '#52c41a', fontSize: '24px' }} title="Điểm đi (Gốc)" />
+          </Marker>
+        )}
+        {simulationEnd && (
+          <Marker longitude={simulationEnd[0]} latitude={simulationEnd[1]} anchor="bottom">
+            <EnvironmentFilled style={{ color: '#cf1322', fontSize: '24px' }} title="Điểm đến (Đích)" />
+          </Marker>
+        )}
+      </ReactMapGL>
+
+      {hoverInfo && (
         <div
+          className="deckgl-tooltip"
           style={{
             position: 'absolute',
-            bottom: 16,
-            right: 16,
+            zIndex: 100,
+            pointerEvents: 'none',
+            left: hoverInfo.x,
+            top: hoverInfo.y,
             backgroundColor: 'white',
-            padding: '8px 12px',
+            padding: '8px',
             borderRadius: '4px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            zIndex: 10,
-            fontSize: '11px',
+            maxWidth: '280px'
           }}
         >
-          <div style={{ fontWeight: 'bold', marginBottom: 4 }}>
-            Chú giải (Tình trạng kẹt xe)
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div
-                style={{
-                  width: 12,
-                  height: 12,
-                  backgroundColor: '#22c55e',
-                  borderRadius: '2px',
-                }}
-              />
-              <span>0 - LOS A: Thông thoáng</span>
+          <Title level={5} style={{ margin: 0, fontSize: '14px' }}>
+            {hoverInfo.properties.name || hoverInfo.properties.roadName || 'Đoạn đường'}
+          </Title>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            ID: {hoverInfo.properties.segmentId} | Tốc độ: {hoverInfo.properties.speed || hoverInfo.properties.current_speed_kmh || 0} km/h
+          </Text>
+          {hoverInfo.properties.predictionInfo && (
+            <div style={{ marginTop: '8px', borderTop: '1px solid #f0f0f0', paddingTop: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: LOS_COLORS[hoverInfo.properties.predictionInfo.congestion_level] }} />
+                <Text strong style={{ fontSize: '13px' }}>
+                  Dự báo: LOS {['A','B','C','D','E','F'][hoverInfo.properties.predictionInfo.congestion_level]}
+                </Text>
+              </div>
+              <Text style={{ fontSize: '12px', display: 'block', color: '#595959', fontStyle: 'italic' }}>
+                Thời gian: {formatForecastTime(hoverInfo.properties.predictionInfo.forecast_for_time)}
+              </Text>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div
-                style={{
-                  width: 12,
-                  height: 12,
-                  backgroundColor: '#eab308',
-                  borderRadius: '2px',
-                }}
-              />
-              <span>1 - LOS B: Ổn định</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div
-                style={{
-                  width: 12,
-                  height: 12,
-                  backgroundColor: '#f97316',
-                  borderRadius: '2px',
-                }}
-              />
-              <span>2 - LOS C: Đông đúc</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div
-                style={{
-                  width: 12,
-                  height: 12,
-                  backgroundColor: '#ef4444',
-                  borderRadius: '2px',
-                }}
-              />
-              <span>3 - LOS D: Ùn tắc cao</span>
-            </div>
-          </div>
+          )}
+        </div>
+      )}
+
+      {contextMenu && (
+        <div style={{ position: 'absolute', left: contextMenu.x, top: contextMenu.y, zIndex: 1000 }}>
+          <Menu
+            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.15)', borderRadius: '4px' }}
+            onClick={({ key }) => {
+              onSelectPoint?.(key as 'start' | 'end', contextMenu.coordinate)
+              setContextMenu(null)
+            }}
+          >
+            <Menu.Item key="start">Chọn điểm Gốc</Menu.Item>
+            <Menu.Item key="end">Chọn điểm Đích</Menu.Item>
+          </Menu>
         </div>
       )}
     </div>

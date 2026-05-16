@@ -17,6 +17,8 @@ router.get('/segments', (req, res, next) => mapController.getTrafficMap(req, res
  * Lấy danh sách tuyến đường cho filter analytics theo road
  */
 router.get('/roads', (req, res, next) => mapController.getRoads(req, res, next));
+router.get('/roads/:roadKey/segments', (req, res, next) => mapController.getRoadSegments(req, res, next));
+router.get('/roads/:roadKey/geojson', (req, res, next) => mapController.getRoadGeoJson(req, res, next));
 
 /**
  * GET /api/v1/map/status

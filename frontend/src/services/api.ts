@@ -29,10 +29,12 @@ import {
   PlaceSearchResult,
   PredictionRequestBody,
   PredictionResponse,
+  PredictionItem,
   RelativeComparisonResult,
   ReliabilityRankData,
   RoadOption,
   RoutingData,
+  SimulationRoutingResult,
   SegmentResponse,
   SpeedComparisonData,
   TrafficStatus,
@@ -132,6 +134,12 @@ export const mapApi = {
   ): Promise<ApiResponse<IncidentImpactResponse>> =>
     axiosInstance.get(`/incidents/${incidentId}/impact-propagation`, {
       params,
+    }),
+  getRoadSegments: (roadKey: string): Promise<ApiResponse<number[]>> =>
+    axiosInstance.get(`/map/roads/${roadKey}/segments`),
+  getRoadGeoJson: (roadKey: string, lat?: number, lng?: number): Promise<ApiResponse<any>> =>
+    axiosInstance.get(`/map/roads/${roadKey}/geojson`, {
+      params: { lat, lng }
     }),
 }
 
@@ -237,8 +245,8 @@ export const simulationApi = {
   runRouting: (
     startPoint: [number, number],
     endPoint: [number, number],
-    blockedSegments?: number[]
-  ): Promise<ApiResponse<RoutingData>> =>
+    blockedSegments?: string[]
+  ): Promise<ApiResponse<SimulationRoutingResult>> =>
     axiosInstance.post('/simulation/routing', {
       startPoint,
       endPoint,
@@ -325,6 +333,33 @@ export const predictionApi = {
     axiosInstance.post('/congestion-prediction/batch', data, {
       baseURL: aiCoreURL,
     }),
+  getRoadPrediction: async (roadKey: string, options: { horizon: number }): Promise<ApiResponse<PredictionItem[]>> => {
+    // 1. Get segments for the road
+    const segmentsResponse = await mapApi.getRoadSegments(roadKey);
+    if (!segmentsResponse.success || !segmentsResponse.data || segmentsResponse.data.length === 0) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: 'No segments found for this road',
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // 2. Get batch prediction
+    const batchResponse = await predictionApi.getBatchPrediction({
+      segment_ids: segmentsResponse.data,
+      request_time: new Date().toISOString(),
+      prediction_horizon_minutes: options.horizon
+    });
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: 'Road prediction retrieved successfully',
+      data: batchResponse.items,
+      timestamp: new Date().toISOString()
+    };
+  }
 }
 
 export default axiosInstance

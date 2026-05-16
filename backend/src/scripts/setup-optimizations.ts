@@ -23,6 +23,7 @@ async function main() {
         f.timestamp,
         COALESCE(r.name, s.segment_id_source::text) AS segment_name,
         r.road_key::text AS road_key,
+        r.name AS road_name,
         EXISTS (
           SELECT 1 FROM bridge_corridor_segment bcs WHERE bcs.segment_key = f.segment_key
         ) AS is_corridor,
@@ -44,6 +45,18 @@ async function main() {
     `);
     await prisma.$executeRawUnsafe(`
       CREATE INDEX idx_mv_latest_traffic_geom ON mv_latest_traffic_status USING GIST (geom_3857)
+    `);
+
+    logger.log('Creating indexes on view_dynamic_routing_edges if available...');
+    await prisma.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF to_regclass('public.view_dynamic_routing_edges') IS NOT NULL THEN
+          CREATE INDEX IF NOT EXISTS idx_view_dynamic_routing_edges_geom
+            ON public.view_dynamic_routing_edges USING GIST (geom);
+        END IF;
+      END
+      $$;
     `);
 
     // 3. Create a function to refresh the view

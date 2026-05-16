@@ -1,4 +1,4 @@
--- Active: 1774753654557@@psql-smart-traffic-dev.postgres.database.azure.com@5432@traffic_ioc_db
+-- Active: 1774059417179@@psql-smart-traffic-dev.postgres.database.azure.com@5432@traffic_ioc_db
 -- ==========================================
 -- SCRIPT: Tiền xử lý Data Warehouse DW cho chức năng Dynamic Routing
 -- PURPOSE: Tạo cấu trúc Topology cho hệ thống dẫn đường với pgRouting
@@ -199,6 +199,7 @@ LEFT JOIN idw_imputed it ON r.id = it.segment_key;
 
 -- 5. Index & Ví dụ sử dụng
 CREATE UNIQUE INDEX idx_view_dynamic_routing_edges_id ON view_dynamic_routing_edges (id);
+CREATE INDEX IF NOT EXISTS idx_view_dynamic_routing_edges_geom ON view_dynamic_routing_edges USING GIST (geom);
 
 /*
     HƯỚNG DẪN:

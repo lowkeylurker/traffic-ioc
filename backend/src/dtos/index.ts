@@ -12,7 +12,7 @@ export type ForecastDto = z.infer<typeof ForecastSchema>;
 export const RoutingSchema = z.object({
   startPoint: z.tuple([z.number(), z.number()]),
   endPoint: z.tuple([z.number(), z.number()]),
-  blockedSegments: z.array(z.number().int()).optional(),
+  blockedSegments: z.array(z.string()).optional(),
 });
 
 export type RoutingDto = z.infer<typeof RoutingSchema>;

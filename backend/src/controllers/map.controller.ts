@@ -69,6 +69,42 @@ export class MapController {
     }
   }
 
+  /**
+   * GET /roads/:roadKey/segments - Lấy danh sách segment_key của một trục đường
+   */
+  async getRoadSegments(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { roadKey } = req.params;
+      logger.log(`GET /roads/${roadKey}/segments`);
+      const segments = await mapService.getRoadSegments(roadKey);
+      res.json(ResponseUtil.success(segments, 'Road segments retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/v1/map/roads/:roadKey/geojson - Lấy GeoJSON của một trục đường (hỗ trợ lọc theo tọa độ)
+   */
+  async getRoadGeoJson(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { roadKey } = req.params;
+      const { lat, lng } = req.query;
+
+      logger.log(`GET /api/v1/map/roads/${roadKey}/geojson${lat ? `?lat=${lat}&lng=${lng}` : ''}`);
+
+      const geojson = await mapService.getRoadGeoJson(
+        roadKey,
+        lat ? Number(lat) : undefined,
+        lng ? Number(lng) : undefined
+      );
+
+      res.json(ResponseUtil.success(geojson, 'Road GeoJSON retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
 }
 
 export const mapController = new MapController();

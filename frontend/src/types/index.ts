@@ -505,6 +505,24 @@ export interface RoutingData {
   estimatedTime: number
 }
 
+export interface SimulationRoutingResult {
+  baseline: {
+    distance: number
+    duration: number
+    route: GeoJSON.FeatureCollection
+  }
+  rerouted: {
+    distance: number
+    duration: number
+    route: GeoJSON.FeatureCollection
+  }
+  blockedSegments: string[]
+  expandedBlockedSegments: string[]
+  blockedRouteSegments: string[]
+  rerouteAvailable?: boolean
+  rerouteFailureReason?: string
+}
+
 export interface PlaceSearchResult {
   id: string
   name: string
