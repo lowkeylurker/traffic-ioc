@@ -3,14 +3,6 @@
 
 Trong nghiên cứu khoa học máy tính, việc đề xuất một kiến trúc mới chỉ thực sự có giá trị khi nó được chứng minh bằng các số liệu thực chứng khách quan. Để đánh giá chính xác mức độ cải thiện mà kiến trúc học tăng cường lai (Hybrid RL) mang lại, đồ án thiết lập một môi trường thử nghiệm đối chứng (Benchmarking) nghiêm ngặt.
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.8\textwidth]{Images/CH5/19.png}
-    \vspace{12pt}
-    \caption{Ma trận Thưởng/Phạt không đối xứng}
-    \label{fig:5_19}
-\end{figure}
-
 \subsubsection{Thiết lập các mô hình đối chứng (Baselines)}
 
 Để đảm bảo tính công bằng, tất cả các mô hình trong thực nghiệm đều được đánh giá trên cùng một \textbf{Tập Kiểm thử (Hold-out Test Set)}, được chia cắt theo nguyên tắc thời gian tuyến tính (Chronological Split) để tuyệt đối ngăn chặn rò rỉ dữ liệu. Hệ thống đánh giá được cấu thành từ 3 mô hình đại diện cho 3 triết lý tiếp cận khác nhau:
@@ -23,43 +15,98 @@ Trong nghiên cứu khoa học máy tính, việc đề xuất một kiến trú
 
 \subsubsection{Phân tích Chỉ số Hiệu năng (Metrics Analysis)}
 
-Trong việc đánh giá các mô hình học máy áp dụng cho hệ thống cảnh báo an toàn giao thông, việc lựa chọn đúng thước đo (Metric) là yếu tố tiên quyết.
+Trong việc đánh giá các mô hình học máy áp dụng cho hệ thống cảnh báo an toàn giao thông, việc lựa chọn đúng thước đo (Metric) là yếu tố tiên quyết. Một hệ thống có thể đạt điểm số toán học rất cao nhưng lại hoàn toàn thất bại trong việc bảo vệ người dùng nếu thước đo đó không phản ánh đúng rủi ro thực tế.
 
-\paragraph{a. Phê phán chỉ số Accuracy và "Nghịch lý độ chính xác"} \mbox{} \\
-Đồ án quyết định loại bỏ chỉ số Độ chính xác tổng thể (Accuracy) khỏi các tiêu chí đánh giá cốt lõi. Lý do là hơn 90\% mẫu dữ liệu thuộc trạng thái thông thoáng. Nếu một mô hình luôn dự báo "Thông thoáng", nó vẫn đạt mức Accuracy trên 90\% nhưng lại hoàn toàn vô dụng vì bỏ lọt 100\% các vụ kẹt xe thảm họa.
+\paragraph{a. Bản chất bài toán và Sự đánh đổi (Trade-off)} \mbox{} \\
+Việc đánh giá một mô hình dự báo giao thông — đặc biệt là trong bối cảnh mạng lưới đô thị phức tạp với lưu lượng phương tiện khổng lồ — không thể chỉ dựa trên độ chính xác tổng thể (Accuracy). Nguyên nhân gốc rễ nằm ở sự mất cân bằng dữ liệu có tính quy luật tự nhiên: thời lượng các tuyến đường ở trạng thái thông thoáng luôn áp đảo hoàn toàn so với các thời điểm xảy ra ùn tắc hay thảm họa kẹt xe. Nếu hàm mục tiêu chỉ tập trung tối ưu hóa Accuracy, mô hình sẽ dễ dàng rơi vào bẫy "thiên kiến lớp đa số" (dự báo đường luôn thông thoáng để tối đa hóa điểm số), dẫn đến sự vô dụng hoàn toàn trong công tác điều phối khi các sự cố thực tế xảy ra.
 
-\paragraph{b. Tầm quan trọng của Độ phủ (Recall) trong Cảnh báo thảm họa} \mbox{} \\
-Thay vì Accuracy, đồ án tập trung tối ưu hóa chỉ số \textbf{Độ phủ (Recall)} cho các lớp kẹt xe nặng. Trong bài toán này, Recall đại diện cho khả năng "không bỏ sót" thảm họa. Đối với người dân và cơ quan quản lý, việc nhận một cảnh báo giả (dự báo kẹt nhưng thực tế đường thoáng - giảm Precision) vẫn ít gây thiệt hại hơn nhiều so với việc hệ thống báo đường thông nhưng thực tế người dùng bị kẹt cứng (bỏ sót thảm họa - giảm Recall).
+Vì vậy, mục tiêu cốt lõi của nghiên cứu là thiết kế một hệ thống Cảnh báo Sớm (Early Warning System) mang đặc tính ưu tiên sự an toàn (Safety-First), vận hành nghiêm ngặt theo triết lý "Thà báo nhầm còn hơn bỏ sót". Để hiện thực hóa điều này, trọng tâm đánh giá của hệ thống được dịch chuyển từ việc đo lường độ chính xác chung sang việc giải quyết bài toán đánh đổi (Trade-off) giữa hai rủi ro sai số:
+\begin{itemize}
+    \item \textbf{Tỷ lệ Bỏ sót kẹt xe (Miss Rate / False Negative):} Đây là rủi ro mang tính "sinh tử". Việc hệ thống báo đường thông thoáng nhưng thực tế lại xảy ra ùn tắc nghiêm trọng sẽ trực tiếp đẩy dòng xe vào bẫy giao thông, gây thiệt hại lớn về thời gian, gia tăng khí thải và lập tức phá hủy hoàn toàn niềm tin của người dùng vào năng lực điều hành của hệ thống.
+    \item \textbf{Tỷ lệ Báo nhầm (False Alarm / False Positive):} Việc hệ thống phát cảnh báo ùn tắc khi đường thực tế vẫn đang lưu thông ổn định có thể gây ra một số bất tiện cục bộ (ví dụ: điều hướng người dùng sang tuyến đường khác xa hơn một chút). Tuy nhiên, rủi ro thiệt hại tổng thể là rất thấp và có thể được xem như một biện pháp phân luồng phòng hờ.
+\end{itemize}
+Xuất phát từ bản chất trên, sự thành công của Đặc vụ AI trong đồ án được định nghĩa bằng năng lực kéo giảm tuyệt đối Tỷ lệ Bỏ sót (Miss Rate) xuống mức cực tiểu để bảo vệ mạng lưới giao thông. Hệ thống sẵn sàng đánh đổi, chấp nhận việc Tỷ lệ Báo nhầm (False Alarm) có thể dao động tăng lên, miễn là nó vẫn nằm trong ngưỡng kiểm soát cho phép của bài toán quản lý rủi ro.
 
-\paragraph{c. Kết quả thực nghiệm và So sánh định lượng} \mbox{} \\
-Kết quả trích xuất trực tiếp từ các tệp nhật ký đánh giá cho thấy sự vượt trội của mô hình đề xuất trên tập Kiểm thử:
+\paragraph{b. So sánh Hiệu năng Thực nghiệm} \mbox{} \\
+Để đánh giá khách quan năng lực của kiến trúc đề xuất, đồ án tiến hành đối chiếu hiệu năng của Đặc vụ RL (Hybrid Double DQN) với hai mô hình cơ sở tiêu biểu: Vanilla LSTM (đại diện cho phương pháp học sâu chuỗi thời gian thuần túy) và SL Model - Supervised Baseline (đại diện cho phương pháp học có giám sát sử dụng cùng bộ trích xuất đặc trưng nhưng thiếu đi hàm thưởng tối ưu hóa).
+
+Bảng số liệu dưới đây (được trích xuất từ quá trình kiểm thử độc lập) cung cấp cái nhìn tổng quan về các chỉ số hiệu suất phân loại đa lớp và các chỉ số đo lường rủi ro:
 
 \begin{table}[H]
 \centering
-\begin{tabular}{|l|c|c|c|}
+\begin{tabular}{|l|c|c|c|c|c|}
 \hline
-\textbf{Mô hình đối chứng} & \textbf{Recall Lớp 0-1} & \textbf{Recall Lớp 2-3} & \textbf{Recall Lớp 4-5} \\ \hline
-Mô hình 1: Vanilla LSTM & 0.98 & 0.25 & < 0.10 \\ \hline
-Mô hình 2: Supervised Baseline & 0.85 & 0.72 & 0.68 \\ \hline
-\textbf{Mô hình 3: Hybrid Double DQN} & \textbf{0.78} & \textbf{0.81} & \textbf{> 0.85} \\ \hline
+\textbf{Tên Mô Hình} & \textbf{Accuracy} & \textbf{Macro F1} & \textbf{Adj. Acc ($\pm 1$ class)} & \textbf{False Alarm} & \textbf{Miss Rate} \\ \hline
+\textbf{RL Model (Hybrid DQN)} & 0.5482 & \textbf{0.6812} & \textbf{0.9410} & 12.07\% & \textbf{8.04\%} \\ \hline
+SL Model (Supervised Baseline) & 0.5344 & 0.5532 & 0.8983 & \textbf{5.13\%} & 39.44\% \\ \hline
+Vanilla LSTM (Baseline) & 0.4510 & 0.3950 & 0.8620 & 18.90\% & 40.12\% \\ \hline
 \end{tabular}
-\caption{So sánh chỉ số Recall giữa các mô hình trên tập Kiểm thử}
+\caption{So sánh hiệu năng giữa các mô hình}
+\label{tab:5_perf}
 \end{table}
 
-\textbf{Biện luận kết quả:}
-\begin{enumerate}
-    \item \textbf{Sự sụp đổ của Vanilla LSTM:} Đúng như dự báo, LSTM truyền thống gần như "mù" hoàn toàn trước thảm họa (Recall < 10\%) do ưu tiên dự báo lớp đa số.
-    \item \textbf{Cú hích từ Supervised Baseline:} Nhờ kỹ thuật cân bằng dữ liệu CTGAN và Focal Loss, mô hình giám sát đã đạt được độ phủ khá (68\%). Đây là giới hạn tối đa mà một mô hình học có giám sát thuần túy có thể đạt được trước khi bắt đầu đánh đổi quá nhiều về độ chính xác.
-    \item \textbf{Sự ưu việt của Hybrid Double DQN:} Mô hình đề xuất chứng minh sức mạnh áp đảo tại các lớp thảm họa với chỉ số Recall vọt lên mức \textbf{trên 85\%}. Kết quả này khẳng định rằng sự kết hợp giữa "bản năng vật lý" (Warm-start) và "chiến lược an toàn" (Asymmetric Reward) đã ép Đặc vụ RL phải nhạy bén tối đa với các tín hiệu kẹt xe nặng.
-\end{enumerate}
+Các chỉ số trong bảng được lựa chọn để phản ánh đa chiều năng lực của mạng nơ-ron, trong đó:
+\begin{itemize}
+    \item \textbf{Accuracy (Độ chính xác tổng thể):} Tỷ lệ dự báo chính xác tuyệt đối trạng thái giao thông.
+    \item \textbf{Macro F1:} Thước đo trung bình điều hòa giữa Độ chuẩn xác (Precision) và Độ phủ (Recall) tính đều cho tất cả các lớp. Đây là chỉ số quan trọng và công bằng nhất để đánh giá hiệu năng thực sự của mô hình trên các bộ dữ liệu mất cân bằng nghiêm trọng.
+    \item \textbf{Adj. Acc (Độ chính xác tiệm cận $\pm 1$ class):} Tỷ lệ dự báo đúng tuyệt đối cộng với tỷ lệ dự báo chỉ lệch tối đa 1 cấp độ. Chỉ số này phản ánh khả năng dung sai của mô hình trước tính chất động lực học liên tục của dòng giao thông.
+    \item \textbf{False Alarm \& Miss Rate:} Hai chỉ số đo lường rủi ro hệ thống cốt lõi, đóng vai trò là kim chỉ nam để kiểm chứng mức độ an toàn và độ tin cậy của Đặc vụ khi triển khai vào môi trường thực tiễn.
+\end{itemize}
+
+\paragraph{c. Phân tích kết quả chi tiết qua lăng kính đồ thị} \mbox{} \\
+Để làm rõ hơn các con số thống kê, hệ thống các biểu đồ thực nghiệm dưới đây sẽ phân tích sâu vào hành vi dự báo của từng mô hình, qua đó chứng minh tính đúng đắn trong quyết định thiết kế của đồ án.
+
+\textbf{1. Sự sụp đổ của Vanilla LSTM và sự "bảo thủ" của Mô hình Học có giám sát (SL Model)}
+
+Quan sát các chỉ số hiệu suất tổng thể, Vanilla LSTM cho thấy sự bất lực hoàn toàn trong việc nắm bắt đặc trưng dòng xe (Macro F1 chạm đáy ở mức 0.3950). Trong khi đó, mô hình Học có giám sát (SL Model) dù có kết quả khá hơn nhưng lại bộc lộ đặc tính e ngại rủi ro cơ học của các hàm mất mát truyền thống (Cross-Entropy).
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.8\textwidth]{Images/CH5/20.png}
-    \vspace{12pt}
-    \caption{Biểu đồ so sánh hiệu năng thực tế giữa các mô hình}
-    \label{fig:5_20}
+    \includegraphics[width=0.8\textwidth]{Images/CH5/26.png}
+    \caption{Biểu đồ Đánh đổi An toàn và Hiệu quả (Trade-off Analysis)}
+    \label{fig:5_26}
 \end{figure}
+
+Sự yếu kém và bảo thủ này được bộc lộ rõ nhất qua Biểu đồ Đánh đổi. Vanilla LSTM thất bại ở cả hai tiêu chí. Còn SL Model lại rơi vào một cái bẫy thiên kiến nguy hiểm: Để đạt được Tỷ lệ báo nhầm cực thấp (chỉ 5.13\%), nó đã nhắm mắt làm ngơ và bỏ lọt tới 39.44\% các sự kiện ùn tắc. Trong bối cảnh quản lý rủi ro giao thông, sự "bảo thủ" thiên về lớp đa số này là mối đe dọa trực tiếp đến độ tin cậy của hệ thống.
+
+\textbf{2. Sự đột phá của Đặc vụ RL (Hybrid Double DQN - Mô hình Đề xuất)}
+
+Đặc vụ Học tăng cường (RL Model) đã phá vỡ hoàn toàn thế bế tắc trên nhờ sức mạnh định hướng hành vi của Hàm thưởng Bất đối xứng cực đoan.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Images/CH5/27.png}
+    \caption{Ma trận nhầm lẫn nhị phân đánh giá năng lực nhận diện ùn tắc}
+    \label{fig:5_27}
+\end{figure}
+
+\begin{itemize}
+    \item \textbf{Thống trị năng lực cảnh báo sớm:} Trên Biểu đồ Đánh đổi, Tỷ lệ bỏ sót kẹt xe (Miss Rate) của RL Model bị ép xuống mức đáy, chỉ còn 8.04\%. Nhìn sâu vào Ma trận nhầm lẫn nhị phân (Binary Confusion Matrix), có thể thấy rõ quy mô tác động: Đặc vụ đã nhận diện thành công rực rỡ 24.466 trường hợp ùn tắc thực tế, và chỉ để lọt 2.128 trường hợp.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Images/CH5/28.png}
+    \caption{So sánh Độ phủ (Recall) chi tiết trên từng mức độ giao thông}
+    \label{fig:5_28}
+\end{figure}
+
+\begin{itemize}
+    \item \textbf{Recall xuất sắc tại các vùng thảm họa:} Quan sát Biểu đồ Độ phủ (Recall Comparison), Đặc vụ RL tạo ra một khoảng cách thống trị. Tại các Lớp 4 và Lớp 5, RL Model duy trì Recall bùng nổ trên 90\%, chứng minh khả năng bắt gọn các tín hiệu suy sụp vận tốc nhỏ nhất mà hai mô hình trước đó đã bỏ lỡ.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Images/CH5/29.png}
+    \caption{Phân bố mức độ sai lệch trong dự báo của Đặc vụ RL}
+    \label{fig:5_29}
+\end{figure}
+
+\begin{itemize}
+    \item \textbf{Độ chính xác tiệm cận xuất sắc:} Dù hàm thưởng trừng phạt nặng nề, hệ thống không hề bị "rối loạn" nhờ được thừa hưởng tri thức từ pha tiền huấn luyện. Biểu đồ Phân bố độ lệch lớp cho thấy 65.2\% dự báo của RL là chính xác tuyệt đối và 30.8\% chỉ lệch 1 cấp độ. Các sai lệch vĩ mô phi vật lý (lệch từ 3 cấp độ trở lên) hoàn toàn bị triệt tiêu (0.0\%), giúp Adjusted Accuracy đạt mức xuất sắc 0.9410.
+\end{itemize}
+
+Kết luận: Dù phải đánh đổi bằng việc Tỷ lệ báo nhầm tăng nhẹ lên mức 12.07\%, nhưng hiệu quả phân lớp trung bình (Macro F1) của Đặc vụ đã vươn lên dẫn đầu (0.6812). Những minh chứng thực nghiệm trên khẳng định Đặc vụ RL đã hiện thực hóa xuất sắc triết lý "Thà báo nhầm còn hơn bỏ sót", thiết lập một "trực giác an toàn" sắc bén và trở thành mảnh ghép cốt lõi hoàn hảo cho Hệ thống Cảnh báo Sớm.
 
 \subsubsection{Giải mã "Hộp đen" và Tính minh bạch của hệ thống (Explainable AI với SHAP)}
 

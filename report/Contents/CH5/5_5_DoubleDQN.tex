@@ -68,22 +68,38 @@ Trong các bài toán hồi quy hoặc xấp xỉ hàm giá trị của RL, Mean
 
 \subsubsection{Thiết kế Hàm Phần thưởng (Reward Shaping) - "Linh hồn" của sự thông minh}
 
-Nếu Mạng Nơ-ron là "thể xác" và bộ nạp trọng số là "bản năng", thì Hàm phần thưởng (Reward Function) chính là "linh hồn" định hình nên nhân cách và sự thông minh của Đặc vụ.
+Nếu Mạng Nơ-ron (Q-Network) là "thể xác" và bộ nạp trọng số (Warm-start) là "bản năng", thì Hàm phần thưởng (Reward Function) chính là "linh hồn" định hình nên nhân cách và sự thông minh của Đặc vụ (Agent). Trong học tăng cường, Agent không phân biệt được đúng sai về mặt đạo đức hay vật lý; nó chỉ thuần túy tìm cách tối đa hóa tổng điểm thưởng. Do đó, việc thiết kế Hàm phần thưởng quyết định trực tiếp đến chiến lược hành vi của hệ thống.
 
-\paragraph{a. Triết lý thiết kế: Tối ưu hóa hướng an toàn với Phạt không đối xứng (Asymmetric Penalty)} \mbox{} \\
-Trong các bài toán dự báo chuẩn, các hàm đánh giá thường có tính đối xứng: Lỗi dự báo cao hơn thực tế (Over-prediction) và lỗi dự báo thấp hơn thực tế (Under-prediction) bị phạt như nhau. Tuy nhiên, khi áp dụng vào một hệ thống Cảnh báo sớm giao thông, tính đối xứng này trở nên cực kỳ nguy hiểm.
+\paragraph{a. Triết lý thiết kế: Tối ưu hóa hướng an toàn với Phạt bất đối xứng cực đoan (Extreme Asymmetric Penalty)} \mbox{} \\
+Trong các bài toán dự báo chuẩn, các hàm đánh giá (như Accuracy hay MSE) thường có tính đối xứng tuyệt đối: Lỗi dự báo cao hơn thực tế (Over-prediction) và lỗi dự báo thấp hơn thực tế (Under-prediction) bị phạt như nhau. Tuy nhiên, khi áp dụng vào một hệ thống Cảnh báo sớm giao thông (Early Warning System), cần phân tích kỹ dưới góc độ Trải nghiệm người dùng (UX) và An toàn nghiệp vụ:
 \begin{itemize}
-    \item \textbf{Báo động giả (Over-prediction):} Hệ thống dự báo kẹt xe nhưng thực tế đường thông thoáng. Người dùng có thể hơi phiền lòng, nhưng rủi ro tổn thất là bằng không.
-    \item \textbf{Bỏ lọt thảm họa (Under-prediction):} Hệ thống báo đường thông thoáng nhưng thực tế là một vụ kẹt xe vỡ trận. Người dùng đi vào và mắc kẹt hàng giờ. Sự cố này sẽ lập tức phá hủy hoàn toàn niềm tin của người dùng.
+    \item \textbf{Bỏ lọt thảm họa (False Negative - Under-prediction):} Hệ thống báo đường thông thoáng nhưng thực tế là một vụ kẹt xe vỡ trận. Người dùng đi vào và mắc kẹt hàng giờ đồng hồ. Sự cố này mang tính "sinh tử", lập tức phá hủy hoàn toàn niềm tin của người dùng vào năng lực của ứng dụng.
+    \item \textbf{Báo động giả (False Positive - Over-prediction):} Hệ thống dự báo kẹt xe nhưng thực tế đường thông thoáng. Dù người dùng chỉ tốn thêm chút thời gian đi đường vòng, nhưng nếu tình trạng này diễn ra liên tục, nó sẽ tạo ra hiệu ứng "Cậu bé chăn cừu" (nhờn cảnh báo), khiến hệ thống mất đi giá trị tham khảo.
 \end{itemize}
-Xuất phát từ triết lý "Thà báo nhầm còn hơn bỏ sót", đồ án xây dựng một Hàm phần thưởng phi tuyến tính và \textbf{Không đối xứng (Asymmetric Reward Shaping)} nhằm định hướng Agent hình thành một "Trực giác an toàn" (Safety Intuition).
+Xuất phát từ nền tảng "Thà báo nhầm còn hơn bỏ sót" (Better safe than sorry), phiên bản V12.0 thiết lập một cơ chế Bất đối xứng cực đoan (Highly Asymmetric). Lỗi bỏ lọt thảm họa bị trừng phạt với mức độ tàn khốc (gấp 5 lần lỗi báo giả) để bảo vệ tuyệt đối dòng lưu thông (ưu tiên Recall). Tuy nhiên, lỗi báo động giả vẫn đi kèm một mức phạt đáng kể nhằm ngăn chặn Agent trở nên "hoang tưởng" (đoán bừa kẹt xe để né phạt). Cơ chế đòn bẩy 1:5 này định hướng Đặc vụ hình thành một "Trực giác an toàn" (Safety Intuition) thiên lệch có chủ đích về phía cảnh báo sớm, nhưng vẫn giữ được độ tin cậy thực tiễn.
 
 \paragraph{b. Cơ chế Thưởng/Phạt chi tiết của Ma trận Trạng thái} \mbox{} \\
-Hàm phần thưởng $R(y, \hat{y})$ được thiết kế với 4 tầng logic khắt khe:
-\begin{enumerate}
-    \item \textbf{Thưởng chuẩn xác phân tầng (Stratified Match Bonus):} Khi Đặc vụ dự đoán đúng hoàn toàn ($y = \hat{y}$), nó sẽ nhận được phần thưởng dương (15 điểm cho lớp 0-2 và 10 điểm cho lớp 3-5).
-    \item \textbf{Khoan dung với Sai lệch gần (Near Miss Tolerance):} Nếu Agent dự báo lệch đúng 1 cấp ($|\hat{y} - y| = 1$), hệ thống chỉ trừ một mức phạt rất nhẹ là \textbf{-1 điểm}. Cơ chế này tạo ra một vùng đệm linh hoạt, giúp Agent không bị "trừng phạt oan" bởi các nhiễu loạn ranh giới nhỏ.
-    \item \textbf{Phạt sai lệch xa (Far Miss Penalty):} Khi độ chênh lệch cấp độ tăng lên ($|\hat{y} - y| \ge 2$), mức phạt bắt đầu gia tăng tuyến tính và lũy tiến (từ -6, -9, đến \textbf{-17 điểm}). Logic này ép mạng Q-Network phải học và tôn trọng tính thứ bậc của không gian trạng thái.
-    \item \textbf{PHẠT SINH TỬ (Severe Mismatch / Fatal Penalty):} Đây là "bức tường thép" mang tính sống còn: Nếu thực tế xảy ra kẹt xe thảm họa (Lớp 4, Lớp 5) nhưng Agent lại chủ quan dự báo là đường thông thoáng (Lớp 0, Lớp 1), mức phạt sẽ lao dốc xuống đáy, dao động từ \textbf{-19 điểm đến -25 điểm}.
-\end{enumerate}
-Mức phạt tàn khốc này áp đảo hoàn toàn mọi điểm thưởng tích lũy, tạo ra một nỗi "sợ hãi" toán học, ép Đặc vụ thà dự báo nhầm còn hơn bỏ sót thảm họa.
+Gọi $y$ là nhãn thực tế (True Class) và $\hat{y}$ là nhãn Đặc vụ dự báo (Predicted Class) với giá trị từ 0 đến 5. Hàm phần thưởng $R(y, \hat{y})$ ở phiên bản cập nhật được thiết kế với 4 tầng logic cực kỳ khắt khe:
+\begin{itemize}
+    \item \textbf{Thưởng chuẩn xác có trọng số (Weighted Accuracy Bonus):} Khi Đặc vụ dự đoán đúng hoàn toàn ($y = \hat{y}$), mức thưởng không được cào bằng mà phân chia theo độ khó và mức độ nghiêm trọng: Thưởng cơ bản được đẩy lên rất cao, đạt $+80$ điểm cho các trạng thái ùn tắc (Lớp 3, 4, 5) và $+30$ điểm cho các trạng thái thông thoáng (Lớp 0, 1, 2). Việc phân tầng khuyết đại này thiết lập một bệ phóng điểm số vững chắc, tập trung khích lệ Agent nhận diện chính xác các lớp kẹt xe mang tính sống còn.
+    \item \textbf{Phạt chênh lệch tiệm cận (Strict Adjacency Penalty):} Dù giao thông là một dải động lực học liên tục, hệ thống mới không còn sự "khoan dung" cho các sai lệch nhỏ nhằm chống lại hiện tượng trượt lớp (Class Drift). Nếu Agent dự báo lệch đúng 1 cấp ($|\hat{y} - y| = 1$), hệ thống lập tức trừ $-10$ điểm. Mức phạt này ép Agent phải nỗ lực phân tích các biên giới nhạy cảm của cảm biến để tìm ra cấp độ chính xác tuyệt đối thay vì chỉ "đoán gần đúng".
+    \item \textbf{Phạt sai lệch xa (Far Miss Penalty):} Khi độ chênh lệch cấp độ tăng lên ($|\hat{y} - y| \ge 2$), mức phạt gia tăng phi mã theo công thức lũy tiến: $-50 \times |\hat{y} - y|$. Logic này đóng vai trò như một lực kéo tàn nhẫn, ép mạng Q-Network phải học và tuyệt đối tôn trọng tính thứ bậc (Ordinal nature) của không gian trạng thái giao thông, ngăn chặn mọi cú nhảy vọt dự báo phi vật lý.
+    \item \textbf{RANH GIỚI SINH TỬ VÀ HÌNH PHẠT KÉP (Binary Boundary Penalty):} Đây là "bức tường thép" mang tính định hình nhân cách của hệ thống cảnh báo. Đồ án thiết lập một lằn ranh rõ rệt giữa nhóm Thông thoáng ($\hat{y} < 3$) và nhóm Kẹt xe ($\hat{y} \ge 3$). Nếu Agent đưa ra quyết định sai lầm vượt qua lằn ranh này, hình phạt giáng xuống mang tính hủy diệt:
+    \begin{itemize}
+        \item \textbf{Bỏ sót thảm họa (False Negative):} Nếu thực tế xảy ra kẹt xe ($y \ge 3$) nhưng Agent chủ quan dự báo thông thoáng ($\hat{y} < 3$), mức phạt chạm đáy $-250$ điểm. Mức phạt tàn khốc này tạo ra một "nỗi sợ hãi" toán học, bảo vệ triệt để triết lý "an toàn là trên hết".
+        \item \textbf{Báo động giả (False Positive):} Ngược lại, nếu thực tế thông thoáng ($y < 3$) nhưng Agent lại báo động nhầm ($\hat{y} \ge 3$), nó sẽ gánh chịu mức phạt $-50$ điểm. Đòn bẩy này đủ mạnh để ngăn chặn hội chứng "hoang tưởng", nhưng vẫn đảm bảo Agent dám mạnh dạn đưa ra cảnh báo khi phát hiện các tín hiệu xấu.
+    \end{itemize}
+\end{itemize}
+
+\paragraph{c. Kết quả hình thành Hành vi hệ thống} \mbox{} \\
+Trải qua hàng chục vạn chu kỳ cọ xát với cơ chế phần thưởng khốc liệt này, Agent học được một bài học sinh tồn sâu sắc: Lằn ranh "Bỏ lọt thảm họa" là vùng cấm tuyệt đối (-250 điểm), trong khi "Báo động giả" (-50 điểm) là một rủi ro có thể chấp nhận được trong những tình huống ranh giới mập mờ, nhưng tuyệt đối không được lạm dụng.
+
+Kết quả là, mạng Q-Network kiến tạo một ranh giới sắc lẹm và thiên lệch một cách có chủ đích về phía an toàn. Đặc vụ trở nên cực kỳ nhạy bén với những dấu hiệu suy sụp vận tốc nhỏ nhất để tung ra cảnh báo sớm, sẵn sàng hy sinh một phần rất nhỏ độ chính xác ở các lớp thông thoáng để đảm bảo không bao giờ bỏ sót thảm họa. Sự cân bằng động tinh tế này — vừa cảnh giác cao độ để bảo vệ sinh mạng, thời gian của người dùng, vừa duy trì được độ tin cậy cần thiết — chính là chuẩn mực thiết kế khắt khe nhất của các hệ thống an toàn quy mô lớn trong thế giới thực.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Images/CH5/19.png}
+    \vspace{12pt}
+    \caption{Ma trận Thưởng/Phạt bất đối xứng}
+    \label{fig:5_19}
+\end{figure}

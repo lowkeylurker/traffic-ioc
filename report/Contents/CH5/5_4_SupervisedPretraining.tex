@@ -57,7 +57,16 @@ Ngay cả khi tập dữ liệu đã được cân bằng, ranh giới vật lý
 \end{figure}
 
 \paragraph{d. Đánh giá Hiệu suất Tiền huấn luyện (Pre-training Performance)} \mbox{} \\
-Kết quả thực nghiệm ghi nhận mô hình đạt đỉnh hội tụ ở chỉ số \textbf{Macro-F1 xấp xỉ 0.7}. Điểm nhấn thực sự nằm ở năng lực Thu hồi (Recall): Mô hình đã phát triển một "khứu giác" nhạy bén, khả năng bắt trúng các thảm họa Lớp 4 và Lớp 5 đạt mức tiệm cận $83\% - 84\%$. Bộ trọng số này chính thức hoàn thành nhiệm vụ xây dựng trực giác ban đầu, sẵn sàng để được cấy ghép vào "não bộ" của Agent Học tăng cường.
+Quá trình huấn luyện mô hình học có giám sát cơ sở (Supervised Baseline) được điều hướng bởi thuật toán điều chỉnh tốc độ học tự động (Learning Rate Scheduler) và cơ chế Dừng sớm (Early Stopping) nhằm ngăn chặn hiện tượng học vẹt (Overfitting) trên tập dữ liệu chuỗi thời gian. Kết quả thực nghiệm ghi nhận mô hình đạt ngưỡng hội tụ với chỉ số Macro-F1 trung bình ở mức $0.5533$. Nhìn vào biểu đồ phân bố hiệu suất, có thể thấy rõ một nghịch lý mang tính bản chất của các hàm mất mát truyền thống:
+\begin{itemize}
+    \item \textbf{Tại vùng an toàn:} Mô hình hoàn thành khá tốt nhiệm vụ trích xuất đặc trưng ở các trạng thái giao thông thông thoáng hoặc ổn định (Lớp 0, 1, 2) với F1-Score dao động ổn định từ $0.60$ đến $0.62$.
+    \item \textbf{Tại vùng thảm họa:} Khi đối mặt với các tình trạng ùn tắc nghiêm trọng (Lớp 3, Lớp 4 và Lớp 5), hiệu suất của mô hình sụt giảm rõ rệt, chạm đáy ở mức $0.45$ đối với trạng thái kẹt xe vỡ trận. Sự sụt giảm này phản ánh một lỗ hổng rủi ro lớn: Tỷ lệ bỏ sót kẹt xe (Miss Rate) của mô hình giám sát lên tới xấp xỉ $39\%$.
+\end{itemize}
+Sự sụt giảm này không phải do mô hình kém, mà do "thiên kiến lớp đa số" của thuật toán học có giám sát. Nó có xu hướng dự đoán thiên về các trạng thái thông thoáng để tối ưu hóa Độ chính xác tổng thể (Accuracy), từ đó trở nên "bảo thủ" và thiếu nhạy bén trước các dấu hiệu suy sụp vận tốc dẫn đến kẹt xe.
+
+\textbf{Tiền đề cho Học tăng cường:} Dù tồn tại hạn chế về năng lực cảnh báo sớm (Recall), nhưng dưới góc độ trích xuất đặc trưng (Feature Extraction), kiến trúc LSTM cơ sở này đã học được thành công các biểu diễn không gian - thời gian nền tảng của dòng giao thông.
+
+Bộ trọng số đỉnh cao này (được lưu tại \texttt{best\_traffic\_model\_manual\_h15.pt}) chính thức hoàn thành nhiệm vụ xây dựng "bản năng nhận thức" ban đầu. Nó đã sẵn sàng để được cấy ghép (Warm-start) vào "não bộ" của Đặc vụ Học tăng cường (RL Agent). Trong giai đoạn tiếp theo, Đặc vụ RL — dưới sức ép của Hàm thưởng Bất đối xứng cực đoan — sẽ trực tiếp giải quyết lỗ hổng "Miss Rate 39\%" này, mở ra một chiến lược ra quyết định ưu tiên an toàn tuyệt đối.
 
 \begin{figure}[H]
     \centering

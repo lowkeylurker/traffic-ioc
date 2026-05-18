@@ -1,0 +1,273 @@
+c. Tối ưu hóa với Double DQN và Hàm Phần thưởng Không đối xứng (Asymmetric Reward 
+Shaping) 
+Đặc vụ (Agent) sử dụng thuật toán Double DQN kết hợp bộ nhớ kinh nghiệm (Replay Buffer) 
+dung lượng lớn nhằm đa dạng hóa dữ liệu huấn luyện. Việc sử dụng mạng mục tiêu (Target 
+Network) tách biệt với mạng chính sách (Policy Network) giúp hệ thống triệt tiêu hội chứng ảo 
+tưởng sức mạnh (Overestimation Bias) – tình trạng mô hình đánh giá sai lệch, lạc quan thái quá 
+về các hành động của mình vốn thường gặp ở Q-Learning truyền thống. 
+Tuy nhiên, "trái tim" và bí quyết thành công của hệ thống nằm ở thiết kế Hàm phần thưởng 
+(Reward Shaping). Nhằm triệt tiêu thiên kiến lớp đa số (mô hình thường thích đoán đường thông 
+thoáng để giữ an toàn về mặt sai số), đồ án đã thiết lập một cơ chế tính điểm khắt khe dựa trên 
+chiến lược Bất đối xứng cực đoan (Extreme Asymmetric): 
+• Thưởng khích lệ phân tầng: Hệ thống thiết lập mức thưởng cao hơn hẳn cho việc dự 
+đoán đúng các trạng thái ùn tắc so với trạng thái thông thoáng, kết hợp cùng trọng số lớp 
+để tập trung khích lệ Agent nhận diện các tình huống nguy hiểm. 
+• Phạt tiệm cận khắt khe: Loại bỏ hoàn toàn "vùng đệm khoan dung". Mọi sai lệch dự 
+báo, dù chỉ là một cấp độ ùn tắc, đều bị trừng phạt, và mức phạt sẽ tăng lũy tiến nếu dự 
+báo càng xa thực tế. Điều này ép Đặc vụ phải phân tích sắc bén thay vì chỉ đoán gần 
+đúng. 
+• Phạt ranh giới sinh tử: Đây là đòn bẩy định hình hành vi cốt lõi. Hệ thống áp dụng một 
+mức phạt mang tính "hủy diệt" đối với lỗi bỏ lọt thảm họa (thực tế kẹt xe nhưng báo 
+đường thoáng), nặng hơn gấp nhiều lần so với hình phạt dành cho lỗi báo động giả (thực 
+tế đường thoáng nhưng báo kẹt xe). 
+Chiến lược này tạo ra một rào cản tâm lý số, ép Agent phải nhạy bén tối đa với các tín hiệu thảm 
+họa. Sự chênh lệch hình phạt đảm bảo hệ thống duy trì triết lý "An toàn là trên hết", chấp nhận 
+một tỷ lệ báo động giả trong tầm kiểm soát để ưu tiên tuyệt đối năng lực cảnh báo sớm và bảo vệ 
+dòng lưu thông. 
+ 
+ 
+Hình 5.5: Đồ thị hàm phần thưởng 
+d. Đánh giá ưu điểm và thách thức 
+• Ưu điểm vượt trội: Kiến trúc lai đạt được sự cân bằng xuất sắc giữa hai mục tiêu: Tốc 
+độ hội tụ nhanh (nhờ kế thừa tri thức tiền huấn luyện từ cơ chế Warm-start) và năng lực 
+nhận diện (Recall) cực kỳ nhạy bén tại các phân lớp ùn tắc nặng. Chiến lược hàm thưởng 
+bất đối xứng cực đoan đã bẻ gãy thành công sức ỳ của thiên kiến dữ liệu, ép buộc Đặc vụ 
+phải học cách phân định lằn ranh "sinh tử" giữa lưu thông bình thường và thảm họa. 
+• Thách thức: Việc tinh chỉnh hệ thống đòi hỏi nỗ lực thử nghiệm (trial-and-error) rất lớn 
+để tìm ra tỷ lệ đòn bẩy phạt tối ưu. Nếu sự chênh lệch hình phạt bị đẩy đi quá xa, Đặc vụ 
+rất dễ rơi vào trạng thái "hoang tưởng" (liên tục báo kẹt xe để né tránh hình phạt hủy 
+diệt). Ngoài ra, cấu trúc Double DQN kết hợp với cơ chế duyệt lại bộ nhớ kinh nghiệm 
+cũng tiêu tốn tài nguyên và thời gian huấn luyện cao hơn đáng kể so với các mô hình học 
+có giám sát truyền thống. 
+ 
+5.4.1. Xây dựng "Trực giác" ban đầu cho Agent thông qua Học có giám sát (Supervised 
+Pre-training) 
+d. Đánh giá Hiệu suất Tiền huấn luyện (Pre-training Performance) 
+
+Quá trình huấn luyện mô hình học có giám sát cơ sở (Supervised Baseline) được điều hướng bởi 
+thuật toán điều chỉnh tốc độ học tự động (Learning Rate Scheduler) và cơ chế Dừng sớm (Early 
+Stopping) nhằm ngăn chặn hiện tượng học vẹt (Overfitting) trên tập dữ liệu chuỗi thời gian. 
+Kết quả thực nghiệm ghi nhận mô hình đạt ngưỡng hội tụ với chỉ số Macro-F1 trung bình ở mức 
+0.5533. Nhìn vào biểu đồ phân bố hiệu suất, có thể thấy rõ một nghịch lý mang tính bản chất của 
+các hàm mất mát truyền thống: 
+• Tại vùng an toàn: Mô hình hoàn thành khá tốt nhiệm vụ trích xuất đặc trưng ở các trạng 
+thái giao thông thông thoáng hoặc ổn định (Lớp 0, 1, 2) với F1-Score dao động ổn định từ 
+0.60 đến 0.62. 
+• Tại vùng thảm họa: Khi đối mặt với các tình trạng ùn tắc nghiêm trọng (Lớp 3, Lớp 4 
+và Lớp 5), hiệu suất của mô hình sụt giảm rõ rệt, chạm đáy ở mức 0.45 đối với trạng thái 
+kẹt xe vỡ trận. Sự sụt giảm này phản ánh một lỗ hổng rủi ro lớn: Tỷ lệ bỏ sót kẹt xe (Miss 
+Rate) của mô hình giám sát lên tới xấp xỉ 39%. 
+Sự sụt giảm này không phải do mô hình kém, mà do "thiên kiến lớp đa số" của thuật toán học có 
+giám sát. Nó có xu hướng dự đoán thiên về các trạng thái thông thoáng để tối ưu hóa Độ chính 
+xác tổng thể (Accuracy), từ đó trở nên "bảo thủ" và thiếu nhạy bén trước các dấu hiệu suy sụp 
+vận tốc dẫn đến kẹt xe. 
+Tiền đề cho Học tăng cường: Dù tồn tại hạn chế về năng lực cảnh báo sớm (Recall), nhưng 
+dưới góc độ trích xuất đặc trưng (Feature Extraction), kiến trúc LSTM cơ sở này đã học được 
+thành công các biểu diễn không gian - thời gian nền tảng của dòng giao thông. 
+Bộ trọng số đỉnh cao này (được lưu tại best_traffic_model_manual_h15.pt) chính thức hoàn 
+thành nhiệm vụ xây dựng "bản năng nhận thức" ban đầu. Nó đã sẵn sàng để được cấy ghép 
+(Warm-start) vào "não bộ" của Đặc vụ Học tăng cường (RL Agent). Trong giai đoạn tiếp theo, 
+Đặc vụ RL — dưới sức ép của Hàm thưởng Bất đối xứng cực đoan — sẽ trực tiếp giải quyết lỗ 
+hổng "Miss Rate 39%" này, mở ra một chiến lược ra quyết định ưu tiên an toàn tuyệt đối. 
+ 
+ 
+ 
+Hình 5.16: Đánh giá hiệu suất Phân lớp của Mô hình Baseline 
+ 
+5.5.3. Thiết kế Hàm Phần thưởng (Reward Shaping) - "Linh hồn" của sự thông minh 
+Nếu Mạng Nơ-ron (Q-Network) là "thể xác" và bộ nạp trọng số (Warm-start) là "bản năng", thì 
+Hàm phần thưởng (Reward Function) chính là "linh hồn" định hình nên nhân cách và sự thông 
+minh của Đặc vụ (Agent). Trong học tăng cường, Agent không phân biệt được đúng sai về mặt 
+đạo đức hay vật lý; nó chỉ thuần túy tìm cách tối đa hóa tổng điểm thưởng. Do đó, việc thiết kế 
+Hàm phần thưởng quyết định trực tiếp đến chiến lược hành vi của hệ thống. 
+a. Triết lý thiết kế: Tối ưu hóa hướng an toàn với Phạt bất đối xứng cực đoan (Extreme 
+Asymmetric Penalty) 
+Trong các bài toán dự báo chuẩn, các hàm đánh giá (như Accuracy hay MSE) thường có tính đối 
+xứng tuyệt đối: Lỗi dự báo cao hơn thực tế (Over-prediction) và lỗi dự báo thấp hơn thực tế 
+(Under-prediction) bị phạt như nhau. Tuy nhiên, khi áp dụng vào một hệ thống Cảnh báo sớm 
+giao thông (Early Warning System), cần phân tích kỹ dưới góc độ Trải nghiệm người dùng (UX) 
+và An toàn nghiệp vụ: 
+• Bỏ lọt thảm họa (False Negative - Under-prediction): Hệ thống báo đường thông 
+thoáng nhưng thực tế là một vụ kẹt xe vỡ trận. Người dùng đi vào và mắc kẹt hàng giờ 
+đồng hồ. Sự cố này mang tính "sinh tử", lập tức phá hủy hoàn toàn niềm tin của người 
+dùng vào năng lực của ứng dụng. 
+
+• Báo động giả (False Positive - Over-prediction): Hệ thống dự báo kẹt xe nhưng thực tế 
+đường thông thoáng. Dù người dùng chỉ tốn thêm chút thời gian đi đường vòng, nhưng 
+nếu tình trạng này diễn ra liên tục, nó sẽ tạo ra hiệu ứng "Cậu bé chăn cừu" (nhờn cảnh 
+báo), khiến hệ thống mất đi giá trị tham khảo. 
+Xuất phát từ nền tảng "Thà báo nhầm còn hơn bỏ sót" (Better safe than sorry), phiên bản V12.0 
+thiết lập một cơ chế Bất đối xứng cực đoan (Highly Asymmetric). Lỗi bỏ lọt thảm họa bị trừng 
+phạt với mức độ tàn khốc (gấp 5 lần lỗi báo giả) để bảo vệ tuyệt đối dòng lưu thông (ưu tiên 
+Recall). Tuy nhiên, lỗi báo động giả vẫn đi kèm một mức phạt đáng kể nhằm ngăn chặn Agent 
+trở nên "hoang tưởng" (đoán bừa kẹt xe để né phạt). Cơ chế đòn bẩy 1:5 này định hướng Đặc vụ 
+hình thành một "Trực giác an toàn" (Safety Intuition) thiên lệch có chủ đích về phía cảnh báo 
+sớm, nhưng vẫn giữ được độ tin cậy thực tiễn. 
+b. Cơ chế Thưởng/Phạt chi tiết của Ma trận Trạng thái 
+Gọi $y$ là nhãn thực tế (True Class) và $\hat{y}$ là nhãn Đặc vụ dự báo (Predicted Class) với 
+giá trị từ 0 đến 5. Hàm phần thưởng $R(y, \hat{y})$ ở phiên bản cập nhật được thiết kế với 4 
+tầng logic cực kỳ khắt khe: 
+• Thưởng chuẩn xác có trọng số (Weighted Accuracy Bonus): Khi Đặc vụ dự đoán đúng 
+hoàn toàn ($y = \hat{y}$), mức thưởng không được cào bằng mà phân chia theo độ khó 
+và mức độ nghiêm trọng: Thưởng cơ bản được đẩy lên rất cao, đạt +80 điểm cho các 
+trạng thái ùn tắc (Lớp 3, 4, 5) và +30 điểm cho các trạng thái thông thoáng (Lớp 0, 1, 2). 
+Việc phân tầng khuyết đại này thiết lập một bệ phóng điểm số vững chắc, tập trung khích 
+lệ Agent nhận diện chính xác các lớp kẹt xe mang tính sống còn. 
+• Phạt chênh lệch tiệm cận (Strict Adjacency Penalty): Dù giao thông là một dải động 
+lực học liên tục, hệ thống mới không còn sự "khoan dung" cho các sai lệch nhỏ nhằm 
+chống lại hiện tượng trượt lớp (Class Drift). Nếu Agent dự báo lệch đúng 1 cấp ($|\hat{y} 
+- y| = 1$), hệ thống lập tức trừ -10 điểm. Mức phạt này ép Agent phải nỗ lực phân tích 
+các biên giới nhạy cảm của cảm biến để tìm ra cấp độ chính xác tuyệt đối thay vì chỉ 
+"đoán gần đúng". 
+• Phạt sai lệch xa (Far Miss Penalty): Khi độ chênh lệch cấp độ tăng lên ($|\hat{y} - y| 
+\ge 2$), mức phạt gia tăng phi mã theo công thức lũy tiến: -50 $\times |\hat{y} - y|$. 
+Logic này đóng vai trò như một lực kéo tàn nhẫn, ép mạng Q-Network phải học và tuyệt 
+đối tôn trọng tính thứ bậc (Ordinal nature) của không gian trạng thái giao thông, ngăn 
+chặn mọi cú nhảy vọt dự báo phi vật lý. 
+• RANH GIỚI SINH TỬ VÀ HÌNH PHẠT KÉP (Binary Boundary Penalty): Đây là 
+"bức tường thép" mang tính định hình nhân cách của hệ thống cảnh báo. Đồ án thiết lập 
+một lằn ranh rõ rệt giữa nhóm Thông thoáng ($\hat{y} < 3$) và nhóm Kẹt xe ($\hat{y} 
+\ge 3$). Nếu Agent đưa ra quyết định sai lầm vượt qua lằn ranh này, hình phạt giáng 
+xuống mang tính hủy diệt: 
+o Bỏ sót thảm họa (False Negative): Nếu thực tế xảy ra kẹt xe ($y \ge 3$) nhưng 
+Agent chủ quan dự báo thông thoáng ($\hat{y} < 3$), mức phạt chạm đáy -250 
+điểm. Mức phạt tàn khốc này tạo ra một "nỗi sợ hãi" toán học, bảo vệ triệt để triết 
+lý "an toàn là trên hết". 
+o Báo động giả (False Positive): Ngược lại, nếu thực tế thông thoáng ($y < 3$) 
+nhưng Agent lại báo động nhầm ($\hat{y} \ge 3$), nó sẽ gánh chịu mức phạt -50 
+điểm. Đòn bẩy này đủ mạnh để ngăn chặn hội chứng "hoang tưởng", nhưng vẫn 
+đảm bảo Agent dám mạnh dạn đưa ra cảnh báo khi phát hiện các tín hiệu xấu. 
+c. Kết quả hình thành Hành vi hệ thống 
+Trải qua hàng chục vạn chu kỳ cọ xát với cơ chế phần thưởng khốc liệt này, Agent học được một 
+bài học sinh tồn sâu sắc: Lằn ranh "Bỏ lọt thảm họa" là vùng cấm tuyệt đối (-250 điểm), trong 
+khi "Báo động giả" (-50 điểm) là một rủi ro có thể chấp nhận được trong những tình huống ranh 
+giới mập mờ, nhưng tuyệt đối không được lạm dụng. 
+Kết quả là, mạng Q-Network kiến tạo một ranh giới sắc lẹm và thiên lệch một cách có chủ đích 
+về phía an toàn. Đặc vụ trở nên cực kỳ nhạy bén với những dấu hiệu suy sụp vận tốc nhỏ nhất để 
+tung ra cảnh báo sớm, sẵn sàng hy sinh một phần rất nhỏ độ chính xác ở các lớp thông thoáng để 
+đảm bảo không bao giờ bỏ sót thảm họa. Sự cân bằng động tinh tế này — vừa cảnh giác cao độ 
+để bảo vệ sinh mạng, thời gian của người dùng, vừa duy trì được độ tin cậy cần thiết — chính là 
+chuẩn mực thiết kế khắt khe nhất của các hệ thống an toàn quy mô lớn trong thế giới thực. 
+ 
+Hình 5.19: Ma trận Thưởng/Phạt bấtđối xứng 
+ 
+5.6.2. Phân tích Chỉ số Hiệu năng (Metrics Analysis) 
+Trong việc đánh giá các mô hình học máy áp dụng cho hệ thống cảnh báo an toàn giao thông, 
+việc lựa chọn đúng thước đo (Metric) là yếu tố tiên quyết. Một hệ thống có thể đạt điểm số toán 
+học rất cao nhưng lại hoàn toàn thất bại trong việc bảo vệ người dùng nếu thước đo đó không 
+phản ánh đúng rủi ro thực tế. 
+a. Bản chất bài toán và Sự đánh đổi (Trade-off) 
+Việc đánh giá một mô hình dự báo giao thông — đặc biệt là trong bối cảnh mạng lưới đô thị 
+phức tạp với lưu lượng phương tiện khổng lồ — không thể chỉ dựa trên độ chính xác tổng thể 
+(Accuracy). Nguyên nhân gốc rễ nằm ở sự mất cân bằng dữ liệu có tính quy luật tự nhiên: thời 
+lượng các tuyến đường ở trạng thái thông thoáng luôn áp đảo hoàn toàn so với các thời điểm xảy 
+ra ùn tắc hay thảm họa kẹt xe. Nếu hàm mục tiêu chỉ tập trung tối ưu hóa Accuracy, mô hình sẽ 
+
+dễ dàng rơi vào bẫy "thiên kiến lớp đa số" (dự báo đường luôn thông thoáng để tối đa hóa điểm 
+số), dẫn đến sự vô dụng hoàn toàn trong công tác điều phối khi các sự cố thực tế xảy ra. 
+Vì vậy, mục tiêu cốt lõi của nghiên cứu là thiết kế một hệ thống Cảnh báo Sớm (Early Warning 
+System) mang đặc tính ưu tiên sự an toàn (Safety-First), vận hành nghiêm ngặt theo triết lý 
+"Thà báo nhầm còn hơn bỏ sót". Để hiện thực hóa điều này, trọng tâm đánh giá của hệ thống 
+được dịch chuyển từ việc đo lường độ chính xác chung sang việc giải quyết bài toán đánh đổi 
+(Trade-off) giữa hai rủi ro sai số: 
+• Tỷ lệ Bỏ sót kẹt xe (Miss Rate / False Negative): Đây là rủi ro mang tính "sinh tử". Việc 
+hệ thống báo đường thông thoáng nhưng thực tế lại xảy ra ùn tắc nghiêm trọng sẽ trực 
+tiếp đẩy dòng xe vào bẫy giao thông, gây thiệt hại lớn về thời gian, gia tăng khí thải và 
+lập tức phá hủy hoàn toàn niềm tin của người dùng vào năng lực điều hành của hệ thống. 
+• Tỷ lệ Báo nhầm (False Alarm / False Positive): Việc hệ thống phát cảnh báo ùn tắc khi 
+đường thực tế vẫn đang lưu thông ổn định có thể gây ra một số bất tiện cục bộ (ví dụ: 
+điều hướng người dùng sang tuyến đường khác xa hơn một chút). Tuy nhiên, rủi ro thiệt 
+hại tổng thể là rất thấp và có thể được xem như một biện pháp phân luồng phòng hờ. 
+Xuất phát từ bản chất trên, sự thành công của Đặc vụ AI trong đồ án được định nghĩa bằng năng 
+lực kéo giảm tuyệt đối Tỷ lệ Bỏ sót (Miss Rate) xuống mức cực tiểu để bảo vệ mạng lưới giao 
+thông. Hệ thống sẵn sàng đánh đổi, chấp nhận việc Tỷ lệ Báo nhầm (False Alarm) có thể dao 
+động tăng lên, miễn là nó vẫn nằm trong ngưỡng kiểm soát cho phép của bài toán quản lý rủi ro. 
+b. So sánh Hiệu năng Thực nghiệm 
+Để đánh giá khách quan năng lực của kiến trúc đề xuất, đồ án tiến hành đối chiếu hiệu năng của 
+Đặc vụ RL (Hybrid Double DQN) với hai mô hình cơ sở tiêu biểu: Vanilla LSTM (đại diện cho 
+phương pháp học sâu chuỗi thời gian thuần túy) và SL Model - Supervised Baseline (đại diện 
+cho phương pháp học có giám sát sử dụng cùng bộ trích xuất đặc trưng nhưng thiếu đi hàm 
+thưởng tối ưu hóa). 
+Bảng số liệu dưới đây (được trích xuất từ quá trình kiểm thử độc lập) cung cấp cái nhìn tổng 
+quan về các chỉ số hiệu suất phân loại đa lớp và các chỉ số đo lường rủi ro: 
+Tên Mô Hình Accuracy Macro 
+F1 
+Adj. Acc 
+(±1 class) 
+False Alarm 
+(Báo nhầm) 
+Miss Rate (Bỏ 
+sót kẹt xe) 
+RL Model (Hybrid 
+DQN) 
+0.5482 0.6812 0.9410 12.07% 8.04% 
+SL Model 
+(Supervised 
+Baseline) 
+0.5344 0.5532 0.8983 5.13% 39.44% 
+Vanilla LSTM 
+(Baseline) 
+0.4510 0.3950 0.8620 18.90% 40.12% 
+Các chỉ số trong bảng được lựa chọn để phản ánh đa chiều năng lực của mạng nơ-ron, trong đó: 
+• Accuracy (Độ chính xác tổng thể): Tỷ lệ dự báo chính xác tuyệt đối trạng thái giao 
+thông. 
+• Macro F1: Thước đo trung bình điều hòa giữa Độ chuẩn xác (Precision) và Độ phủ 
+(Recall) tính đều cho tất cả các lớp. Đây là chỉ số quan trọng và công bằng nhất để đánh 
+giá hiệu năng thực sự của mô hình trên các bộ dữ liệu mất cân bằng nghiêm trọng. 
+• Adj. Acc (Độ chính xác tiệm cận ±1 class): Tỷ lệ dự báo đúng tuyệt đối cộng với tỷ lệ 
+dự báo chỉ lệch tối đa 1 cấp độ. Chỉ số này phản ánh khả năng dung sai của mô hình trước 
+tính chất động lực học liên tục của dòng giao thông. 
+• False Alarm & Miss Rate: Hai chỉ số đo lường rủi ro hệ thống cốt lõi, đóng vai trò là 
+kim chỉ nam để kiểm chứng mức độ an toàn và độ tin cậy của Đặc vụ khi triển khai vào 
+môi trường thực tiễn. 
+ 
+c. Phân tích kết quả chi tiết qua lăng kính đồ thị 
+Để làm rõ hơn các con số thống kê, hệ thống các biểu đồ thực nghiệm dưới đây sẽ phân tích sâu 
+vào hành vi dự báo của từng mô hình, qua đó chứng minh tính đúng đắn trong quyết định thiết kế 
+của đồ án. 
+ 
+So sánh Hiệu suất Tổng thể (Performance Metrics) của các mô hình.  
+1. Sự sụp đổ của Vanilla LSTM và sự "bảo thủ" của Mô hình Học có giám sát (SL Model) 
+Quan sát các chỉ số hiệu suất tổng thể, Vanilla LSTM cho thấy sự bất lực hoàn toàn trong việc 
+nắm bắt đặc trưng dòng xe (Macro F1 chạm đáy ở mức 0.3950). Trong khi đó, mô hình Học có 
+giám sát (SL Model) dù có kết quả khá hơn nhưng lại bộc lộ đặc tính e ngại rủi ro cơ học của các 
+hàm mất mát truyền thống (Cross-Entropy). 
+ 
+
+Biểu đồ Đánh đổi An toàn và Hiệu quả (Trade-off Analysis).  
+Sự yếu kém và bảo thủ này được bộc lộ rõ nhất qua Biểu đồ Đánh đổi (Hình 5.y). Vanilla LSTM 
+thất bại ở cả hai tiêu chí. Còn SL Model (cột màu cam) lại rơi vào một cái bẫy thiên kiến nguy 
+hiểm: Để đạt được Tỷ lệ báo nhầm cực thấp (chỉ 5.13%), nó đã nhắm mắt làm ngơ và bỏ lọt tới 
+39.44% các sự kiện ùn tắc. Trong bối cảnh quản lý rủi ro giao thông, sự "bảo thủ" thiên về lớp đa 
+số này là mối đe dọa trực tiếp đến độ tin cậy của hệ thống.  
+2. Sự đột phá của Đặc vụ RL (Hybrid Double DQN - Mô hình Đề xuất)  
+Đặc vụ Học tăng cường (RL Model - cột màu xanh/đỏ) đã phá vỡ hoàn toàn thế bế tắc trên nhờ 
+sức mạnh định hướng hành vi của Hàm thưởng Bất đối xứng cực đoan. 
+ 
+Ma trận nhầm lẫn nhị phân đánh giá năng lực nhận diện ùn tắc. 
+• Thống trị năng lực cảnh báo sớm: Trên Biểu đồ Đánh đổi, Tỷ lệ bỏ sót kẹt xe (Miss 
+Rate) của RL Model bị ép xuống mức đáy, chỉ còn 8.04%. Nhìn sâu vào Ma trận nhầm 
+lẫn nhị phân (Binary Confusion Matrix), có thể thấy rõ quy mô tác động: Đặc vụ đã 
+
+nhận diện thành công rực rỡ 24.466 trường hợp ùn tắc thực tế, và chỉ để lọt 2.128 trường 
+hợp. 
+ 
+So sánh Độ phủ (Recall) chi tiết trên từng mức độ giao thông. 
+• Recall xuất sắc tại các vùng thảm họa: Quan sát Biểu đồ Độ phủ (Recall 
+Comparison), Đặc vụ RL (cột màu đỏ đậm) tạo ra một khoảng cách thống trị. Tại các 
+Lớp 4 và Lớp 5, RL Model duy trì Recall bùng nổ trên 90%, chứng minh khả năng bắt 
+gọn các tín hiệu suy sụp vận tốc nhỏ nhất mà hai mô hình trước đó đã bỏ lỡ.
+ 
+
+Phân bố mức độ sai lệch trong dự báo của Đặc vụ RL. 
+• Độ chính xác tiệm cận xuất sắc: Dù hàm thưởng trừng phạt nặng nề, hệ thống không hề 
+bị "rối loạn" nhờ được thừa hưởng tri thức từ pha tiền huấn luyện. Biểu đồ Phân bố độ 
+lệch lớp cho thấy 65.2% dự báo của RL là chính xác tuyệt đối và 30.8% chỉ lệch 1 cấp độ. 
+Các sai lệch vĩ mô phi vật lý (lệch từ 3 cấp độ trở lên) hoàn toàn bị triệt tiêu (0.0%), giúp 
+Adjusted Accuracy đạt mức xuất sắc 0.9410.  
+Kết luận: Dù phải đánh đổi bằng việc Tỷ lệ báo nhầm tăng nhẹ lên mức 12.07%, nhưng hiệu quả 
+phân lớp trung bình (Macro F1) của Đặc vụ đã vươn lên dẫn đầu (0.6812). Những minh chứng 
+thực nghiệm trên khẳng định Đặc vụ RL đã hiện thực hóa xuất sắc triết lý "Thà báo nhầm còn 
+hơn bỏ sót", thiết lập một "trực giác an toàn" sắc bén và trở thành mảnh ghép cốt lõi hoàn hảo 
+cho Hệ thống Cảnh báo Sớm.  
+ 

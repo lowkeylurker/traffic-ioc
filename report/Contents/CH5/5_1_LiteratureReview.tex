@@ -102,26 +102,26 @@ Hệ thống sử dụng một mạng Nơ-ron tùy chỉnh (đóng vai trò là 
 Một nhược điểm chí mạng của Học tăng cường (RL) là vấn đề "Khởi động lạnh" (Cold Start). Nếu khởi tạo trọng số ngẫu nhiên, Agent sẽ mất lượng lớn thời gian để mò mẫm các quy luật vật lý cơ bản, dễ dẫn đến mất hội tụ. Để giải quyết, đồ án áp dụng chiến lược Warmstart: Mạng Fusion đa nhánh ban đầu được tiền huấn luyện (Pre-train) hoàn toàn bằng phương pháp Học có giám sát (SL) với hàm mất mát Cross-Entropy. Sau khi mạng đã có "bản năng" nhận diện giao thông cơ bản, toàn bộ trọng số (weights) này được chuyển giao (Transfer) và nạp trực tiếp vào Đặc vụ DQN trước khi bắt đầu quá trình tinh chỉnh (Fine-tuning) bằng RL. Điều này giúp Agent có một xuất phát điểm cực kỳ vững chắc.
 
 \paragraph{c. Tối ưu hóa với Double DQN và Hàm Phần thưởng Không đối xứng (Asymmetric Reward Shaping)} \mbox{} \\
-Đặc vụ (Agent) sử dụng thuật toán Double DQN kết hợp bộ nhớ kinh nghiệm (Replay Buffer) dung lượng $100.000$ mẫu. Việc sử dụng mạng mục tiêu (Target Network) tách biệt với mạng chính sách (Policy Network) giúp triệt tiêu hội chứng ảo tưởng sức mạnh (Overestimation Bias) vốn thường gặp ở Q-Learning truyền thống.
+Đặc vụ (Agent) sử dụng thuật toán Double DQN kết hợp bộ nhớ kinh nghiệm (Replay Buffer) dung lượng lớn nhằm đa dạng hóa dữ liệu huấn luyện. Việc sử dụng mạng mục tiêu (Target Network) tách biệt với mạng chính sách (Policy Network) giúp hệ thống triệt tiêu hội chứng ảo tưởng sức mạnh (Overestimation Bias) – tình trạng mô hình đánh giá sai lệch, lạc quan thái quá về các hành động của mình vốn thường gặp ở Q-Learning truyền thống.
 
-Tuy nhiên, "trái tim" và bí quyết thành công của hệ thống nằm ở thiết kế Hàm phần thưởng (Reward Shaping). Nhằm triệt tiêu thiên kiến lớp đa số (mô hình thích đoán kẹt xe thành thông thoáng để an toàn), đồ án thiết kế một cơ chế điểm phạt phi tuyến tính và không đối xứng:
+Tuy nhiên, "trái tim" và bí quyết thành công của hệ thống nằm ở thiết kế Hàm phần thưởng (Reward Shaping). Nhằm triệt tiêu thiên kiến lớp đa số (mô hình thường thích đoán đường thông thoáng để giữ an toàn về mặt sai số), đồ án đã thiết lập một cơ chế tính điểm khắt khe dựa trên chiến lược Bất đối xứng cực đoan (Extreme Asymmetric):
 \begin{itemize}
-    \item \textbf{Thưởng khích lệ:} Nếu dự báo chính xác mức độ kẹt xe, Agent nhận $+2$ điểm.
-    \item \textbf{Phạt cảnh cáo:} Nếu dự báo sai lệch nhẹ (chênh lệch 1 mức, ví dụ thực tế Mức 2 nhưng đoán Mức 1), Agent bị trừ $-1$ điểm. Đây là mức sai số có thể chấp nhận được trong thực tế.
-    \item \textbf{Phạt sinh tử (Fatal Penalty):} Nếu hệ thống đối mặt với thảm họa (Thực tế là Mức 4 hoặc 5) nhưng Agent báo cáo sai thành thông thoáng (Mức 0 hoặc 1), mức phạt sẽ tăng vọt lên từ $-10$ đến $-20$ điểm.
+    \item \textbf{Thưởng khích lệ phân tầng:} Hệ thống thiết lập mức thưởng cao hơn hẳn cho việc dự đoán đúng các trạng thái ùn tắc so với trạng thái thông thoáng, kết hợp cùng trọng số lớp để tập trung khích lệ Agent nhận diện các tình huống nguy hiểm.
+    \item \textbf{Phạt tiệm cận khắt khe:} Loại bỏ hoàn toàn "vùng đệm khoan dung". Mọi sai lệch dự báo, dù chỉ là một cấp độ ùn tắc, đều bị trừng phạt, và mức phạt sẽ tăng lũy tiến nếu dự báo càng xa thực tế. Điều này ép Đặc vụ phải phân tích sắc bén thay vì chỉ đoán gần đúng.
+    \item \textbf{Phạt ranh giới sinh tử:} Đây là đòn bẩy định hình hành vi cốt lõi. Hệ thống áp dụng một mức phạt mang tính "hủy diệt" đối với lỗi bỏ lọt thảm họa (thực tế kẹt xe nhưng báo đường thoáng), nặng hơn gấp nhiều lần so với hình phạt dành cho lỗi báo động giả (thực tế đường thoáng nhưng báo kẹt xe).
 \end{itemize}
-Cơ chế "đòn bẩy" này tạo ra một rào cản tâm lý, ép Agent phải nhạy bén tối đa với các tín hiệu thảm họa, chấp nhận hy sinh một phần nhỏ độ chính xác ở các lớp thông thoáng để bảo vệ năng lực cảnh báo sớm cho người dùng.
+Chiến lược này tạo ra một rào cản tâm lý số, ép Agent phải nhạy bén tối đa với các tín hiệu thảm họa. Sự chênh lệch hình phạt đảm bảo hệ thống duy trì triết lý "An toàn là trên hết", chấp nhận một tỷ lệ báo động giả trong tầm kiểm soát để ưu tiên tuyệt đối năng lực cảnh báo sớm và bảo vệ dòng lưu thông.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{Images/CH5/5.png}
-    \vspace{6pt}
+    \vspace{12pt}
     \caption{Đồ thị hàm phần thưởng}
     \label{fig:5_5}
 \end{figure}
 
 \paragraph{d. Đánh giá ưu điểm và thách thức} \mbox{} \\
 \begin{itemize}
-    \item \textbf{Ưu điểm vượt trội:} Kiến trúc lai đạt được cả hai mục tiêu cực hạn: Tốc độ hội tụ nhanh (nhờ tri thức tiền huấn luyện từ Warmstart) và năng lực thu hồi (Recall) xuất sắc tại các lớp kẹt xe nặng (nhờ Hàm thưởng không đối xứng ép buộc Agent chú ý vào các trường hợp ngoại lai).
-    \item \textbf{Thách thức:} Quá trình tinh chỉnh các siêu tham số của hàm thưởng (tỷ lệ phạt giữa -10 và -20) đòi hỏi phải thử nghiệm (trial-and-error) liên tục để tránh việc Agent rơi vào thái cực ngược lại là chứng "hoang tưởng" (luôn dự báo kẹt xe). Ngoài ra, cấu trúc Double DQN tiêu tốn bộ nhớ và thời gian tính toán cao hơn so với mô hình giám sát thuần túy.
+    \item \textbf{Ưu điểm vượt trội:} Kiến trúc lai đạt được sự cân bằng xuất sắc giữa hai mục tiêu: Tốc độ hội tụ nhanh (nhờ kế thừa tri thức tiền huấn luyện từ cơ chế Warm-start) và năng lực nhận diện (Recall) cực kỳ nhạy bén tại các phân lớp ùn tắc nặng. Chiến lược hàm thưởng bất đối xứng cực đoan đã bẻ gãy thành công sức ỳ của thiên kiến dữ liệu, ép buộc Đặc vụ phải học cách phân định lằn ranh "sinh tử" giữa lưu thông bình thường và thảm họa.
+    \item \textbf{Thách thức:} Việc tinh chỉnh hệ thống đòi hỏi nỗ lực thử nghiệm (trial-and-error) rất lớn để tìm ra tỷ lệ đòn bẩy phạt tối ưu. Nếu sự chênh lệch hình phạt bị đẩy đi quá xa, Đặc vụ rất dễ rơi vào trạng thái "hoang tưởng" (liên tục báo kẹt xe để né tránh hình phạt hủy diệt). Ngoài ra, cấu trúc Double DQN kết hợp với cơ chế duyệt lại bộ nhớ kinh nghiệm cũng tiêu tốn tài nguyên và thời gian huấn luyện cao hơn đáng kể so với các mô hình học có giám sát truyền thống.
 \end{itemize}
