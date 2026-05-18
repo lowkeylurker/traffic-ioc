@@ -98,6 +98,62 @@ class RLTrafficPredictor:
             "q_values": np.round(q_list, 2),
         }
 
+    def predict_batch(self, df_windows_list: list[pd.DataFrame]):
+        B = len(df_windows_list)
+        if B == 0:
+            return []
+
+        # 1. Combine all windows into one large DataFrame
+        bulk_df = pd.concat(df_windows_list, ignore_index=True)
+
+        # 2. Vectorized Preprocessing
+        df_processed = bulk_df.copy()
+        for col in self.cat_cols:
+            le = self.encoders[col]
+            known_classes = set(le.classes_)
+            df_processed[col] = df_processed[col].apply(lambda x: x if str(x) in known_classes else le.classes_[0])
+            df_processed[col] = le.transform(df_processed[col].astype(str))
+
+        scaled_data = self.scaler.transform(df_processed)
+        if isinstance(scaled_data, np.ndarray):
+            scaled_df = pd.DataFrame(scaled_data, columns=df_processed.columns)
+        else:
+            scaled_df = scaled_data
+
+        # 3. Extract and Reshape into Batch Tensors
+        # Dynamic: shape (B, 12, num_dynamic)
+        dyn_array = scaled_df[self.dynamic_cols].to_numpy(dtype=np.float32)
+        dyn_batch = dyn_array.reshape(B, WINDOW_SIZE_DEFAULT, len(self.dynamic_cols))
+        x_dynamic = torch.FloatTensor(dyn_batch).to(self.device)
+
+        # Static & Categorical: take the last row of each window (index 11, 23, 35...)
+        last_row_indices = [i * WINDOW_SIZE_DEFAULT + (WINDOW_SIZE_DEFAULT - 1) for i in range(B)]
+        
+        stat_array = scaled_df[self.static_cols].iloc[last_row_indices].to_numpy(dtype=np.float32)
+        x_static = torch.FloatTensor(stat_array).to(self.device)
+
+        cat_array = scaled_df[self.cat_cols].iloc[last_row_indices].to_numpy(dtype=np.int64)
+        x_cat = torch.LongTensor(cat_array).to(self.device)
+
+        # 4. Neural Network Forward Pass in Batch
+        with torch.no_grad():
+            q_values = self.agent_net(x_dynamic, x_static, x_cat)
+            best_actions = torch.argmax(q_values, dim=1).cpu().numpy()
+            q_lists = q_values.cpu().numpy()
+
+        # 5. Format results
+        results = []
+        for i in range(B):
+            action = best_actions[i]
+            results.append({
+                "predicted_level": action,
+                "status_description": self.level_names[action],
+                "q_values": np.round(q_lists[i], 2).tolist()
+            })
+
+        return results
+
+
 
 def forecast_for_request(
     predictor: RLTrafficPredictor,
@@ -129,6 +185,9 @@ def forecast_for_request(
     skipped_not_continuous = 0
     skipped_out_of_window = 0
 
+    valid_windows = []
+    valid_metadata = []
+
     for seg_key, df_segment in segment_data.items():
         if df_segment.empty:
             skipped_not_enough += 1
@@ -154,17 +213,22 @@ def forecast_for_request(
             skipped_out_of_window += 1
             continue
 
-        result = predictor.predict(df_input)
-        all_predictions.append(
-            {
-                "Segment_ID": seg_key,
-                "Request_Time": request_ts,
-                "Window_End_Time": window_end_time,
-                "Forecast_For_Time": forecast_for_time,
-                "Dự báo (15p tới)": result["status_description"],
-                "Q-Values (Kỳ vọng)": str(result["q_values"]),
-            }
-        )
+        # Add to batch queue
+        valid_windows.append(df_input)
+        valid_metadata.append({
+            "Segment_ID": seg_key,
+            "Request_Time": request_ts,
+            "Window_End_Time": window_end_time,
+            "Forecast_For_Time": forecast_for_time,
+        })
+
+    # Execute True Batch Inference once for all segments
+    if valid_windows:
+        batch_results = predictor.predict_batch(valid_windows)
+        for meta, result in zip(valid_metadata, batch_results):
+            meta["Dự báo (15p tới)"] = result["status_description"]
+            meta["Q-Values (Kỳ vọng)"] = str(result["q_values"])
+            all_predictions.append(meta)
 
     print(
         "📊 Thống kê lọc segment | "
