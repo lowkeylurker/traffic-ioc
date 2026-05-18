@@ -12,8 +12,8 @@ def calculate_reward_v11(action, target, weight=1.0):
     binary_penalty = 0
     
     if diff == 0:
-        # 1. Accuracy Bonus (V11.0: Congested slightly higher)
-        bonus = (45.0 if target >= 3 else 35.0) * weight
+        # 1. Accuracy Bonus (V12.0: Aggressive Congestion Priority)
+        bonus = (80.0 if target >= 3 else 30.0) * weight
     elif diff == 1:
         # 2. Adjacency Constraint
         adj_penalty = -10.0
@@ -23,11 +23,11 @@ def calculate_reward_v11(action, target, weight=1.0):
         
     if is_true_congested != is_pred_congested:
         if is_true_congested and not is_pred_congested:
-            # 3. Missed Jam Penalty
-            binary_penalty = -120.0
+            # 3. Missed Jam Penalty (Highly Asymmetric)
+            binary_penalty = -250.0
         else:
             # 3. False Alarm Penalty
-            binary_penalty = -100.0
+            binary_penalty = -50.0
             
     return bonus + adj_penalty + binary_penalty
 
@@ -65,7 +65,7 @@ def draw_reward_v11_chart():
                 f'{int(height)}', ha='center', va='center', fontweight='bold', fontsize=12)
 
     # Axis formatting
-    ax.set_title(f"Đặc tính Hệ thống Thưởng Phạt V11.0 (Reward System)\nTrường hợp thực tế là Kẹt xe (Lớp {target})", 
+    ax.set_title(f"Đặc tính Hệ thống Thưởng Phạt V12.0 (Reward System)\nTrường hợp thực tế là Kẹt xe (Lớp {target})", 
                  fontsize=20, fontweight='bold', pad=30, color='#2c3e50')
     ax.set_xlabel("Hành động của AI (Dự báo của mô hình)", fontsize=14, labelpad=15)
     ax.set_ylabel("Giá trị Thưởng (Reward Value)", fontsize=14, labelpad=15)
@@ -77,12 +77,12 @@ def draw_reward_v11_chart():
     ax.grid(axis='y', linestyle='--', alpha=0.7, zorder=0)
     
     # Annotations
-    ax.annotate('PHẠT HỦY DIỆT\nKHI BỎ SÓT KẸT XE', xy=(1, -270), xytext=(0, -200),
+    ax.annotate('PHẠT HỦY DIỆT\nKHI BỎ SÓT KẸT XE', xy=(1, -400), xytext=(0, -300),
                 arrowprops=dict(facecolor='#c0392b', shrink=0.05, width=2),
                 fontsize=12, fontweight='bold', color='#c0392b', ha='center',
                 bbox=dict(boxstyle="round,pad=0.5", fc="#fdecea", ec="#c0392b", alpha=1))
 
-    ax.annotate('THƯỞNG LỚN\nKHI DỰ BÁO ĐÚNG', xy=(4, 45), xytext=(5, 100),
+    ax.annotate('THƯỞNG LỚN\nKHI DỰ BÁO ĐÚNG', xy=(4, 80), xytext=(5, 120),
                 arrowprops=dict(facecolor='#27ae60', shrink=0.05, width=2),
                 fontsize=12, fontweight='bold', color='#27ae60', ha='center',
                 bbox=dict(boxstyle="round,pad=0.5", fc="#e8f5e9", ec="#27ae60", alpha=1))

@@ -11,7 +11,7 @@ def get_reward(action, target):
     
     reward = 0
     if diff == 0:
-        reward = 45 if target >= 3 else 35
+        reward = 80 if target >= 3 else 30
     elif diff == 1:
         reward = -10
     else:
@@ -19,9 +19,9 @@ def get_reward(action, target):
         
     if is_true_con != is_pred_con:
         if is_true_con and not is_pred_con:
-            reward += -120 # Missed Jam
+            reward += -250 # Missed Jam
         else:
-            reward += -100 # False Alarm
+            reward += -50 # False Alarm
     return reward
 
 def draw_reward_matrix():
@@ -42,7 +42,7 @@ def draw_reward_matrix():
                      cbar_kws={'label': 'Giá trị Thưởng / Phạt'})
     
     # Title and Labels
-    ax.set_title("Ma trận Phân phối Thưởng/Phạt (Reward Matrix V11.0)\nTrục quan hệ giữa Thực tế và Hành động của Agent", 
+    ax.set_title("Ma trận Phân phối Thưởng/Phạt (Reward Matrix V12.0)\nTrục quan hệ giữa Thực tế và Hành động của Agent", 
                  fontsize=18, fontweight='bold', pad=30, color='#2c3e50')
     
     ax.set_xlabel("Hành động của AI (Lớp dự báo)", fontsize=14, labelpad=15)

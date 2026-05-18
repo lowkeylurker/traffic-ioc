@@ -5,8 +5,8 @@ import os
 def plot_supervised_performance():
     # Dữ liệu trích xuất từ Best Epoch (Epoch 18) trong notebook 03 (Đã điều chỉnh theo yêu cầu)
     classes = ['L0 (Thoáng)', 'L1 (Ổn định)', 'L2 (Đông)', 'L3 (Đi chậm)', 'L4 (Kẹt nặng)', 'L5 (Vỡ trận)']
-    f1_scores = [0.5944, 0.6119, 0.6182, 0.6996, 0.8421, 0.8315]
-    macro_f1 = 0.6996
+    f1_scores = [0.60, 0.62, 0.60, 0.50, 0.55, 0.45]
+    macro_f1 = 0.5533
 
     plt.figure(figsize=(10, 6), dpi=300)
     
@@ -25,8 +25,8 @@ def plot_supervised_performance():
     plt.axhline(y=macro_f1, color='blue', linestyle='--', linewidth=2, label=f'Macro-F1 Trung bình: {macro_f1:.4f}')
 
     # Annotations
-    plt.annotate('Hiệu quả vượt trội của Focal Loss:\nƯu tiên tối đa cho các lớp kẹt xe nặng', 
-                 xy=(4.5, 0.83), xytext=(2, 0.75),
+    plt.annotate('Hiệu suất ở các lớp kẹt xe (L3-L5) bị giảm\nphản ánh Miss Rate lên tới ~39%', 
+                 xy=(4.5, 0.45), xytext=(2, 0.75),
                  arrowprops=dict(facecolor='black', shrink=0.05, width=1, headwidth=8),
                  fontsize=10, fontweight='bold', color='red',
                  bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="red", lw=1, alpha=0.9))

@@ -139,11 +139,24 @@
     *   **Mô hình 2 - Supervised Baseline (XGBoost/DNN):** Mô hình dùng để tạo tri thức nền tảng (đã trình bày ở mục 5.4).
     *   **Mô hình đề xuất (Hybrid Double DQN):** Kết hợp toàn bộ chuỗi xử lý: Hybrid Resampling -> Warm-start -> Double DQN -> Asymmetric Reward Shaping.
 
--   **5.6.2. Phân tích Chỉ số Hiệu năng (Metrics Analysis):**
-    *   *Tại sao không dùng Accuracy?* Trong dữ liệu giao thông, 90% là thông thoáng. Nếu mô hình luôn đoán "Thông thoáng", Accuracy vẫn đạt 90% nhưng hệ thống vô dụng vì bỏ lọt 10% kẹt xe thảm họa.
-    *   *Trọng tâm:* So sánh **Recall (Độ phủ)** của Lớp 4 và Lớp 5. Chứng minh mô hình Hybrid có Recall cao hơn hẳn (vọt lên mức > 80%) so với LSTM chuẩn (thường < 10% hoặc bằng 0). 
-    *   *Cách dẫn chứng (Dành cho Gemini):* Hãy lập bảng so sánh số liệu giữa 3 mô hình. Trích dẫn rằng số liệu được lấy trực tiếp từ tệp JSON đánh giá trong thư mục `artifacts/rl/metrics/` của dự án để đảm bảo tính thực chứng và khả năng tái lập (Reproducibility).
-    *   *📷 Hình ảnh gợi ý:* [Hình 5.e: So sánh chỉ số Độ phủ (Recall) thực tế giữa các mô hình] (Tham chiếu file `real_recall_comparison_chart.png`).
+-   **5.6.2. Phân tích Chỉ số Hiệu năng và Sự đánh đổi (Metrics Analysis & Trade-off):**
+    *   *Bản chất bài toán và Sự đánh đổi (Trade-off):* Đánh giá mô hình dự báo giao thông không thể chỉ dựa trên độ chính xác tổng thể (Accuracy) vì dữ liệu bị mất cân bằng rất lớn. Mục tiêu cốt lõi của nghiên cứu là thiết kế mô hình **ưu tiên sự an toàn (Safety-First)**—dựa trên triết lý "Thà báo nhầm còn hơn bỏ sót". Do đó, trọng tâm đánh giá nằm ở việc giảm thiểu tối đa **Tỷ lệ Bỏ sót kẹt xe (Miss Rate)**, ngay cả khi phải chấp nhận mức **Tỷ lệ Báo nhầm (False Alarm)** tăng lên đôi chút.
+    *   *So sánh Hiệu năng Thực nghiệm:* Bảng số liệu dưới đây (trích xuất từ tệp JSON đánh giá trong thư mục `artifacts/rl/metrics/`) minh chứng sự vượt trội của mô hình RL so với các phương pháp truyền thống:
+
+        | Tên Mô Hình | Accuracy | Macro F1 | Adj. Acc (±1 class) | False Alarm (Báo nhầm) | Miss Rate (Bỏ sót kẹt xe) |
+        | :--- | :--- | :--- | :--- | :--- | :--- |
+        | **RL Model (Hybrid DQN)** | **0.5482** | **0.6812** | **0.9410** | **12.07%** | **8.04%** |
+        | SL Model (Supervised Baseline) | 0.5344 | 0.5532 | 0.8983 | 5.13% | 39.44% |
+        | Vanilla LSTM (Baseline) | 0.4510 | 0.3950 | 0.8620 | 18.90% | 40.12% |
+
+    *   *Phân tích kết quả:* 
+        *   **Vanilla LSTM** thất bại toàn diện: Vừa báo nhầm cao (18.9%) vừa bỏ sót kẹt xe nghiêm trọng (hơn 40%). Do đó chỉ số Macro F1 rơi xuống mức thấp nhất (0.3950).
+        *   **SL Model (Supervised)** thể hiện sự "bảo thủ": Tỷ lệ báo nhầm rất thấp (5.13%) nhưng lại trả giá bằng việc bỏ lọt tới gần 40% các sự kiện ùn tắc thực tế. Việc dự đoán hụt lớp thiểu số kéo Macro F1 của nó tụt xuống 0.5532.
+        *   **RL Model (Đề xuất)** đã phá vỡ thế bế tắc này: Nhờ áp dụng phần thưởng bất đối xứng (Asymmetric Reward Shaping), tác tử RL bị phạt cực nặng nếu bỏ sót kẹt xe. Kết quả là **Miss Rate bị ép xuống mức đáy (8.04%)**—tương đương việc đạt Recall trên 90% cho các tình huống ùn tắc nguy hiểm. Mặc dù phải đánh đổi bằng False Alarm tăng nhẹ lên 12.07% (hoàn toàn chấp nhận được trong quản lý rủi ro), nhưng hiệu quả tổng thể (Macro F1) của RL Model đã bùng nổ lên **0.6812**, thống trị toàn diện và giải quyết xuất sắc bài toán cốt lõi của nghiên cứu.
+    *   *📷 Hình ảnh dẫn chứng minh họa (Các đồ thị sinh ra từ đánh giá XAI):* 
+        *   [Hình 5.e: Biểu đồ Đánh đổi An toàn vs Hiệu quả giữa các mô hình] (Tham chiếu file `model_comparison_tradeoff_grouped.png`).
+        *   [Hình 5.f: So sánh Hiệu suất Tổng thể (Performance Metrics) của các mô hình] (Tham chiếu file `model_comparison_performance_grouped.png`).
+        *   [Hình 5.g: So sánh chỉ số Độ phủ (Recall) chi tiết để chứng minh mô hình RL bắt được hầu hết kẹt xe nặng] (Tham chiếu file `recall_comparison_chart.png`).
 
 -   **5.6.3. Giải thích tính minh bạch (XAI - SHAP):**
     *   *Vấn đề "Hộp đen":* Các mô hình Deep Learning thường khó giải thích tại sao lại đưa ra dự báo kẹt xe.

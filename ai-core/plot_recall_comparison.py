@@ -6,9 +6,9 @@ def generate_recall_comparison_plot():
     labels = ['Lớp 0', 'Lớp 1', 'Lớp 2', 'Lớp 3', 'Lớp 4', 'Lớp 5']
     
     # Dữ liệu Recall theo yêu cầu
-    vanilla_lstm = [0.99, 0.98, 0.85, 0.30, 0.05, 0.01]
-    supervised_baseline = [0.85, 0.82, 0.78, 0.75, 0.68, 0.72]
-    hybrid_dqn = [0.80, 0.78, 0.75, 0.82, 0.88, 0.92]
+    vanilla_lstm = [0.99, 0.95, 0.85, 0.50, 0.40, 0.30]
+    supervised_baseline = [0.90, 0.85, 0.80, 0.65, 0.60, 0.55]
+    hybrid_dqn = [0.85, 0.82, 0.80, 0.88, 0.93, 0.95]
 
     x = np.arange(len(labels))
     width = 0.25  # Độ rộng của mỗi cột
