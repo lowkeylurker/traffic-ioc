@@ -64,10 +64,10 @@ class TrafficForecastingEnv(gym.Env):
             "binary_error_penalty": 0.0,
         }
 
-        # 1. Accuracy Bonus (V11.0: Balanced priority)
+        # 1. Accuracy Bonus (V12.0: Aggressive Congestion Priority)
         if diff == 0:
-            # Ưu tiên kẹt xe (>=3) chỉ cao hơn một chút (45 vs 35)
-            base_bonus = 45.0 if int(target) >= 3 else 35.0
+            # Tăng mạnh thưởng cho kẹt xe (80 vs 30)
+            base_bonus = 80.0 if int(target) >= 3 else 30.0
             components["accuracy_bonus"] = base_bonus * target_weight
         
         # 2. Adjacency Constraint (V10.0: Increased penalty for class drift)
@@ -76,14 +76,14 @@ class TrafficForecastingEnv(gym.Env):
         elif diff > 1:
             components["adjacency_penalty"] = -50.0 * diff
 
-        # 3. Binary Boundary & Directional Bias (V11.0: Near-Symmetric)
+        # 3. Binary Boundary & Directional Bias (V12.0: Highly Asymmetric)
         if is_true_congested != is_pred_congested:
             if is_true_congested and not is_pred_congested:
-                # Bỏ lỡ kẹt xe phạt -120
-                components["binary_error_penalty"] = -120.0
+                # Bỏ lỡ kẹt xe phạt cực nặng (False Negative)
+                components["binary_error_penalty"] = -250.0
             elif not is_true_congested and is_pred_congested:
-                # Báo nhầm kẹt xe phạt -100
-                components["binary_error_penalty"] = -100.0
+                # Báo nhầm kẹt xe phạt nhẹ (False Positive)
+                components["binary_error_penalty"] = -50.0
 
         raw_reward = float(sum(components.values()))
         scaled_reward = float(np.clip(self.reward_scale * raw_reward, -self.reward_clip, self.reward_clip))
