@@ -135,7 +135,7 @@ export const mapApi = {
     axiosInstance.get(`/incidents/${incidentId}/impact-propagation`, {
       params,
     }),
-  getRoadSegments: (roadKey: string): Promise<ApiResponse<number[]>> =>
+  getRoadSegments: (roadKey: string): Promise<ApiResponse<string[]>> =>
     axiosInstance.get(`/map/roads/${roadKey}/segments`),
   getRoadGeoJson: (roadKey: string, lat?: number, lng?: number): Promise<ApiResponse<any>> =>
     axiosInstance.get(`/map/roads/${roadKey}/geojson`, {
@@ -325,6 +325,12 @@ export const newsApi = {
     axiosInstance.get('/news/ticker'),
 }
 
+const getLocalRequestTime = () => {
+  const now = new Date()
+  const timezoneOffsetMs = now.getTimezoneOffset() * 60 * 1000
+  return new Date(now.getTime() - timezoneOffsetMs).toISOString().slice(0, 19)
+}
+
 // Prediction API
 export const predictionApi = {
   getBatchPrediction: (
@@ -348,7 +354,7 @@ export const predictionApi = {
     // 2. Get batch prediction
     const batchResponse = await predictionApi.getBatchPrediction({
       segment_ids: segmentsResponse.data,
-      request_time: new Date().toISOString(),
+      request_time: getLocalRequestTime(),
       prediction_horizon_minutes: options.horizon
     });
 
