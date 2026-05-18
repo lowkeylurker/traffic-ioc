@@ -11,6 +11,7 @@ from typing import Literal, Optional, Tuple
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
+import concurrent.futures
 
 from src.api.dependencies import get_warmstart_rl_predictor, get_warmstart_rl_predictor_by_horizon
 from src.data_access import (
@@ -47,6 +48,10 @@ REASON_FALLBACK_GLOBAL_NEAREST = "FALLBACK_GLOBAL_NEAREST"
 SegmentPredictCache = dict[tuple[int, str, int], Optional[CongestionPredictionItem]]
 CorridorCache = dict[int, list[int]]
 CandidateCache = dict[tuple[int, int, int], list[tuple[int, float]]]
+
+GLOBAL_CORRIDOR_CACHE: CorridorCache = {}
+GLOBAL_CORRIDOR_NEAREST_CACHE: CandidateCache = {}
+GLOBAL_GLOBAL_NEAREST_CACHE: dict[int, list[tuple[int, float]]] = {}
 
 
 COMMON_ERROR_RESPONSES = {
@@ -357,44 +362,68 @@ def predict_congestion_batch(
                 fallback_distance_m=0.0,
             )
 
-    # --- PHASE 2: CANDIDATE GATHERING (No DB query for predictions yet) ---
+    # --- PHASE 2: CANDIDATE GATHERING (Optimized with Global Cache & Multi-threading) ---
     failed_sids = [sid for sid in segment_ids if sid not in by_segment]
     corridor_candidates_map = {} 
     global_candidates_map = {}   
     all_candidate_sids = set()
-    corridor_cache: CorridorCache = {}
     
     if failed_sids:
-        for sid in failed_sids:
-            # Corridor fallback candidates
-            corridor_ids = corridor_cache.get(sid)
+        # Define worker function for fetching a single segment's candidates
+        def fetch_candidates_for_sid(sid: int):
+            cands_corridor = []
+            cands_global = []
+            
+            # 1. Corridor fallback candidates
+            corridor_ids = GLOBAL_CORRIDOR_CACHE.get(sid)
             if corridor_ids is None:
                 corridor_ids = get_corridors_by_segment(sid)
-                corridor_cache[sid] = corridor_ids
+                GLOBAL_CORRIDOR_CACHE[sid] = corridor_ids
             
-            cands_for_sid = []
             if corridor_ids:
                 for corridor_id in corridor_ids:
-                    candidates = get_nearest_segments_in_corridor(
-                        segment_id=sid,
-                        corridor_id=corridor_id,
-                        limit=FALLBACK_NEAREST_LIMIT,
-                    )
+                    cache_key = (sid, corridor_id, FALLBACK_NEAREST_LIMIT)
+                    candidates = GLOBAL_CORRIDOR_NEAREST_CACHE.get(cache_key)
+                    if candidates is None:
+                        candidates = get_nearest_segments_in_corridor(
+                            segment_id=sid,
+                            corridor_id=corridor_id,
+                            limit=FALLBACK_NEAREST_LIMIT,
+                        )
+                        GLOBAL_CORRIDOR_NEAREST_CACHE[cache_key] = candidates
+                        
                     for c_sid, dist in candidates:
                         if dist <= FALLBACK_MAX_DISTANCE_M:
-                            cands_for_sid.append((c_sid, dist, corridor_id))
-                            all_candidate_sids.add(c_sid)
-            corridor_candidates_map[sid] = cands_for_sid
-            
-            # Global fallback candidates
-            g_cands = get_nearest_segments_global(segment_id=sid, limit=FALLBACK_NEAREST_LIMIT)
-            g_cands_for_sid = []
+                            cands_corridor.append((c_sid, dist, corridor_id))
+                            
+            # 2. Global fallback candidates
+            g_cands = GLOBAL_GLOBAL_NEAREST_CACHE.get(sid)
+            if g_cands is None:
+                g_cands = get_nearest_segments_global(segment_id=sid, limit=FALLBACK_NEAREST_LIMIT)
+                GLOBAL_GLOBAL_NEAREST_CACHE[sid] = g_cands
+                
             if g_cands:
                 for c_sid, dist in g_cands:
                     if dist <= FALLBACK_MAX_DISTANCE_M:
-                        g_cands_for_sid.append((c_sid, dist))
+                        cands_global.append((c_sid, dist))
+                        
+            return sid, cands_corridor, cands_global
+
+        # Use ThreadPoolExecutor to parallelize DB queries on Cold Start
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(32, len(failed_sids))) as executor:
+            future_to_sid = {executor.submit(fetch_candidates_for_sid, sid): sid for sid in failed_sids}
+            for future in concurrent.futures.as_completed(future_to_sid):
+                try:
+                    sid, cands_corridor, cands_global = future.result()
+                    corridor_candidates_map[sid] = cands_corridor
+                    global_candidates_map[sid] = cands_global
+                    
+                    for c_sid, _, _ in cands_corridor:
                         all_candidate_sids.add(c_sid)
-            global_candidates_map[sid] = g_cands_for_sid
+                    for c_sid, _ in cands_global:
+                        all_candidate_sids.add(c_sid)
+                except Exception:
+                    pass # Ignore failed fetches for a single segment
 
     # --- PHASE 3: BULK PRE-FETCH CANDIDATES (1 DB query for ALL candidates) ---
     candidate_pool_results: dict[int, CongestionPredictionItem] = {}
@@ -468,7 +497,7 @@ def predict_congestion_batch(
             
         # Determine specific failure reason
         reason = REASON_NO_VALID_WINDOW
-        corridor_ids = corridor_cache.get(sid, [])
+        corridor_ids = GLOBAL_CORRIDOR_CACHE.get(sid, [])
         if not corridor_ids:
             reason = REASON_NO_CORRIDOR_MAPPING
         elif not corridor_cands:
