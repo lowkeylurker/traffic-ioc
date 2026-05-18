@@ -320,6 +320,7 @@ def predict_congestion_batch(
     request_time = payload.request_time or datetime.utcnow()
     request_time_str = request_time.strftime("%Y-%m-%d %H:%M:%S")
 
+    # --- PHASE 1: DIRECT BULK INFERENCE ---
     try:
         df_results = forecast_for_request(
             predictor=predictor,
@@ -330,16 +331,12 @@ def predict_congestion_batch(
     except HTTPException:
         raise
     except Exception as exc:
-        # Nếu chỉ đơn giản là thiếu dữ liệu, trả về DataFrame rỗng thay vì crash 500
         if "Không có dữ liệu" in str(exc):
             df_results = pd.DataFrame()
         else:
             raise HTTPException(status_code=500, detail=f"Failed to run warmstart RL inference: {exc}") from exc
 
     by_segment: dict[int, CongestionPredictionItem] = {}
-    corridor_cache: CorridorCache = {}
-    candidate_cache: CandidateCache = {}
-    predict_cache: SegmentPredictCache = {}
     if isinstance(df_results, pd.DataFrame) and not df_results.empty:
         for _, row in df_results.iterrows():
             sid = int(row["Segment_ID"])
@@ -360,50 +357,139 @@ def predict_congestion_batch(
                 fallback_distance_m=0.0,
             )
 
+    # --- PHASE 2: CANDIDATE GATHERING (No DB query for predictions yet) ---
+    failed_sids = [sid for sid in segment_ids if sid not in by_segment]
+    corridor_candidates_map = {} 
+    global_candidates_map = {}   
+    all_candidate_sids = set()
+    corridor_cache: CorridorCache = {}
+    
+    if failed_sids:
+        for sid in failed_sids:
+            # Corridor fallback candidates
+            corridor_ids = corridor_cache.get(sid)
+            if corridor_ids is None:
+                corridor_ids = get_corridors_by_segment(sid)
+                corridor_cache[sid] = corridor_ids
+            
+            cands_for_sid = []
+            if corridor_ids:
+                for corridor_id in corridor_ids:
+                    candidates = get_nearest_segments_in_corridor(
+                        segment_id=sid,
+                        corridor_id=corridor_id,
+                        limit=FALLBACK_NEAREST_LIMIT,
+                    )
+                    for c_sid, dist in candidates:
+                        if dist <= FALLBACK_MAX_DISTANCE_M:
+                            cands_for_sid.append((c_sid, dist, corridor_id))
+                            all_candidate_sids.add(c_sid)
+            corridor_candidates_map[sid] = cands_for_sid
+            
+            # Global fallback candidates
+            g_cands = get_nearest_segments_global(segment_id=sid, limit=FALLBACK_NEAREST_LIMIT)
+            g_cands_for_sid = []
+            if g_cands:
+                for c_sid, dist in g_cands:
+                    if dist <= FALLBACK_MAX_DISTANCE_M:
+                        g_cands_for_sid.append((c_sid, dist))
+                        all_candidate_sids.add(c_sid)
+            global_candidates_map[sid] = g_cands_for_sid
+
+    # --- PHASE 3: BULK PRE-FETCH CANDIDATES (1 DB query for ALL candidates) ---
+    candidate_pool_results: dict[int, CongestionPredictionItem] = {}
+    if all_candidate_sids:
+        try:
+            df_fallback_results = forecast_for_request(
+                predictor=predictor,
+                segment_ids=list(all_candidate_sids),
+                request_time=request_time_str,
+                resample_minutes=payload.prediction_horizon_minutes,
+            )
+            if isinstance(df_fallback_results, pd.DataFrame) and not df_fallback_results.empty:
+                for _, row in df_fallback_results.iterrows():
+                    c_sid = int(row["Segment_ID"])
+                    status_description = str(row.get("Dự báo (15p tới)", ""))
+                    level = _extract_level(status_description)
+                    forecast_for_time = pd.to_datetime(row.get("Forecast_For_Time")).to_pydatetime()
+                    candidate_pool_results[c_sid] = CongestionPredictionItem(
+                        segment_id=c_sid,
+                        congestion_level=level,
+                        status="ok",
+                        status_description=status_description,
+                        forecast_for_time=forecast_for_time,
+                        reason_code="TEMP",
+                        model_profile="warmstart",
+                        used_fallback=True,
+                        source_segment_id=c_sid,
+                        fallback_distance_m=0.0,
+                    )
+        except Exception:
+            pass # Fallback completely failed for all candidates, pool remains empty
+
+    # --- PHASE 4: IN-MEMORY MATCHING ---
     items: list[CongestionPredictionItem] = []
     for sid in segment_ids:
         if sid in by_segment:
             items.append(by_segment[sid])
+            continue
+            
+        # Try finding a valid candidate from corridor map
+        corridor_cands = corridor_candidates_map.get(sid, [])
+        found_corridor = False
+        for c_sid, dist, corridor_id in corridor_cands:
+            if c_sid in candidate_pool_results:
+                matched_item = candidate_pool_results[c_sid].model_copy(deep=True)
+                matched_item.segment_id = sid
+                matched_item.fallback_distance_m = round(float(dist), 2)
+                matched_item.reason_code = REASON_FALLBACK_NEAREST
+                items.append(matched_item)
+                found_corridor = True
+                break
+                
+        if found_corridor:
+            continue
+            
+        # Try finding a valid candidate from global map
+        global_cands = global_candidates_map.get(sid, [])
+        found_global = False
+        for c_sid, dist in global_cands:
+            if c_sid in candidate_pool_results:
+                matched_item = candidate_pool_results[c_sid].model_copy(deep=True)
+                matched_item.segment_id = sid
+                matched_item.fallback_distance_m = round(float(dist), 2)
+                matched_item.reason_code = REASON_FALLBACK_GLOBAL_NEAREST
+                items.append(matched_item)
+                found_global = True
+                break
+                
+        if found_global:
+            continue
+            
+        # Determine specific failure reason
+        reason = REASON_NO_VALID_WINDOW
+        corridor_ids = corridor_cache.get(sid, [])
+        if not corridor_ids:
+            reason = REASON_NO_CORRIDOR_MAPPING
+        elif not corridor_cands:
+            reason = REASON_FALLBACK_DISTANCE_EXCEEDED
         else:
-            fallback_item, fallback_reason = _fallback_predict_in_same_corridor(
-                predictor=predictor,
-                target_segment_id=sid,
-                request_time_str=request_time_str,
-                horizon_minutes=payload.prediction_horizon_minutes,
-                corridor_cache=corridor_cache,
-                candidate_cache=candidate_cache,
-                predict_cache=predict_cache,
-            )
-            if fallback_item is not None:
-                items.append(fallback_item)
-                continue
+            reason = REASON_FALLBACK_NO_VALID_WINDOW
 
-            # --- STEP 3: GLOBAL SPATIAL FALLBACK (No corridor mapping) ---
-            fallback_item, fallback_reason = _fallback_predict_global(
-                predictor=predictor,
-                target_segment_id=sid,
-                request_time_str=request_time_str,
-                horizon_minutes=payload.prediction_horizon_minutes,
-                predict_cache=predict_cache,
+        items.append(
+            CongestionPredictionItem(
+                segment_id=sid,
+                congestion_level=None,
+                status="no_data",
+                status_description=None,
+                forecast_for_time=None,
+                reason_code=reason,
+                model_profile="warmstart",
+                used_fallback=False,
+                source_segment_id=None,
+                fallback_distance_m=None,
             )
-            if fallback_item is not None:
-                items.append(fallback_item)
-                continue
-
-            items.append(
-                CongestionPredictionItem(
-                    segment_id=sid,
-                    congestion_level=None,
-                    status="no_data",
-                    status_description=None,
-                    forecast_for_time=None,
-                    reason_code=fallback_reason or REASON_NO_VALID_WINDOW,
-                    model_profile="warmstart",
-                    used_fallback=False,
-                    source_segment_id=None,
-                    fallback_distance_m=None,
-                )
-            )
+        )
 
     success_count = sum(1 for item in items if item.status == "ok")
     no_data_count = sum(1 for item in items if item.status == "no_data")
