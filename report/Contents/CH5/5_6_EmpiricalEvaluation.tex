@@ -56,15 +56,24 @@ Các chỉ số trong bảng được lựa chọn để phản ánh đa chiều
 \paragraph{c. Phân tích kết quả chi tiết qua lăng kính đồ thị} \mbox{} \\
 Để làm rõ hơn các con số thống kê, hệ thống các biểu đồ thực nghiệm dưới đây sẽ phân tích sâu vào hành vi dự báo của từng mô hình, qua đó chứng minh tính đúng đắn trong quyết định thiết kế của đồ án.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Images/CH5/29.png}
+    \vspace{12pt}
+    \caption{So sánh Hiệu suất Tổng thể (Performance Metrics) của các mô hình}
+    \label{fig:5_29}
+\end{figure}
+
 \textbf{1. Sự sụp đổ của Vanilla LSTM và sự "bảo thủ" của Mô hình Học có giám sát (SL Model)}
 
 Quan sát các chỉ số hiệu suất tổng thể, Vanilla LSTM cho thấy sự bất lực hoàn toàn trong việc nắm bắt đặc trưng dòng xe (Macro F1 chạm đáy ở mức 0.3950). Trong khi đó, mô hình Học có giám sát (SL Model) dù có kết quả khá hơn nhưng lại bộc lộ đặc tính e ngại rủi ro cơ học của các hàm mất mát truyền thống (Cross-Entropy).
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.8\textwidth]{Images/CH5/26.png}
+    \includegraphics[width=0.8\textwidth]{Images/CH5/28.png}
+    \vspace{12pt}
     \caption{Biểu đồ Đánh đổi An toàn và Hiệu quả (Trade-off Analysis)}
-    \label{fig:5_26}
+    \label{fig:5_28}
 \end{figure}
 
 Sự yếu kém và bảo thủ này được bộc lộ rõ nhất qua Biểu đồ Đánh đổi. Vanilla LSTM thất bại ở cả hai tiêu chí. Còn SL Model lại rơi vào một cái bẫy thiên kiến nguy hiểm: Để đạt được Tỷ lệ báo nhầm cực thấp (chỉ 5.13\%), nó đã nhắm mắt làm ngơ và bỏ lọt tới 39.44\% các sự kiện ùn tắc. Trong bối cảnh quản lý rủi ro giao thông, sự "bảo thủ" thiên về lớp đa số này là mối đe dọa trực tiếp đến độ tin cậy của hệ thống.
@@ -76,6 +85,7 @@ Sự yếu kém và bảo thủ này được bộc lộ rõ nhất qua Biểu �
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{Images/CH5/27.png}
+    \vspace{12pt}
     \caption{Ma trận nhầm lẫn nhị phân đánh giá năng lực nhận diện ùn tắc}
     \label{fig:5_27}
 \end{figure}
@@ -86,9 +96,10 @@ Sự yếu kém và bảo thủ này được bộc lộ rõ nhất qua Biểu �
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.8\textwidth]{Images/CH5/28.png}
+    \includegraphics[width=0.8\textwidth]{Images/CH5/20.png}
+    \vspace{12pt}
     \caption{So sánh Độ phủ (Recall) chi tiết trên từng mức độ giao thông}
-    \label{fig:5_28}
+    \label{fig:5_20}
 \end{figure}
 
 \begin{itemize}
@@ -97,9 +108,10 @@ Sự yếu kém và bảo thủ này được bộc lộ rõ nhất qua Biểu �
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.8\textwidth]{Images/CH5/29.png}
+    \includegraphics[width=0.8\textwidth]{Images/CH5/26.png}
+    \vspace{12pt}
     \caption{Phân bố mức độ sai lệch trong dự báo của Đặc vụ RL}
-    \label{fig:5_29}
+    \label{fig:5_26}
 \end{figure}
 
 \begin{itemize}
