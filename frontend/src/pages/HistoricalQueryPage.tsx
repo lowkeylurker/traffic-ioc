@@ -10,6 +10,7 @@ import {
   TrafficStatus,
 } from '@/types'
 import { formatDateTimeInTimeZone } from '@/utils/format'
+import { getCachedRoads, setCachedRoads } from '@/utils/segmentCache'
 import {
   ThunderboltOutlined,
   MenuFoldOutlined,
@@ -146,10 +147,33 @@ export const HistoricalQueryPage: React.FC = () => {
   const roadsQuery = useQuery({
     queryKey: ['history-roads-autocomplete'],
     queryFn: async () => {
-      const response = await mapApi.getRoads()
-      return response.data ?? []
+      // 1. Thử lấy từ cache IndexedDB (24 giờ)
+      const cached = await getCachedRoads(24 * 60 * 60 * 1000)
+      if (cached) {
+        return cached
+      }
+
+      try {
+        // 2. Nếu không có hoặc hết hạn, gọi API
+        const response = await mapApi.getRoads()
+        const roadsData = response.data ?? []
+
+        // 3. Cache lại vào IndexedDB
+        if (roadsData.length > 0) {
+          await setCachedRoads(roadsData)
+        }
+        return roadsData
+      } catch (error) {
+        console.warn('Failed to fetch roads from API, trying to fallback to stale cache:', error)
+        // 4. Fallback: Nếu API lỗi, thử lấy cache bất kể thời gian (Infinity)
+        const staleCached = await getCachedRoads(Infinity)
+        if (staleCached) {
+          return staleCached
+        }
+        throw error
+      }
     },
-    staleTime: 60_000,
+    staleTime: 5 * 60 * 1000, // Tăng staleTime lên 5 phút vì đã có cache bền vững
   })
 
   const historyQuery = useQuery({
