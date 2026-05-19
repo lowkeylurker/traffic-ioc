@@ -14,8 +14,10 @@ import {
   Tag,
   Radio,
   Select,
+  Modal,
 } from 'antd'
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { LineChart } from '@/components/charts/ChartComponents'
 import { PredictiveMap } from '@/components/map/PredictiveMap'
 import { SelectionMap } from '@/components/map/SelectionMap'
@@ -27,6 +29,9 @@ import dayjs from 'dayjs'
 const { Text } = Typography
 
 const TICKER_HEIGHT = 40
+const FORECAST_SUPPORTED_HORIZON = 15
+const FORECAST_WINDOW_START_MINUTE = 9 * 60 + 15
+const FORECAST_WINDOW_END_MINUTE = 21 * 60 + 15
 const FREE_FLOW_SPEED_KMH = 55
 const CONGESTION_SPEED_KMH: Record<number, number> = {
   0: 55,
@@ -226,6 +231,7 @@ const ForecastStatsCard: React.FC<ForecastStatsCardProps> = ({
 }
 
 export const SimulationPage: React.FC = () => {
+  const navigate = useNavigate()
   const trafficStatus = useTrafficStatus()
 
   const [blockedSegmentIds, setBlockedSegmentIds] = useState<string[]>([])
@@ -248,11 +254,38 @@ export const SimulationPage: React.FC = () => {
   const [forecastLoading, setForecastLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'real-time' | 'forecast' | 'simulation'>('real-time')
   const [mapResetVersion, setMapResetVersion] = useState(0)
-  const [horizon, setHorizon] = useState(30)
+  const [horizon, setHorizon] = useState(FORECAST_SUPPORTED_HORIZON)
   const [roadsList, setRoadsList] = useState<Array<{ label: string, value: string }>>([])
   const previousBlockedKeyRef = useRef(blockedSegmentIds.join('|'))
   const previousRoutePointsKeyRef = useRef('')
   const autoRunTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const accessWindowModalShownRef = useRef(false)
+
+  useEffect(() => {
+    if (accessWindowModalShownRef.current) return
+
+    const now = dayjs()
+    const minuteOfDay = now.hour() * 60 + now.minute()
+    const isInForecastWindow =
+      minuteOfDay >= FORECAST_WINDOW_START_MINUTE &&
+      minuteOfDay <= FORECAST_WINDOW_END_MINUTE
+
+    if (isInForecastWindow) return
+
+    accessWindowModalShownRef.current = true
+    Modal.info({
+      title: 'Thông báo',
+      content: 'Vui lòng quay lại sau 09h15',
+      okText: 'OK',
+      onOk: () => {
+        if (window.history.length > 1) {
+          navigate(-1)
+        } else {
+          navigate('/real-time', { replace: true })
+        }
+      },
+    })
+  }, [navigate])
 
   const clearSimulationResults = useCallback(() => {
     setBaselineRoute(null)
@@ -548,6 +581,11 @@ export const SimulationPage: React.FC = () => {
   }
 
   const handleRunForecast = async () => {
+    if (horizon !== FORECAST_SUPPORTED_HORIZON) {
+      message.warning(`Hiện tại không hỗ trợ dự báo ${horizon} phút`)
+      return
+    }
+
     if (!selectedRoad) return
     const segmentIds = (selectedRoad.forecastSegmentIds?.length
       ? selectedRoad.forecastSegmentIds
@@ -900,7 +938,19 @@ export const SimulationPage: React.FC = () => {
                         {!closureMode && (
                           <div style={{ background: '#fafafa', padding: '8px', borderRadius: '4px', border: '1px solid #f0f0f0' }}>
                             <div style={{ marginBottom: 8 }}><Text strong style={{ fontSize: '12px' }}>Phạm vi dự báo:</Text></div>
-                            <Radio.Group value={horizon} onChange={e => setHorizon(e.target.value)} size="small" block>
+                            <Radio.Group
+                              value={horizon}
+                              onChange={e => {
+                                const nextHorizon = Number(e.target.value)
+                                if (nextHorizon !== FORECAST_SUPPORTED_HORIZON) {
+                                  message.warning(`Hiện tại không hỗ trợ dự báo ${nextHorizon} phút`)
+                                  return
+                                }
+                                setHorizon(nextHorizon)
+                              }}
+                              size="small"
+                              block
+                            >
                               <Radio.Button value={15}>15p</Radio.Button>
                               <Radio.Button value={30}>30p</Radio.Button>
                               <Radio.Button value={60}>60p</Radio.Button>
