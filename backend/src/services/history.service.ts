@@ -98,9 +98,21 @@ export class HistoryService {
     const { values, where } = buildFilters(params);
     const offset = (params.page - 1) * params.limit;
 
-    const dataResult = await query(
-      `
-      WITH filtered_history AS (
+    const needsJoin = Boolean(params.roadKey || params.roadName);
+    const dataJoin = needsJoin 
+      ? `${BASE_JOIN} LEFT JOIN dim_location l ON l.location_key = s.location_key` 
+      : `FROM fact_traffic_flow f
+         JOIN mv_dim_segment_with_road_key s ON s.segment_key = f.segment_key
+         LEFT JOIN dim_location l ON l.location_key = s.location_key
+         LEFT JOIN dim_road r ON r.road_key = s.road_key`; // Data query vẫn cần thông tin tên đường/quận huyện để hiển thị trên bảng
+
+    // Nếu không lọc theo roadKey/roadName, câu count hoàn toàn không cần JOIN với các bảng danh mục
+    // Giúp PostgreSQL đếm 360k dòng chỉ mất vài chục mili-giây thay vì vài giây
+    const countJoin = needsJoin ? BASE_JOIN : 'FROM fact_traffic_flow f';
+
+    const [dataResult, countResult] = await Promise.all([
+      query(
+        `
         SELECT
           f.timestamp AS "timestamp",
           r.name AS "roadName",
@@ -110,25 +122,28 @@ export class HistoryService {
           f.pcu_volume AS "pcuVolume",
           f.delay_seconds AS "delaySeconds",
           f.traffic_index AS "trafficIndex"
-        ${BASE_JOIN}
-        LEFT JOIN dim_location l ON l.location_key = s.location_key
+        ${dataJoin}
         ${where}
+        ORDER BY f.timestamp DESC
+        LIMIT $${values.length + 1} OFFSET $${values.length + 2}
+        `,
+        [...values, params.limit, offset]
+      ),
+      query(
+        `
+        SELECT COUNT(*)::int AS total
+        ${countJoin}
+        ${where}
+        `,
+        values
       )
-      SELECT
-        filtered_history.*,
-        COUNT(*) OVER()::int AS "totalItems"
-      FROM filtered_history
-      ORDER BY "timestamp" DESC
-      LIMIT $${values.length + 1} OFFSET $${values.length + 2}
-      `,
-      [...values, params.limit, offset]
-    );
+    ]);
 
-    const totalItems = Number(dataResult.rows?.[0]?.totalItems ?? 0);
+    const totalItems = Number(countResult.rows?.[0]?.total ?? 0);
     const totalPages = params.limit > 0 ? Math.ceil(totalItems / params.limit) : 0;
 
     return {
-      items: dataResult.rows.map(({ totalItems: _totalItems, ...row }) => row) as HistoryRecord[],
+      items: dataResult.rows as HistoryRecord[],
       page: params.page,
       limit: params.limit,
       totalItems,
@@ -210,23 +225,29 @@ export class HistoryService {
   async getTopHotspots(params: HistoryExportParams, limit = 8): Promise<HistoryHotspotPoint[]> {
     const { values, where } = buildFilters(params);
 
+    // Tối ưu hóa đỉnh cao: Gom nhóm theo ID số nguyên (road_key, segment_key) trước trên tập thô
+    // Giúp PostgreSQL thực thi gộp nhóm số nguyên cực nhanh (<100ms) thay vì so sánh text collation phức tạp
+    // Sau khi có top LIMIT con đường nóng nhất, mới JOIN để lấy tên đường cho đúng LIMIT dòng kết quả cuối
     const result = await query(
       `
-      WITH filtered_history AS (
-        SELECT
-          COALESCE(r.name, CONCAT('Segment ', s.segment_key::text)) AS road_name,
-          f.traffic_index AS traffic_index
-        ${BASE_JOIN}
-        ${where}
+      WITH aggregated_roads AS (
+        SELECT 
+          s.road_key,
+          CASE WHEN s.road_key IS NULL THEN s.segment_key ELSE NULL END AS segment_key,
+          AVG(f.traffic_index)::float8 AS avg_traffic_index
+        FROM fact_traffic_flow f
+        JOIN mv_dim_segment_with_road_key s ON s.segment_key = f.segment_key
+        ${where} AND f.traffic_index IS NOT NULL
+        GROUP BY s.road_key, CASE WHEN s.road_key IS NULL THEN s.segment_key ELSE NULL END
+        ORDER BY avg_traffic_index DESC
+        LIMIT $${values.length + 1}
       )
-      SELECT
-        road_name AS "roadName",
-        AVG(traffic_index)::float8 AS "trafficIndex"
-      FROM filtered_history
-      WHERE traffic_index IS NOT NULL
-      GROUP BY road_name
-      ORDER BY "trafficIndex" DESC, "roadName" ASC
-      LIMIT $${values.length + 1}
+      SELECT 
+        COALESCE(r.name, CONCAT('Segment ', ar.segment_key::text)) AS "roadName",
+        ar.avg_traffic_index AS "trafficIndex"
+      FROM aggregated_roads ar
+      LEFT JOIN dim_road r ON r.road_key = ar.road_key
+      ORDER BY "trafficIndex" DESC
       `,
       [...values, limit]
     );
@@ -240,52 +261,61 @@ export class HistoryService {
   async getHistorySummary(params: HistoryExportParams): Promise<HistorySummary> {
     const { values, where } = buildFilters(params);
 
-    // 1. Get trends aggregated by hour (or minute if range is small)
-    // For simplicity, we'll use hour buckets for historical analytics
-    const trendResult = await query(
-      `
-      SELECT
-        DATE_TRUNC('hour', f.timestamp) AS bucket,
-        AVG(f.current_speed_kmh)::float8 AS avg_speed,
-        AVG(f.traffic_index)::float8 AS avg_index,
-        SUM(f.pcu_volume)::bigint AS total_pcu,
-        SUM(f.delay_seconds)::bigint AS total_delay,
-        (COUNT(*) FILTER (WHERE f.los_level IN ('A', 'B', 'C'))::float8 / NULLIF(COUNT(*), 0))::float8 AS efficiency
-      ${BASE_JOIN}
-      ${where}
-      GROUP BY bucket
-      ORDER BY bucket ASC
-      `,
-      values
-    );
+    const needsJoin = Boolean(params.roadKey || params.roadName);
+    const summaryJoin = needsJoin ? BASE_JOIN : 'FROM fact_traffic_flow f';
 
-    // 2. Get overall metrics
-    const overallResult = await query(
-      `
-      SELECT
-        AVG(f.current_speed_kmh)::float8 AS avg_speed,
-        SUM(f.pcu_volume)::bigint AS total_pcu,
-        SUM(f.delay_seconds)::bigint AS total_delay,
-        (COUNT(*) FILTER (WHERE f.los_level IN ('A', 'B', 'C'))::float8 / NULLIF(COUNT(*), 0))::float8 AS efficiency
-      ${BASE_JOIN}
-      ${where}
-      `,
-      values
-    );
-
-    // 3. Get worst road
-    const worstRoadResult = await query(
-      `
-      SELECT
-        COALESCE(r.name, CONCAT('Segment ', s.segment_key::text)) AS road_name
-      ${BASE_JOIN}
-      ${where}
-      GROUP BY road_name
-      ORDER BY AVG(f.traffic_index) ASC
-      LIMIT 1
-      `,
-      values
-    );
+    // Chạy song song 3 truy vấn con của Summary bằng Promise.all để tránh nghẽn luồng và lãng phí thời gian
+    // Nếu không lọc theo đường, loại bỏ hoàn toàn JOIN dư thừa đối với truy vấn xu hướng và tổng thể
+    const [trendResult, overallResult, worstRoadResult] = await Promise.all([
+      query(
+        `
+        SELECT
+          DATE_TRUNC('hour', f.timestamp) AS bucket,
+          AVG(f.current_speed_kmh)::float8 AS avg_speed,
+          AVG(f.traffic_index)::float8 AS avg_index,
+          SUM(f.pcu_volume)::bigint AS total_pcu,
+          SUM(f.delay_seconds)::bigint AS total_delay,
+          (COUNT(*) FILTER (WHERE f.los_level IN ('A', 'B', 'C'))::float8 / NULLIF(COUNT(*), 0))::float8 AS efficiency
+        ${summaryJoin}
+        ${where}
+        GROUP BY bucket
+        ORDER BY bucket ASC
+        `,
+        values
+      ),
+      query(
+        `
+        SELECT
+          AVG(f.current_speed_kmh)::float8 AS avg_speed,
+          SUM(f.pcu_volume)::bigint AS total_pcu,
+          SUM(f.delay_seconds)::bigint AS total_delay,
+          (COUNT(*) FILTER (WHERE f.los_level IN ('A', 'B', 'C'))::float8 / NULLIF(COUNT(*), 0))::float8 AS efficiency
+        ${summaryJoin}
+        ${where}
+        `,
+        values
+      ),
+      query(
+        `
+        WITH worst_road_id AS (
+          SELECT 
+            s.road_key,
+            CASE WHEN s.road_key IS NULL THEN s.segment_key ELSE NULL END AS segment_key,
+            AVG(f.traffic_index) AS avg_index
+          FROM fact_traffic_flow f
+          JOIN mv_dim_segment_with_road_key s ON s.segment_key = f.segment_key
+          ${where}
+          GROUP BY s.road_key, CASE WHEN s.road_key IS NULL THEN s.segment_key ELSE NULL END
+          ORDER BY avg_index ASC
+          LIMIT 1
+        )
+        SELECT COALESCE(r.name, CONCAT('Segment ', wri.segment_key::text)) AS road_name
+        FROM worst_road_id wri
+        LEFT JOIN dim_road r ON r.road_key = wri.road_key
+        `,
+        values
+      )
+    ]);
 
     const overall = overallResult.rows[0] || {};
     const worstRoad = worstRoadResult.rows[0]?.road_name ?? 'N/A';

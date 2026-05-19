@@ -27,11 +27,11 @@ import TrafficWorker from '../workers/traffic-processor.worker?worker'
 const TRAFFIC_STATUS_CACHE_MAX_AGE_MS = 60 * 1000 // 1 minute (aligned with backend MV refresh)
 
 // Fetch segments hook (danh sách đoạn đường tĩnh ban đầu - deprecated for map rendering, use useTrafficMap instead)
-export const useSegments = () => {
+export const useSegments = (enabled = true) => {
   const { segmentData, setSegmentData, setError } = useAppStore()
 
   useEffect(() => {
-    if (segmentData) {
+    if (!enabled || segmentData) {
       return
     }
 
@@ -67,7 +67,7 @@ export const useSegments = () => {
     return () => {
       mounted = false
     }
-  }, [segmentData, setSegmentData, setError])
+  }, [enabled, segmentData, setSegmentData, setError])
 
   return segmentData
 }
