@@ -239,15 +239,26 @@ export const HistoricalQueryPage: React.FC = () => {
 
 
   const liveMapData = useTrafficMap()
-  const segmentsQuery = useQuery({
-    queryKey: ['history-map-base-segments'],
-    queryFn: async () => {
-      const response = await mapApi.getSegments()
-      return response.data
-    },
-    staleTime: 60 * 60 * 1000,
-  })
-  const baseSegments = segmentsQuery.data
+  const baseSegments = useMemo<SegmentResponse | null>(() => {
+    if (!liveMapData?.features?.length) {
+      return null
+    }
+
+    return {
+      type: 'FeatureCollection',
+      features: liveMapData.features.map((feature) => ({
+        ...feature,
+        properties: {
+          ...feature.properties,
+          avgSpeed: undefined,
+          losGrade: undefined,
+          color: undefined,
+          lastUpdated: feature.properties.lastUpdated,
+          isCorridor: feature.properties.isCorridor,
+        },
+      })),
+    }
+  }, [liveMapData])
 
   const snapshotStatusQuery = useQuery({
     queryKey: ['history-map-status', selectedSnapshotTime],
