@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useNotificationStore, NotificationItem } from '@/stores/useNotificationStore';
 import { Card, List, Button, Typography, Badge, Space, Spin, Empty } from 'antd';
 import { 
@@ -12,24 +12,14 @@ import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 
-const extractDownloadUrl = (message: string) => {
-  const match = message.match(/https?:\/\/[^\s]+/);
-  return match ? match[0] : null;
-};
-
 export const NotificationsPage: React.FC = () => {
   const { 
     notifications, 
     unreadCount, 
     loading, 
-    fetchNotifications, 
     markAsRead, 
     markAllAsRead 
   } = useNotificationStore();
-
-  useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
 
   return (
     <div style={{ padding: '24px', maxWidth: 800, margin: '0 auto' }}>
@@ -73,11 +63,8 @@ export const NotificationsPage: React.FC = () => {
             dataSource={notifications}
             locale={{ emptyText: <Empty description="Bạn chưa có thông báo nào" style={{ padding: '40px 0' }} /> }}
             renderItem={(item: NotificationItem) => {
-              const downloadUrl = extractDownloadUrl(item.message);
-              // Lấy phần text trước đoạn URL thô để hiển thị gọn gàng
-              const displayText = downloadUrl 
-                ? item.message.split('Nhấp vào đây')[0].trim()
-                : item.message;
+              const downloadUrl = item.downloadUrl || item.emailPreviewUrl || null;
+              const displayText = item.message;
 
               return (
                 <List.Item
@@ -139,7 +126,7 @@ export const NotificationsPage: React.FC = () => {
                               type="primary" 
                               size="small"
                               icon={<DownloadOutlined />} 
-                              href={downloadUrl} 
+                              href={downloadUrl || undefined} 
                               target="_blank"
                               style={{ borderRadius: 6, fontSize: 12, height: 28 }}
                               onClick={(e) => {

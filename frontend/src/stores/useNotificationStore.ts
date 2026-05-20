@@ -6,6 +6,8 @@ export interface NotificationItem {
   type: string;
   title: string;
   message: string;
+  downloadUrl?: string;
+  emailPreviewUrl?: string;
   read: boolean;
   createdAt: string;
 }
@@ -16,7 +18,7 @@ interface NotificationStore {
   loading: boolean;
   
   // Hành động với store và API
-  fetchNotifications: () => Promise<void>;
+  fetchNotifications: (force?: boolean) => Promise<void>;
   addNotification: (notification: NotificationItem) => void;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -27,15 +29,21 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
   unreadCount: 0,
   loading: false,
 
-  fetchNotifications: async () => {
+  fetchNotifications: async (force = false) => {
+    if (!force && (get().loading || get().notifications.length > 0)) {
+      return;
+    }
+
     try {
       set({ loading: true });
       const response = await userApi.getNotifications();
       const items = (response.data ?? []).map((item: any) => ({
-        id: item._id || item.id,
+        id: item.id || item._id,
         type: item.type,
         title: item.title,
         message: item.message,
+        downloadUrl: item.downloadUrl,
+        emailPreviewUrl: item.emailPreviewUrl,
         read: item.read,
         createdAt: item.createdAt || item.timestamp,
       }));

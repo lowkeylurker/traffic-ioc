@@ -56,8 +56,10 @@ export const csvExportWorker = new Worker<CsvExportJobData>(
         type: 'csv_export_ready',
         title: 'Báo cáo CSV Sẵn sàng',
         message: emailResult.previewUrl
-          ? `Báo cáo "${filename}" đã sẵn sàng. Link tải: ${downloadUrl}. SMTP hiện đang dùng Ethereal test inbox, mở preview email tại: ${emailResult.previewUrl}`
-          : `Báo cáo "${filename}" đã xuất xong và gửi tới email của bạn. Nhấp vào đây để tải trực tiếp từ Azure Blob Storage: ${downloadUrl}`,
+          ? `Báo cáo "${filename}" đã sẵn sàng. Email được gửi qua Ethereal test inbox.`
+          : `Báo cáo "${filename}" đã xuất xong và gửi tới email của bạn.`,
+        downloadUrl,
+        emailPreviewUrl: emailResult.previewUrl,
         read: false,
       });
 
@@ -67,6 +69,8 @@ export const csvExportWorker = new Worker<CsvExportJobData>(
         type: notification.type,
         title: notification.title,
         message: notification.message,
+        downloadUrl: notification.downloadUrl,
+        emailPreviewUrl: notification.emailPreviewUrl,
         read: notification.read,
         createdAt: notification.createdAt.toISOString(),
       });

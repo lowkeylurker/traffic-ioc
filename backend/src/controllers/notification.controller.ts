@@ -13,7 +13,8 @@ export class NotificationController {
    */
   async getNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const userId = (req as any).auth?.userId;
+      const auth = typeof (req as any).auth === 'function' ? (req as any).auth() : (req as any).auth;
+      const userId = auth?.userId;
       if (!userId) {
         throw new AppError(401, 'Unauthorized: User identity not found', 'UNAUTHORIZED');
       }
@@ -24,7 +25,18 @@ export class NotificationController {
         .sort({ createdAt: -1 })
         .limit(50);
 
-      res.json(ResponseUtil.success(notifications, 'Notifications retrieved successfully'));
+      const items = notifications.map((item) => ({
+        id: item._id.toString(),
+        type: item.type,
+        title: item.title,
+        message: item.message,
+        downloadUrl: item.downloadUrl,
+        emailPreviewUrl: item.emailPreviewUrl,
+        read: item.read,
+        createdAt: item.createdAt?.toISOString?.() || new Date().toISOString(),
+      }));
+
+      res.json(ResponseUtil.success(items, 'Notifications retrieved successfully'));
     } catch (error) {
       next(error);
     }
@@ -36,7 +48,8 @@ export class NotificationController {
    */
   async markAllAsRead(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const userId = (req as any).auth?.userId;
+      const auth = typeof (req as any).auth === 'function' ? (req as any).auth() : (req as any).auth;
+      const userId = auth?.userId;
       if (!userId) {
         throw new AppError(401, 'Unauthorized: User identity not found', 'UNAUTHORIZED');
       }
@@ -57,7 +70,8 @@ export class NotificationController {
    */
   async markAsRead(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const userId = (req as any).auth?.userId;
+      const auth = typeof (req as any).auth === 'function' ? (req as any).auth() : (req as any).auth;
+      const userId = auth?.userId;
       const { id } = req.params;
 
       if (!userId) {

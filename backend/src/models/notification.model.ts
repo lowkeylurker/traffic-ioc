@@ -5,6 +5,8 @@ export interface INotification extends Document {
   type: string;
   title: string;
   message: string;
+  downloadUrl?: string;
+  emailPreviewUrl?: string;
   read: boolean;
   createdAt: Date;
 }
@@ -15,6 +17,8 @@ const NotificationSchema: Schema = new Schema(
     type: { type: String, required: true, default: 'general' },
     title: { type: String, required: true },
     message: { type: String, required: true },
+    downloadUrl: { type: String, required: false },
+    emailPreviewUrl: { type: String, required: false },
     read: { type: Boolean, required: true, default: false, index: true },
   },
   {

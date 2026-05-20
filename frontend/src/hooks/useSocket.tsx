@@ -46,6 +46,8 @@ export const useSocket = () => {
         type: data.type || 'csv_export_ready',
         title: data.title || 'Thông báo mới',
         message: data.message || '',
+        downloadUrl: data.downloadUrl || undefined,
+        emailPreviewUrl: data.emailPreviewUrl || undefined,
         read: data.read || false,
         createdAt: data.createdAt || new Date().toISOString(),
       };
