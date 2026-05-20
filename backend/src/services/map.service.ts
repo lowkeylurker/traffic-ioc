@@ -583,18 +583,25 @@ export class MapService {
   /**
    * Lấy danh sách segment_key của một trục đường
    */
-  async getRoadSegments(roadKey: string): Promise<number[]> {
+  async getRoadSegments(roadKey: string): Promise<string[]> {
     try {
       logger.log(`Fetching segments for road: ${roadKey}`);
       const sql = `
-        SELECT s.segment_key
+        SELECT s.segment_key::text AS segment_key
         FROM dim_segment s
         JOIN dim_way w ON s.way_key = w.way_key
         WHERE w.road_key::text = $1
+          AND EXISTS (
+            SELECT 1
+            FROM fact_traffic_flow f
+            WHERE f.segment_key = s.segment_key
+            LIMIT 1
+          )
+        ORDER BY s.segment_key
       `;
       const { query } = await import('../config/db');
       const result = await query(sql, [roadKey]);
-      return result.rows.map(row => Number(row.segment_key));
+      return result.rows.map(row => String(row.segment_key));
     } catch (error) {
       logger.error(`Error fetching segments for road ${roadKey}`, error);
       throw error;
@@ -623,6 +630,12 @@ export class MapService {
                   'segmentName', COALESCE(r.name, s.segment_id_source::text),
                   'roadKey', r.road_key::text,
                   'roadName', r.name,
+                  'hasTrafficFlow', EXISTS (
+                    SELECT 1
+                    FROM fact_traffic_flow ff
+                    WHERE ff.segment_key = s.segment_key
+                    LIMIT 1
+                  ),
                   'losGrade', UPPER(TRIM(COALESCE(f.los_level, 'A'))),
                   'losNumeric', CASE UPPER(TRIM(COALESCE(f.los_level, 'A')))
                     WHEN 'A' THEN 0

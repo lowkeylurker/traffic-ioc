@@ -1,5 +1,6 @@
 import {
   CorridorAnalyticsOption,
+  RoadOption,
   SegmentResponse,
   TrafficStatus,
 } from '@/types'
@@ -10,6 +11,7 @@ const STORE_NAME = 'app-cache'
 const SEGMENTS_KEY = 'segments'
 const TRAFFIC_STATUS_KEY = 'traffic-status'
 const CORRIDORS_KEY = 'corridors'
+const ROADS_KEY = 'roads'
 
 type TimestampedCache<T> = {
   cachedAt: number
@@ -256,4 +258,79 @@ export const setCachedCorridors = async (
     console.warn('Unable to write corridor cache to IndexedDB:', error)
   }
 }
+
+const isValidRoadArray = (data: unknown): data is RoadOption[] => {
+  return Array.isArray(data)
+}
+
+export const getCachedRoads = async (
+  maxAgeMs: number
+): Promise<RoadOption[] | null> => {
+  if (typeof window === 'undefined' || !window.indexedDB) {
+    return null
+  }
+
+  try {
+    const db = await openCacheDb()
+    return await new Promise<RoadOption[] | null>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly')
+      const store = tx.objectStore(STORE_NAME)
+      const request = store.get(ROADS_KEY)
+
+      request.onsuccess = () => {
+        const value = request.result
+        if (!isValidTimestampedCache(value, isValidRoadArray)) {
+          resolve(null)
+          return
+        }
+
+        const ageMs = Date.now() - value.cachedAt
+        if (ageMs > maxAgeMs) {
+          resolve(null)
+          return
+        }
+
+        resolve(value.data)
+      }
+      request.onerror = () => reject(request.error)
+      tx.oncomplete = () => db.close()
+      tx.onerror = () => reject(tx.error)
+    })
+  } catch (error) {
+    console.warn('Unable to read roads cache from IndexedDB:', error)
+    return null
+  }
+}
+
+export const setCachedRoads = async (
+  roads: RoadOption[]
+): Promise<void> => {
+  if (typeof window === 'undefined' || !window.indexedDB) {
+    return
+  }
+
+  const payload: TimestampedCache<RoadOption[]> = {
+    cachedAt: Date.now(),
+    data: roads,
+  }
+
+  try {
+    const db = await openCacheDb()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      const store = tx.objectStore(STORE_NAME)
+      store.put(payload, ROADS_KEY)
+
+      tx.oncomplete = () => {
+        db.close()
+        resolve()
+      }
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
+    })
+  } catch (error) {
+    console.warn('Unable to write roads cache to IndexedDB:', error)
+  }
+}
+
 

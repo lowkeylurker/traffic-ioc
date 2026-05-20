@@ -1,6 +1,6 @@
 import { TrafficMap } from '@/components/map/TrafficMap'
 import { LOS_COLORS } from '@/config/constants'
-import { useTrafficMap } from '@/hooks/useTraffic'
+import { useSegments } from '@/hooks/useTraffic'
 import { historyApi, mapApi } from '@/services/api'
 import {
   HistoryHotspotPoint,
@@ -10,6 +10,7 @@ import {
   TrafficStatus,
 } from '@/types'
 import { formatDateTimeInTimeZone } from '@/utils/format'
+import { getCachedRoads, setCachedRoads } from '@/utils/segmentCache'
 import {
   ThunderboltOutlined,
   MenuFoldOutlined,
@@ -24,10 +25,14 @@ import {
   ExportOutlined,
   FileImageOutlined,
   FilePdfOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons'
 import { exportToImage, exportToPdf } from '@/utils/exportUtils'
 import { TrendCard } from './history/components/TrendCard'
-import { HistoryFilterBar, HistoryFilterValues } from './history/components/HistoryFilterBar'
+import {
+  HistoryFilterBar,
+  HistoryFilterValues,
+} from './history/components/HistoryFilterBar'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import {
   Badge,
@@ -43,7 +48,10 @@ import {
   Tag,
   Typography,
   message,
+  Modal,
+  notification,
 } from 'antd'
+import { useUser } from '@clerk/clerk-react'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
 import dayjs, { Dayjs } from 'dayjs'
 import React, { useMemo, useState } from 'react'
@@ -101,6 +109,7 @@ const getHotspotColor = (trafficIndex: number) => {
 }
 
 export const HistoricalQueryPage: React.FC = () => {
+  const { user } = useUser()
   const screens = useBreakpoint()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -146,10 +155,36 @@ export const HistoricalQueryPage: React.FC = () => {
   const roadsQuery = useQuery({
     queryKey: ['history-roads-autocomplete'],
     queryFn: async () => {
-      const response = await mapApi.getRoads()
-      return response.data ?? []
+      // 1. Thử lấy từ cache IndexedDB (24 giờ)
+      const cached = await getCachedRoads(24 * 60 * 60 * 1000)
+      if (cached) {
+        return cached
+      }
+
+      try {
+        // 2. Nếu không có hoặc hết hạn, gọi API
+        const response = await mapApi.getRoads()
+        const roadsData = response.data ?? []
+
+        // 3. Cache lại vào IndexedDB
+        if (roadsData.length > 0) {
+          await setCachedRoads(roadsData)
+        }
+        return roadsData
+      } catch (error) {
+        console.warn(
+          'Failed to fetch roads from API, trying to fallback to stale cache:',
+          error
+        )
+        // 4. Fallback: Nếu API lỗi, thử lấy cache bất kể thời gian (Infinity)
+        const staleCached = await getCachedRoads(Infinity)
+        if (staleCached) {
+          return staleCached
+        }
+        throw error
+      }
     },
-    staleTime: 60_000,
+    staleTime: 5 * 60 * 1000, // Tăng staleTime lên 5 phút vì đã có cache bền vững
   })
 
   const historyQuery = useQuery({
@@ -161,32 +196,80 @@ export const HistoricalQueryPage: React.FC = () => {
     placeholderData: keepPreviousData,
   })
 
+  const isHistoryLoaded = !!historyQuery.data
+
   const summaryQuery = useQuery({
     queryKey: ['history-summary', baseFilterParams],
     queryFn: async () => {
       const response = await historyApi.getSummary(baseFilterParams)
       return response.data
     },
+    enabled: isHistoryLoaded, // Chỉ tải thống kê khi bảng dữ liệu chính đã load xong
     staleTime: 5 * 60 * 1000,
   })
 
   const handleExport = async () => {
-    try {
-      setExporting(true)
-      const blob = await historyApi.exportHistory(baseFilterParams)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `traffic_report_${dayjs().format('YYYYMMDD_HHmmss')}.csv`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
-    } catch {
-      message.error('Không thể xuất CSV. Vui lòng thử lại.')
-    } finally {
-      setExporting(false)
-    }
+    let emailInput = user?.primaryEmailAddress?.emailAddress || '';
+    
+    Modal.confirm({
+      title: 'Xác nhận xuất báo cáo CSV nền',
+      icon: <DownloadOutlined style={{ color: '#1890ff' }} />,
+      content: (
+        <div style={{ marginTop: 12 }}>
+          <p style={{ color: '#595959', fontSize: 13 }}>
+            Hệ thống sẽ chạy một tiến trình nền riêng biệt để tổng hợp toàn bộ dữ liệu lịch sử đã lọc, tạo file CSV đính kèm và gửi trực tiếp tới email của bạn.
+          </p>
+          <div style={{ marginBottom: 6, fontWeight: 600, color: '#262626', fontSize: 13 }}>
+            Email nhận báo cáo:
+          </div>
+          <input
+            type="email"
+            id="async-export-email-input"
+            defaultValue={emailInput}
+            onChange={(e) => { emailInput = e.target.value; }}
+            placeholder="Nhập địa chỉ email nhận báo cáo..."
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              borderRadius: 6,
+              border: '1px solid #d9d9d9',
+              fontSize: 14,
+              outline: 'none',
+            }}
+          />
+        </div>
+      ),
+      okText: 'Xác nhận xuất',
+      cancelText: 'Hủy bỏ',
+      okButtonProps: { style: { borderRadius: 6 } },
+      cancelButtonProps: { style: { borderRadius: 6 } },
+      onOk: async () => {
+        if (!emailInput || !emailInput.includes('@')) {
+          message.error('Vui lòng nhập địa chỉ email hợp lệ để nhận báo cáo.');
+          throw new Error('Invalid email');
+        }
+
+        try {
+          setExporting(true)
+          await historyApi.requestAsyncExport(emailInput, baseFilterParams, user?.id)
+          
+          notification.success({
+            message: 'Đã tiếp nhận yêu cầu xuất CSV',
+            description: `Yêu cầu đang được xử lý chạy nền. File báo cáo CSV sẽ được gửi tới email ${emailInput} trong giây lát. Hệ thống sẽ phát thông báo realtime lên màn hình khi hoàn thành!`,
+            duration: 10,
+            placement: 'bottomRight',
+            style: {
+              borderRadius: 8,
+              borderLeft: '4px solid #52c41a',
+            }
+          })
+        } catch {
+          message.error('Không thể xuất CSV nền. Vui lòng thử lại.')
+        } finally {
+          setExporting(false)
+        }
+      }
+    });
   }
 
   const tableData = useMemo(
@@ -201,6 +284,8 @@ export const HistoricalQueryPage: React.FC = () => {
       const response = await historyApi.getHotspots(baseFilterParams)
       return response.data ?? []
     },
+    enabled: isHistoryLoaded, // Chỉ tải top điểm nóng khi dữ liệu chính đã sẵn sàng
+    staleTime: 5 * 60 * 1000, // Tăng staleTime lên 5 phút tránh fetch mạng liên tục
     placeholderData: keepPreviousData,
   })
 
@@ -237,17 +322,11 @@ export const HistoricalQueryPage: React.FC = () => {
     }))
   }, [snapshotsQuery.data])
 
-
-  const liveMapData = useTrafficMap()
-  const segmentsQuery = useQuery({
-    queryKey: ['history-map-base-segments'],
-    queryFn: async () => {
-      const response = await mapApi.getSegments()
-      return response.data
-    },
-    staleTime: 60 * 60 * 1000,
-  })
-  const baseSegments = segmentsQuery.data
+  const isMapActive =
+    isComparisonMode ||
+    Boolean(selectedSnapshotTime) ||
+    Boolean(comparisonSnapshotTime)
+  const baseSegments = useSegments(isMapActive)
 
   const snapshotStatusQuery = useQuery({
     queryKey: ['history-map-status', selectedSnapshotTime],
@@ -263,18 +342,13 @@ export const HistoricalQueryPage: React.FC = () => {
   })
 
   const snapshotMapData = useMemo<SegmentResponse | null>(() => {
-    // If NOT in comparison mode, always show live data as requested (buttons hidden)
-    if (!isComparisonMode) {
-      return liveMapData
-    }
-
-    // In comparison mode, if no time selected, show empty/blank as requested
-    if (!selectedSnapshotTime) {
-      return null
-    }
-
     if (!baseSegments?.features) {
       return null
+    }
+
+    // Nếu không chọn snapshot time, hiển thị segment tĩnh (màu xám nhạt mặc định, không status)
+    if (!selectedSnapshotTime) {
+      return baseSegments
     }
 
     const statusBySegment = new Map<string, TrafficStatus>()
@@ -306,7 +380,7 @@ export const HistoricalQueryPage: React.FC = () => {
         }
       }),
     }
-  }, [selectedSnapshotTime, isComparisonMode, liveMapData, baseSegments, snapshotStatusQuery.data])
+  }, [selectedSnapshotTime, baseSegments, snapshotStatusQuery.data])
 
   const comparisonMapData = useMemo<SegmentResponse | null>(() => {
     if (!isComparisonMode || !comparisonSnapshotTime) {
@@ -429,6 +503,7 @@ export const HistoricalQueryPage: React.FC = () => {
     total: totalItems,
     showSizeChanger: true,
     pageSizeOptions: [10, 20, 50, 100],
+    size: 'small',
   }
 
   return (
@@ -440,8 +515,11 @@ export const HistoricalQueryPage: React.FC = () => {
           .ant-table { flex: 1; min-height: 0 !important; overflow-y: hidden; }
           .ant-table-container { height: 100%; display: flex; flex-direction: column; }
           .ant-table-body { flex: 1; overflow-y: auto !important; max-height: 100% !important; height: 100%; }
+          
+          
         `}
       </style>
+       
       <div
         id="historical-query-container"
         style={{
@@ -484,7 +562,13 @@ export const HistoricalQueryPage: React.FC = () => {
 
             <Space>
               <Button
-                icon={isSidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                icon={
+                  isSidebarCollapsed ? (
+                    <MenuUnfoldOutlined />
+                  ) : (
+                    <MenuFoldOutlined />
+                  )
+                }
                 onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               >
                 {isSidebarCollapsed ? 'Hiện bộ lọc' : 'Thu gọn'}
@@ -493,23 +577,46 @@ export const HistoricalQueryPage: React.FC = () => {
                 overlay={
                   <Menu>
                     <Menu.Item
+                      key="csv"
+                      icon={<DownloadOutlined />}
+                      onClick={() => handleExport()}
+                      disabled={exporting}
+                    >
+                      Xuất dữ liệu CSV
+                    </Menu.Item>
+                    <Menu.Divider />
+                    <Menu.Item
                       key="png"
                       icon={<FileImageOutlined />}
-                      onClick={() => exportToImage('historical-query-container', 'traffic-history')}
+                      onClick={() =>
+                        exportToImage(
+                          'historical-query-container',
+                          'traffic-history'
+                        )
+                      }
                     >
-                      Xuất PNG
+                      Xuất ảnh PNG
                     </Menu.Item>
                     <Menu.Item
                       key="pdf"
                       icon={<FilePdfOutlined />}
-                      onClick={() => exportToPdf('historical-query-container', 'traffic-history')}
+                      onClick={() =>
+                        exportToPdf(
+                          'historical-query-container',
+                          'traffic-history'
+                        )
+                      }
                     >
-                      Xuất PDF
+                      Xuất tài liệu PDF
                     </Menu.Item>
                   </Menu>
                 }
               >
-                <Button type="primary" icon={<ExportOutlined />}>
+                <Button
+                  type="primary"
+                  icon={<ExportOutlined />}
+                  loading={exporting}
+                >
                   Xuất báo cáo
                 </Button>
               </Dropdown>
@@ -532,7 +639,9 @@ export const HistoricalQueryPage: React.FC = () => {
                   title="Vận tốc TB"
                   value={summaryQuery.data.avgSpeed.toFixed(1)}
                   unit="km/h"
-                  trendData={summaryQuery.data.avgSpeedTrend.map((p) => ({ value: p.value }))}
+                  trendData={summaryQuery.data.avgSpeedTrend.map((p) => ({
+                    value: p.value,
+                  }))}
                   color="#1890ff"
                   prefix={<ThunderboltOutlined />}
                 />
@@ -543,7 +652,9 @@ export const HistoricalQueryPage: React.FC = () => {
                       summaryQuery.data.congestionTrend.length - 1
                     ]?.value.toFixed(2) ?? '0.00'
                   }
-                  trendData={summaryQuery.data.congestionTrend.map((p) => ({ value: p.value }))}
+                  trendData={summaryQuery.data.congestionTrend.map((p) => ({
+                    value: p.value,
+                  }))}
                   color="#fa8c16"
                   prefix={<FundOutlined />}
                 />
@@ -590,12 +701,32 @@ export const HistoricalQueryPage: React.FC = () => {
                     border: 'none',
                   }}
                 >
-                  <Text type="secondary" style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase' }}>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 500,
+                      textTransform: 'uppercase',
+                    }}
+                  >
                     Điểm nóng nhất
                   </Text>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                    <EnvironmentOutlined style={{ color: '#f5222d', fontSize: 16 }} />
-                    <Text strong style={{ fontSize: 14, color: '#cf1322' }} ellipsis>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginTop: 4,
+                    }}
+                  >
+                    <EnvironmentOutlined
+                      style={{ color: '#f5222d', fontSize: 16 }}
+                    />
+                    <Text
+                      strong
+                      style={{ fontSize: 14, color: '#cf1322' }}
+                      ellipsis
+                    >
                       {summaryQuery.data.worstRoad}
                     </Text>
                   </div>
@@ -603,7 +734,12 @@ export const HistoricalQueryPage: React.FC = () => {
               </>
             ) : (
               [...Array(7)].map((_, i) => (
-                <Card key={i} loading size="small" style={{ minWidth: 160, flex: 1, borderRadius: 12 }} />
+                <Card
+                  key={i}
+                  loading
+                  size="small"
+                  style={{ minWidth: 160, flex: 1, borderRadius: 12 }}
+                />
               ))
             )}
           </div>
@@ -642,7 +778,10 @@ export const HistoricalQueryPage: React.FC = () => {
                 <Card
                   title="Bộ lọc dữ liệu"
                   size="small"
-                  style={{ borderRadius: 12, boxShadow: '0 6px 18px rgba(0,0,0,0.06)' }}
+                  style={{
+                    borderRadius: 12,
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
+                  }}
                   bodyStyle={{ padding: 12 }}
                 >
                   <HistoryFilterBar
@@ -652,8 +791,12 @@ export const HistoricalQueryPage: React.FC = () => {
                     initialRange={dateRange}
                     onSearch={(values: HistoryFilterValues) => {
                       setFilters({
-                        startDateTime: values.dateTimeRange[0].format('YYYY-MM-DDTHH:mm:ss'),
-                        endDateTime: values.dateTimeRange[1].format('YYYY-MM-DDTHH:mm:ss'),
+                        startDateTime: values.dateTimeRange[0].format(
+                          'YYYY-MM-DDTHH:mm:ss'
+                        ),
+                        endDateTime: values.dateTimeRange[1].format(
+                          'YYYY-MM-DDTHH:mm:ss'
+                        ),
                         roadKey: values.roadKey,
                         minTrafficIndex: values.minTrafficIndex,
                       })
@@ -668,11 +811,22 @@ export const HistoricalQueryPage: React.FC = () => {
                 <Card
                   title="Phân bổ Trạng thái"
                   size="small"
-                  style={{ borderRadius: 12, boxShadow: '0 6px 18px rgba(0,0,0,0.06)' }}
+                  style={{
+                    borderRadius: 12,
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
+                  }}
                   bodyStyle={{ padding: 10 }}
                 >
                   {chartsLoading ? (
-                    <div style={{ height: 150, display: 'grid', placeItems: 'center' }}><Spin /></div>
+                    <div
+                      style={{
+                        height: 150,
+                        display: 'grid',
+                        placeItems: 'center',
+                      }}
+                    >
+                      <Spin />
+                    </div>
                   ) : (
                     <div style={{ width: '100%', height: 150 }}>
                       <ResponsiveContainer>
@@ -700,21 +854,40 @@ export const HistoricalQueryPage: React.FC = () => {
                 <Card
                   title="Top 5 điểm nóng"
                   size="small"
-                  style={{ borderRadius: 12, boxShadow: '0 6px 18px rgba(0,0,0,0.06)' }}
+                  style={{
+                    borderRadius: 12,
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
+                  }}
                   bodyStyle={{ padding: 10 }}
                 >
                   {hotspotsQuery.isLoading ? (
-                    <div style={{ height: 156, display: 'grid', placeItems: 'center' }}><Spin /></div>
+                    <div
+                      style={{
+                        height: 156,
+                        display: 'grid',
+                        placeItems: 'center',
+                      }}
+                    >
+                      <Spin />
+                    </div>
                   ) : (
                     <div style={{ width: '100%', height: 156 }}>
                       <ResponsiveContainer>
                         <BarChart layout="vertical" data={topHotspots}>
                           <XAxis type="number" hide />
-                          <YAxis type="category" dataKey="roadName" width={100} tick={{ fontSize: 10 }} />
+                          <YAxis
+                            type="category"
+                            dataKey="roadName"
+                            width={100}
+                            tick={{ fontSize: 10 }}
+                          />
                           <Tooltip />
                           <Bar dataKey="trafficIndex" radius={[0, 4, 4, 0]}>
                             {topHotspots.map((item, idx) => (
-                              <Cell key={idx} fill={getHotspotColor(item.trafficIndex)} />
+                              <Cell
+                                key={idx}
+                                fill={getHotspotColor(item.trafficIndex)}
+                              />
                             ))}
                           </Bar>
                         </BarChart>
@@ -732,6 +905,7 @@ export const HistoricalQueryPage: React.FC = () => {
                 flexDirection: 'column',
                 gap: 8,
                 minHeight: 0,
+                height: '100%',
                 overflow: 'hidden',
               }}
             >
@@ -741,9 +915,9 @@ export const HistoricalQueryPage: React.FC = () => {
                 style={{
                   borderRadius: 12,
                   boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
-                  flex: 1,
                   display: 'flex',
                   flexDirection: 'column',
+                  minHeight: '250px',
                 }}
                 extra={
                   <Space>
@@ -768,7 +942,9 @@ export const HistoricalQueryPage: React.FC = () => {
                           value={selectedSnapshotTime}
                           allowClear
                           options={historySnapshotOptions}
-                          onChange={(value) => setSelectedSnapshotTime(value ?? undefined)}
+                          onChange={(value) =>
+                            setSelectedSnapshotTime(value ?? undefined)
+                          }
                         />
                         <Select
                           size="small"
@@ -778,38 +954,108 @@ export const HistoricalQueryPage: React.FC = () => {
                           value={comparisonSnapshotTime}
                           allowClear
                           options={historySnapshotOptions}
-                          onChange={(value) => setComparisonSnapshotTime(value ?? undefined)}
+                          onChange={(value) =>
+                            setComparisonSnapshotTime(value ?? undefined)
+                          }
                         />
                       </>
                     )}
                   </Space>
                 }
-                bodyStyle={{ padding: 10, flex: 1, display: 'flex', minHeight: 0 }}
+                bodyStyle={{
+                  padding: 10,
+                  flex: 1,
+                  display: 'flex',
+                  minHeight: 0,
+                }}
               >
-                <div style={{ flex: 1, width: '100%', position: 'relative', display: 'flex', gap: 8 }}>
+                <div
+                  style={{
+                    flex: 1,
+                    width: '100%',
+                    position: 'relative',
+                    display: 'flex',
+                    gap: 8,
+                  }}
+                >
                   <div style={{ flex: 1, position: 'relative' }}>
                     {isComparisonMode && (
-                      <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 10, background: 'rgba(0,0,0,0.6)', color: 'white', padding: '2px 8px', borderRadius: 4, fontSize: 10 }}>
-                        Bản đồ 1: {selectedSnapshotTime ? formatDateTimeInTimeZone(selectedSnapshotTime) : 'Trống'}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 8,
+                          left: 8,
+                          zIndex: 10,
+                          background: 'rgba(0,0,0,0.6)',
+                          color: 'white',
+                          padding: '2px 8px',
+                          borderRadius: 4,
+                          fontSize: 10,
+                        }}
+                      >
+                        Bản đồ 1:{' '}
+                        {selectedSnapshotTime
+                          ? formatDateTimeInTimeZone(selectedSnapshotTime)
+                          : 'Trống'}
                       </div>
                     )}
-                    <Spin spinning={snapshotStatusQuery.isFetching && isComparisonMode} wrapperClassName="h-full w-full">
-                      <TrafficMap
-                        segmentData={snapshotMapData}
-                        style={{ height: '100%', width: '100%' }}
-                        segmentStatusLayerEnabled
-                        showHoverPopup={true}
-                        minimalTooltip={true}
-                        useVectorTiles={false} // Disable vector tiles for historical mapping as it needs direct GeoJSON merging
-                      />
+                    <Spin
+                      spinning={
+                        snapshotStatusQuery.isFetching && isComparisonMode
+                      }
+                      wrapperClassName="h-full w-full"
+                    >
+                      {snapshotMapData ? (
+                        <TrafficMap
+                          segmentData={snapshotMapData}
+                          style={{ height: '100%', width: '100%' }}
+                          segmentStatusLayerEnabled
+                          showHoverPopup={true}
+                          minimalTooltip={true}
+                          useVectorTiles={false} // Disable vector tiles for historical mapping as it needs direct GeoJSON merging
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            height: '100%',
+                            display: 'grid',
+                            placeItems: 'center',
+                            background: '#f0f2f5',
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Text type="secondary">
+                            Chọn mốc giờ hoặc bật So sánh để hiển thị bản đồ
+                            lịch sử
+                          </Text>
+                        </div>
+                      )}
                     </Spin>
                   </div>
                   {isComparisonMode && (
                     <div style={{ flex: 1, position: 'relative' }}>
-                      <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 10, background: 'rgba(0,0,0,0.6)', color: 'white', padding: '2px 8px', borderRadius: 4, fontSize: 10 }}>
-                        Bản đồ 2: {comparisonSnapshotTime ? formatDateTimeInTimeZone(comparisonSnapshotTime) : 'Trống'}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 8,
+                          left: 8,
+                          zIndex: 10,
+                          background: 'rgba(0,0,0,0.6)',
+                          color: 'white',
+                          padding: '2px 8px',
+                          borderRadius: 4,
+                          fontSize: 10,
+                        }}
+                      >
+                        Bản đồ 2:{' '}
+                        {comparisonSnapshotTime
+                          ? formatDateTimeInTimeZone(comparisonSnapshotTime)
+                          : 'Trống'}
                       </div>
-                      <Spin spinning={comparisonStatusQuery.isFetching} wrapperClassName="h-full w-full">
+                      <Spin
+                        spinning={comparisonStatusQuery.isFetching}
+                        wrapperClassName="h-full w-full"
+                      >
                         {comparisonMapData ? (
                           <TrafficMap
                             segmentData={comparisonMapData}
@@ -820,8 +1066,18 @@ export const HistoricalQueryPage: React.FC = () => {
                             useVectorTiles={false}
                           />
                         ) : (
-                          <div style={{ height: '100%', display: 'grid', placeItems: 'center', background: '#f0f2f5', borderRadius: 8 }}>
-                            <Text type="secondary">Chọn mốc giờ để so sánh</Text>
+                          <div
+                            style={{
+                              height: '100%',
+                              display: 'grid',
+                              placeItems: 'center',
+                              background: '#f0f2f5',
+                              borderRadius: 8,
+                            }}
+                          >
+                            <Text type="secondary">
+                              Chọn mốc giờ để so sánh
+                            </Text>
                           </div>
                         )}
                       </Spin>
@@ -835,24 +1091,47 @@ export const HistoricalQueryPage: React.FC = () => {
                 style={{
                   borderRadius: 12,
                   boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
-                  height: isSidebarCollapsed ? 400 : 300,
+                  height: '100%',
+                  minHeight: 0,
+                  maxHeight: '100%',
                   display: 'flex',
+                  flex: 1,
                   flexDirection: 'column',
                 }}
-                bodyStyle={{ padding: 10, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+                bodyStyle={{
+                  padding: 10,
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  minHeight: 0,
+                }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    marginBottom: 8,
+                    flexWrap: 'wrap',
+                  }}
+                >
                   <Space>
-                    <Tag color="blue">{historyQuery.isFetching ? 'Đang cập nhật...' : 'Dữ liệu ổn định'}</Tag>
+                    <Tag color="blue">
+                      {historyQuery.isFetching
+                        ? 'Đang cập nhật...'
+                        : 'Dữ liệu ổn định'}
+                    </Tag>
                     <Tag>Tổng số bản ghi: {totalItems}</Tag>
                   </Space>
                   <div style={{ marginLeft: 'auto' }}>
                     <Text type="secondary" italic style={{ fontSize: 12 }}>
-                      Hiển thị dữ liệu từ {formatDateTimeInTimeZone(filters.startDateTime)} đến {formatDateTimeInTimeZone(filters.endDateTime)}
+                      Hiển thị dữ liệu từ{' '}
+                      {formatDateTimeInTimeZone(filters.startDateTime)} đến{' '}
+                      {formatDateTimeInTimeZone(filters.endDateTime)}
                     </Text>
                   </div>
                 </div>
-                <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
                   <Table<HistoryRecord>
                     rowKey={(r) => `${r.timestamp}-${r.segmentId}`}
                     loading={historyQuery.isFetching}
@@ -860,7 +1139,7 @@ export const HistoricalQueryPage: React.FC = () => {
                     dataSource={tableData}
                     pagination={pagination}
                     size="small"
-                    scroll={{ x: 1000, y: isSidebarCollapsed ? 280 : 180 }}
+                    scroll={{ x: 1000, y: isSidebarCollapsed ? 250 : 100 }}
                     onChange={(p) => {
                       if (p.current) setPage(p.current)
                       if (p.pageSize) setPageSize(p.pageSize)

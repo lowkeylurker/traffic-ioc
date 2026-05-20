@@ -4,7 +4,7 @@
   "description": "Smart Traffic IOC - Backend API (Prisma)",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "nodemon src/server.ts",
+    "dev": "nodemon --watch src --ext ts,json --ignore dist --exec ts-node src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "prisma:pull": "npx prisma db pull",
@@ -21,6 +21,7 @@
   "author": "Smart Traffic Team",
   "license": "MIT",
   "dependencies": {
+    "@azure/storage-blob": "^12.31.0",
     "@clerk/express": "^1.7.68",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.7.1",
@@ -33,6 +34,7 @@
     "cloudinary": "^2.5.1",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.20",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "fast-csv": "^5.0.2",
@@ -42,8 +44,10 @@
     "mongoose": "^9.6.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.2",
+    "nodemailer": "^8.0.7",
     "pg": "^8.20.0",
     "pg-query-stream": "^4.7.1",
+    "socket.io": "^4.8.3",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
     "zod": "^4.3.6"
@@ -57,6 +61,7 @@
     "@types/morgan": "^1.9.9",
     "@types/multer": "^1.4.12",
     "@types/node": "^20.10.6",
+    "@types/nodemailer": "^8.0.0",
     "eslint": "^9.39.2",
     "nodemon": "^3.0.2",
     "prettier": "^3.1.1",

@@ -1,8 +1,16 @@
 import { clerkClient } from '@clerk/express';
 import { NextFunction, Request, Response } from 'express';
 
+const isBenchmarkAuthBypassEnabled = () =>
+  process.env.BYPASS_AUTH_FOR_BENCHMARK === 'true' &&
+  process.env.NODE_ENV !== 'production';
+
 // Middleware to check if user has admin role
 export const adminOnly = async (req: Request & { auth?: any }, res: Response, next: NextFunction) => {
+  if (isBenchmarkAuthBypassEnabled()) {
+    return next();
+  }
+
   try {
     // Access role from Clerk session claims (support both top-level and metadata claim layouts).
     const auth = typeof req.auth === 'function' ? req.auth() : req.auth;

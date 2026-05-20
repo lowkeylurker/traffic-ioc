@@ -90,3 +90,11 @@ body,
   height: 0;
   display: none;
 }
+
+/* Custom white text color for Ant Design Sider collapsed tooltips */
+.ant-tooltip,
+.ant-tooltip-inner,
+.ant-tooltip-inner-content,
+.ant-menu-inline-collapsed-tooltip {
+  color: #ffffff !important;
+}

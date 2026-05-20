@@ -86,6 +86,46 @@ export class HistoryController {
       next(error);
     }
   }
+
+  /**
+   * POST /api/v1/history/export/async
+   * Yêu cầu xuất dữ liệu lịch sử không đồng bộ (qua background job + gửi mail)
+   */
+  async requestAsyncExport(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      logger.log('POST /history/export/async');
+
+      const parsed = HistoryExportQuerySchema.safeParse(req.body.exportParams);
+      if (!parsed.success) {
+        throw new AppError(400, 'Invalid history export params', 'BAD_REQUEST');
+      }
+
+      const email = req.body.email as string;
+      const auth = typeof (req as any).auth === 'function' ? (req as any).auth() : (req as any).auth;
+      const userId = auth?.userId || req.body.userId || 'guest_admin';
+
+      if (!email) {
+        throw new AppError(400, 'Receiver email address is required', 'BAD_REQUEST');
+      }
+
+      // Enqueue job vào BullMQ csvExportQueue
+      const { csvExportQueue } = await import('../jobs/csvExportQueue');
+      const job = await csvExportQueue.add('exportHistoryCsv', {
+        userId,
+        email,
+        exportParams: parsed.data,
+      });
+
+      logger.log(`✓ Enqueued CSV Export Job #${job.id} for user ${userId} (${email})`);
+
+      res.status(202).json(ResponseUtil.success(
+        { jobId: job.id },
+        'Yêu cầu xuất dữ liệu đã được tiếp nhận và xử lý trong background'
+      ));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const historyController = new HistoryController();

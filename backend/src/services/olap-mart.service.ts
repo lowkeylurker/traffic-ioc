@@ -70,11 +70,15 @@ export class OlapMartService {
   async refreshMaterializedView(): Promise<void> {
     try {
       logger.log('Refreshing OLAP materialized views...');
-      await Promise.all([
-        prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_olap_traffic_summary;'),
-        prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_olap_traffic_summary_weekly;'),
-        prisma.$executeRawUnsafe('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_olap_traffic_summary_monthly;')
-      ]);
+      const refreshStatements = [
+        'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_olap_traffic_summary;',
+        'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_olap_traffic_summary_weekly;',
+        'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_olap_traffic_summary_monthly;',
+      ];
+
+      for (const statement of refreshStatements) {
+        await prisma.$executeRawUnsafe(statement);
+      }
       logger.log('All OLAP materialized views refreshed successfully');
     } catch (error) {
       logger.error('Failed to refresh OLAP materialized views', error);

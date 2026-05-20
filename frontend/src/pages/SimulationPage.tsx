@@ -14,8 +14,10 @@ import {
   Tag,
   Radio,
   Select,
+  Modal,
 } from 'antd'
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { LineChart } from '@/components/charts/ChartComponents'
 import { PredictiveMap } from '@/components/map/PredictiveMap'
 import { SelectionMap } from '@/components/map/SelectionMap'
@@ -27,6 +29,9 @@ import dayjs from 'dayjs'
 const { Text } = Typography
 
 const TICKER_HEIGHT = 40
+const FORECAST_SUPPORTED_HORIZON = 15
+const FORECAST_WINDOW_START_MINUTE = 9 * 60 + 15
+const FORECAST_WINDOW_END_MINUTE = 21 * 60 + 15
 const FREE_FLOW_SPEED_KMH = 55
 const CONGESTION_SPEED_KMH: Record<number, number> = {
   0: 55,
@@ -116,8 +121,36 @@ type RoadInfo = {
   roadKey?: string
   segmentCount: number
   segmentIds: string[]
+  forecastSegmentIds?: string[]
   center?: [number, number]
   geojson?: any
+}
+
+const uniqueSegmentIds = (segmentIds: unknown[]) => {
+  return Array.from(
+    new Set(
+      segmentIds
+        .map((segmentId) => String(segmentId ?? '').trim())
+        .filter((segmentId) => /^\d+$/.test(segmentId))
+    )
+  )
+}
+
+const getForecastSegmentIds = (geojson: any) => {
+  const features = Array.isArray(geojson?.features) ? geojson.features : []
+  const hasTrafficFlowMetadata = features.some(
+    (feature: any) => typeof feature?.properties?.hasTrafficFlow === 'boolean'
+  )
+
+  if (hasTrafficFlowMetadata) {
+    return uniqueSegmentIds(
+      features
+        .filter((feature: any) => feature?.properties?.hasTrafficFlow === true)
+        .map((feature: any) => feature?.properties?.segmentId)
+    )
+  }
+
+  return uniqueSegmentIds(features.map((feature: any) => feature?.properties?.segmentId))
 }
 
 type ForecastStatsCardProps = {
@@ -198,6 +231,7 @@ const ForecastStatsCard: React.FC<ForecastStatsCardProps> = ({
 }
 
 export const SimulationPage: React.FC = () => {
+  const navigate = useNavigate()
   const trafficStatus = useTrafficStatus()
 
   const [blockedSegmentIds, setBlockedSegmentIds] = useState<string[]>([])
@@ -220,11 +254,38 @@ export const SimulationPage: React.FC = () => {
   const [forecastLoading, setForecastLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'real-time' | 'forecast' | 'simulation'>('real-time')
   const [mapResetVersion, setMapResetVersion] = useState(0)
-  const [horizon, setHorizon] = useState(30)
+  const [horizon, setHorizon] = useState(FORECAST_SUPPORTED_HORIZON)
   const [roadsList, setRoadsList] = useState<Array<{ label: string, value: string }>>([])
   const previousBlockedKeyRef = useRef(blockedSegmentIds.join('|'))
   const previousRoutePointsKeyRef = useRef('')
   const autoRunTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const accessWindowModalShownRef = useRef(false)
+
+  useEffect(() => {
+    if (accessWindowModalShownRef.current) return
+
+    const now = dayjs()
+    const minuteOfDay = now.hour() * 60 + now.minute()
+    const isInForecastWindow =
+      minuteOfDay >= FORECAST_WINDOW_START_MINUTE &&
+      minuteOfDay <= FORECAST_WINDOW_END_MINUTE
+
+    if (isInForecastWindow) return
+
+    accessWindowModalShownRef.current = true
+    Modal.info({
+      title: 'Thông báo',
+      content: 'Vui lòng quay lại sau 09h15',
+      okText: 'OK',
+      onOk: () => {
+        if (window.history.length > 1) {
+          navigate(-1)
+        } else {
+          navigate('/real-time', { replace: true })
+        }
+      },
+    })
+  }, [navigate])
 
   const clearSimulationResults = useCallback(() => {
     setBaselineRoute(null)
@@ -306,10 +367,14 @@ export const SimulationPage: React.FC = () => {
           const response = await mapApi.getRoadGeoJson(selectedRoad.roadKey)
           if (response.success && response.data) {
             const geojson = response.data
-            const segmentIds = (geojson.features || []).map((f: any) => String(f.properties.segmentId))
+            const segmentIds = uniqueSegmentIds(
+              (geojson.features || []).map((f: any) => f.properties.segmentId)
+            )
+            const forecastSegmentIds = getForecastSegmentIds(geojson)
             setSelectedRoad(prev => prev ? ({
               ...prev,
               segmentIds,
+              forecastSegmentIds,
               segmentCount: segmentIds.length,
               geojson
             }) : null)
@@ -516,13 +581,21 @@ export const SimulationPage: React.FC = () => {
   }
 
   const handleRunForecast = async () => {
+    if (horizon !== FORECAST_SUPPORTED_HORIZON) {
+      message.warning(`Hiện tại không hỗ trợ dự báo ${horizon} phút`)
+      return
+    }
+
     if (!selectedRoad) return
-    const segmentIds = selectedRoad.segmentIds
-      .map((segmentId) => Number(segmentId))
-      .filter(Number.isFinite)
+    const segmentIds = (selectedRoad.forecastSegmentIds?.length
+      ? selectedRoad.forecastSegmentIds
+      : getForecastSegmentIds(selectedRoad.geojson)
+    )
+      .map((segmentId) => String(segmentId).trim())
+      .filter((segmentId) => /^\d+$/.test(segmentId))
 
     if (segmentIds.length === 0) {
-      message.warning('Không tìm thấy đoạn đường hợp lệ để dự báo.')
+      message.warning('Trục đường này chưa có segment nào tồn tại trong fact_traffic_flow để dự báo.')
       return
     }
 
@@ -533,12 +606,24 @@ export const SimulationPage: React.FC = () => {
     try {
       const response = await predictionApi.getBatchPrediction({
         segment_ids: segmentIds,
-        request_time: new Date().toISOString(),
+        request_time: dayjs().format('YYYY-MM-DDTHH:mm:ss'),
         prediction_horizon_minutes: horizon,
       })
-      setPredictionData(response.items || [])
+      const normalizedItems = (response.items || []).map((item, index) => {
+        const requestedSegmentId = segmentIds[index] ?? String(item.segment_id)
+        return {
+          ...item,
+          segment_id: requestedSegmentId,
+          source_segment_id: item.used_fallback
+            ? item.source_segment_id === null
+              ? null
+              : String(item.source_segment_id)
+            : requestedSegmentId,
+        }
+      })
+      setPredictionData(normalizedItems)
       setViewMode('forecast')
-      message.success(`Đã lấy dự báo AI cho ${segmentIds.length} đoạn trong ${horizon} phút tới`)
+      message.success(`Đã lấy dự báo AI cho ${segmentIds.length}/${selectedRoad.segmentIds.length} đoạn có dữ liệu trong ${horizon} phút tới`)
     } catch (error) {
       message.error('Lỗi khi lấy dự báo: ' + (error as Error).message)
     } finally {
@@ -562,12 +647,17 @@ export const SimulationPage: React.FC = () => {
 
       if (geoResponse.success) {
         const geojson = geoResponse.data
+        const segmentIds = uniqueSegmentIds(
+          geojson.features?.map((f: any) => f.properties.segmentId) || []
+        )
+        const forecastSegmentIds = getForecastSegmentIds(geojson)
         // Update road info with fresh GeoJSON and metadata
         setSelectedRoad({
           ...roadInfo,
           roadName: roadInfo.roadName || roadsList.find(r => r.value === roadInfo.roadKey)?.label || 'Đường đã chọn',
-          segmentCount: geojson.features?.length || 0,
-          segmentIds: geojson.features?.map((f: any) => f.properties.segmentId) || [],
+          segmentCount: segmentIds.length,
+          segmentIds,
+          forecastSegmentIds,
           geojson
         })
         message.success('Đã định vị trục đường!')
@@ -848,7 +938,19 @@ export const SimulationPage: React.FC = () => {
                         {!closureMode && (
                           <div style={{ background: '#fafafa', padding: '8px', borderRadius: '4px', border: '1px solid #f0f0f0' }}>
                             <div style={{ marginBottom: 8 }}><Text strong style={{ fontSize: '12px' }}>Phạm vi dự báo:</Text></div>
-                            <Radio.Group value={horizon} onChange={e => setHorizon(e.target.value)} size="small" block>
+                            <Radio.Group
+                              value={horizon}
+                              onChange={e => {
+                                const nextHorizon = Number(e.target.value)
+                                if (nextHorizon !== FORECAST_SUPPORTED_HORIZON) {
+                                  message.warning(`Hiện tại không hỗ trợ dự báo ${nextHorizon} phút`)
+                                  return
+                                }
+                                setHorizon(nextHorizon)
+                              }}
+                              size="small"
+                              block
+                            >
                               <Radio.Button value={15}>15p</Radio.Button>
                               <Radio.Button value={30}>30p</Radio.Button>
                               <Radio.Button value={60}>60p</Radio.Button>

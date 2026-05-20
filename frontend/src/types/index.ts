@@ -545,22 +545,22 @@ export interface ApiResponse<T = any> {
 }
 
 export interface PredictionRequestBody {
-  segment_ids: number[]
+  segment_ids: string[]
   request_time: string
   prediction_horizon_minutes: number
 }
 
 export interface PredictionItem {
-  segment_id: number
-  congestion_level: number
+  segment_id: string
+  congestion_level: number | null
   status: string
-  status_description: string
-  forecast_for_time: string
+  status_description: string | null
+  forecast_for_time: string | null
   reason_code: string
   model_profile: string
   used_fallback: boolean
-  source_segment_id: number
-  fallback_distance_m: number
+  source_segment_id: string | null
+  fallback_distance_m: number | null
 }
 
 export interface PredictionResponse {
