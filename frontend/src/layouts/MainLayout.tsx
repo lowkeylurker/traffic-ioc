@@ -3,7 +3,7 @@
 import { SignInSignUpDialog } from '@/components'
 import { LiveNewsTicker } from '@/components/LiveNewsTicker'
 import { LAYOUT_SIDER_WIDTH } from '@/config/constants'
-import { setAccessTokenGetter } from '@/services/api'
+import { setAccessTokenGetter, setBenchmarkUserIdGetter } from '@/services/api'
 import {
   BarChartOutlined,
   DatabaseOutlined,
@@ -13,11 +13,14 @@ import {
   LogoutOutlined,
   MenuOutlined,
   UserOutlined,
+  BellOutlined,
 } from '@ant-design/icons'
 import { useAuth, useUser } from '@clerk/clerk-react'
-import { Button, Drawer, Grid, Layout, Menu } from 'antd'
+import { Button, Drawer, Grid, Layout, Menu, Badge } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useSocket } from '@/hooks/useSocket'
+import { useNotificationStore } from '@/stores/useNotificationStore'
 
 const { Sider, Content } = Layout
 const { useBreakpoint } = Grid
@@ -31,6 +34,20 @@ export const MainLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
+
+  // Kích hoạt socket real-time khi user đã login
+  useSocket()
+
+  const unreadCount = useNotificationStore((state) => state.unreadCount)
+  const fetchNotifications = useNotificationStore(
+    (state) => state.fetchNotifications
+  )
+
+  useEffect(() => {
+    if (isSignedIn && user?.publicMetadata?.role === 'admin') {
+      fetchNotifications()
+    }
+  }, [isSignedIn, user, fetchNotifications])
 
   // Guest mode is when user is not signed in
   const isGuest = !isSignedIn
@@ -46,10 +63,13 @@ export const MainLayout: React.FC = () => {
       return (await getToken()) ?? null
     })
 
+    setBenchmarkUserIdGetter(() => user?.id ?? null)
+
     return () => {
       setAccessTokenGetter(null)
+      setBenchmarkUserIdGetter(null)
     }
-  }, [getToken, isSignedIn])
+  }, [getToken, isSignedIn, user?.id])
 
   useEffect(() => {
     setMobileMenuOpen(false)
@@ -93,6 +113,45 @@ export const MainLayout: React.FC = () => {
             key: '/history',
             icon: <FileSearchOutlined />,
             label: 'Tra cứu Lịch sử',
+          },
+          {
+            key: '/notifications',
+            icon: collapsed ? (
+              <Badge dot={unreadCount > 0} offset={[1, 10]}>
+                <BellOutlined style={{ fontSize: 16 }} />
+              </Badge>
+            ) : (
+              <BellOutlined style={{ fontSize: 16 }} />
+            ),
+            label: collapsed ? (
+              'Thông báo'
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  paddingRight: 4,
+                }}
+              >
+                <span
+                  style={{
+                    color:
+                      location.pathname === '/notifications'
+                        ? '#1890ff'
+                        : 'inherit',
+                  }}
+                >
+                  Thông báo
+                </span>
+                <Badge
+                  count={unreadCount}
+                  size="small"
+                  style={{ backgroundColor: '#ff4d4f' }}
+                />
+              </div>
+            ),
           },
           // {
           //   key: '/incident-reports',

@@ -47,11 +47,17 @@ const baseURL = import.meta.env.VITE_API_BASE_URL
 const aiCoreURL = import.meta.env.VITE_AI_CORE_URL
 
 type AccessTokenGetter = () => Promise<string | null>
+type BenchmarkUserIdGetter = () => string | null
 
 let accessTokenGetter: AccessTokenGetter | null = null
+let benchmarkUserIdGetter: BenchmarkUserIdGetter | null = null
 
 export const setAccessTokenGetter = (getter: AccessTokenGetter | null) => {
   accessTokenGetter = getter
+}
+
+export const setBenchmarkUserIdGetter = (getter: BenchmarkUserIdGetter | null) => {
+  benchmarkUserIdGetter = getter
 }
 
 const axiosInstance: AxiosInstance = axios.create({
@@ -64,6 +70,15 @@ const axiosInstance: AxiosInstance = axios.create({
 })
 
 axiosInstance.interceptors.request.use(async (config) => {
+  config.headers = config.headers ?? {}
+
+  if (benchmarkUserIdGetter) {
+    const benchmarkUserId = benchmarkUserIdGetter()
+    if (benchmarkUserId) {
+      config.headers['x-benchmark-user-id'] = benchmarkUserId
+    }
+  }
+
   if (!accessTokenGetter) {
     return config
   }
@@ -73,7 +88,6 @@ axiosInstance.interceptors.request.use(async (config) => {
     return config
   }
 
-  config.headers = config.headers ?? {}
   config.headers.Authorization = `Bearer ${token}`
   return config
 })
@@ -233,6 +247,12 @@ export const historyApi = {
       signal,
       responseType: 'blob',
     }),
+  requestAsyncExport: (
+    email: string,
+    exportParams: Omit<HistoryQueryParams, 'page' | 'limit'>,
+    userId?: string
+  ): Promise<ApiResponse<{ jobId: string }>> =>
+    axiosInstance.post('/history/export/async', { email, exportParams, userId }),
   getSummary: (
     params: Omit<HistoryQueryParams, 'page' | 'limit'>,
     signal?: AbortSignal
@@ -317,6 +337,15 @@ export const userApi = {
     payload: { status: 'APPROVED' | 'REJECTED'; note?: string }
   ): Promise<ApiResponse<null>> =>
     axiosInstance.patch(`/user/report/${reportId}/status`, payload),
+
+  getNotifications: (): Promise<ApiResponse<any[]>> =>
+    axiosInstance.get('/user/notifications'),
+
+  markAsRead: (id: string): Promise<ApiResponse<any>> =>
+    axiosInstance.put(`/user/notifications/${id}/read`),
+
+  markAllAsRead: (): Promise<ApiResponse<any>> =>
+    axiosInstance.put('/user/notifications/read-all'),
 }
 
 // News Ticker API

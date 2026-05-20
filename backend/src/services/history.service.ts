@@ -71,7 +71,12 @@ const BASE_JOIN = `
 `;
 
 const buildFilters = (params: HistoryExportParams) => {
-  const conditions: string[] = ['f.timestamp >= $1::timestamp', 'f.timestamp <= $2::timestamp'];
+  // Loại bỏ các segment có traffic_index = 0 trong dữ liệu lịch sử
+  const conditions: string[] = [
+    'f.timestamp >= $1::timestamp',
+    'f.timestamp <= $2::timestamp',
+    'f.traffic_index > 0'
+  ];
   const values: Array<string | number> = [params.startDateTime, params.endDateTime];
 
   if (params.roadKey) {
@@ -220,6 +225,58 @@ export class HistoryService {
     });
 
     dbStream.pipe(csvStream).pipe(res);
+  }
+
+  async buildCsvBuffer(params: HistoryExportParams): Promise<Buffer> {
+    const { values, where } = buildFilters(params);
+
+    const sql = `
+      SELECT
+        f.timestamp AS "timestamp",
+        r.name AS "roadName",
+        l.district AS "district",
+        s.segment_key::text AS "segmentId",
+        f.current_speed_kmh AS "avgSpeedKmh",
+        f.pcu_volume AS "pcuVolume",
+        f.delay_seconds AS "delaySeconds",
+        f.traffic_index AS "trafficIndex"
+      ${BASE_JOIN}
+      LEFT JOIN dim_location l ON l.location_key = s.location_key
+      ${where}
+      ORDER BY f.timestamp DESC
+    `;
+
+    const client = await pool.connect();
+    try {
+      const queryStream = new QueryStream(sql, values);
+      const dbStream = client.query(queryStream);
+
+      const csvStream = format({
+        headers: [
+          'timestamp',
+          'roadName',
+          'district',
+          'segmentId',
+          'avgSpeedKmh',
+          'pcuVolume',
+          'delaySeconds',
+          'trafficIndex',
+        ],
+      });
+
+      const chunks: Buffer[] = [];
+      const promise = new Promise<Buffer>((resolve, reject) => {
+        csvStream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+        csvStream.on('end', () => resolve(Buffer.concat(chunks)));
+        csvStream.on('error', (err) => reject(err));
+        dbStream.on('error', (err) => reject(err));
+      });
+
+      dbStream.pipe(csvStream);
+      return await promise;
+    } finally {
+      client.release();
+    }
   }
 
   async getTopHotspots(params: HistoryExportParams, limit = 8): Promise<HistoryHotspotPoint[]> {

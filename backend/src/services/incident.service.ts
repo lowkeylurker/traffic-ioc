@@ -1,5 +1,5 @@
 // Incident Service (A2)
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import {
   IncidentFeature,
   IncidentImpactQuery,
@@ -8,8 +8,7 @@ import {
   IncidentQuery,
 } from '../interfaces';
 import { Logger } from '../utils/logger';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/prisma';
 const logger = new Logger('IncidentService');
 
 const severityToLabel = (severityLevel: number | null | undefined): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' => {

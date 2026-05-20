@@ -4,6 +4,7 @@ import { AnalyticsPage } from '@/pages/AnalyticsPage'
 import { BiOlapDashboardPage } from '@/pages/BiOlapDashboardPage'
 import { CitizenReportsAdminPage } from '@/pages/CitizenReportsAdminPage'
 import { HistoricalQueryPage } from '@/pages/HistoricalQueryPage'
+import { NotificationsPage } from '@/pages/NotificationsPage'
 import { NewsPage } from '@/pages/NewsPage'
 import { RealTimePage } from '@/pages/RealTimePage'
 import { SimulationPage } from '@/pages/SimulationPage'
@@ -75,6 +76,14 @@ function App() {
             element={
               <RoleGuard requiredRole="admin">
                 <HistoricalQueryPage />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="notifications"
+            element={
+              <RoleGuard requiredRole="admin">
+                <NotificationsPage />
               </RoleGuard>
             }
           />

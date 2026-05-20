@@ -25,6 +25,7 @@ import {
   ExportOutlined,
   FileImageOutlined,
   FilePdfOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons'
 import { exportToImage, exportToPdf } from '@/utils/exportUtils'
 import { TrendCard } from './history/components/TrendCard'
@@ -47,7 +48,10 @@ import {
   Tag,
   Typography,
   message,
+  Modal,
+  notification,
 } from 'antd'
+import { useUser } from '@clerk/clerk-react'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
 import dayjs, { Dayjs } from 'dayjs'
 import React, { useMemo, useState } from 'react'
@@ -105,6 +109,7 @@ const getHotspotColor = (trafficIndex: number) => {
 }
 
 export const HistoricalQueryPage: React.FC = () => {
+  const { user } = useUser()
   const screens = useBreakpoint()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -204,22 +209,67 @@ export const HistoricalQueryPage: React.FC = () => {
   })
 
   const handleExport = async () => {
-    try {
-      setExporting(true)
-      const blob = await historyApi.exportHistory(baseFilterParams)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `traffic_report_${dayjs().format('YYYYMMDD_HHmmss')}.csv`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
-    } catch {
-      message.error('Không thể xuất CSV. Vui lòng thử lại.')
-    } finally {
-      setExporting(false)
-    }
+    let emailInput = user?.primaryEmailAddress?.emailAddress || '';
+    
+    Modal.confirm({
+      title: 'Xác nhận xuất báo cáo CSV nền',
+      icon: <DownloadOutlined style={{ color: '#1890ff' }} />,
+      content: (
+        <div style={{ marginTop: 12 }}>
+          <p style={{ color: '#595959', fontSize: 13 }}>
+            Hệ thống sẽ chạy một tiến trình nền riêng biệt để tổng hợp toàn bộ dữ liệu lịch sử đã lọc, tạo file CSV đính kèm và gửi trực tiếp tới email của bạn.
+          </p>
+          <div style={{ marginBottom: 6, fontWeight: 600, color: '#262626', fontSize: 13 }}>
+            Email nhận báo cáo:
+          </div>
+          <input
+            type="email"
+            id="async-export-email-input"
+            defaultValue={emailInput}
+            onChange={(e) => { emailInput = e.target.value; }}
+            placeholder="Nhập địa chỉ email nhận báo cáo..."
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              borderRadius: 6,
+              border: '1px solid #d9d9d9',
+              fontSize: 14,
+              outline: 'none',
+            }}
+          />
+        </div>
+      ),
+      okText: 'Xác nhận xuất',
+      cancelText: 'Hủy bỏ',
+      okButtonProps: { style: { borderRadius: 6 } },
+      cancelButtonProps: { style: { borderRadius: 6 } },
+      onOk: async () => {
+        if (!emailInput || !emailInput.includes('@')) {
+          message.error('Vui lòng nhập địa chỉ email hợp lệ để nhận báo cáo.');
+          throw new Error('Invalid email');
+        }
+
+        try {
+          setExporting(true)
+          await historyApi.requestAsyncExport(emailInput, baseFilterParams, user?.id)
+          
+          notification.success({
+            message: 'Đã tiếp nhận yêu cầu xuất CSV',
+            description: `Yêu cầu đang được xử lý chạy nền. File báo cáo CSV sẽ được gửi tới email ${emailInput} trong giây lát. Hệ thống sẽ phát thông báo realtime lên màn hình khi hoàn thành!`,
+            duration: 10,
+            placement: 'bottomRight',
+            style: {
+              borderRadius: 8,
+              borderLeft: '4px solid #52c41a',
+            }
+          })
+        } catch {
+          message.error('Không thể xuất CSV nền. Vui lòng thử lại.')
+        } finally {
+          setExporting(false)
+        }
+      }
+    });
   }
 
   const tableData = useMemo(
@@ -527,6 +577,15 @@ export const HistoricalQueryPage: React.FC = () => {
                 overlay={
                   <Menu>
                     <Menu.Item
+                      key="csv"
+                      icon={<DownloadOutlined />}
+                      onClick={() => handleExport()}
+                      disabled={exporting}
+                    >
+                      Xuất dữ liệu CSV
+                    </Menu.Item>
+                    <Menu.Divider />
+                    <Menu.Item
                       key="png"
                       icon={<FileImageOutlined />}
                       onClick={() =>
@@ -536,7 +595,7 @@ export const HistoricalQueryPage: React.FC = () => {
                         )
                       }
                     >
-                      Xuất PNG
+                      Xuất ảnh PNG
                     </Menu.Item>
                     <Menu.Item
                       key="pdf"
@@ -548,12 +607,16 @@ export const HistoricalQueryPage: React.FC = () => {
                         )
                       }
                     >
-                      Xuất PDF
+                      Xuất tài liệu PDF
                     </Menu.Item>
                   </Menu>
                 }
               >
-                <Button type="primary" icon={<ExportOutlined />}>
+                <Button
+                  type="primary"
+                  icon={<ExportOutlined />}
+                  loading={exporting}
+                >
                   Xuất báo cáo
                 </Button>
               </Dropdown>

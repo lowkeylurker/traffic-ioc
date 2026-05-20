@@ -138,9 +138,6 @@ export const HistoryFilterBar: React.FC<HistoryFilterBarProps> = ({
             <Button type="primary" htmlType="submit" loading={loading}>
               Tra cứu
             </Button>
-            <Button onClick={handleExport} loading={exporting}>
-              Xuất CSV
-            </Button>
           </Space>
         </Space>
       </Space>

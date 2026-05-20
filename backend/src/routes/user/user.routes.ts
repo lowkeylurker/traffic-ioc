@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { userIncidentController } from '../../controllers/user/user-incident.controller';
+import { notificationController } from '../../controllers/notification.controller';
 import { adminOnly } from '../../middlewares/admin.middleware';
 import { authMiddleware } from '../../middlewares/auth.middleware';
 import { reportRateLimit } from '../../middlewares/rate-limit/report-rate-limit.middleware';
@@ -27,6 +28,21 @@ router.get('/reports', authMiddleware, adminOnly, (req, res, next) =>
 // PATCH /api/v1/user/report/:id/status (admin moderation)
 router.patch('/report/:id/status', authMiddleware, adminOnly, (req, res, next) =>
   userIncidentController.moderateReport(req, res, next)
+);
+
+// GET /api/v1/user/notifications (lấy thông báo cho admin)
+router.get('/notifications', authMiddleware, adminOnly, (req, res, next) =>
+  notificationController.getNotifications(req, res, next)
+);
+
+// PUT /api/v1/user/notifications/read-all (đánh dấu đọc tất cả)
+router.put('/notifications/read-all', authMiddleware, adminOnly, (req, res, next) =>
+  notificationController.markAllAsRead(req, res, next)
+);
+
+// PUT /api/v1/user/notifications/:id/read (đánh dấu đọc một thông báo)
+router.put('/notifications/:id/read', authMiddleware, adminOnly, (req, res, next) =>
+  notificationController.markAsRead(req, res, next)
 );
 
 export default router;

@@ -18,6 +18,12 @@ router.get('/', authMiddleware, adminOnly, (req, res, next) => historyController
 router.get('/export', authMiddleware, adminOnly, (req, res, next) => historyController.exportHistory(req, res, next));
 
 /**
+ * POST /api/v1/history/export/async
+ * Xuất báo cáo CSV nền (BullMQ + Resend)
+ */
+router.post('/export/async', authMiddleware, adminOnly, (req, res, next) => historyController.requestAsyncExport(req, res, next));
+
+/**
  * GET /api/v1/history/hotspots
  * Lấy top điểm nóng trên toàn bộ dữ liệu đã lọc
  */
