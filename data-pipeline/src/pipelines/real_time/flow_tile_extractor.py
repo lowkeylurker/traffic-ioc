@@ -133,7 +133,7 @@ class FlowTileExtractor(BaseExtractor):
                 message = e.message or ""
                 detail = (e.detail or "").lower()
                 if key_pool and "403" in message:
-                    if "developer inactive" in detail or "over quota" in detail:
+                    if "developer inactive" in detail or "over quota" in detail or "insufficientfunds" in detail:
                         key_pool.mark_blocked(key)
                         self.logger.warning(
                             "Blocking key after permanent 403 on fallback for tile (%d,%d,%d): %s",
@@ -200,7 +200,7 @@ class FlowTileExtractor(BaseExtractor):
                     return self._extract_flow_segment_at_point(tile_z, tile_x, tile_y, key_pool)
                 # If TomTom returned 403, decide whether to block or retry based on body
                 if key_pool and "403" in message:
-                    if "developer inactive" in detail or "over quota" in detail:
+                    if "developer inactive" in detail or "over quota" in detail or "insufficientfunds" in detail:
                         # Permanent for the day: block this key
                         key_pool.mark_blocked(key)
                         self.logger.warning(

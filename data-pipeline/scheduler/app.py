@@ -277,7 +277,7 @@ REALTIME_JOB = ETLJob(
             str(SAFE_TRAFFIC_SEGMENT_LIMIT),
         ]
     ),
-    timeout=300  # 5 minutes
+    timeout=900  # 15 minutes
 )
 
 BATCH_JOB = ETLJob(
@@ -330,47 +330,43 @@ MOCK_INCIDENTS_JOB = ETLJob(
 # CHAINED JOB EXECUTION
 # ═══════════════════════════════════════════════════════════
 
-def run_realtime_then_batch():
-    """Run realtime ETL, then immediately run batch if successful."""
+def run_realtime_cycle():
+    """Run realtime ETL cycle (Weather -> Traffic -> Incident -> Corridor Update)."""
     cycle_id = datetime.utcnow().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
     logger.info("=" * 80)
-    logger.info(f"[{cycle_id}] CYCLE START: Realtime -> Batch")
+    logger.info(f"[{cycle_id}] CYCLE START: Realtime ETL")
     logger.info("=" * 80)
 
     try:
-        # Run realtime
         pipeline_mode = "run-flow-tile-scan (adaptive)" if USE_FLOW_TILE_ADAPTIVE else "run-realtime (traditional)"
-        logger.info(f"[{cycle_id}] Step 1/2: {pipeline_mode}")
+        logger.info(f"[{cycle_id}] Step: {pipeline_mode}")
         realtime_result = REALTIME_JOB.run(cycle_id=cycle_id)
-        realtime_success = bool(realtime_result.get("success"))
-
-        # If realtime succeeded, run batch immediately
-        if realtime_success:
-            logger.info(f"[{cycle_id}] Realtime success -> trigger batch immediately")
-            time.sleep(2)  # Short pause between jobs
-            logger.info(f"[{cycle_id}] Step 2/2: run-batch")
-            batch_result = BATCH_JOB.run(cycle_id=cycle_id)
-
-            if batch_result.get("success"):
-                logger.info(
-                    f"[{cycle_id}] CYCLE SUCCESS "
-                    f"(realtime={realtime_result.get('duration_sec')}s, "
-                    f"batch={batch_result.get('duration_sec')}s)"
-                )
-            else:
-                logger.error(
-                    f"[{cycle_id}] CYCLE PARTIAL FAIL "
-                    f"(realtime=OK, batch=FAIL, batch_log={batch_result.get('log_file')})"
-                )
+        
+        if realtime_result.get("success"):
+            logger.info(f"[{cycle_id}] CYCLE SUCCESS (duration={realtime_result.get('duration_sec')}s)")
         else:
-            logger.warning(
-                f"[{cycle_id}] CYCLE FAIL (realtime failed -> batch skipped, "
-                f"realtime_log={realtime_result.get('log_file')})"
-            )
+            logger.error(f"[{cycle_id}] CYCLE FAIL (log={realtime_result.get('log_file')})")
+            
     except Exception as e:
         logger.error(f"[{cycle_id}] CYCLE EXCEPTION: {e}", exc_info=True)
     finally:
         logger.info(f"[{cycle_id}] CYCLE END")
+
+
+def run_nightly_batch():
+    """Run heavy batch analytics (Baseline) once per day at night."""
+    cycle_id = "nightly-batch-" + datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    logger.info("=" * 80)
+    logger.info(f"[{cycle_id}] NIGHTLY BATCH START: Baseline + Analytics")
+    logger.info("=" * 80)
+    
+    result = BATCH_JOB.run(cycle_id=cycle_id)
+    
+    if result.get("success"):
+        logger.info(f"[{cycle_id}] NIGHTLY BATCH SUCCESS (duration={result.get('duration_sec')}s)")
+    else:
+        logger.error(f"[{cycle_id}] NIGHTLY BATCH FAIL (log={result.get('log_file')})")
+    logger.info(f"[{cycle_id}] NIGHTLY BATCH END")
 
 
 def run_daily_key_healthcheck():
@@ -425,24 +421,35 @@ def setup_scheduler():
 
     # Main ETL window: start_h:00 to (end_h-1):45 every 15 minutes
     scheduler.add_job(
-        run_realtime_then_batch,
+        run_realtime_cycle,
         trigger=CronTrigger(hour=f"{start_h}-{max(start_h, end_h - 1)}", minute="0,15,30,45", timezone=VN_TZ),
-        id='etl-chained-main-window',
-        name=f'Chained ETL ({start_h:02d}:00-{end_h:02d}:00)',
-        coalesce=True,      # Skip if previous still running
-        max_instances=1,    # Only 1 instance at a time
-        misfire_grace_time=60  # Allow 1 min late start
+        id='etl-realtime-main-window',
+        name=f'Realtime ETL ({start_h:02d}:00-{end_h:02d}:00)',
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=60
     )
 
     # Boundary slot: end_h:00
     scheduler.add_job(
-        run_realtime_then_batch,
+        run_realtime_cycle,
         trigger=CronTrigger(hour=str(end_h), minute="0", timezone=VN_TZ),
-        id='etl-chained-boundary',
-        name=f'Chained ETL (Boundary {end_h:02d}:00)',
-        coalesce=True,      # Skip if previous still running
-        max_instances=1,    # Only 1 instance at a time
-        misfire_grace_time=60  # Allow 1 min late start
+        id='etl-realtime-boundary',
+        name=f'Realtime ETL (Boundary {end_h:02d}:00)',
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=60
+    )
+
+    # Nightly Batch at 02:00 AM
+    scheduler.add_job(
+        run_nightly_batch,
+        trigger=CronTrigger(hour="2", minute="0", timezone=VN_TZ),
+        id='etl-batch-nightly',
+        name='Nightly Batch Analytics (02:00)',
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600
     )
 
     # Daily key health-check at 05:50 (before morning ETL window)
@@ -552,7 +559,7 @@ if __name__ == "__main__":
             if is_within_etl_window():
                 logger.info("⚡ Startup is within ETL window -> triggering immediate ETL cycle...")
                 threading.Thread(
-                    target=run_realtime_then_batch,
+                    target=run_realtime_cycle,
                     name="startup-etl-cycle",
                     daemon=True,
                 ).start()

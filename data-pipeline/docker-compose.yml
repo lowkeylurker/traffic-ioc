@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: traffic-ioc-etl-runner
+    container_name: data-pipeline
     env_file:
       - .env
     environment:
@@ -16,19 +16,9 @@ services:
       OWM_GRID_SIZE_M: ${OWM_GRID_SIZE_M:-500}
       OWM_GRID_MIN_CALL_INTERVAL_SEC: ${OWM_GRID_MIN_CALL_INTERVAL_SEC:-0.9}
       TZ: Asia/Ho_Chi_Minh
-    command:
-      - python
-      - -m
-      - src.main
-      - run-cycle-daemon
-      - --cycle-interval-minutes
-      - ${CYCLE_INTERVAL_MINUTES:-15}
-      - --retry-sleep-minutes
-      - ${RETRY_SLEEP_MINUTES:-5}
-      - --budget-mode
-      - --segment-limit
-      - ${SEGMENT_LIMIT:-3800}
+    command: tail -f /dev/null
     volumes:
       - ./logs:/app/logs
+      - ./src:/app/src
     restart: unless-stopped
 

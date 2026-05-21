@@ -95,6 +95,7 @@ class FlowTileOrchestrator:
         self.logger.info("═" * 60)
         self.logger.info("Starting Flow Tile → Hotspot → Detail Scan pipeline")
         self.logger.info("Timestamp (HCM): %s", timestamp_utc.isoformat())
+        self.logger.info("Cycle timestamp (all records share this): %s", timestamp_utc.replace(tzinfo=None).isoformat(timespec='microseconds'))
         self.logger.info("═" * 60)
 
         try:
@@ -144,12 +145,37 @@ class FlowTileOrchestrator:
             stats["segments_detail_scanned"] = len(hotspot_segment_keys)
 
             # Non-hotspot handling: baseline rotation + inferred free-flow assignment
+            # Hard budget cap: total API calls = hotspot_segs + baseline_segs ≤ budget
+            n_keys = max(1, len(settings.get_tomtom_keys()))
+            daily_limit = int(getattr(settings, 'tomtom_daily_limit_per_key', 2500) or 2500)
+            cycles = max(1, int(__import__('os').getenv('ETL_ACTIVE_CYCLES_PER_DAY', '61')))
+            reserve = int(__import__('os').getenv('NON_TRAFFIC_REQ_RESERVE', '3'))
+            headroom = float(__import__('os').getenv('TRAFFIC_REQ_HEADROOM_PCT', '0.10'))
+            budget_per_cycle = max(1, int(n_keys * daily_limit // cycles - reserve) * (1.0 - headroom))
+            remaining_budget = max(0, int(budget_per_cycle) - len(hotspot_segment_keys))
+
             non_hotspot_candidates = self.segment_mapper.get_non_hotspot_candidates(
                 hotspot_segment_keys
             )
+
+            # Cap baseline_ratio to never exceed remaining budget
+            effective_ratio = settings.flow_tile_baseline_ratio
+            if non_hotspot_candidates:
+                max_baseline = remaining_budget
+                auto_ratio = max_baseline / max(1, len(non_hotspot_candidates))
+                effective_ratio = min(effective_ratio, auto_ratio)
+                self.logger.info(
+                    "Budget cap: budget/cycle=%.0f hotspot_segs=%d remaining=%d non_hotspot_candidates=%d effective_baseline_ratio=%.4f",
+                    budget_per_cycle,
+                    len(hotspot_segment_keys),
+                    remaining_budget,
+                    len(non_hotspot_candidates),
+                    effective_ratio,
+                )
+
             baseline_candidates, inferred_freeflow_candidates = self.segment_mapper.sample_baseline_candidates(
                 non_hotspot_candidates,
-                ratio=settings.flow_tile_baseline_ratio,
+                ratio=effective_ratio,
             )
             stats["baseline_sampled_segments"] = len(baseline_candidates)
 
@@ -185,6 +211,29 @@ class FlowTileOrchestrator:
             detail_responses = self.detail_extractor.extract(points=points)
             self.logger.info("Extracted %d detail responses", len(detail_responses))
 
+            # Step 4.5: Extract Weather for the mapped segments
+            weather_key = 800
+            segment_weather_key_map: dict[int, int] = {}
+            try:
+                from src.pipelines.real_time.weather_pipeline import run_grid_for_points
+                grid_size_m = max(100, int(__import__('os').getenv("OWM_GRID_SIZE_M", "500")))
+                point_weather_key_map = run_grid_for_points(
+                    self.engine,
+                    points,
+                    grid_size_m=grid_size_m,
+                )
+                segment_weather_key_map = {
+                    int(segment_keys[idx]): int(point_weather_key_map.get(points[idx], weather_key))
+                    for idx in range(min(len(points), len(segment_keys)))
+                }
+                self.logger.info(
+                    "Weather grid (adaptive): points=%d, distinct_weather_keys=%d",
+                    len(points),
+                    len(set(segment_weather_key_map.values())),
+                )
+            except Exception as e:
+                self.logger.error("Weather extraction failed in adaptive scan: %s", e)
+
             # Step 5: Transform + Load
             self.logger.info("Step 5/5: Transforming and loading to database...")
 
@@ -192,14 +241,29 @@ class FlowTileOrchestrator:
                 segment_keys=segment_keys,
                 lane_count_map=lane_count_map,
             )
-            transformed = transformer.transform(detail_responses)
+            transformed = transformer.transform(
+                detail_responses,
+                weather_key=weather_key,
+                weather_key_map=segment_weather_key_map,
+                cycle_timestamp=timestamp_utc,  # ← pin all records to cycle start
+            )
 
             upserted = self.traffic_loader.load(records=transformed)
             stats["traffic_rows_upserted"] += int(upserted)
             self.logger.info("Loaded %d detail rows", int(upserted))
 
             # Inferred free-flow records for non-hotspot segments not baseline-sampled.
+            # Hard cap: max 5000 inferred free-flow records per cycle to avoid DB overload.
+            _INFERRED_FREEFLOW_CAP = 5000
             if inferred_freeflow_candidates:
+                if len(inferred_freeflow_candidates) > _INFERRED_FREEFLOW_CAP:
+                    self.logger.info(
+                        "Capping inferred free-flow from %d → %d candidates",
+                        len(inferred_freeflow_candidates),
+                        _INFERRED_FREEFLOW_CAP,
+                    )
+                    inferred_freeflow_candidates = inferred_freeflow_candidates[:_INFERRED_FREEFLOW_CAP]
+
                 inferred_rows = self._build_inferred_freeflow_records(
                     inferred_freeflow_candidates,
                     timestamp_utc,

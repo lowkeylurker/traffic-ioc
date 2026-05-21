@@ -85,7 +85,7 @@ class TrafficExtractor(BaseExtractor):
                 message = e.message or ""
                 detail = (e.detail or "").lower()
                 if pool and "403" in message:
-                    if "developer inactive" in detail or "over quota" in detail:
+                    if "developer inactive" in detail or "over quota" in detail or "insufficientfunds" in detail:
                         pool.mark_blocked(key)
                         self.logger.warning(
                             "Blocking key after permanent 403 for point (%s,%s): %s",
@@ -217,19 +217,27 @@ class TrafficTransformer(BaseTransformer):
         *,
         weather_key: int = 800,
         weather_key_map: dict[int, int] | None = None,
+        cycle_timestamp: datetime | None = None,
     ) -> list[dict]:
         """Transform raw TomTom responses → fact_traffic_flow records.
 
         Args:
             raw_data: List of TomTom Flow API raw JSON responses.
             weather_key: FK → dim_weather (from weather_pipeline).
+            cycle_timestamp: Fixed timestamp for ALL records in this call.
+                When supplied (from FlowTileOrchestrator), every record in the
+                same cycle shares one identical timestamp — making
+                ``WHERE timestamp = <cycle_ts>`` a reliable cycle boundary query.
+                Defaults to datetime.now() for backward-compatibility.
 
         Returns:
             list[dict]: Mỗi dict = 1 row fact_traffic_flow.
         """
         weather_key_map = weather_key_map or {}
         records = []
-        now = datetime.now(tz=TZ_HCM)
+        # Single timestamp for the entire batch — all records in one cycle
+        # will have the same value, enabling exact-timestamp boundary queries.
+        now = cycle_timestamp if cycle_timestamp is not None else datetime.now(tz=TZ_HCM)
 
         for idx, item in enumerate(raw_data):
             try:

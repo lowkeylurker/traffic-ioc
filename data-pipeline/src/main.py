@@ -525,13 +525,6 @@ _SEGMENT_QUERY_DYNAMIC_Q1 = text("""
         JOIN dim_segment s ON s.segment_key = q1.segment_key
         LEFT JOIN dim_way w ON w.way_key = s.way_key
         WHERE q1.geometry_center IS NOT NULL
-            AND NOT EXISTS (
-                    SELECT 1
-                    FROM fact_traffic_flow f
-                    WHERE f.segment_key = q1.segment_key
-                        AND f.is_incident_triggered = TRUE
-                        AND f.timestamp >= (NOW() - INTERVAL '15 minutes')
-            )
         ORDER BY q1.segment_key
         LIMIT :limit
 """)
@@ -589,7 +582,7 @@ _SEGMENT_QUERY_BY_TARGET_CORRIDORS = text("""
             FROM active_corridors ac
             JOIN bridge_corridor_segment bcs ON bcs.corridor_key = ac.corridor_key
             JOIN dim_segment s ON s.segment_key = bcs.segment_key
-            JOIN dim_way w ON w.way_key = s.way_key
+            JOIN dim_way w ON s.way_key = w.way_key
             LEFT JOIN recent_traffic rt ON rt.segment_key = s.segment_key
             LEFT JOIN recent_incident ri ON ri.segment_key = s.segment_key
             WHERE s.geometry_center IS NOT NULL
@@ -1017,7 +1010,12 @@ def _load_segment_points(
     seen_segment_keys: set[int] = set()
     duplicate_count = 0
     for row in rows:
-        if target_corridor_mode or dynamic_q1_mode:
+        if isinstance(row, dict):
+            seg_key = int(row["segment_key"])
+            lat = float(row["lat"])
+            lon = float(row["lon"])
+            lane_count = int(row["lane_count"])
+        else:
             mapping = row._mapping if hasattr(row, "_mapping") else None
             if mapping is not None:
                 seg_key = int(mapping["segment_key"])
@@ -1026,8 +1024,6 @@ def _load_segment_points(
                 lane_count = int(mapping["lane_count"])
             else:
                 seg_key, lat, lon, lane_count = row
-        else:
-            seg_key, lat, lon, lane_count = row
         if int(seg_key) in seen_segment_keys:
             duplicate_count += 1
             continue
@@ -1066,7 +1062,7 @@ def run_realtime(
     segment_limit: int = typer.Option(
         _BUDGET_SAFE_SEGMENTS_PER_CYCLE,
         min=1,
-        max=5000,
+        max=12000,
         help="Max number of critical segment points queried per realtime cycle",
     ),
     budget_mode: bool = typer.Option(
@@ -1134,7 +1130,7 @@ def run_realtime(
                     refresh_dim_segment_q1,
                 )
 
-                refresh_dim_segment_q1(engine, concurrently=True)
+                # refresh_dim_segment_q1(engine, concurrently=True)
                 mapped = mark_incident_triggered_flow(
                     engine,
                     lookback_hours=2,
@@ -1225,6 +1221,23 @@ def run_realtime(
                 results.append(("Traffic Flow", 0, "✗"))
                 success = False
                 progress.update(task3, completed=True)
+
+            # Corridor Performance (Real-time update)
+            task4 = progress.add_task("[cyan]Corridor performance...", total=None)
+            try:
+                from src.pipelines.ml_features.corridor_pipeline import run as run_corr
+                from src.domain.geo.constants import BBOX_TARGET_DISTRICT
+
+                count = run_corr(engine, bbox=BBOX_TARGET_DISTRICT)
+                logger.info(f"[run-realtime] corridor_pipeline: {count} records")
+                total += count
+                results.append(("Corridor Performance", count, "✓"))
+                progress.update(task4, completed=True)
+            except (PipelineError, Exception) as e:
+                logger.exception("[run-realtime] corridor_pipeline failed: %s", e)
+                results.append(("Corridor Performance", 0, "✗"))
+                # We don't mark the whole cycle as failed if only corridor aggregation fails
+                progress.update(task4, completed=True)
     except Exception as e:
         logger.exception("[run-realtime] unhandled cycle error: %s", e)
         success = False
@@ -1339,7 +1352,7 @@ def run_realtime_central_districts(
             from src.pipelines.real_time.incident_pipeline import run as run_incident
 
             count = run_incident(engine, bbox=BBOX_TARGET_DISTRICT)
-            logger.info(f"[run-realtime-central-districts] incident_pipeline: {count} records")
+            logger.info(f"[run-realtime_central_districts] incident_pipeline: {count} records")
             total += count
             results.append(("Traffic Incidents", count, "✓"))
             progress.update(task4, completed=True)
@@ -1347,6 +1360,21 @@ def run_realtime_central_districts(
             logger.error(f"[run-realtime-central-districts] incident_pipeline failed: {e}")
             results.append(("Traffic Incidents", 0, "✗"))
             progress.update(task4, completed=True)
+
+        # Corridor Performance (Real-time update for Q1)
+        task5 = progress.add_task("[cyan]Corridor performance (Q1)...", total=None)
+        try:
+            from src.pipelines.ml_features.corridor_pipeline import run as run_corr
+
+            count = run_corr(engine, bbox=BBOX_TARGET_DISTRICT)
+            logger.info(f"[run-realtime-central-districts] corridor_pipeline: {count} records")
+            total += count
+            results.append(("Corridor Performance (Q1)", count, "✓"))
+            progress.update(task5, completed=True)
+        except (PipelineError, Exception) as e:
+            logger.error(f"[run-realtime-central-districts] corridor_pipeline failed: {e}")
+            results.append(("Corridor Performance (Q1)", 0, "✗"))
+            progress.update(task5, completed=True)
 
     elapsed = time.time() - start_time
     _print_phase_summary("PHASE 3 EXTENDED COMPLETE", results, total, elapsed)
@@ -1394,9 +1422,10 @@ def run_batch() -> bool:
                 results.append(("Baseline Speed", count, "✓"))
                 progress.update(task1, completed=True)
             except (PipelineError, Exception) as e:
-                logger.exception("[run-batch] baseline_pipeline failed: %s", e)
+                # Baseline is heavy and non-critical for real-time dashboards;
+                # don't let it crash the whole batch if it fails.
+                logger.warning("[run-batch] baseline_pipeline failed (likely OOM or timeout): %s", e)
                 results.append(("Baseline Speed", 0, "✗"))
-                success = False
                 progress.update(task1, completed=True)
 
             # Corridor performance (Q1 only)
@@ -1455,6 +1484,25 @@ def run_flow_tile_scan() -> None:
     try:
         from src.core.api_key_pool import TomTomKeyPool
         from src.pipelines.real_time.flow_tile_pipeline import FlowTileOrchestrator
+
+        # 1. First, fetch incidents so the Incident-Flow Mapper and segment promoter have the latest data
+        try:
+            from src.pipelines.real_time.incident_pipeline import run as run_incident
+            incident_count = run_incident(engine)
+            logger.info("[run-flow-tile-scan] incident_pipeline extracted: %d records", incident_count)
+            
+            # Cross-update mapper: label recent flow rows impacted by Jam incidents
+            from src.pipelines.spatial_net.incident_flow_mapper import mark_incident_triggered_flow
+            mapped_count = mark_incident_triggered_flow(
+                engine,
+                lookback_hours=2,
+                distance_deg=0.0002,
+                icon_category=6,
+                time_tolerance_minutes=30,
+            )
+            logger.info("[run-flow-tile-scan] incident_flow_mapper updated: %d rows", mapped_count)
+        except Exception as e:
+            logger.error("[run-flow-tile-scan] Incident extraction failed: %s", e)
 
         # Initialize key pool
         keys = settings.get_tomtom_keys()
@@ -1771,10 +1819,42 @@ def run_cycle_daemon(
 
         cycle_ok = False
         try:
-            realtime_ok = run_realtime(
-                segment_limit=segment_limit,
-                budget_mode=budget_mode,
+            # ── Stage 1-6: Flow Tile adaptive pipeline ──────────────────
+            from src.core.api_key_pool import get_key_pool
+            from src.pipelines.real_time.flow_tile_pipeline import FlowTileOrchestrator
+
+            engine = get_engine()
+            key_pool = get_key_pool()
+            keys = settings.get_tomtom_keys()
+
+            orchestrator = FlowTileOrchestrator(
+                engine=engine,
+                key_pool=key_pool,
+                api_key=keys[0] if keys else "",
             )
+            ft_stats = orchestrator.run()
+
+            realtime_ok = len(ft_stats.get("errors", [])) == 0
+            logger.info(
+                "[run-cycle-daemon] cycle=%s flow-tile stats: tiles=%s hotspots=%s detail_segs=%s freeflow=%s upserted=%s errors=%s",
+                cycle_no,
+                ft_stats.get("tiles_extracted", 0),
+                ft_stats.get("hotspots_detected", 0),
+                ft_stats.get("segments_detail_scanned", 0),
+                ft_stats.get("segments_freeflow_marked", 0),
+                ft_stats.get("traffic_rows_upserted", 0),
+                len(ft_stats.get("errors", [])),
+            )
+
+            # ── Corridor: update metrics after flow ──────────────────────
+            try:
+                from src.pipelines.ml_features.corridor_pipeline import run as run_corr
+                from src.domain.geo.constants import BBOX_TARGET_DISTRICT
+                run_corr(engine, bbox=BBOX_TARGET_DISTRICT)
+            except Exception as e:
+                logger.error("[run-cycle-daemon] real-time corridor update failed: %s", e)
+
+            # ── Batch: baseline + corridor performance ───────────────────
             batch_ok = run_batch()
             cycle_ok = bool(realtime_ok and batch_ok)
         except Exception as exc:
