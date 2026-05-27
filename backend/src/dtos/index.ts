@@ -87,7 +87,7 @@ export type ReliabilityQueryDto = z.infer<typeof ReliabilityQuerySchema>;
 
 const HistoryDateTimeSchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/, 'Thời gian phải đúng định dạng YYYY-MM-DDTHH:mm[:ss]');
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?((\.\d{1,3})?Z|[+-]\d{2}:\d{2})?$/, 'Thời gian phải đúng định dạng YYYY-MM-DDTHH:mm[:ss][Z|+-HH:mm]');
 
 const refineHistoryDateRange = (value: { startDateTime: string; endDateTime: string }, ctx: z.RefinementCtx) => {
   const start = new Date(value.startDateTime);

@@ -73,8 +73,8 @@ const BASE_JOIN = `
 const buildFilters = (params: HistoryExportParams) => {
   // Loại bỏ các segment có traffic_index = 0 trong dữ liệu lịch sử
   const conditions: string[] = [
-    'f.timestamp >= $1::timestamp',
-    'f.timestamp <= $2::timestamp',
+    'f.timestamp >= $1::timestamptz AT TIME ZONE \'UTC\'',
+    'f.timestamp <= $2::timestamptz AT TIME ZONE \'UTC\'',
     'f.traffic_index > 0'
   ];
   const values: Array<string | number> = [params.startDateTime, params.endDateTime];
@@ -119,7 +119,7 @@ export class HistoryService {
       query(
         `
         SELECT
-          f.timestamp AS "timestamp",
+          f.timestamp AT TIME ZONE 'UTC' AS "timestamp",
           r.name AS "roadName",
           l.district AS "district",
           s.segment_key::text AS "segmentId",
