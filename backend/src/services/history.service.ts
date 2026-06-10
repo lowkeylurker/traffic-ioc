@@ -3,6 +3,7 @@ import QueryStream from 'pg-query-stream';
 import { Response } from 'express';
 import pool, { query } from '../config/db';
 import { Logger } from '../utils/logger';
+import { toHcmWallClockTimestamp } from '../utils/timezone';
 
 export interface HistoryQueryParams {
   page: number;
@@ -70,14 +71,20 @@ const BASE_JOIN = `
   LEFT JOIN dim_road r ON r.road_key = s.road_key
 `;
 
+const HCM_TIMESTAMP_SQL = `to_char(f.timestamp, 'YYYY-MM-DD"T"HH24:MI:SS') || '+07:00'`;
+const HCM_HOUR_BUCKET_SQL = `to_char(DATE_TRUNC('hour', f.timestamp), 'YYYY-MM-DD"T"HH24:MI:SS') || '+07:00'`;
+
 const buildFilters = (params: HistoryExportParams) => {
   // Loại bỏ các segment có traffic_index = 0 trong dữ liệu lịch sử
   const conditions: string[] = [
-    'f.timestamp >= $1::timestamptz AT TIME ZONE \'UTC\'',
-    'f.timestamp <= $2::timestamptz AT TIME ZONE \'UTC\'',
+    'f.timestamp >= $1::timestamp',
+    'f.timestamp <= $2::timestamp',
     'f.traffic_index > 0'
   ];
-  const values: Array<string | number> = [params.startDateTime, params.endDateTime];
+  const values: Array<string | number> = [
+    toHcmWallClockTimestamp(params.startDateTime),
+    toHcmWallClockTimestamp(params.endDateTime),
+  ];
 
   if (params.roadKey) {
     values.push(params.roadKey);
@@ -119,7 +126,7 @@ export class HistoryService {
       query(
         `
         SELECT
-          f.timestamp AT TIME ZONE 'UTC' AS "timestamp",
+          ${HCM_TIMESTAMP_SQL} AS "timestamp",
           r.name AS "roadName",
           l.district AS "district",
           s.segment_key::text AS "segmentId",
@@ -161,7 +168,7 @@ export class HistoryService {
 
     const sql = `
       SELECT
-        f.timestamp AS "timestamp",
+        ${HCM_TIMESTAMP_SQL} AS "timestamp",
         r.name AS "roadName",
         l.district AS "district",
         s.segment_key::text AS "segmentId",
@@ -232,7 +239,7 @@ export class HistoryService {
 
     const sql = `
       SELECT
-        f.timestamp AS "timestamp",
+        ${HCM_TIMESTAMP_SQL} AS "timestamp",
         r.name AS "roadName",
         l.district AS "district",
         s.segment_key::text AS "segmentId",
@@ -327,7 +334,7 @@ export class HistoryService {
       query(
         `
         SELECT
-          DATE_TRUNC('hour', f.timestamp) AS bucket,
+          ${HCM_HOUR_BUCKET_SQL} AS bucket,
           AVG(f.current_speed_kmh)::float8 AS avg_speed,
           AVG(f.traffic_index)::float8 AS avg_index,
           SUM(f.pcu_volume)::bigint AS total_pcu,
@@ -335,8 +342,8 @@ export class HistoryService {
           (COUNT(*) FILTER (WHERE f.los_level IN ('A', 'B', 'C'))::float8 / NULLIF(COUNT(*), 0))::float8 AS efficiency
         ${summaryJoin}
         ${where}
-        GROUP BY bucket
-        ORDER BY bucket ASC
+        GROUP BY DATE_TRUNC('hour', f.timestamp)
+        ORDER BY DATE_TRUNC('hour', f.timestamp) ASC
         `,
         values
       ),
@@ -378,8 +385,8 @@ export class HistoryService {
     const worstRoad = worstRoadResult.rows[0]?.road_name ?? 'N/A';
 
     return {
-      avgSpeedTrend: trendResult.rows.map(r => ({ timestamp: r.bucket, value: r.avg_speed })),
-      congestionTrend: trendResult.rows.map(r => ({ timestamp: r.bucket, value: r.avg_index })),
+      avgSpeedTrend: trendResult.rows.map(r => ({ timestamp: String(r.bucket), value: r.avg_speed })),
+      congestionTrend: trendResult.rows.map(r => ({ timestamp: String(r.bucket), value: r.avg_index })),
       totalPcu: Number(overall.total_pcu ?? 0),
       flowEfficiency: Number(overall.efficiency ?? 0),
       totalDelay: Number(overall.total_delay ?? 0),

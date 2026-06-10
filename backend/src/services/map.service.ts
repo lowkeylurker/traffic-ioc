@@ -7,8 +7,11 @@ import { getRedisConnection } from '../config/redis';
 import { TrafficStatus } from '../interfaces/index';
 import { COLOR_RULES, GeoJSONFeature, TrafficMapResponse } from '../interfaces/map.interface';
 import { Logger } from '../utils/logger';
+import { addMinutesToHcmWallClockTimestamp, toHcmWallClockTimestamp } from '../utils/timezone';
 
 const logger = new Logger('MapService');
+const HCM_TIMESTAMP_SQL = `to_char(timestamp, 'YYYY-MM-DD"T"HH24:MI:SS') || '+07:00'`;
+const HCM_FLOW_TIMESTAMP_SQL = `to_char(f.timestamp, 'YYYY-MM-DD"T"HH24:MI:SS') || '+07:00'`;
 
 // Use real data from database
 const USE_MOCK_DATA = false;
@@ -435,10 +438,10 @@ export class MapService {
       if (asOf) {
         // Use a 15-minute window before the requested 'asOf' time to ensure data coverage
         // while still using range-based filtering for index performance.
-        const asOfDate = new Date(asOf);
-        const startWindow = new Date(asOfDate.getTime() - 15 * 60 * 1000);
+        const asOfWallClock = toHcmWallClockTimestamp(asOf);
+        const startWindow = addMinutesToHcmWallClockTimestamp(asOfWallClock, -15);
 
-        queryParams.push(startWindow.toISOString(), asOfDate.toISOString());
+        queryParams.push(startWindow, asOfWallClock);
 
         sql = `
           WITH latest_flow AS (
@@ -461,7 +464,7 @@ export class MapService {
             JOIN dim_segment s ON f.segment_key = s.segment_key
             LEFT JOIN dim_way w ON s.way_key = w.way_key
             LEFT JOIN dim_road r ON w.road_key = r.road_key
-            WHERE f.timestamp >= $1::timestamptz AND f.timestamp <= $2::timestamptz
+            WHERE f.timestamp >= $1::timestamp AND f.timestamp <= $2::timestamp
             ORDER BY f.segment_key, f.timestamp DESC
           )
           SELECT
@@ -476,7 +479,7 @@ export class MapService {
             pcu_volume           AS "pcuValue",
             NULL::float          AS "occupancyRate",
             is_corridor          AS "isCorridor",
-            timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp,
+            ${HCM_TIMESTAMP_SQL} AS "timestamp",
             lng,
             lat
           FROM latest_flow;
@@ -497,11 +500,11 @@ export class MapService {
             f.pcu_volume           AS "pcuValue",
             NULL::float            AS "occupancyRate",
             f.is_corridor          AS "isCorridor",
-            f.timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS timestamp,
+            ${HCM_FLOW_TIMESTAMP_SQL} AS "timestamp",
             f.lng,
             f.lat
           FROM mv_latest_traffic_status f
-          WHERE f.timestamp >= NOW() - INTERVAL '30 minutes';
+          WHERE f.timestamp >= (NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh') - INTERVAL '30 minutes';
         `;
       }
 
@@ -543,17 +546,17 @@ export class MapService {
       let whereClause = 'WHERE timestamp IS NOT NULL';
 
       if (before) {
-        values.push(before);
+        values.push(toHcmWallClockTimestamp(before));
         whereClause += ` AND timestamp <= $${values.length}::timestamp`;
       }
 
       if (start) {
-        values.push(start);
+        values.push(toHcmWallClockTimestamp(start));
         whereClause += ` AND timestamp >= $${values.length}::timestamp`;
       }
 
       if (end) {
-        values.push(end);
+        values.push(toHcmWallClockTimestamp(end));
         whereClause += ` AND timestamp <= $${values.length}::timestamp`;
       }
 
@@ -561,7 +564,9 @@ export class MapService {
 
       const result = await query(
         `
-        SELECT DISTINCT timestamp AS snapshot_time
+        SELECT DISTINCT
+          timestamp AS snapshot_time,
+          to_char(timestamp, 'YYYY-MM-DD"T"HH24:MI:SS') || '+07:00' AS snapshot_time_iso
         FROM fact_traffic_flow
         ${whereClause}
         ORDER BY snapshot_time DESC
@@ -571,9 +576,8 @@ export class MapService {
       );
 
       return result.rows
-        .map((row) => row.snapshot_time)
-        .filter(Boolean)
-        .map((value) => new Date(value).toISOString());
+        .map((row) => row.snapshot_time_iso)
+        .filter(Boolean);
     } catch (error) {
       logger.error('Error fetching traffic status snapshots', error);
       throw error;
