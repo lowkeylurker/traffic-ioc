@@ -48,61 +48,7 @@ Dữ liệu đáng tin cậy phải thể hiện tính nhất quán trong các m
 Các đoạn đường liền kề nhau trong cùng điều kiện giao thông phải có giá trị tốc độ tương đồng. Sự bất thường không gian có thể chỉ ra lỗi gán điểm GPS (map matching error) hoặc mật độ mẫu quá thấp tại một số phân đoạn cụ thể.
 
 \subsection{Kiểm định thống kê độ tin cậy dữ liệu}
-Để chứng minh một cách định lượng độ tin cậy của dữ liệu TomTom, nghiên cứu thực hiện kiểm định thống kê theo hai hướng: (i) phân tích mô tả mật độ mẫu và phân phối dữ liệu, và (ii) kiểm định tương quan với dữ liệu tham chiếu độc lập.
-
-\subsubsection{Mô tả dữ liệu thu thập}
-Dữ liệu được thu thập từ TomTom Traffic Stats API cho toàn bộ mạng lưới đường chính trên địa bàn nghiên cứu trong khoảng thời gian 52 tuần liên tục (01/01/2023 -- 31/12/2023), theo khung thời gian 1 giờ. Tổng số quan sát thu được là $N = 184.320$ quan sát (tương ứng với 210 đoạn đường $\times$ 24 giờ $\times$ 365 ngày sau khi lọc dữ liệu thiếu).
-
-\begin{table}[H]
-\centering
-\caption{Thống kê mô tả dữ liệu TomTom thu thập}
-\begin{tabular}{|p{4cm}|p{2.2cm}|p{2.2cm}|p{2.2cm}|p{2.5cm}|}
-\hline
-\textbf{Chỉ số} & \textbf{Giá trị nhỏ nhất} & \textbf{Giá trị lớn nhất} & \textbf{Trung bình} & \textbf{Độ lệch chuẩn} \\
-\hline
-Tốc độ trung bình (km/h) & 8,4 & 82,6 & 34,7 & 12,3 \\
-\hline
-Sample size (probe/đoạn/giờ) & 12 & 1.847 & 218,4 & 94,7 \\
-\hline
-Confidence Level (\%) & 61,2 & 99,8 & 87,6 & 8,9 \\
-\hline
-Tỷ lệ dữ liệu thiếu (\%) & 0,0 & 4,3 & 1,2 & 0,8 \\
-\hline
-Tỷ lệ outlier sau lọc (\%) & 0,0 & 2,1 & 0,7 & 0,4 \\
-\hline
-\end{tabular}
-\end{table}
-
-Nguồn: Tác giả tổng hợp từ TomTom Traffic Stats API (2023). $N = 184.320$ quan sát.
-
-Kết quả thống kê mô tả cho thấy sample size trung bình đạt 218,4 probe/đoạn đường/giờ --- cao hơn đáng kể so với ngưỡng tối thiểu 30 quan sát được khuyến nghị (FHWA, 2013). Confidence Level trung bình đạt 87,6\%, và tỷ lệ dữ liệu thiếu chỉ 1,2\%, phản ánh tính toàn vẹn cao của tập dữ liệu.
-
-\subsubsection{Phân tích phân phối mật độ mẫu}
-Để đánh giá tính đồng đều trong phân phối không gian của dữ liệu, nghiên cứu phân loại toàn bộ 210 đoạn đường theo ngưỡng mật độ probe:
-
-\begin{table}[H]
-\centering
-\caption{Phân loại đoạn đường theo mật độ probe}
-\begin{tabular}{|p{3.2cm}|p{3cm}|p{2cm}|p{2cm}|p{2.5cm}|}
-\hline
-\textbf{Mức mật độ probe} & \textbf{Ngưỡng (probe/giờ)} & \textbf{Số đoạn đường} & \textbf{Tỷ lệ (\%)} & \textbf{Đánh giá} \\
-\hline
-Rất cao & $\geq 500$ & 67 & 31,9\% & Xuất sắc \\
-\hline
-Cao & 200 -- 499 & 89 & 42,4\% & Tốt \\
-\hline
-Trung bình & 30 -- 199 & 44 & 21,0\% & Chấp nhận \\
-\hline
-Thấp (loại bỏ) & $< 30$ & 10 & 4,7\% & Loại bỏ \\
-\hline
-Tổng cộng (đủ điều kiện) & $\geq 30$ & 200 & 95,3\% & $\checkmark$ Đạt \\
-\hline
-\end{tabular}
-\end{table}
-
-Nguồn: Tác giả tính toán từ dữ liệu TomTom Traffic Stats (2023).
-
-Kết quả cho thấy 95,3\% đoạn đường đạt ngưỡng mật độ mẫu chấp nhận được, trong đó 74,3\% thuộc nhóm cao và rất cao. Chỉ 4,7\% đoạn đường (n = 10) bị loại bỏ khỏi phân tích chính do mật độ probe không đủ tiêu chuẩn. Con số này khẳng định tính đại diện không gian vượt trội của tập dữ liệu.
+Để chứng minh một cách định lượng độ tin cậy của dữ liệu TomTom, nghiên cứu thực hiện kiểm định thống kê theo hướng kiểm định tương quan với dữ liệu tham chiếu độc lập.
 
 \subsubsection{Kiểm định tương quan Pearson với dữ liệu quan sát thực địa}
 Nghiên cứu tiến hành thu thập dữ liệu thực địa đối chiếu (ground truth) thông qua phương pháp khảo sát xe thử nghiệm (floating car survey) trên 15 tuyến đường đại diện trong tổng số 210 đoạn đường phân tích, trong 4 khung giờ đặc trưng (giờ cao điểm sáng, ngoài giờ cao điểm, giờ cao điểm chiều và ban đêm), tổng cộng thu được $n = 720$ cặp quan sát song song (TomTom vs. thực địa).
@@ -133,7 +79,7 @@ Tổng hợp (toàn bộ mẫu) & 720 & 0,951 & 90,4\% & $< 0,001$ & $\checkmark
 \end{tabular}
 \end{table}
 
-Nguồn: Tác giả tính toán. Khảo sát thực địa 15 tuyến đường $\times$ 4 khung giờ $\times$ 12 lần lặp = 720 cặp quan sát.
+Nguồn: Khảo sát thực địa 15 tuyến đường $\times$ 4 khung giờ $\times$ 12 lần lặp = 720 cặp quan sát.
 
 Kết quả kiểm định Pearson cho hệ số tương quan tổng hợp $r = 0,951$ ($p < 0,001$), tương ứng hệ số xác định $R^2 = 90,4\%$. Theo thang đánh giá Cohen (1988), hệ số tương quan $r > 0,90$ được phân loại là rất mạnh (very strong correlation), cho thấy dữ liệu TomTom giải thích hơn 90\% phương sai trong tốc độ thực địa đo được. Tất cả các hệ số theo khung giờ đều vượt ngưỡng 0,93, xác nhận tính ổn định của mối tương quan theo điều kiện giao thông khác nhau.
 
@@ -158,40 +104,7 @@ Bias (km/h) --- xu hướng ước thấp & -0,32 & -0,58 & -0,71 & -0,47 \\
 \end{tabular}
 \end{table}
 
-Nguồn: Tác giả tính toán. MAE: Mean Absolute Error; RMSE: Root Mean Square Error; MAPE: Mean Absolute Percentage Error.
-
 Kết quả cho thấy MAPE tổng hợp đạt 5,9\% --- nằm trong ngưỡng chấp nhận được theo tiêu chuẩn của FHWA ($< 10\%$ cho dữ liệu tốc độ đô thị). Sai số có xu hướng âm nhẹ (bias = $-0,47$ km/h), cho thấy TomTom có xu hướng ước lượng tốc độ thấp hơn thực tế một chút trong điều kiện ùn tắc --- đây là đặc điểm nhất quán với các nghiên cứu trước đó (Eastern Transportation Coalition, 2022) và không ảnh hưởng đáng kể đến giá trị phân tích.
-
-\subsubsection{Kiểm định t-test so sánh phân phối theo mùa}
-Để kiểm tra tính nhất quán thời gian dài hạn, nghiên cứu áp dụng kiểm định t-test hai đuôi (two-tailed paired t-test) so sánh phân phối tốc độ theo tháng trong năm 2023, kiểm tra giả thuyết $H_0$: không có sự khác biệt có ý nghĩa thống kê trong dữ liệu TomTom so với dữ liệu thực địa tương ứng theo từng tháng.
-
-Kết quả: Trong 12 tháng, có \(11/12\) tháng (\(91{,}7\%\)) không bác bỏ \(H_0\) ở mức ý nghĩa \(\alpha = 0{,}05\) (\(p > 0{,}05\)), nghĩa là không tồn tại sự sai lệch có ý nghĩa thống kê giữa dữ liệu TomTom và ground truth.
-
-Tháng duy nhất bác bỏ \(H_0\) (tháng 2, \(p = 0{,}037\)) được giải thích bởi điều kiện thời tiết bất thường ảnh hưởng đến hành vi di chuyển, chứ không phải do lỗi hệ thống dữ liệu.
-
-\subsubsection{Tóm tắt kết quả kiểm định}
-
-\begin{table}[H]
-\centering
-\caption{Tóm tắt kết quả kiểm định độ tin cậy TomTom}
-\begin{tabular}{|p{5cm}|p{4cm}|p{3cm}|}
-\hline
-\textbf{Tiêu chí kiểm định} & \textbf{Kết quả} & \textbf{Đánh giá} \\
-\hline
-Mật độ mẫu (Sample size trung bình) & 218,4 probe/đoạn/giờ & $\checkmark$ Vượt ngưỡng \\
-\hline
-Mật độ probe đạt chuẩn (\(\geq 30\)) & 95{,}3\% đoạn đường & \(\checkmark\) Xuất sắc \\
-\hline
-Tương quan Pearson với thực địa & $r = 0,951$ ($R^2 = 90,4\%$) & $\checkmark$ Rất mạnh \\
-\hline
-Sai số MAPE & 5,9\% & $\checkmark$ Trong ngưỡng chấp nhận ($< 10\%$) \\
-\hline
-Kiểm định t-test nhất quán thời gian & 11/12 tháng không bác bỏ $H_0$ & $\checkmark$ Nhất quán 91,7\% \\
-\hline
-Kết luận kiểm định & \multicolumn{2}{l|}{Dữ liệu TomTom đạt độ tin cậy cao, đủ điều kiện sử dụng làm dữ liệu sơ cấp} \\
-\hline
-\end{tabular}
-\end{table}
 
 \subsection{Luận cứ khoa học về việc sử dụng làm dữ liệu sơ cấp}
 Dựa trên kết quả kiểm định định lượng ở mục 3 và hệ thống bằng chứng từ tài liệu quốc tế, phần này lập luận về tính hợp lệ của việc coi dữ liệu TomTom là dữ liệu sơ cấp trong nghiên cứu giao thông đô thị.
