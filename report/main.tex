@@ -67,9 +67,10 @@
 		a4paper,
 		total={160mm,240mm},  % fix over page
 		left=30mm,
-		top=22mm,
-            right=20mm,
-            bottom=20mm,
+		top=20mm,
+        right=20mm,
+        bottom=20mm,
+        headsep=12pt,
 	}
 }
 \def\thesisheadlayout{	% A4: 210 × 297
@@ -77,7 +78,8 @@
 		a4paper,
 		total={160mm,240mm},  % fix over page
 		left=30mm,
-		top=10mm,
+		top=20mm,
+        headsep=12pt,
 	}
 }
 \thesislayout
@@ -104,21 +106,19 @@ keywordstyle={},
 morekeywords={}
 }
 %\usepackage{fancyhdr}
-\setlength{\headheight}{40pt}
+\setlength{\headheight}{26pt}
 \pagestyle{fancy}
 \fancyhead{} % clear all header fields
 \renewcommand{\footruleskip}{1mm}
 
 \fancyhead[L]{
- \begin{tabular}{rl}
-    \begin{picture}(25,15)(0,0)
-    \put(0,-8){\includegraphics[width=10mm, height=10mm]{Images/hcmut.png}}
-    %\put(0,-8){\epsfig{width=10mm,figure=hcmut.eps}}
+ \begin{tabular}{@{}l@{\hspace{6pt}}l@{}}
+    \begin{picture}(23,10)(0,0)
+    \put(0,-6){\includegraphics[width=8mm, height=8mm]{Images/hcmut.png}}
    \end{picture}&
-	%\includegraphics[width=8mm, height=8mm]{hcmut.png} & %
-	\begin{tabular}{l}
-		\textbf{  Trường Đại Học Bách Khoa - Đại học Quốc gia TP.HCM }\\
-		\textbf{  Khoa Khoa Học \& Kỹ Thuật Máy Tính}
+	\begin{tabular}{@{}l@{}}
+		\small\textbf{Trường Đại Học Bách Khoa - Đại học Quốc gia TP.HCM}\\
+		\small\textbf{Khoa Khoa Học \& Kỹ Thuật Máy Tính}
 	\end{tabular}
  \end{tabular}
 }
@@ -173,9 +173,9 @@ morekeywords={}
 
 \begin{center}
 \LARGE \textbf{ĐẠI HỌC QUỐC GIA THÀNH PHỐ HỒ CHÍ MINH} \\
-\vspace{0.2cm}
+\vspace{0.05cm}
 \LARGE \textbf{TRƯỜNG ĐẠI HỌC BÁCH KHOA} \\
-\vspace{0.2cm}
+\vspace{0.05cm}
 \LARGE \textbf{KHOA KHOA HỌC VÀ KĨ THUẬT MÁY TÍNH}
 \end{center}
 
@@ -197,7 +197,7 @@ morekeywords={}
 
     % Phần tên đề tài: Sử dụng parbox để tự động xuống dòng
     % 12cm là chiều rộng tối đa của tên đề tài (bạn có thể thay đổi số này)
-    \parbox{12cm}{
+    \parbox{15cm}{
         \centering \LARGE \textbf{MÔ HÌNH KHO DỮ LIỆU (DATA WAREHOUSE) VỀ GIAO THÔNG PHỤC VỤ CÔNG TÁC THỐNG KÊ, DỰ BÁO, HỖ TRỢ RA QUYẾT ĐỊNH}
     } \\
 
