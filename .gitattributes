@@ -1,0 +1,11 @@
+# Yêu cầu Github bỏ qua không tính % ngôn ngữ cho các thư mục này
+/dbt/target/** linguist-vendored
+/logs/** linguist-vendored
+*.csv linguist-vendored
+*.json linguist-vendored
+*.yml linguist-vendored
+*.yaml linguist-vendored
+*.md linguist-vendored
+
+# (Tùy chọn) Nếu bạn muốn ép file Jupyter Notebook đếm thành Python
+*.ipynb linguist-language=Python
