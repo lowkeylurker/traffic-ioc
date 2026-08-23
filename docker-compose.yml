@@ -151,7 +151,7 @@ services:
   backend:
     profiles: ["fullstack"]
     build:
-      context: ./backend
+      context: ./apps/backend
       dockerfile: Dockerfile
     container_name: backend-api
     environment:
@@ -168,19 +168,35 @@ services:
       - traffic-network
     restart: unless-stopped
 
-  # 6. Frontend - React + Vite
-  frontend:
+  # 6. Admin Web Portal - React + Vite + AntD
+  admin-web:
     profiles: ["fullstack"]
     build:
-      context: ./frontend
+      context: ./apps/admin-web
       dockerfile: Dockerfile
-    container_name: frontend-app
+    container_name: admin-web-app
     environment:
       - VITE_API_URL=http://localhost:3000
       - VITE_AI_CORE_URL=http://localhost:5000
     ports:
-      - "80:80"
-      - "443:443"
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - traffic-network
+    restart: unless-stopped
+
+  # 7. User Web Portal - Next.js App Router
+  user-web:
+    profiles: ["fullstack"]
+    build:
+      context: ./apps/user-web
+      dockerfile: Dockerfile
+    container_name: user-web-app
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+    ports:
+      - "3001:3000"
     depends_on:
       - backend
     networks:

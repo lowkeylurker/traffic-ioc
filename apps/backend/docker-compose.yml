@@ -1,0 +1,144 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Backend Stack - Docker Compose Configuration
+#
+# Services:
+#   - api: Node.js Express Backend API
+#   - redis: Redis in-memory cache & queue
+#   - mongodb: MongoDB document database for response caching
+#   - postgres: PostgreSQL 18 relational database (isolated from DW)
+# ═══════════════════════════════════════════════════════════════════════════
+
+services:
+  # ═══════════════════════════════════════════════════════════
+  # 1. Backend API Service
+  # ═══════════════════════════════════════════════════════════
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: traffic_backend_api
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3000
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:5173}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-traffic_user}:${POSTGRES_PASSWORD:-traffic_password}@postgres:5432/${POSTGRES_DB:-traffic_backend_db}?schema=public}
+      - APP_DATABASE_URL=postgresql://${POSTGRES_USER:-traffic_user}:${POSTGRES_PASSWORD:-traffic_password}@postgres:5432/${POSTGRES_DB:-traffic_backend_db}?schema=public
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_CACHE_RESPONSE_URL=mongodb://${MONGO_INITDB_ROOT_USERNAME:-root}:${MONGO_INITDB_ROOT_PASSWORD:-example}@mongodb:27017/traffic-ioc-cache-response-db?authSource=admin
+      # External integrations & feature flags
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - CLOUDINARY_INCIDENT_FOLDER=${CLOUDINARY_INCIDENT_FOLDER:-traffic-ioc/incidents}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - RELIABILITY_QUEUE_ENABLED=${RELIABILITY_QUEUE_ENABLED:-true}
+      - RELIABILITY_JOB_CONCURRENCY=${RELIABILITY_JOB_CONCURRENCY:-1}
+      - RELIABILITY_JOB_ATTEMPTS=${RELIABILITY_JOB_ATTEMPTS:-3}
+      - RELIABILITY_JOB_BACKOFF_MS=${RELIABILITY_JOB_BACKOFF_MS:-5000}
+      - RELIABILITY_SPATIAL_FALLBACK=${RELIABILITY_SPATIAL_FALLBACK:-false}
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    networks:
+      - backend-network
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════
+  # 2. PostgreSQL 18 - Backend Application Database
+  # ═══════════════════════════════════════════════════════════
+  postgres:
+    image: postgres:18
+    container_name: traffic_backend_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-traffic_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-traffic_password}
+      POSTGRES_DB: ${POSTGRES_DB:-traffic_backend_db}
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-traffic_user} -d ${POSTGRES_DB:-traffic_backend_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend-network
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════
+  # 3. Redis - Cache & Task Queue
+  # ═══════════════════════════════════════════════════════════
+  redis:
+    image: redis:7-alpine
+    container_name: traffic_backend_redis
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend-network
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════
+  # 4. MongoDB - Document Store for Response Cache
+  # ═══════════════════════════════════════════════════════════
+  mongodb:
+    image: mongo:7
+    container_name: traffic_backend_mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-example}
+      MONGO_INITDB_DATABASE: traffic-ioc-cache-response-db
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+      - mongo_config:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - backend-network
+    restart: unless-stopped
+
+# ═══════════════════════════════════════════════════════════
+# Volumes (Persistent Data)
+# ═══════════════════════════════════════════════════════════
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  mongo_data:
+    driver: local
+  mongo_config:
+    driver: local
+
+# ═══════════════════════════════════════════════════════════
+# Network
+# ═══════════════════════════════════════════════════════════
+networks:
+  backend-network:
+    driver: bridge

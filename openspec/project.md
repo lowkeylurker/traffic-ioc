@@ -6,22 +6,24 @@ The Smart Traffic Intelligent Operations Center (IOC) is an enterprise-grade, re
 By combining real-time spatial streaming with online analytical processing (OLAP), the IOC delivers situational awareness, bottleneck identification, dynamic routing simulation, and historical reliability scoring (Buffer Index, Planning Time Index) to traffic operators, municipal authorities, and public commuters.
 
 ## 2. System Architecture
-The platform adopts a decoupled **Modular Service-Oriented / N-Tier Architecture** centered around a reactive backend API, real-time event streaming pipelines, asynchronous task queues, and a responsive single-page web client (SPA).
+The platform adopts a decoupled **Monorepo Architecture (pnpm + Turborepo)** with modular services: dedicated Admin and Citizen User frontends, a reactive backend API, real-time event streaming pipelines, asynchronous task queues, and shared domain packages.
 
 ```mermaid
 flowchart TB
-    subgraph ClientLayer ["Client Layer (Frontend)"]
-        UI["React 18 + Vite SPA"]
-        MapEngine["Mapbox GL / Custom WebGL Layers"]
-        ZustandStore["Zustand State Stores"]
-        WebWorker["GeoJSON Processor Web Worker"]
+    subgraph MonorepoClients ["Frontend Applications (apps/*)"]
+        AdminUI["Admin Web Portal\n(React 18 + Vite + AntD)"]
+        UserUI["Citizen Web Portal\n(Next.js 14 + Tailwind CSS)"]
+        SharedPkg["@traffic-ioc/shared\n(Types, Constants, Schemas, Utils)"]
+        
+        AdminUI -.-> SharedPkg
+        UserUI -.-> SharedPkg
     end
 
-    subgraph GatewayAPI ["API & Real-Time Gateway"]
+    subgraph GatewayAPI ["API & Real-Time Gateway (apps/backend)"]
         Nginx["Nginx Reverse Proxy"]
         ExpressApp["Express.js HTTP / REST API"]
         SocketServer["Socket.IO WebSocket Server"]
-        Middlewares["Auth (JWT), Role Guard & Rate Limiter"]
+        Middlewares["Auth (Clerk/JWT), Role Guard & Rate Limiter"]
     end
 
     subgraph BusinessLogic ["Core Application & Services"]
@@ -47,9 +49,11 @@ flowchart TB
         CloudinaryStore["Cloudinary CDN (Incident Media)"]
     end
 
-    UI --> Nginx
+    AdminUI --> Nginx
+    UserUI --> Nginx
     Nginx --> ExpressApp
-    UI <--> SocketServer
+    AdminUI <--> SocketServer
+    UserUI <--> SocketServer
     ExpressApp --> Middlewares
     Middlewares --> BusinessLogic
 
@@ -67,41 +71,52 @@ flowchart TB
     AsyncJobs --> MongoStore
 
     SocketServer --> RedisCache
-    UI --> WebWorker
 ```
 
-## 3. Technology Stack
+## 3. Technology Stack & Monorepo Subsystems
 
-- **Frontend/Client**:
-  - **Framework & Runtime**: React 18 (TypeScript), Vite, Node.js runtime
-  - **State Management & Data Fetching**: Zustand (modular stores), Axios
-  - **Geospatial & Visualizations**: Mapbox GL JS, Turf.js (computational geometry), Lucide React
-  - **Charts & Dashboards**: Recharts, Custom Canvas/CSS-in-JS Heatmaps
-  - **Performance Optimization**: Dedicated Web Workers (`traffic-processor.worker.ts`) for non-blocking client-side GeoJSON parsing
+- **Monorepo Orchestration**:
+  - **Package Manager**: `pnpm` (strict workspace dependency graph with content-addressable storage)
+  - **Build System & Task Runner**: `Turborepo` (topological DAG builds, parallel execution, and local/remote caching)
+  - **Shared Packages**:
+    - `packages/shared`: Shared domain models, constants, Zod validation schemas, and utilities (`types/`, `constants/`, `schemas/`, `utils/`)
+    - `packages/shared-config`: Base TypeScript and lint configurations
 
-- **Backend/API**:
+- **Frontend Subsystems (`apps/*`)**:
+  - **Admin Web Portal (`apps/admin-web`)**:
+    - Framework: React 18, Vite, TypeScript
+    - UI & Theming: Ant Design 5 (custom design tokens), Lucide React
+    - State & Query: Zustand (modular stores), TanStack React Query
+    - Geospatial & Visualization: Mapbox GL JS, Deck.gl WebGL layers, Turf.js
+    - Charts & Analytics: ECharts, Recharts, Chart.js
+    - Web Workers: `traffic-processor.worker.ts` for non-blocking client-side GeoJSON parsing
+  - **Citizen User Web Portal (`apps/user-web`)**:
+    - Framework: Next.js 14 (App Router), React 18, TypeScript
+    - UI & Styling: Tailwind CSS, Lucide React
+    - Capabilities: Mobile-first responsive views, SSR/SSG for public traffic bulletins, incident reporting form, and location-based news feed
+
+- **Backend Subsystem (`apps/backend`)**:
   - **Framework**: Node.js, Express.js (TypeScript)
   - **Real-Time Streaming**: Socket.IO (bidirectional WebSocket communication)
+  - **Authentication**: Clerk Express SDK & JWT middleware
   - **Job Queue & Scheduling**: BullMQ (Redis-backed worker queues), `node-cron`
-  - **Media Processing**: Multer, Cloudinary SDK
+  - **Media Processing**: Multer, Cloudinary SDK, Azure Blob Storage
 
 - **Data Layer**:
-  - **Relational & Spatial Database**: PostgreSQL 15+ with PostGIS extension (leveraging spatial indices: `GIST`, partitioned tables, BRIN indexing on temporal facts)
+  - **Relational & Spatial Database**: PostgreSQL 15+ with PostGIS extension (`GIST` spatial indices, partitioned tables, BRIN temporal indices)
   - **Data Access & ORMs**: Dual-engine strategy — Prisma ORM (relational schema management) and `pg` Connection Pool (high-throughput spatial queries, PostGIS geometry conversions `ST_AsGeoJSON`, `ST_DWithin`)
   - **NoSQL / Document Store**: MongoDB with Mongoose (notifications, user settings, unstructured logs)
   - **In-Memory Cache & Message Broker**: Redis (rate-limiting storage, corridor analytics cache, real-time speed tile caching, BullMQ broker)
 
-- **AI & External Services**:
-  - **Geospatial & Routing Providers**: Mapbox Geocoding & Matrix/Directions APIs, OpenStreetMap (OSM) Road Topology
-  - **Traffic Telemetry**: TomTom Traffic Flow & Incident APIs
-  - **Weather Services**: OpenWeatherMap API
-  - **Notifications**: Nodemailer (SMTP transport)
+- **AI, ETL & External Subsystems**:
+  - **Data Pipeline (`data-pipeline/`)**: Python 3.10+ ETL scheduler and TomTom ingest pipeline
+  - **AI Core (`ai-core/`)**: Python 3.10+ PyTorch/FastAPI traffic prediction and RL congestion control
+  - **External Providers**: Mapbox Geocoding & Matrix APIs, OpenStreetMap (OSM) Road Topology, TomTom Traffic Flow & Incidents, OpenWeatherMap
 
 - **Infrastructure & DevOps**:
-  - **Containerization**: Docker, Docker Compose
+  - **Containerization**: Docker, Docker Compose (`apps/backend`, `apps/admin-web`, `apps/user-web`, `postgres`, `redis`, `data-pipeline`, `ai-core`)
   - **Web Server & Reverse Proxy**: Nginx
-  - **Process Management**: PM2 (`ecosystem.config.js`)
-  - **Static Web Hosting**: Vercel configuration (`vercel.json`)
+  - **Static / Edge Web Hosting**: Vercel configuration
 
 ## 4. Core Modules & Feature Breakdown
 
@@ -109,7 +124,7 @@ flowchart TB
 Manages real-time traffic speeds, Level of Service (LOS), and congestion index calculation across road segments. Generates optimized MVT/GeoJSON tile responses and leverages Redis caching to deliver sub-second map rendering on high-density segment grids.
 
 ### Module 2: Incident Management & Citizen Crowdsourcing
-Provides a lifecycle engine for road incidents (accidents, congestion, roadworks, flooding). Ingests sensor-detected incidents as well as citizen-submitted reports complete with photo attachments, GPS coordinates, upvoting mechanisms, and an administrative moderation workflow (`PENDING` -> `APPROVED` / `REJECTED`).
+Provides a lifecycle engine for road incidents (accidents, congestion, roadworks, flooding). Ingests sensor-detected incidents as well as citizen-submitted reports via `user-web` complete with photo attachments, GPS coordinates, upvoting mechanisms, and an administrative moderation workflow in `admin-web` (`PENDING` -> `APPROVED` / `REJECTED`).
 
 ### Module 3: OLAP Analytics & Corridor Reliability Marts
 Executes complex analytical queries against dimensional Galaxy Schema data (`fact_traffic_flow`, `dim_corridor`, `bridge_corridor_segment`). Computes key performance indicators including Travel Time Index (TTI), Buffer Index (BI), and Planning Time Index (PTI) with cross-dimensional slicing by weather, shift, district, and time-of-day.
@@ -126,8 +141,8 @@ Allows traffic engineers and city planners to query multi-month historical traff
 ## 5. Security & Cross-Cutting Concerns
 
 - **Authentication & Authorization**:
-  - Stateless JSON Web Token (JWT) authentication for user and administrator sessions.
-  - Role-Based Access Control (RBAC) enforced via Express middleware (`auth.middleware.ts`, `admin.middleware.ts`) and React UI route guards (`RoleGuard.tsx`).
+  - Clerk / JWT authentication across user and administrator sessions.
+  - Role-Based Access Control (RBAC) enforced via Express middleware (`auth.middleware.ts`, `admin.middleware.ts`) and React UI route guards.
 
 - **Rate Limiting & Abuse Prevention**:
   - Multi-tier IP and user-based sliding window rate limiters (backed by Redis) applied to public and high-cost endpoints (e.g., citizen incident submission, search, tile fetching).

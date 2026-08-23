@@ -4,12 +4,16 @@ Smart Traffic IOC is an urban intelligent operations center platform providing r
 
 ## Quick Commands & Scripts
 
-- **Monorepo Subsystems**:
-  - `frontend/`: React 18, Vite (`npm run dev`, `npm run build:check`, `npm run lint`)
-  - `backend/`: Express.js, TypeScript, Prisma (`npm run dev`, `npm run build`, `npm run prisma:gen`)
+- **Monorepo Subsystems (pnpm + Turborepo)**:
+  - Root: `pnpm dev`, `pnpm build`, `pnpm build:check`, `pnpm lint`
+  - `apps/admin-web/`: React 18, Vite, AntD (`pnpm dev:admin` or `pnpm --filter=@traffic-ioc/admin-web dev`)
+  - `apps/user-web/`: Next.js 14 App Router, Tailwind CSS (`pnpm dev:user` or `pnpm --filter=@traffic-ioc/user-web dev`)
+  - `apps/backend/`: Express.js, TypeScript, Prisma (`pnpm dev:backend` or `pnpm --filter=@traffic-ioc/backend dev`)
+  - `packages/shared/`: Shared domain models, constants, Zod schemas, and utilities
+  - `packages/shared-config/`: Shared tsconfig & lint configs
   - `data-pipeline/` & `ai-core/`: Python 3.10+ (`requirements.txt`)
 - **Database Schema**:
-  - Run `npx prisma generate` in `backend/` after modifying `schema.prisma`.
+  - Run `pnpm prisma:gen` from root (or `npx prisma generate` in `apps/backend/`).
 
 ## Progressive Disclosure & Detailed Guides
 

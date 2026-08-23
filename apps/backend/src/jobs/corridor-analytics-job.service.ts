@@ -1,0 +1,143 @@
+import { Queue, Worker } from 'bullmq';
+import { createRedisConnection } from '../config/redis';
+import { analyticsService } from '../services/analytics.service';
+import { corridorCacheService } from '../services/corridor-cache.service';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('CorridorAnalyticsJobService');
+const QUEUE_NAME = 'corridor-analytics-cache';
+
+class CorridorAnalyticsJobService {
+  private queue: Queue | null = null;
+  private worker: Worker | null = null;
+
+  async start(): Promise<void> {
+    this.queue = new Queue(QUEUE_NAME, {
+      connection: createRedisConnection(),
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 1000 },
+        removeOnComplete: 100,
+        removeOnFail: 100,
+      },
+    });
+
+    this.worker = new Worker(
+      QUEUE_NAME,
+      async (job) => {
+        const { type, date, corridorKey } = job.data || {};
+
+        if (job.name === 'daily-end-of-day' || job.name === 'periodic-update-today' || type === 'SCHEDULED_BATCH') {
+          const isToday = job.name === 'periodic-update-today';
+          
+          // Bỏ qua nếu nằm ngoài giới hạn 22:30 cho ngày hôm nay
+          if (isToday) {
+            const now = new Date();
+            const hour = now.getHours();
+            const minute = now.getMinutes();
+            if (hour === 22 && minute > 30) {
+              logger.log('Bỏ qua cập nhật ngày hôm nay sau 22:30');
+              return;
+            }
+          }
+
+          const targetDate = isToday 
+            ? new Date().toISOString().substring(0, 10)
+            : new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+
+          await this.enqueueRefreshForDate(targetDate);
+          return;
+        }
+
+        if (type === 'REFRESH_CACHE') {
+          logger.log(`Đang xử lý job ${job.id} loại=${type} ngày=${date} mã hành lang=${corridorKey ?? 'TẤT CẢ'}`);
+          const data = await analyticsService.computeCorridorDashboard({ date, corridorKey });
+          await corridorCacheService.setCache(corridorKey, date, data);
+        }
+      },
+      {
+        connection: createRedisConnection(),
+        concurrency: 1,
+      }
+    );
+
+    this.worker.on('failed', (job, error) => {
+      logger.error(`Job thất bại: ${job?.id}`, error);
+    });
+
+    await this.scheduleJobs();
+    await this.checkAndBackfillYesterday();
+
+    logger.log('Dịch vụ Job Corridor Analytics đã khởi động');
+  }
+
+  private async scheduleJobs(): Promise<void> {
+    if (!this.queue) return;
+
+    // Xóa các job lặp lại cũ để tránh trùng lặp
+    const repeatableJobs = await this.queue.getRepeatableJobs();
+    for (const job of repeatableJobs) {
+      await this.queue.removeRepeatableByKey(job.key);
+    }
+
+    // Job cuối ngày (12:00 AM) - xử lý dữ liệu ngày hôm qua
+    // Chạy lúc 12:05 AM để đảm bảo an toàn
+    await this.queue.add(
+      'daily-end-of-day',
+      { type: 'SCHEDULED_BATCH', subtype: 'YESTERDAY' },
+      {
+        repeat: { pattern: '5 0 * * *' }, // 00:05 AM hàng ngày
+        jobId: 'daily-end-of-day',
+      }
+    );
+
+    // Job cập nhật định kỳ (Mỗi 5 phút từ 6:00 đến 22:30)
+    await this.queue.add(
+      'periodic-update-today',
+      { type: 'SCHEDULED_BATCH', subtype: 'TODAY' },
+      {
+        repeat: { pattern: '*/5 6-22 * * *' },
+        jobId: 'periodic-update-today',
+      }
+    );
+  }
+
+  private async checkAndBackfillYesterday(): Promise<void> {
+    if (!this.queue) return;
+
+    const yesterday = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+    const hasData = await corridorCacheService.hasDataForDate(yesterday);
+    
+    if (!hasData) {
+      logger.log(`[Backfill] Dữ liệu ngày hôm qua (${yesterday}) đang trống. Khởi động worker backfill...`);
+      await this.enqueueRefreshForDate(yesterday);
+    } else {
+      logger.log(`[Backfill] Đã có dữ liệu cho ngày hôm qua (${yesterday})`);
+    }
+  }
+
+  private async enqueueRefreshForDate(date: string): Promise<void> {
+    if (!this.queue) return;
+
+    // Lấy tất cả hành lang
+    const corridors = await analyticsService.getCorridorOptions();
+    const corridorKeys = [null, ...corridors.map(c => c.corridorKey)];
+
+    for (const key of corridorKeys) {
+      await this.queue.add(
+        'refresh-cache',
+        { type: 'REFRESH_CACHE', date, corridorKey: key },
+        { jobId: `refresh-${date}-${key ?? 'ALL'}-${Date.now()}` }
+      );
+    }
+    logger.log(`Đã thêm vào hàng đợi làm mới cho ${corridorKeys.length} hành lang vào ngày ${date}`);
+  }
+
+
+  async stop(): Promise<void> {
+    if (this.worker) await this.worker.close();
+    if (this.queue) await this.queue.close();
+  }
+}
+
+export const corridorAnalyticsJobService = new CorridorAnalyticsJobService();

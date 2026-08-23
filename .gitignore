@@ -2,6 +2,22 @@
 .DS_Store
 .env
 .env.staging
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Turborepo & pnpm
+.turbo/
+pnpm-debug.log*
+
+# Node.js (BE & FE)
+node_modules/
+dist/
+build/
+.next/
+out/
+.npm/
 
 # Python (DE & AI)
 __pycache__/
@@ -10,31 +26,12 @@ venv/
 .venv/
 .ipynb_checkpoints/
 
-# Node.js (BE & FE)
-node_modules/
-dist/
-build/
-.npm/
-
 # Data & Models
 *.csv
 *.mp4
-
-
-# Có thể commit nếu file nhỏ, nếu to >100MB thì dùng Git LFS
 *.pkl
-
-# Model YOLO (thường to, nên cân nhắc)
 *.pt
-
-# Log files, có thể hữu ích để debug nhưng không cần thiết trong repo
 *.log
-
-
-*.pt
-*.pkl
-*.json
-*/cache/
 
 # Sensitive runtime state (contains API key identifiers/usage)
 data-pipeline/cache/tomtom_key_pool_state.json
@@ -44,7 +41,6 @@ data-pipeline/cache/tomtom_key_pool_state.json
 *.fdb_latexmk
 *.fls
 *.gz
-*.log
 *.out
 *.toc
 *.lof
@@ -52,11 +48,7 @@ data-pipeline/cache/tomtom_key_pool_state.json
 *.bbl
 *.blg
 
-# Output (Tùy chọn: nếu không muốn đẩy PDF lên thì bỏ comment dòng dưới)
-# main.pdf
-
 # OS rác
-.DS_Store
 Thumbs.db
 
 # Project Specs
