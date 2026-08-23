@@ -1,163 +1,69 @@
 # =============================================================================
-# .repomixignore — Context Window Engineering for Repomix
-# =============================================================================
-# Goal: Keep source code, schemas, configs, and key docs.
-#       Strip out everything that burns tokens without adding understanding.
+# .repomixignore — Frontend & Backend Only (Targeted Context for project.md)
 # =============================================================================
 
-# ─── Lock files & dependency manifests (massive, zero signal) ────────────────
-package-lock.json
-*.lock
-
-# ─── Dependency directories ─────────────────────────────────────────────────
-node_modules/
-.npm/
-venv/
-.venv/
-
-# ─── Build artifacts & compiled output ──────────────────────────────────────
-backend/dist/
-build/
-*.d.ts.map
-*.js.map
-
-# ─── Binary & media files (images, models, video) ──────────────────────────
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.svg
-*.ico
-*.webp
-*.mp4
-*.avi
-*.pdf
-*.pt
-*.pkl
-*.h5
-*.onnx
-*.tflite
-report/Images/
-ai-core/pictures/
-
-# ─── Data files & caches ───────────────────────────────────────────────────
-*.csv
-*.parquet
-*.feather
-*/cache/
-data-pipeline/cache/
-ai-core/data/
-ai-core/artifacts/
-ai-core/models/congestion_rl/
-
-# ─── Jupyter notebooks (large JSON, mixed outputs) ─────────────────────────
-*.ipynb
-
-# ─── Temporary / scratch scripts ───────────────────────────────────────────
-ai-core/tmp_*.py
-data-pipeline/tmp_*.py
-test_metrics_export.py
-
-# ─── LaTeX build artifacts ──────────────────────────────────────────────────
-*.aux
-*.fdb_latexmk
-*.fls
-*.gz
-*.log
-*.out
-*.toc
-*.lof
-*.lot
-*.bbl
-*.blg
-report/main.tex
-report/ch5_edit_text.txt
-report/pdf/
-report/Contents/
-report/Intro/
-report/Outro/
-
-# ─── Environment & secrets ─────────────────────────────────────────────────
-.env
-.env.*
-!.env.example
-
-# ─── Editor / IDE / tooling ─────────────────────────────────────────────────
-.vscode/
-.devcontainer/
-.editorconfig
-.prettierrc
-.eslintrc
-.copilotignore
-.gitattributes
-
-# ─── Agent / AI tool state (not source code) ────────────────────────────────
+# ─── Exclude other subsystems / root directories ─────────────────────────────
+ai-core/
+data-pipeline/
+report/
+infrastructure/
+openspec/
+docs/
+scripts/
 .agent/
 .opencode/
 .github/
+.devcontainer/
+.vscode/
 .vercel/
-
-# ─── OpenSpec planning artifacts (workflow meta, not code) ──────────────────
-openspec/
-
-# ─── Docs that duplicate README or are operational notes ────────────────────
 .docs/
-docs/archive/
-CLEANUP_SUMMARY.md
-DEPLOYMENT.md
-H30_ENDPOINT_CHECK.md
-METRICS_ENHANCEMENT.md
-START.md
-traffic-ai-technical-report.md
-AGENTS.md
-backend/docs/
-data-pipeline/docs/
-ai-core/docs/
 
-# ─── Markdown docs inside sub-projects (implementation checklists, etc.) ────
+# ─── Root level files ────────────────────────────────────────────────────────
+*.md
+*.bat
+*.png
+*.jpg
+*.py
+*.txt
+*.yml
+*.yaml
+*.json
+.env*
+.editorconfig
+.copilotignore
+.gitattributes
+.gitignore
+
+# ─── Frontend & Backend: Dependencies & Lockfiles ────────────────────────────
+node_modules/
+package-lock.json
+*.lock
+.npm/
+
+# ─── Frontend & Backend: Build Artifacts & Compiled Code ─────────────────────
+dist/
+build/
+backend/dist/
+*.d.ts.map
+*.js.map
+
+# ─── Frontend & Backend: Database Migrations & Schemas Clutter ───────────────
+backend/prisma/migrations/
+
+# ─── Frontend & Backend: Internal markdown docs (checklists/notes) ───────────
 frontend/CHECKLIST.md
 frontend/DEVELOPMENT.md
 frontend/IMPLEMENTATION.md
 frontend/QUICK_START.md
-data-pipeline/CLEAN_CODE_RESTRUCTURING.md
-data-pipeline/CORRIDOR_IMPLEMENTATION_GUIDE.md
-data-pipeline/FIX_LOCATION_GEOMETRY_SUMMARY.md
-data-pipeline/OSM_PERFORMANCE.md
-data-pipeline/README.old.md
-ai-core/HYBRID_WORKFLOW.md
-ai-core/REQUIREMENTS.md
-ai-core/reports/
+backend/docs/
 
-# ─── Data-pipeline one-off analysis files ───────────────────────────────────
-data-pipeline/*.txt
-data-pipeline/*.json
-data-pipeline/*.sql
-data-pipeline/check_*.py
-data-pipeline/find_corridors.py
-data-pipeline/fix_location_geometry.py
-data-pipeline/load_real_boundaries.py
-data-pipeline/test_boundaries.py
+# ─── Secrets & Environment ─────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
 
-# ─── Prisma migrations (SQL dumps, verbose) ─────────────────────────────────
-backend/prisma/migrations/
-
-# ─── Docker & infra (useful but low-signal for code understanding) ──────────
-infrastructure/
-docker-compose*.yml
-Dockerfile
-.dockerignore
-
-# ─── OS junk ────────────────────────────────────────────────────────────────
+# ─── OS junk & Linters ──────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
-
-# ─── Misc root files ───────────────────────────────────────────────────────
-start_scheduler.bat
-output.png
-arima_lagging_effect.png
-ai-core/arima_lagging_effect.png
-
-# ─── Python bytecode ───────────────────────────────────────────────────────
-__pycache__/
-*.py[cod]
-.ipynb_checkpoints/
+.prettierrc
+.eslintrc
