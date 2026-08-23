@@ -1,14 +1,16 @@
 # Design System Specification
 
-> **System:** Traffic IOC (Intelligent Operations Center) — Ho Chi Minh City  
-> **Aesthetic Philosophy:** Professional Light Theme, Clean, Administrative, High Contrast & High Readability  
-> **Foundational Stack:** React 18, TypeScript, Ant Design v5, Mapbox GL / Deck.gl, Chart.js / Recharts / ECharts, Zustand, Clerk Auth  
+> **System:** Traffic IOC (Intelligent Operations Center) & Citizen Web Portal — Ho Chi Minh City  
+> **Aesthetic Philosophy:** High Contrast, Clean, Administrative (Admin IOC) & Modern, Accessible, Dual Desktop-and-Mobile Responsive (Citizen Web)  
+> **Foundational Stack:**
+> - **Track A (Admin IOC Web):** React 18, TypeScript, Ant Design v5, Mapbox GL / Deck.gl, Chart.js / ECharts, Zustand, Clerk Auth  
+> - **Track B (Citizen User Web):** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, shadcn/ui (Radix UI), TanStack Query v5  
 
 ---
 
-## 1. Design Tokens (Primitives)
+## 1. Unified Platform Design Tokens (Primitives)
 
-All design tokens are derived directly from the Admin application theme configuration (`apps/admin-web/src/config/theme.ts`), global stylesheet (`apps/admin-web/src/styles/index.css`), application constants (`apps/admin-web/src/config/constants.ts`), and localized OLAP style modules (`apps/admin-web/src/pages/analytics/OlapDashboard.css`), coordinated with Tailwind CSS design tokens in `apps/user-web`.
+All design tokens establish a unified visual language across the entire platform. Tokens are implemented in `apps/admin-web/src/config/theme.ts` (Ant Design token map) and `apps/user-web/src/app/globals.css` (Tailwind CSS v4 & shadcn/ui CSS custom properties), referencing shared constants in [`packages/shared`](file:///home/levion/Documents/project/traffic-ioc/packages/shared).
 
 ### 1.1. Color Palette
 
@@ -137,7 +139,7 @@ The system adheres strictly to an **8px base grid** with half-step (`4px`) subdi
 
 ---
 
-## 2. Core UI Components (Foundation)
+## 2. Track A: Admin Operations Center UI Components (`apps/admin-web` — Ant Design v5)
 
 ### 2.1. Loading (`src/components/common/index.tsx`)
 * **Description:** Foundational centered spinner component using Ant Design's `<Spin>` with customized large/small indicator icon. Used during route transitions, API queries, and async chart fetching.
@@ -491,66 +493,104 @@ interface DataQualityChartProps {
 
 ---
 
-## 3. Layout Systems & Grid Patterns
+## 3. Track B: Citizen User Web Portal UI Components (`apps/user-web` — shadcn/ui & Tailwind CSS)
 
-### 3.1. Main Layout Shell (`src/layouts/MainLayout.tsx`)
-* **Structure:**
-  - `Layout` (Full screen `100vh`, `minHeight: 100vh`).
-  - **Desktop Sider:** Width `200px`, collapsible to `56px`. Houses brand header (`🚦 Traffic IOC`), primary navigation items, unread notification counter badge, and user session footer.
-  - **Mobile Header:** Triggered at screen width `< 992px` (`!screens.lg`). Replaces persistent Sider with a top-right floating circular action button (`z-index: 1200`) and a `280px` slide-out `Drawer`.
-  - **Content Viewport:** Full bleed (`padding: 0`) for map canvases (`overflow: hidden`) or structured padding (`padding: 16px` or `24px`) for administrative dashboards.
+Citizen-facing components are built with **Tailwind CSS v4** and accessible **Radix UI** primitives following shadcn/ui conventions. They prioritize equal desktop and mobile usability, wide responsive grids, touch-friendly hit areas ($\ge 44\text{px}$), and instant user feedback.
 
-### 3.2. Z-Index Hierarchy
-To prevent visual collisions between Mapbox WebGL canvas layers, glassmorphism floating cards, drawers, and modal dialogs, the application follows a strict Z-index hierarchy:
+### 3.1. Button (`src/components/ui/button.tsx`)
+* **Description:** Core actionable element with polymorphic `asChild` slot support for Next.js `<Link>`.
+* **Variants:**
+  - `default`: Solid primary blue (`bg-blue-600 hover:bg-blue-700 text-white`).
+  - `destructive`: Emergency / report red (`bg-red-600 hover:bg-red-700 text-white`).
+  - `outline`: Bordered white button (`border border-slate-200 bg-white hover:bg-slate-50`).
+  - `secondary`: Subtle slate background (`bg-slate-100 text-slate-900 hover:bg-slate-200`).
+  - `ghost`: Transparent hover button.
+* **Sizes:** `sm` (32px), `default` (40px), `lg` (48px), `icon` (36x36px).
 
+### 3.2. Card Family (`src/components/ui/card.tsx`)
+* **Description:** Standard container for citizen dashboards, service links, and incident cards.
+* **Sub-components:** `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`.
+* **Visual Style:** Rounded corners (`rounded-xl`), subtle border (`border-slate-200`), soft shadow (`shadow-xs`), clean white surface (`bg-white`).
+
+### 3.3. Badge (`src/components/ui/badge.tsx`)
+* **Description:** Pill-shaped status indicator for LOS ratings, verification state, and incident categories.
+* **Variants:**
+  - `default`: Primary blue badge.
+  - `destructive`: Red emergency badge (`bg-red-500 text-white`).
+  - `success`: Green verified badge (`bg-emerald-50 text-emerald-700 border-emerald-200`).
+  - `warning`: Amber congestion badge (`bg-amber-50 text-amber-700 border-amber-200`).
+  - `secondary` / `outline`: Neutral slate tag.
+
+### 3.4. Form Elements (`Input`, `Textarea`, `Label`)
+* **Input (`src/components/ui/input.tsx`):** 40px height, rounded-lg, focus ring in primary blue (`focus:ring-2 focus:ring-blue-500`).
+* **Textarea (`src/components/ui/textarea.tsx`):** Multi-line text field for incident description.
+* **Label (`src/components/ui/label.tsx`):** Uppercase tracking-wider micro-label based on `@radix-ui/react-label`.
+
+### 3.5. Dialog (`src/components/ui/dialog.tsx`)
+* **Description:** Accessible modal dialog with backdrop blur overlay and smooth scale-in animation based on `@radix-ui/react-dialog`.
+
+---
+
+## 4. Layout Systems & Grid Patterns
+
+### 4.1. Track A: Admin IOC Layout Shell (`apps/admin-web`)
+* **Desktop Sider:** Width `200px`, collapsible to `56px`. Houses brand header (`🚦 Traffic IOC`), primary navigation items, unread notification counter badge, and user session footer.
+* **Mobile Header:** Triggered at screen width `< 992px` (`!screens.lg`). Replaces persistent Sider with a top-right floating circular action button (`z-index: 1200`) and a `280px` slide-out `Drawer`.
+* **Content Viewport:** Full bleed (`padding: 0`) for map canvases (`overflow: hidden`) or structured padding (`padding: 16px` or `24px`) for administrative dashboards.
+
+### 4.2. Track B: Citizen User Web Layout Shell (`apps/user-web`)
+* **Sticky Navigation Header:** 64px height (`h-16`), backdrop blur (`bg-white/95 backdrop-blur`), subtle bottom border (`border-b border-slate-200`), housing brand logo, home, news, and prominent incident report CTA.
+* **Main Content Area:** Dual-optimized responsive layout (`max-w-7xl mx-auto p-4 sm:p-6 md:p-8`), scaling seamlessly from desktop widescreen dashboards to mobile viewports.
+* **Footer:** Responsive footer with copyright and system status indicator.
+
+### 4.3. Z-Index Hierarchy (Platform Standard)
 ```
 ┌────────────────────────────────────────────────────────────┐
 │ 1200 : Mobile Hamburger Trigger Button                     │
 ├────────────────────────────────────────────────────────────┤
-│ 1050 : Modal Dialogs (CCTVModal, SignInDialog, JamModal)  │
+│ 1050 : Modal Dialogs (CCTVModal, SignInDialog, Dialog)     │
 ├────────────────────────────────────────────────────────────┤
 │ 1000 : Broadcast Ticker (LiveNewsTicker)                   │
+├────────────────────────────────────────────────────────────┤
+│   50 : Sticky Navigation Headers                           │
 ├────────────────────────────────────────────────────────────┤
 │   20 : Interactive Panels (RoutingPanel, KPIBar Expanded)  │
 ├────────────────────────────────────────────────────────────┤
 │   10 : Floating Overlays (MapControls, Legend, Weather)    │
 ├────────────────────────────────────────────────────────────┤
-│    0 : Base WebGL Canvas (Mapbox GL, Deck.gl Layers)       │
+│    0 : Base WebGL Canvas / Page Background                 │
 └────────────────────────────────────────────────────────────┘
 ```
 
-### 3.3. Analytics & OLAP Grid Patterns (`src/pages/analytics/OlapDashboard.css`)
-* **KPI Metric Grid (`.olap-summary-grid`):**
-  - Desktop (`> 1200px`): `grid-template-columns: repeat(4, 1fr)` with `16px` gap.
-  - Tablet (`992px - 1200px`): `grid-template-columns: repeat(2, 1fr)`.
-  - Mobile (`< 992px`): `grid-template-columns: 1fr`.
-* **Filter Panel Grid (`.olap-filter-grid`):**
-  - Desktop (`> 1200px`): `grid-template-columns: repeat(3, minmax(0, 1fr))` with `12px` gap.
-  - Tablet (`768px - 1200px`): `grid-template-columns: repeat(2, minmax(0, 1fr))`.
-  - Mobile (`< 768px`): `grid-template-columns: 1fr`.
-* **Asymmetric Chart Pair Grid (`.olap-chart-grid`):**
-  - Desktop: `grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr)` with `16px` gap.
-  - Mobile / Tablet (`< 992px`): `grid-template-columns: 1fr`.
+### 4.4. Analytics & OLAP Grid Patterns (`apps/admin-web`)
+* **KPI Metric Grid (`.olap-summary-grid`):** Desktop `repeat(4, 1fr)` | Tablet `repeat(2, 1fr)` | Mobile `1fr`.
+* **Filter Panel Grid (`.olap-filter-grid`):** Desktop `repeat(3, minmax(0, 1fr))` | Tablet `repeat(2, 1fr)` | Mobile `1fr`.
+* **Asymmetric Chart Pair Grid (`.olap-chart-grid`):** Desktop `minmax(0, 0.88fr) minmax(0, 1.12fr)`.
 
 ---
 
-## 4. State Management & Theming (UI Level)
+## 5. State Management, Theming & Cross-App Token Harmonization
 
-### 4.1. Theming Architecture
-* **Provider:** Root `ConfigProvider` configured in `src/main.tsx` using `customTheme` from `src/config/theme.ts`.
-* **Theme Algorithm:** `theme.defaultAlgorithm` (Enforcing **Professional Light Theme**).
-* **Locale:** `antd/locale/vi_VN` providing native Vietnamese calendar dates, pagination, and validation messages.
+### 5.1. Theming Implementation by Application
+* **Admin Web (`apps/admin-web`):** Ant Design `ConfigProvider` configured via `apps/admin-web/src/config/theme.ts` with `theme.defaultAlgorithm`.
+* **User Web (`apps/user-web`):** Tailwind CSS v4 `@layer base` CSS custom properties in `apps/user-web/src/app/globals.css` configured for shadcn/ui.
 
-### 4.2. Global State Stores (Zustand)
-1. **`useAppStore` (`src/stores/useAppStore.ts`):**
-   - Stores real-time segment GeoJSON collections, selected road segments, live traffic statuses (`TrafficStatus[]`), active alerts, and global loading/error flags.
-2. **`useNotificationStore` (`src/stores/useNotificationStore.ts`):**
-   - Manages asynchronous user notifications, unread counts (rendered on navigation badge), socket-driven real-time alert pushes, and mark-as-read status.
-3. **`useGuestStore` (`src/stores/useGuestStore.ts`):**
-   - Manages guest session flags with persistence in browser `localStorage`.
+### 5.2. Cross-App Token Harmonization Map
 
-### 4.3. Global Feedback & Notifications
-* **Toast Messages:** Invoked via Ant Design `message.success(text)`, `message.error(text)`, `message.warning(text)` with automatic 3s dismissal.
-* **Modal Dialogs:** Controlled centrally via React state and Zustand actions (`open={isOpen}`, `onCancel={handleClose}`).
-* **Global Real-Time Gateway:** Initialized via `useSocket()` hook in `MainLayout.tsx` for real-time WebSocket traffic updates and alert streaming.
+| Token Purpose | Ant Design Token (`admin-web`) | Tailwind / shadcn CSS Variable (`user-web`) | Resolved Value |
+| :--- | :--- | :--- | :--- |
+| **Primary Brand** | `colorPrimary` | `--primary` | `#1677ff` |
+| **Background** | `colorBgLayout` / `colorBgContainer` | `--background` / `--card` | `#ffffff` / `#f8fafc` |
+| **Foreground Text** | `colorTextHeading` / `colorTextPrimary` | `--foreground` | `#0f172a` / `#001529` |
+| **Border** | `colorBorder` / `colorBorderSubtle` | `--border` / `--input` | `#e2e8f0` / `#d9d9d9` |
+| **Destructive / Alert** | `colorError` | `--destructive` | `#ef4444` / `#cf1322` |
+| **LOS A (Free Flow)** | `TRAFFIC_COLORS.MINIMAL` | `LOS_COLORS.A` | `#52c41a` |
+| **LOS C (Moderate)** | `TRAFFIC_COLORS.MODERATE` | `LOS_COLORS.C` | `#faad14` |
+| **LOS E (Heavy Jam)** | `TRAFFIC_COLORS.VERY_HIGH` | `LOS_COLORS.E` | `#cf1322` |
+| **LOS F (Breakdown)** | `TRAFFIC_COLORS.EXTREME` | `LOS_COLORS.F` | `#820014` |
+
+### 5.3. Global State Stores & Feedback
+* **Admin Web:** Zustand (`useAppStore`, `useNotificationStore`, `useGuestStore`) + Ant Design `message`.
+* **User Web:** TanStack Query v5 (Server State) + Zustand (`src/stores/`) + shadcn UI components.
+
 

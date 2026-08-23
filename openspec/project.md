@@ -91,9 +91,9 @@ flowchart TB
     - Charts & Analytics: ECharts, Recharts, Chart.js
     - Web Workers: `traffic-processor.worker.ts` for non-blocking client-side GeoJSON parsing
   - **Citizen User Web Portal (`apps/user-web`)**:
-    - Framework: Next.js 14 (App Router), React 18, TypeScript
-    - UI & Styling: Tailwind CSS, Lucide React
-    - Capabilities: Mobile-first responsive views, SSR/SSG for public traffic bulletins, incident reporting form, and location-based news feed
+    - Framework: Next.js 16 (App Router), React 19, TypeScript
+    - UI & Styling: Tailwind CSS v4, shadcn/ui (Radix UI), Lucide React
+    - Capabilities: Equal desktop & mobile responsive views, SSR/SSG for public traffic bulletins, crowdsourced incident reporting form with GPS snapping, and location-based news feed
 
 - **Backend Subsystem (`apps/backend`)**:
   - **Framework**: Node.js, Express.js (TypeScript)

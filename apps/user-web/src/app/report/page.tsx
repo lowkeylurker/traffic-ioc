@@ -1,73 +1,178 @@
-import type { IncidentType } from '@traffic-ioc/shared';
-import { Camera, MapPin, Send } from 'lucide-react';
+'use client';
+
+import { useState } from 'react';
+import { AlertCircle, CheckCircle2, MapPin, Send, Upload } from 'lucide-react';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+
+type IncidentType = 'ACCIDENT' | 'FLOOD' | 'CONGESTION';
 
 export default function ReportPage() {
-  const incidentTypes: Array<{ value: IncidentType; label: string }> = [
-    { value: 'ACCIDENT', label: 'Tai nạn giao thông' },
-    { value: 'FLOOD', label: 'Ngập lụt' },
-    { value: 'CONSTRUCTION', label: 'Công trường / Sửa đường' },
-    { value: 'FIRE', label: 'Cháy nổ' },
-    { value: 'OTHER', label: 'Sự cố khác' },
-  ];
+  const [incidentType, setIncidentType] = useState<IncidentType>('ACCIDENT');
+  const [description, setDescription] = useState('');
+  const [lat, setLat] = useState('10.7769');
+  const [lng, setLng] = useState('106.7009');
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      setSubmitted(true);
+    }, 800);
+  };
+
+  const handleGetCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLat(pos.coords.latitude.toFixed(6));
+          setLng(pos.coords.longitude.toFixed(6));
+        },
+        (err) => {
+          console.warn('Geolocation error:', err.message);
+        }
+      );
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-4">
+        <Card className="flex w-full max-w-md flex-col items-center p-8 text-center">
+          <CheckCircle2 className="mb-4 h-16 w-16 text-emerald-500" />
+          <h2 className="mb-2 text-xl font-bold text-slate-900">Cảm ơn bạn đã gửi phản ánh!</h2>
+          <p className="mb-6 text-sm text-slate-600">
+            Báo cáo sự cố đã được tiếp nhận và đang chờ đội ngũ điều hành xác thực. Thông tin sẽ
+            hiển thị trên bản tin công dân sau khi được duyệt.
+          </p>
+          <div className="flex w-full gap-3">
+            <Button onClick={() => setSubmitted(false)} variant="outline" className="flex-1">
+              Gửi phản ánh khác
+            </Button>
+            <Button asChild className="flex-1">
+              <Link href="/">Về trang chủ</Link>
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex-1 max-w-2xl mx-auto w-full p-4 md:p-8 flex flex-col gap-6">
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h2 className="text-xl font-bold text-slate-900 mb-1">Gửi Báo Cáo Sự Cố Giao Thông</h2>
-        <p className="text-sm text-slate-500 mb-6">
-          Thông tin phản ánh của bạn sẽ được gửi về trung tâm điều hành IOC để xác minh và thông báo cho người tham gia giao thông.
-        </p>
-
-        <form className="flex flex-col gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Loại sự cố</label>
-            <select className="w-full p-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              {incidentTypes.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+    <div className="mx-auto w-full max-w-2xl flex-1 p-4 sm:p-6">
+      <Card className="p-6 sm:p-8">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="rounded-xl bg-red-50 p-3 text-red-600">
+            <AlertCircle className="h-6 w-6" />
           </div>
-
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Tuyến đường / Vị trí</label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="VD: Đường Nguyễn Thị Minh Khai, Quận 1"
-                className="w-full p-2.5 pl-9 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-              <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+            <h1 className="text-xl font-bold text-slate-900">Báo cáo Sự cố Giao thông</h1>
+            <p className="text-xs text-slate-500">
+              Đóng góp thông tin sự cố thời gian thực tại TP.HCM
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <Label className="mb-2 block">Loại sự cố</Label>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              {[
+                {
+                  id: 'ACCIDENT' as IncidentType,
+                  label: 'Tai nạn',
+                  color: 'border-red-500 text-red-600 bg-red-50',
+                },
+                {
+                  id: 'FLOOD' as IncidentType,
+                  label: 'Ngập nước',
+                  color: 'border-blue-500 text-blue-600 bg-blue-50',
+                },
+                {
+                  id: 'CONGESTION' as IncidentType,
+                  label: 'Ùn tắc',
+                  color: 'border-amber-500 text-amber-600 bg-amber-50',
+                },
+              ].map((item) => (
+                <button
+                  type="button"
+                  key={item.id}
+                  onClick={() => setIncidentType(item.id)}
+                  className={`rounded-xl border-2 p-3 text-center text-sm font-semibold transition ${
+                    incidentType === item.id
+                      ? item.color
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Mô tả chi tiết</label>
-            <textarea
+            <div className="mb-2 flex items-center justify-between">
+              <Label>Vị trí (Tọa độ GPS)</Label>
+              <button
+                type="button"
+                onClick={handleGetCurrentLocation}
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                Lấy vị trí hiện tại
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="text-[10px] font-medium text-slate-400">Vĩ độ (Lat)</span>
+                <Input type="text" value={lat} onChange={(e) => setLat(e.target.value)} required />
+              </div>
+              <div>
+                <span className="text-[10px] font-medium text-slate-400">Kinh độ (Lng)</span>
+                <Input type="text" value={lng} onChange={(e) => setLng(e.target.value)} required />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <Label className="mb-2 block">Mô tả chi tiết</Label>
+            <Textarea
               rows={3}
-              placeholder="Mô tả mức độ tắc nghẽn, hướng đi ảnh hưởng..."
-              className="w-full p-2.5 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="VD: Va chạm giữa 2 xe máy tại ngã tư Hàng Xanh hướng về cầu Sài Gòn..."
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Hình ảnh đính kèm</label>
-            <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer hover:bg-slate-50 transition">
-              <Camera className="w-6 h-6 text-slate-400 mx-auto mb-1" />
-              <span className="text-xs text-slate-500">Chạm để chụp hoặc chọn ảnh từ máy</span>
+            <Label className="mb-2 block">Hình ảnh hiện trường (Tùy chọn)</Label>
+            <div className="cursor-pointer rounded-xl border-2 border-dashed border-slate-200 p-6 text-center transition hover:border-slate-300">
+              <Upload className="mx-auto mb-2 h-8 w-8 text-slate-400" />
+              <p className="text-xs font-medium text-slate-600">
+                Nhấn để tải lên hoặc chụp ảnh trực tiếp
+              </p>
+              <p className="mt-1 text-[10px] text-slate-400">Hỗ trợ JPG, PNG, WEBP tối đa 5MB</p>
             </div>
           </div>
 
-          <button
-            type="button"
-            className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm flex items-center justify-center gap-2 shadow transition"
+          <Button
+            type="submit"
+            disabled={loading}
+            variant="destructive"
+            className="w-full py-6 text-base font-bold"
           >
-            <Send className="w-4 h-4" />
-            Gửi phản ánh
-          </button>
+            <Send className="h-4 w-4" />
+            {loading ? 'Đang gửi phản ánh...' : 'Gửi Báo Cáo Sự Cố'}
+          </Button>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

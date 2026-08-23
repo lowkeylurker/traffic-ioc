@@ -1,38 +1,73 @@
 import type { Metadata } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
+import Link from 'next/link';
 import './globals.css';
 
+const geistSans = Geist({
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
+});
+
+const geistMono = Geist_Mono({
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
+});
+
 export const metadata: Metadata = {
-  title: 'Smart Traffic HCMC — Cổng Thông Tin Giao Thông Công Dân',
-  description: 'Theo dõi tình hình giao thông, tra cứu lộ trình và báo cáo sự cố giao thông tại TP. Hồ Chí Minh.',
+  title: 'Smart Traffic IOC — Cổng Thông Tin Giao Thông TP.HCM',
+  description:
+    'Nền tảng theo dõi tình hình giao thông, bản tin trực tuyến và tiếp nhận phản ánh sự cố từ người dân TP.HCM',
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
-    <html lang="vi">
-      <body className="min-h-screen bg-[#f0f2f5] text-slate-900 antialiased flex flex-col">
-        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm px-4 lg:px-8 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🚦</span>
-            <div>
-              <h1 className="font-bold text-lg leading-tight text-slate-900">Traffic IOC</h1>
-              <p className="text-xs text-slate-500">Cổng Thông Tin Công Dân</p>
-            </div>
+    <html lang="vi" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      <body className="flex min-h-full flex-col bg-slate-50 text-slate-900">
+        <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 shadow-xs backdrop-blur">
+          <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+            <Link href="/" className="flex items-center gap-2">
+              <span className="text-2xl">🚦</span>
+              <div className="flex flex-col">
+                <span className="leading-none font-bold text-slate-900">Traffic IOC</span>
+                <span className="text-[10px] font-medium text-slate-500">
+                  Cổng Thông Tin Công Dân
+                </span>
+              </div>
+            </Link>
+            <nav className="flex items-center gap-1 sm:gap-2">
+              <Link
+                href="/"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-blue-600"
+              >
+                Trang chủ
+              </Link>
+              <Link
+                href="/news"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-blue-600"
+              >
+                Bản tin
+              </Link>
+              <Link
+                href="/report"
+                className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-xs transition hover:bg-red-700"
+              >
+                <span>Báo sự cố</span>
+              </Link>
+            </nav>
           </div>
-          <nav className="flex items-center gap-4 text-sm font-medium">
-            <a href="/" className="text-blue-600 hover:text-blue-700 transition">Bản Đồ</a>
-            <a href="/news" className="text-slate-600 hover:text-slate-900 transition">Tin Tức</a>
-            <a href="/report" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-semibold shadow transition">
-              Báo Cáo Sự Cố
-            </a>
-          </nav>
         </header>
-        <main className="flex-1 flex flex-col">{children}</main>
-        <footer className="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
-          Smart Traffic IOC © 2026 TP. Hồ Chí Minh. Monorepo Architecture.
+
+        <main className="flex flex-1 flex-col">{children}</main>
+
+        <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
+          <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 sm:flex-row">
+            <span>© 2026 Smart Traffic IOC — Trung tâm Điều hành Giao thông Thông minh TP.HCM</span>
+            <span>Phiên bản Công dân 1.0</span>
+          </div>
         </footer>
       </body>
     </html>
