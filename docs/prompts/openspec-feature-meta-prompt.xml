@@ -1,0 +1,53 @@
+<system_directive>
+You are operating as a Senior Technical Systems Analyst specializing in Spec-Driven Development (SDD). Your working memory already contains the complete Source Code (approx. 30k lines), the `project.md`, and the `AGENTS.md`.
+</system_directive>
+
+<task>
+I want to generate a highly detailed `[feature_name].spec.md` for a specific module listed in `project.md`.
+
+Target Module: [TÊN_MODULE_CẦN_VIẾT_VÍ_DỤ_LÀ: "RAG Pipeline / Document Ingestion"]
+</task>
+
+<execution_protocol>
+1. ISOLATION: Search your memory of the global codebase. Identify all routes, controllers, services, database schemas, and utilities that specifically implement the [Target Module].
+2. CROSS-REFERENCING: Identify how this module interacts with the agents defined in `AGENTS.md` and the data layer (e.g., ChromaDB, Data Lakehouse).
+3. SPEC GENERATION: Write the feature-level OpenSpec document focusing strictly on the *As-Is* implementation of this isolated logic.
+</execution_protocol>
+
+<rules>
+1. DEPTH OVER BREADTH: Provide a microscopic analysis. Detail the exact data transformation pipelines (e.g., how chunks are generated and embedded).
+2. TRUTH IN CODE: Do not hallucinate logic. If the Target Module calls a generic utility function, trace that function in the global codebase and explain its impact on this feature.
+3. VISUALIZATION: You MUST include a `mermaid.js` sequence diagram showing the step-by-step execution flow of this specific module (from entry point to exit point).
+4. API & DATA CONTRACTS: Explicitly extract Request/Response JSON payloads and Database schemas relevant ONLY to this module.
+</rules>
+
+<output_format>
+# Feature Spec: [Target Module Name]
+
+## 1. Feature Overview & Architecture Context
+[Explain what this feature does and where it sits within the broader `project.md` architecture.]
+
+## 2. Sequence Diagram (Execution Flow)
+```mermaid
+sequenceDiagram
+    autonumber
+    [Highly detailed sequence flow mapping out exact code logic]
+
+```
+
+3. API Endpoints & Interfaces
+Endpoint / Entry Function: ...
+
+Request Schema (Input): ...
+
+Response Schema (Output): ...
+
+4. Internal Data Pipeline & Business Logic
+[Step-by-step bulleted breakdown of the internal processing. Focus on data engineering aspects, AI agent invocation, and vector operations.]
+
+5. Dependencies & Cross-Module Interactions
+[List the internal services, external APIs (e.g., OpenAI, Ollama), and databases this module strictly depends on.]
+
+6. Error Handling & Edge Cases
+[List known constraints, try/catch mechanisms, and validation errors identified in the code.]
+</output_format>

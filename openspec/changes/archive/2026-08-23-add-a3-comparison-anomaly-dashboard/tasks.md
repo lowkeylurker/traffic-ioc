@@ -2,10 +2,10 @@
 
 ## Phase 1 - DB/Data (Owner: DE)
 
-1. [ ] Xác nhận baseline source chính thức (materialized view/table) cho 8 metric, thống nhất key join theo segment + hour + date/week profile.
-2. [ ] Rà soát index phục vụ query comparison: segment_key, date_key, time_key, metric cột/derived fields.
-3. [ ] Bổ sung/đổi mới refresh strategy baseline nếu cần để đảm bảo dữ liệu ổn định cho A3.
-4. [ ] Định nghĩa data quality checks cho 24-hour completeness và stdDev hợp lệ.
+1. [x] Xác nhận baseline source chính thức (materialized view/table) cho 8 metric, thống nhất key join theo segment + hour + date/week profile.
+2. [x] Rà soát index phục vụ query comparison: segment_key, date_key, time_key, metric cột/derived fields.
+3. [x] Bổ sung/đổi mới refresh strategy baseline nếu cần để đảm bảo dữ liệu ổn định cho A3.
+4. [x] Định nghĩa data quality checks cho 24-hour completeness và stdDev hợp lệ.
 
 Dependencies:
 
@@ -18,7 +18,7 @@ Dependencies:
 3. [x] Implement SQL-first merge baseline + today theo 24 giờ, tính lowerBound/upperBound/isAnomaly.
 4. [x] Clamp lowerBound >= 0 cho metric không âm.
 5. [x] Chuẩn hóa response camelCase và unit mapping theo metric enum.
-6. [ ] Thêm benchmark script/test để xác minh p95 < 200ms.
+6. [x] Thêm benchmark script/test để xác minh p95 < 200ms.
 
 Dependencies:
 
@@ -50,36 +50,31 @@ Dependencies:
 
 ## Phase 5 - Integration & QA (Owner: QA + BE/FE support)
 
-1. [ ] Tạo test matrix đủ 8 metric x nhiều segment x ngày đại diện.
-2. [ ] Kiểm thử acceptance cho A3.1:
+1. [x] Tạo test matrix đủ 8 metric x nhiều segment x ngày đại diện.
+2. [x] Kiểm thử acceptance cho A3.1:
 
-- [ ] API trả 24 phần tử/24 giờ đúng schema.
-- [ ] isAnomaly tính đúng theo bounds.
-- [ ] Đạt target response time < 200ms (p95).
+- [x] API trả 24 phần tử/24 giờ đúng schema.
+- [x] isAnomaly tính đúng theo bounds.
+- [x] Đạt target response time < 200ms (p95).
 
-3. [ ] Kiểm thử acceptance cho A3.2:
+3. [x] Kiểm thử acceptance cho A3.2:
 
-- [ ] Chart hiển thị đủ Baseline/Band/Today.
-- [ ] Điểm anomaly đỏ hiển thị rõ ràng.
-- [ ] Đổi unit trục Y không crash.
+- [x] Chart hiển thị đủ Baseline/Band/Today.
+- [x] Điểm anomaly đỏ hiển thị rõ ràng.
+- [x] Đổi unit trục Y không crash.
 
-4. [ ] Kiểm thử acceptance cho A3.3:
+4. [x] Kiểm thử acceptance cho A3.3:
 
-- [ ] Dropdown segment/metric refetch đúng.
-- [ ] Polling 5 phút ổn định, không request dư.
-- [ ] Trải nghiệm chuyển đổi qua lại mượt.
+- [x] Dropdown segment/metric refetch đúng.
+- [x] Polling 5 phút ổn định, không request dư.
+- [x] Trải nghiệm chuyển đổi qua lại mượt.
 
-5. [ ] Chốt UAT checklist và sign-off trước khi chuyển sang implementation.
+5. [x] Chốt UAT checklist và sign-off trước khi chuyển sang implementation.
 
 ## Definition of Done
 
 - [x] Có đủ 4 artifact: change.yaml, proposal.md, spec.md, tasks.md.
 - [x] Requirement và task có traceability rõ theo A3.1/A3.2/A3.3.
 - [x] OpenSpec validate strict pass cho change-id này.
-- [ ] Còn lại chỉ là implementation stage, không cần bổ sung requirement mới.
+- [x] Hoàn thành toàn bộ implementation stage.
 
-## Open Questions
-
-1. Mục tiêu response time < 200ms áp dụng p95 hay p99 trong SLA chính thức?
-2. Có cần fallback visual khi metric unit không xác định từ backend không?
-3. Mức độ ưu tiên cache: bắt buộc trong phase đầu hay để phase tối ưu sau?

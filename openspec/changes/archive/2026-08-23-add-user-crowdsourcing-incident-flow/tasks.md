@@ -7,7 +7,7 @@
 - [x] 1.3 Add columns: source, status, reporter_id, image_url, upvotes (default 0).
 - [x] 1.4 Backfill legacy rows with safe source/status defaults.
 - [x] 1.5 Add indexes for status/time and spatial nearby queries.
-- [ ] 1.6 Validate migration on staging snapshot with no data loss.
+- [x] 1.6 Validate migration on staging snapshot with no data loss.
 
 ## 2. Backend API Delivery
 

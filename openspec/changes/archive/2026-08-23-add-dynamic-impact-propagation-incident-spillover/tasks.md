@@ -39,15 +39,15 @@ Dependencies:
 
 ## Phase 4 - Testing & Validation
 
-1. [ ] Unit tests cho backend service (validate, filter impacted, summary).
-2. [ ] Integration tests endpoint voi fixture PostGIS.
-3. [ ] UI tests cho click incident -> render overlay -> state transitions.
-4. [ ] Benchmark KPI: p95 API < 300ms, overlay visible < 1s.
+1. [x] Unit tests cho backend service (validate, filter impacted, summary).
+2. [x] Integration tests endpoint voi fixture PostGIS.
+3. [x] UI tests cho click incident -> render overlay -> state transitions.
+4. [x] Benchmark KPI: p95 API < 300ms, overlay visible < 1s.
 5. [x] Chay `openspec validate add-dynamic-impact-propagation-incident-spillover --strict --no-interactive`.
 
 ## Definition of Done
 
 - [x] API impact propagation hoat dong voi guardrails va error handling day du.
 - [x] UI hien thi vet loang ket xe truc quan (glow/pulse) va co legend/summaries.
-- [ ] Bo test va benchmark dat tieu chi MVP.
+- [x] Bo test va benchmark dat tieu chi MVP.
 - [x] OpenSpec validation strict pass.

@@ -67,19 +67,19 @@ Dependencies:
 
 ## Phase 6 - QA & Performance Validation (Owner: DE + BE + QA)
 
-1. [ ] Verify `report_reliability` có dữ liệu tháng trước.
-2. [ ] Đối chiếu mẫu công thức `t_95`, `buffer_index`, `pti`.
-3. [ ] Verify counts nguyên nhân tồn tại trên mỗi dòng dữ liệu.
-4. [ ] Benchmark API p95 < 100ms trên dữ liệu mart precompute.
-5. [ ] Kiểm tra re-run cùng kỳ không tạo duplicate records.
+1. [x] Verify `report_reliability` có dữ liệu tháng trước.
+2. [x] Đối chiếu mẫu công thức `t_95`, `buffer_index`, `pti`.
+3. [x] Verify counts nguyên nhân tồn tại trên mỗi dòng dữ liệu.
+4. [x] Benchmark API p95 < 100ms trên dữ liệu mart precompute.
+5. [x] Kiểm tra re-run cùng kỳ không tạo duplicate records.
 
 ## Definition of Done
 
 - [x] Mart `report_reliability` được quản lý bằng Prisma migration.
 - [x] Batch job tính đúng BI/PTI + root causes theo kỳ tuần/tháng.
 - [x] BullMQ orchestration vận hành ổn định với retry/idempotency.
-- [ ] API reliability phục vụ FE với query/sort/limit đúng và latency đạt mục tiêu.
-- [ ] OpenSpec strict validation pass cho change này.
+- [x] API reliability phục vụ FE với query/sort/limit đúng và latency đạt mục tiêu.
+- [x] OpenSpec strict validation pass cho change này.
 
 ## Notes
 
