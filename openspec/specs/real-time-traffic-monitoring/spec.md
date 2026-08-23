@@ -117,7 +117,7 @@ sequenceDiagram
 
 ### 3.1. Vector Tile Endpoint (PostGIS MVT)
 - **Endpoint**: `GET /api/v1/map/tiles/:z/:x/:y.pbf`
-- **Controller**: [`TileController.getTrafficTiles`](file:///home/levion/Documents/project/traffic-ioc/backend/src/controllers/tile.controller.ts#L11-L64)
+- **Controller**: [`TileController.getTrafficTiles`](file:///home/levion/Documents/project/traffic-ioc/apps/backend/src/controllers/tile.controller.ts)
 - **Input Parameters**:
   - `z` (Path, integer): Zoom level.
   - `x` (Path, integer): Tile X coordinate.
@@ -129,7 +129,7 @@ sequenceDiagram
 
 ### 3.2. Road Topology GeoJSON
 - **Endpoint**: `GET /api/v1/map/segments`
-- **Controller**: [`MapController.getTrafficMap`](file:///home/levion/Documents/project/traffic-ioc/backend/src/controllers/map.controller.ts#L18-L27)
+- **Controller**: [`MapController.getTrafficMap`](file:///home/levion/Documents/project/traffic-ioc/apps/backend/src/controllers/map.controller.ts)
 - **Response Schema (Output)**:
 ```json
 {
@@ -202,8 +202,8 @@ sequenceDiagram
 
 ## 4. Internal Data Pipeline & Business Logic
 
-1. **Materialized View Background Refreshing (`traffic-mv-refresh.service.ts`)**:
-   - BullMQ worker executes every minute (`* * * * *`) on queue `traffic-mv-refresh`.
+1. **Materialized View Background Refreshing (`apps/backend/src/jobs/traffic-mv-refresh.service.ts`)**:
+   - BullMQ worker executes every minute (`* * * * *`) on queue `traffic-mv-refresh` with dedicated Redis connection `createRedisConnection()`.
    - Runs SQL: `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_latest_traffic_status`.
    - Pre-computes EPSG:3857 Web Mercator geometry column (`ST_Transform(s.geometry_linestring, 3857) AS geom_3857`) and distinct latest flow metrics to ensure MVT queries execute under 15ms.
 

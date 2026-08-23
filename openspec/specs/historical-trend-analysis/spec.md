@@ -281,13 +281,13 @@ sequenceDiagram
   - `fact_traffic_flow` (BRIN indexes on `timestamp` and `inserted_at`, partitioned by `date_key`).
   - `mv_dim_segment_with_road_key`, `dim_road`, `dim_location`.
 - **Cloud Storage & Streaming**:
-  - **Azure Blob Storage SDK** (`@azure/storage-blob` via `azure.service.ts`) for secure CSV report hosting.
+  - **Azure Blob Storage SDK** (`@azure/storage-blob` via `apps/backend/src/services/azure.service.ts`) for secure CSV report hosting.
   - `pg-query-stream` and `fast-csv`.
 - **Worker & Queue Infrastructure**:
-  - **BullMQ**: `csvExportQueue` and `csvExportWorker` with `concurrency: 2` and exponential backoff retry.
+  - **BullMQ**: `csvExportQueue` and `csvExportWorker` (`apps/backend/src/jobs/csvExportQueue.ts`, `apps/backend/src/jobs/csvExportWorker.ts`) with dedicated connection `createRedisConnection()`, `concurrency: 2`, and exponential backoff retry.
 - **Notification Services**:
-  - **Nodemailer** for email delivery with download URLs.
-  - **MongoDB** (`Notification`) and **Socket.IO** (`socket.service.ts`) for real-time web UI alerting.
+  - **Nodemailer** for email delivery with download URLs (`apps/backend/src/services/email.service.ts`).
+  - **MongoDB 7** (`Notification`) and **Socket.IO** (`apps/backend/src/services/socket.service.ts`) for real-time web UI alerting.
 
 ---
 

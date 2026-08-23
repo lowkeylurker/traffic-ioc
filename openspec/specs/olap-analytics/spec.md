@@ -251,10 +251,10 @@ sequenceDiagram
   - `dim_corridor`, `dim_segment`, `bridge_corridor_segment`, `dim_way`, `dim_road`, `dim_location`
   - Materialized views: `mv_olap_traffic_summary`, `mv_olap_traffic_summary_weekly`, `mv_olap_traffic_summary_monthly`
 - **Document & Aggregation Cache**:
-  - **MongoDB**: `CorridorAnalytics` (`corridor-analytics-per-day`), `CorridorReliability` (`corridor-reliability-cache`) with compound indexes on `{ timeWindow: 1, sourcePeriod: 1, corridorKey: 1 }`.
+  - **MongoDB 7**: `CorridorAnalytics` (`corridor-analytics-per-day`), `CorridorReliability` (`corridor-reliability-cache`) with compound indexes on `{ timeWindow: 1, sourcePeriod: 1, corridorKey: 1 }`.
   - **Redis 7**: Query cache for high-frequency dashboard requests.
 - **Queue Workers**:
-  - **BullMQ**: `reliability-job.service.ts`, `olap-job.service.ts`, `corridor-analytics-job.service.ts`.
+  - **BullMQ**: `apps/backend/src/jobs/reliability-job.service.ts`, `apps/backend/src/jobs/olap-job.service.ts`, `apps/backend/src/jobs/corridor-analytics-job.service.ts` using dedicated Redis connection `createRedisConnection()`.
 
 ---
 

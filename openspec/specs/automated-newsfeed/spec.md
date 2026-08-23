@@ -110,7 +110,7 @@ sequenceDiagram
 
 ### 3.1. Live News Ticker Endpoint
 - **Endpoint**: `GET /api/v1/news/ticker`
-- **Controller**: [`NewsController.getLatestNews`](file:///home/levion/Documents/project/traffic-ioc/backend/src/controllers/news.controller.ts#L6-L19)
+- **Controller**: [`NewsController.getLatestNews`](file:///home/levion/Documents/project/traffic-ioc/apps/backend/src/controllers/news.controller.ts)
 - **Response Schema (Output)**:
 ```json
 {
@@ -255,13 +255,13 @@ sequenceDiagram
   - Google Gemini API (`@google/generative-ai`, `gemini-3.1-flash-lite-preview`)
   - OpenWeatherMap (via data pipeline ingestion into `dim_weather`)
 - **Queue & Worker Engine**:
-  - BullMQ `newsQueue` on Redis 7
+  - BullMQ `newsQueue` on Redis 7 using dedicated connection `createRedisConnection()` (`apps/backend/src/jobs/newsQueue.ts`, `apps/backend/src/jobs/trafficNewsWorker.ts`)
 - **Database & Storage**:
   - PostgreSQL 15+ with PostGIS (`dim_weather`, `fact_traffic_flow`, `fact_incident`, `fact_corridor_performance`)
-  - MongoDB (`Notification` model in collection `notifications`)
+  - MongoDB 7 (`Notification` model in collection `notifications`)
   - Redis 7 (stores `latest_traffic_news`)
 - **Real-Time Gateway**:
-  - Socket.IO server (`socket.service.ts`)
+  - Socket.IO server (`apps/backend/src/services/socket.service.ts`)
 
 ---
 

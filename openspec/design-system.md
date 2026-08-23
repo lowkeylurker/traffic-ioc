@@ -8,7 +8,7 @@
 
 ## 1. Design Tokens (Primitives)
 
-All design tokens are derived directly from the application theme configuration (`src/config/theme.ts`), global stylesheet (`src/styles/index.css`), application constants (`src/config/constants.ts`), and localized OLAP style modules (`src/pages/analytics/OlapDashboard.css`).
+All design tokens are derived directly from the Admin application theme configuration (`apps/admin-web/src/config/theme.ts`), global stylesheet (`apps/admin-web/src/styles/index.css`), application constants (`apps/admin-web/src/config/constants.ts`), and localized OLAP style modules (`apps/admin-web/src/pages/analytics/OlapDashboard.css`), coordinated with Tailwind CSS design tokens in `apps/user-web`.
 
 ### 1.1. Color Palette
 

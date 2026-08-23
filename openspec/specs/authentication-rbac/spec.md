@@ -85,21 +85,21 @@ sequenceDiagram
 ## 3. Middleware & Configuration Contracts
 
 ### 3.1. Authentication Middleware (`authMiddleware`)
-- **File**: [`backend/src/middlewares/auth.middleware.ts`](file:///home/levion/Documents/project/traffic-ioc/backend/src/middlewares/auth.middleware.ts)
+- **File**: [`apps/backend/src/middlewares/auth.middleware.ts`](file:///home/levion/Documents/project/traffic-ioc/apps/backend/src/middlewares/auth.middleware.ts)
 - **Behavior**:
   - Uses `@clerk/express` `requireAuth()` to validate bearer token in `Authorization` header.
   - In non-production environments when `BYPASS_AUTH_FOR_BENCHMARK === 'true'`, injects synthetic `benchmark_admin` identity.
   - If token is missing, expired, or invalid, rejects with HTTP 401 Unauthorized.
 
 ### 3.2. Authorization Middleware (`adminOnly`)
-- **File**: [`backend/src/middlewares/admin.middleware.ts`](file:///home/levion/Documents/project/traffic-ioc/backend/src/middlewares/admin.middleware.ts)
+- **File**: [`apps/backend/src/middlewares/admin.middleware.ts`](file:///home/levion/Documents/project/traffic-ioc/apps/backend/src/middlewares/admin.middleware.ts)
 - **Behavior**:
   - Extracts `userId` from authenticated request context (`req.auth`).
   - Calls `clerkClient.users.getUser(userId)` to inspect `publicMetadata.role`.
   - Rejects with HTTP 403 Forbidden (`Access denied. Admin role required.`) if `role !== 'admin'`.
 
 ### 3.3. Client-Side Route Protection (`RoleGuard`)
-- **File**: `frontend/src/components/auth/RoleGuard.tsx`
+- **File**: [`apps/admin-web/src/components/auth/RoleGuard.tsx`](file:///home/levion/Documents/project/traffic-ioc/apps/admin-web/src/components/auth/RoleGuard.tsx)
 - **Behavior**:
   - Inspects `user.publicMetadata.role` via Clerk React hook `useUser()`.
   - Renders loading spinner while Clerk session initializes.

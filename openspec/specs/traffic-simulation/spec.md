@@ -102,7 +102,7 @@ sequenceDiagram
 
 ### 3.1. Simulation Rerouting with Road Blocks
 - **Endpoint**: `POST /api/v1/simulation/routing`
-- **Controller**: [`SimulationController.routing`](file:///home/levion/Documents/project/traffic-ioc/backend/src/controllers/simulation.controller.ts#L10-L24)
+- **Controller**: [`SimulationController.routing`](file:///home/levion/Documents/project/traffic-ioc/apps/backend/src/controllers/simulation.controller.ts)
 - **Request Schema (Input)**:
 ```json
 {
@@ -212,8 +212,8 @@ sequenceDiagram
    SELECT ... FROM route r INNER JOIN view_dynamic_routing_edges v ON r.edge = v.id ...
    ```
 
-5. **Dynamic Cost Evaluation & Refresh Job (`routing-refresh-job.service.ts`)**:
-   - BullMQ worker executes every 15 minutes (`*/15 * * * *`) on queue `routing-view-refresh`.
+5. **Dynamic Cost Evaluation & Refresh Job (`apps/backend/src/jobs/routing-refresh-job.service.ts`)**:
+   - BullMQ worker executes every 15 minutes (`*/15 * * * *`) on queue `routing-view-refresh` using dedicated Redis connection `createRedisConnection()`.
    - Executes: `REFRESH MATERIALIZED VIEW CONCURRENTLY view_dynamic_routing_edges`.
    - Re-evaluates edge cost using real-time travel speed:
      $$\text{Cost}_{\text{edge}} = \frac{\text{length\_m}}{V_{\text{current, m/s}}} \times \left(1 + \max(0, \text{TTI} - 1)\right)$$
@@ -228,7 +228,7 @@ sequenceDiagram
   - `dim_segment`, `dim_node`, `dim_way`, `dim_road`
   - `fact_simulation_scenario`
 - **Queue & Worker Engine**:
-  - **BullMQ**: `routing-refresh-job.service.ts` backed by Redis 7.
+  - **BullMQ**: `apps/backend/src/jobs/routing-refresh-job.service.ts` backed by Redis 7 with `createRedisConnection()`.
 - **Frontend Dependencies**:
   - Mapbox GL JS with custom dynamic source rendering.
   - Turf.js for client-side distance and heading interpolations.

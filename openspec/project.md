@@ -103,10 +103,12 @@ flowchart TB
   - **Media Processing**: Multer, Cloudinary SDK, Azure Blob Storage
 
 - **Data Layer**:
-  - **Relational & Spatial Database**: PostgreSQL 15+ with PostGIS extension (`GIST` spatial indices, partitioned tables, BRIN temporal indices)
-  - **Data Access & ORMs**: Dual-engine strategy — Prisma ORM (relational schema management) and `pg` Connection Pool (high-throughput spatial queries, PostGIS geometry conversions `ST_AsGeoJSON`, `ST_DWithin`)
-  - **NoSQL / Document Store**: MongoDB with Mongoose (notifications, user settings, unstructured logs)
-  - **In-Memory Cache & Message Broker**: Redis (rate-limiting storage, corridor analytics cache, real-time speed tile caching, BullMQ broker)
+  - **Relational & Spatial Database**:
+    - **Backend Application Database**: PostgreSQL 18 with persistent volume mounts (`postgres_data:/var/lib/postgresql`) managed via Prisma ORM for relational models, authentication metadata, and citizen reports.
+    - **Data Warehouse & Spatial Engine**: PostgreSQL 15+ with PostGIS & pgRouting extensions for large-scale spatial partitioning, BRIN temporal indices, and network topology graphs.
+  - **Data Access & ORMs**: Dual-engine strategy — Prisma ORM (relational schema management) and `pg` Connection Pool (high-throughput spatial queries, PostGIS geometry conversions `ST_AsGeoJSON`, `ST_DWithin`, `pgr_bdAstar`).
+  - **NoSQL / Document Store**: MongoDB 7 with Mongoose (response caching via `DATABASE_CACHE_RESPONSE_URL`, notifications, user settings, unstructured logs).
+  - **In-Memory Cache & Message Broker**: Redis 7 (rate-limiting token bucket, corridor analytics cache, real-time speed tile caching, BullMQ broker with dedicated per-worker `createRedisConnection()` isolation).
 
 - **AI, ETL & External Subsystems**:
   - **Data Pipeline (`data-pipeline/`)**: Python 3.10+ ETL scheduler and TomTom ingest pipeline
@@ -114,7 +116,9 @@ flowchart TB
   - **External Providers**: Mapbox Geocoding & Matrix APIs, OpenStreetMap (OSM) Road Topology, TomTom Traffic Flow & Incidents, OpenWeatherMap
 
 - **Infrastructure & DevOps**:
-  - **Containerization**: Docker, Docker Compose (`apps/backend`, `apps/admin-web`, `apps/user-web`, `postgres`, `redis`, `data-pipeline`, `ai-core`)
+  - **Containerization**:
+    - Root Docker Compose (`docker-compose.yml`): Data Warehouse (PostgreSQL + PostGIS/pgRouting), Data Pipeline ETL, and AI Core.
+    - Backend Stack Compose (`apps/backend/docker-compose.yml`): Multi-stage pnpm API container (`api`), PostgreSQL 18 (`postgres:18`), Redis 7 Alpine (`redis:7-alpine`), and MongoDB 7 (`mongo:7`).
   - **Web Server & Reverse Proxy**: Nginx
   - **Static / Edge Web Hosting**: Vercel configuration
 
