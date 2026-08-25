@@ -56,3 +56,7 @@ Thumbs.db
 .worktrees/
 worktrees/
 .superpowers/
+
+# Generated clients & build artifacts
+apps/backend/src/generated/
+*.tsbuildinfo

@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../config/prisma';
 import { prisma } from '../../config/prisma';
 
 type ReportStatus = 'PENDING' | 'APPROVED' | 'REJECTED';

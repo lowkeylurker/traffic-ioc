@@ -1,5 +1,5 @@
 // Incident Service (A2)
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../config/prisma';
 import {
   IncidentFeature,
   IncidentImpactQuery,

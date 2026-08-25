@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client-oltp"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model knowledge_base {
+  id                String               @id @default(uuid()) @db.Uuid
+  code              String               @unique @db.VarChar(50)
+  name              String               @db.VarChar(255)
+  qdrant_collection String               @db.VarChar(100)
+  documents         knowledge_document[]
+  chat_sessions     chat_session[]
+  created_at        DateTime             @default(now())
+}
+
+model knowledge_document {
+  id             String            @id @default(uuid()) @db.Uuid
+  kb_id          String            @db.Uuid
+  code           String            @db.VarChar(100)
+  title          String            @db.VarChar(500)
+  source_url     String?           @db.Text
+  metadata       Json?
+  chunks         knowledge_chunk[]
+  knowledge_base knowledge_base    @relation(fields: [kb_id], references: [id], onDelete: Cascade)
+  created_at     DateTime          @default(now())
+
+  @@unique([kb_id, code])
+}
+
+model knowledge_chunk {
+  id              String             @id @default(uuid()) @db.Uuid
+  document_id     String             @db.Uuid
+  chunk_index     Int
+  breadcrumb      String?            @db.VarChar(500)
+  content         String             @db.Text
+  qdrant_point_id String             @unique @db.Uuid
+  metadata        Json?
+  document        knowledge_document @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  created_at      DateTime           @default(now())
+
+  @@index([document_id])
+}
+
+model chat_session {
+  id             String         @id @default(uuid()) @db.Uuid
+  kb_id          String         @db.Uuid
+  user_id        String?        @db.Uuid
+  title          String         @default("Cuộc trò chuyện mới")
+  messages       chat_message[]
+  knowledge_base knowledge_base @relation(fields: [kb_id], references: [id], onDelete: Cascade)
+  created_at     DateTime       @default(now())
+  updated_at     DateTime       @default(now()) @updatedAt
+}
+
+model chat_message {
+  id          String         @id @default(uuid()) @db.Uuid
+  session_id  String         @db.Uuid
+  role        String         @db.VarChar(20)
+  content     String         @db.Text
+  citations   Json?
+  latency_ms  Int?
+  tokens_used Int?
+  feedback    chat_feedback?
+  session     chat_session   @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  created_at  DateTime       @default(now())
+
+  @@index([session_id])
+}
+
+model chat_feedback {
+  id         String       @id @default(uuid()) @db.Uuid
+  message_id String       @unique @db.Uuid
+  rating     Int          @db.SmallInt
+  comment    String?      @db.Text
+  message    chat_message @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  created_at DateTime     @default(now())
+}

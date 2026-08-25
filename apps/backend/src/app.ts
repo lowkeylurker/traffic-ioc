@@ -24,6 +24,7 @@ import simulationRoutes from './routes/simulation.routes';
 import trafficRoutes from './routes/traffic.routes';
 import userRoutes from './routes/user/user.routes';
 import weatherRoutes from './routes/weather.routes';
+import ragRoutes from './routes/rag.routes';
 
 const logger = new Logger('App');
 
@@ -90,6 +91,7 @@ export const createApp = (): Express => {
   app.use('/api/history', historyRoutes);
   app.use('/api/traffic', trafficRoutes);
   app.use('/api/search', searchRoutes);
+  app.use('/api/rag', ragRoutes);
 
   app.use(`${apiV1}${ROUTE_PATHS.MAP}`, mapRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.TRAFFIC}`, trafficRoutes);
@@ -102,6 +104,7 @@ export const createApp = (): Express => {
   app.use(`${apiV1}${ROUTE_PATHS.WEATHER}`, weatherRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.USER}`, userRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.NEWS}`, newsRoutes);
+  app.use(`${apiV1}${ROUTE_PATHS.RAG}`, ragRoutes);
 
   logger.log('Routes registered:', {
     map: `${apiV1}${ROUTE_PATHS.MAP}`,
@@ -115,6 +118,7 @@ export const createApp = (): Express => {
     weather: `${apiV1}${ROUTE_PATHS.WEATHER}`,
     user: `${apiV1}${ROUTE_PATHS.USER}`,
     news: `${apiV1}${ROUTE_PATHS.NEWS}`,
+    rag: `${apiV1}${ROUTE_PATHS.RAG}`,
   });
 
   // ============================================================================
