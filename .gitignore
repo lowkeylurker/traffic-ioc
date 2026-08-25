@@ -53,3 +53,6 @@ Thumbs.db
 
 # Project Specs
 .spec/
+.worktrees/
+worktrees/
+.superpowers/
