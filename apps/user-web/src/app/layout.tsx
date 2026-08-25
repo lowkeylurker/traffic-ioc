@@ -52,6 +52,12 @@ export default function RootLayout({
                 Bản tin
               </Link>
               <Link
+                href="/assistant"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-blue-600"
+              >
+                Trợ lý Luật
+              </Link>
+              <Link
                 href="/report"
                 className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-xs transition hover:bg-red-700"
               >
