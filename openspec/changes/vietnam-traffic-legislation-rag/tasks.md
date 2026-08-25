@@ -5,11 +5,11 @@
 
 ## 2. Document Ingestion Service (`rag-ingestion/`)
 
-- [ ] 2.1 Scaffold `rag-ingestion/` microservice using `uv` (`uv init`), `pyproject.toml`, `pyrefly` config, and `uv`-based `Dockerfile`, and verify startup via `uv run uvicorn`
-- [ ] 2.2 Implement adaptive document loader in `src/parsers/document_detector.py` and Google Gemini Flash OCR transcriber in `src/parsers/ocr_vision_parser.py` for scanned decree PDFs
-- [ ] 2.3 Implement custom LlamaIndex hierarchical `LegalNodeParser` in `src/parsers/legal_ast.py` and context breadcrumb enricher in `src/enrichers/chunk_composer.py` to extract fine ranges and cross-linked penalties
-- [ ] 2.4 Implement Ollama `bge-m3` embedding generator in `src/services/embedder.py`, OLTP PostgreSQL sync in `src/services/oltp_sync.py`, and Qdrant upsertion in `src/services/qdrant_sync.py`
-- [ ] 2.5 Implement FastAPI ingestion endpoints (`POST /api/v1/ingest/traffic-law/process`, `GET /api/v1/documents`) in `src/api/routes/ingest.py` and verify by indexing a test decree
+- [x] 2.1 Scaffold `rag-ingestion/` microservice using `uv` (`uv init`), `pyproject.toml`, `pyrefly` config, and `uv`-based `Dockerfile`, and verify startup via `uv run uvicorn`
+- [x] 2.2 Implement adaptive document loader in `src/parsers/document_detector.py` and Google Gemini Flash OCR transcriber in `src/parsers/ocr_vision_parser.py` for scanned decree PDFs
+- [x] 2.3 Implement custom LlamaIndex hierarchical `LegalNodeParser` in `src/parsers/legal_ast.py` and context breadcrumb enricher in `src/enrichers/chunk_composer.py` to extract fine ranges and cross-linked penalties
+- [x] 2.4 Implement Ollama `bge-m3` embedding generator in `src/services/embedder.py`, OLTP PostgreSQL sync in `src/services/oltp_sync.py`, and Qdrant upsertion in `src/services/qdrant_sync.py`
+- [x] 2.5 Implement FastAPI ingestion endpoints (`POST /api/v1/ingest/traffic-law/process`, `GET /api/v1/documents`) in `src/api/routes/ingest.py` and verify by indexing a test decree
 
 ## 3. Backend Multi-Prisma & RAG Gateway (`apps/backend`)
 
