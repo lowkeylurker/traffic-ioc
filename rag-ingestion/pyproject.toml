@@ -1,0 +1,53 @@
+[project]
+name = "rag-ingestion"
+version = "0.1.0"
+description = "Vietnam Traffic Legislation Multi-RAG Document Ingestion Microservice"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Smart Traffic IOC Team", email = "dev@traffic-ioc.local" }
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+    "llama-index-core>=0.10.0",
+    "google-generativeai>=0.4.0",
+    "qdrant-client>=1.8.0",
+    "ollama>=0.1.7",
+    "sqlalchemy>=2.0.28",
+    "asyncpg>=0.29.0",
+    "pdfplumber>=0.10.3",
+    "pymupdf>=1.23.26",
+    "python-docx>=1.1.0",
+    "python-multipart>=0.0.9",
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.5",
+    "pyrefly>=0.1.0",
+    "ruff>=0.3.0",
+]
+
+[tool.pyrefly]
+python_version = "3.11"
+check_untyped_defs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
