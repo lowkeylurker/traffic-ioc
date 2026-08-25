@@ -218,6 +218,37 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  # 8. Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: traffic_ioc_qdrant
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - traffic-network
+    restart: unless-stopped
+
+  # 9. PostgreSQL 15 - Operational OLTP Database (RAG, Chat, Feedback)
+  postgres-oltp:
+    image: postgres:15-alpine
+    container_name: traffic_ioc_postgres_oltp
+    environment:
+      POSTGRES_USER: ${OLTP_DB_USER:-traffic_user}
+      POSTGRES_PASSWORD: ${OLTP_DB_PASSWORD:-traffic_password}
+      POSTGRES_DB: ${OLTP_DB_NAME:-traffic_ioc_oltp}
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "${OLTP_DB_PORT:-5434}:5432"
+    volumes:
+      - postgres_oltp_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${OLTP_DB_USER:-traffic_user} -d ${OLTP_DB_NAME:-traffic_ioc_oltp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - traffic-network
     restart: unless-stopped
@@ -232,6 +263,10 @@ volumes:
   pipeline_logs:
     driver: local
   redis_data:
+    driver: local
+  postgres_oltp_data:
+    driver: local
+  qdrant_data:
     driver: local
 
 # ═══════════════════════════════════════════════════════════
