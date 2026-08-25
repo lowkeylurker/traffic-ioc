@@ -1,22 +1,38 @@
-schema: spec-driven
+schema: superspec
 githubCopilot:
   cloudAgent: false
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Smart Traffic IOC: Real-time traffic monitoring, incident crowdsourcing, OLAP reliability analytics, and routing simulation for Ho Chi Minh City.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  Monorepo Structure (pnpm + Turborepo):
+  - apps/admin-web: React 18, Vite, AntD 5, Zustand, TanStack Query, Mapbox GL / Deck.gl, Web Workers (GeoJSON processing).
+  - apps/user-web: Next.js 16 (App Router), React 19, Tailwind CSS v4, shadcn/ui, Feature-Driven (`src/features/<domain>/`).
+  - apps/backend: Express.js (TypeScript), Socket.IO, BullMQ (Redis), Multer + Cloudinary/Azure.
+  - packages/shared: Shared types, constants, Zod schemas, and utils (`@traffic-ioc/shared`).
+  - data-pipeline/ & ai-core/: Python 3.10+ (TomTom ETL, PyTorch/FastAPI traffic prediction).
+
+  Architecture & Conventions:
+  - Dual-Engine DB: Prisma ORM (`backend/prisma/schema.prisma`) for relational CRUD/migrations; Raw PostgreSQL pool (`backend/src/config/db.ts`) with PostGIS/pgRouting for spatial queries (ST_AsGeoJSON, ST_DWithin, pgr_bdAstar) and partitioned fact tables.
+  - DB Schema: Tables `snake_case` singular (e.g., `dim_segment`, `fact_traffic_flow`), columns `snake_case`, GiST index for geometry, BRIN for time series.
+  - API Conventions: REST endpoints `/api/v1/*` in `kebab-case`. Request/response JSON payloads strictly `camelCase`. Response envelope: `{ success: boolean, data: T, message?: string }`. Centralized `error.middleware.ts`.
+  - Frontend State: Server state strictly in TanStack Query via hierarchical Query Key Factories (`<feature>.keys.ts`), never inline array keys. Client UI state in Zustand. Never mirror server cache into global stores.
+  - Commits: Scoped conventional commits (`[FE]`, `[BE]`, `[SHARED]`, `[PIPELINE]`).
+
+rules:
+  proposal:
+    - "Explicitly list impacted monorepo subsystems (apps/admin-web, apps/user-web, apps/backend, packages/shared, data-pipeline, ai-core)."
+    - "Define clear scope boundaries and explicit Non-goals."
+  specs:
+    - "Write requirements using Given/When/Then acceptance scenarios."
+    - "Define explicit API contracts (/api/v1/..., HTTP methods, camelCase payload schemas, Zod validation)."
+    - "Specify user roles/permissions (Commuter, Traffic Operator, System Admin) and state transitions."
+  design:
+    - "Specify DB engine per query path: Prisma ORM vs. Raw PostGIS pool."
+    - "Detail data models, table naming (snake_case singular), and spatial/temporal indexing (GiST/BRIN)."
+    - "Define Next.js Server vs. Client Component boundaries, Query Key Factories, and Web Worker offloading for spatial calculations."
+    - "Detail BullMQ async worker queues for heavy background tasks (exports, batch jobs)."
+  tasks:
+    - "Order tasks topologically across packages: packages/shared -> apps/backend -> apps/admin-web / apps/user-web."
+    - "Include explicit typecheck (pnpm build:check) or test verification commands per package."
+    - "Keep tasks atomic, sequential, and testable."
