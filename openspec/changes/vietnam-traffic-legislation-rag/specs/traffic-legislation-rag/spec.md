@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Legal Document Ingestion and Hierarchical Structuring
-The system SHALL ingest Vietnamese legal traffic documents (.docx, digital .pdf, and scanned image .pdf), transcribe scanned documents via Google Gemini Flash OCR, parse the content into a structural AST (Chương > Điều > Khoản > Điểm), enrich chunks with context breadcrumbs and fine brackets, generate 1024-dimension embeddings via local Ollama `BAAI/bge-m3`, and atomically persist records into both the OLTP PostgreSQL database and the Qdrant vector database via asynchronous background jobs publishing progress events over Redis Pub/Sub.
+The system SHALL ingest Vietnamese legal traffic documents (.docx, digital .pdf, and scanned image .pdf), transcribe scanned documents via Google Gemini Flash OCR, parse the content into a structural AST (Chương > Điều > Khoản > Điểm), enrich chunks with context breadcrumbs and fine brackets, generate 1024-dimension embeddings via an extensible `EmbedderFactory` (OpenAI SDK supporting any compatible backend such as Ollama, OpenAI, or vLLM), and atomically persist records into both the OLTP PostgreSQL database and the Qdrant vector database via asynchronous background jobs publishing progress events over Redis Pub/Sub.
 
 #### Scenario: Ingesting digital decree document via asynchronous job
 - **GIVEN** an authorized System Admin uploads a valid decree file `Nghị định 100/2019/NĐ-CP.docx` via `POST /api/v1/admin/rag/documents/upload` which dispatches `POST /api/v1/ingest/traffic-law/process-async`

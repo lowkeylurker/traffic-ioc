@@ -5,7 +5,7 @@ Smart Traffic IOC operates a dual-engine architecture: a PostgreSQL/PostGIS Kimb
 ## Goals / Non-Goals
 
 **Goals:**
-- Implement an isolated, asynchronous document ingestion microservice (`rag-ingestion/`) with Google Gemini Flash OCR, LlamaIndex, and local Ollama `BAAI/bge-m3` embeddings.
+- Implement an isolated, asynchronous document ingestion microservice (`rag-ingestion/`) with Google Gemini Flash OCR, LlamaIndex, and an extensible `EmbedderFactory` powered by the official OpenAI SDK (supporting local Ollama, OpenAI, vLLM, and any OpenAI-compatible embedding model).
 - Deploy a dedicated Qdrant vector database (`vietnam_traffic_laws` collection) with 1024-dimension Cosine distance and metadata payload indexing.
 - Establish an isolated OLTP PostgreSQL database with a dedicated Prisma client (`oltpPrisma`) in `apps/backend`.
 - Build a universal RAG orchestrator in `apps/backend` using Vercel AI SDK (`ai`), supporting Google Gemini Flash (cloud) and Ollama Qwen 2.5 (local) with Server-Sent Events (SSE) streaming.
@@ -23,7 +23,8 @@ Smart Traffic IOC operates a dual-engine architecture: a PostgreSQL/PostGIS Kimb
 - **Internal Service Architecture (`rag-ingestion/`)**:
   - `src/schemas/`: Isolated Pydantic DTOs (`IngestionRequest`, `JobAcceptedResponse`, `RetryProcessRequest`).
   - `src/services/minio_storage.py`: MinIO client streaming raw document binaries using stored `storage_key` or `doc_id`.
-  - `src/services/ingestion_pipeline.py`: Pure business logic orchestration (`IngestionPipeline`) coordinating MinIO retrieval, format detection, OCR, AST parsing, chunk enrichment, Ollama embeddings, Qdrant upserting, PostgreSQL syncing, and Redis milestone publishing.
+  - `src/services/embedder.py`: Extensible `EmbedderFactory` wrapping `BaseEmbedder` and `OpenAIEmbedder` via the OpenAI Python SDK, abstracting model configuration from the rest of the application.
+  - `src/services/ingestion_pipeline.py`: Pure business logic orchestration (`IngestionPipeline`) coordinating MinIO retrieval, format detection, OCR, AST parsing, chunk enrichment, embedding factory generation, Qdrant upserting, PostgreSQL syncing, and Redis milestone publishing.
   - `src/api/routes/ingest.py`: Thin route controllers handling HTTP validation, dispatching background worker tasks, and returning standard `JobAcceptedResponse`. Direct file upload / multipart handling in `rag-ingestion` is completely removed in favor of MinIO object references.
 - **Toolchain & Packaging (`rag-ingestion/`)**:
   - Package & Project Manager: `uv` (fast Rust-based package manager and resolver).
