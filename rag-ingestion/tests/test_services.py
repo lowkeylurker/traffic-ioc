@@ -1,7 +1,7 @@
 """Unit tests for EmbedderFactory, OpenAIEmbedder, OltpSyncService, and QdrantSyncService."""
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.enrichers.chunk_composer import EnrichedChunk
 from src.services.embedder import (
@@ -110,13 +110,13 @@ class TestQdrantSyncService(unittest.TestCase):
         mock_client.upsert.assert_called_once()
 
 
-class TestOltpSyncService(unittest.TestCase):
+class TestOltpSyncService(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.oltp_service = OltpSyncService(
-            db_url="postgresql+asyncpg://postgres:postgres@localhost:5433/traffic_ioc_oltp"
+            db_url="postgresql+asyncpg://traffic_user:traffic_password@localhost:5434/traffic_ioc_oltp"
         )
 
-    def test_sync_document_and_chunks(self):
+    async def test_sync_document_and_chunks(self):
         chunk = EnrichedChunk(
             id="00000000-0000-0000-0000-000000000002",
             doc_code="ND-100-2019",
@@ -134,9 +134,10 @@ class TestOltpSyncService(unittest.TestCase):
         with patch.object(
             self.oltp_service,
             "_execute_sync",
+            new_callable=AsyncMock,
             return_value={"kb_id": "kb-1", "doc_id": "doc-1", "synced_chunks": 1},
         ):
-            res = self.oltp_service.sync_document_and_chunks(
+            res = await self.oltp_service.sync_document_and_chunks(
                 kb_code="vietnam_traffic_legislation",
                 kb_name="Cơ sở dữ liệu Pháp luật Giao thông Việt Nam",
                 doc_code="ND-100-2019",

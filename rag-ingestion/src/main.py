@@ -14,10 +14,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes.ingest import router as ingest_router
-from src.config import settings
+from src.core.config import settings
+from src.core.db import close_db_engine
 from src.services.redis_publisher import redis_publisher
 
-logger = logging.getLogger("uvicorn.error")
+# Configure root logging so all pipeline loggers output to terminal console
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] [%(name)s]: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+logger = logging.getLogger("rag_ingestion")
 
 
 def get_health() -> dict[str, str]:
@@ -43,7 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         - Logs initialization status with configured environment and active models.
 
     Shutdown:
-        - Gracefully closes Redis Pub/Sub async connection pools.
+        - Gracefully closes Redis Pub/Sub async connection pools and database engine.
 
     Args:
         app (FastAPI): The active FastAPI application instance.
@@ -56,6 +64,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     logger.info("Shutting down RAG ingestion service and closing background connections...")
     await redis_publisher.close()
+    await close_db_engine()
 
 
 app = FastAPI(

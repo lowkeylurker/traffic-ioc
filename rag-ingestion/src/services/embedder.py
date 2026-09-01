@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Type
 
 from openai import OpenAI
 
-from src.config import settings
+from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
