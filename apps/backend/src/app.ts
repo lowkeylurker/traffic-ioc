@@ -52,7 +52,20 @@ export const createApp = (): Express => {
 
   // Security & Compression
   app.use(helmet());
-  app.use(compression());
+  // NOTE: Bypass compression for Server-Sent Events (text/event-stream)
+  // Express compression buffers chunks in memory to achieve higher gzip ratio (~16KB).
+  // For small, real-time SSE event payloads (~100B), this buffering prevents immediate
+  // transmission down the TCP socket until stream close, causing UI onmessage freezes.
+  app.use(
+    compression({
+      filter: (req, res) => {
+        if (req.headers.accept?.includes('text/event-stream')) {
+          return false;
+        }
+        return compression.filter(req, res);
+      },
+    })
+  );
 
   // CORS
   app.use(cors(getCorsOptions()));

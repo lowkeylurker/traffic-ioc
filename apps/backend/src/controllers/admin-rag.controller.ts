@@ -37,17 +37,31 @@ export class AdminRagController {
 
   /**
    * GET /api/v1/admin/documents/stream
-   * Global SSE channel initialized at page load to stream real-time document ingestion events
+   * Global Server-Sent Events (SSE) stream initialized at page load by useLawIngestion hook.
+   *
+   * Architectural Flow:
+   * 1. Express establishes a long-lived persistent HTTP connection with text/event-stream MIME type.
+   * 2. X-Accel-Buffering: 'no' instructs Nginx/reverse-proxies not to buffer chunks.
+   * 3. 15-second heartbeat comments (: keepalive\n\n) keep the connection active through idle timeouts.
+   * 4. Redis Pub/Sub events received by RagIngestionEventsService are emitted via globalEmitter.
+   * 5. res.flush() forces immediate TCP socket push, bypassing any internal Express/zlib write buffers.
    */
   public streamGlobalProgress = (req: Request, res: Response): void => {
+    // 1. Establish SSE HTTP Headers
     res.writeHead(HTTP_STATUS.OK, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
+      'X-Accel-Buffering': 'no', // Disable reverse proxy buffering (Nginx, Traefik, Vite)
     });
     res.flushHeaders?.();
 
+    // 2. 15-second keepalive ping to prevent proxy/browser timeout
+    const keepAliveInterval = setInterval(() => {
+      res.write(': keepalive\n\n');
+    }, 15000);
+
+    // 3. Emit initial snapshot of currently active ingestion jobs
     const activeJobs = Array.from(jobRegistry.values())
       .filter((j) => j.status === 'PROCESSING')
       .map((j) => ({
@@ -63,8 +77,11 @@ export class AdminRagController {
         activeJobs,
       })}\n\n`
     );
+    (res as any).flush?.();
 
+    // 4. Register listener on global EventEmitter for Redis Pub/Sub broadcasted events
     const onEvent = (item: { jobId: string; docCode: string; event: string; data: any }) => {
+      logger.log(`[SSE Stream] Broadcasting event '${item.event}' for doc '${item.docCode}' (job: ${item.jobId})`);
       res.write(
         `event: ${item.event}\ndata: ${JSON.stringify({
           jobId: item.jobId,
@@ -72,11 +89,14 @@ export class AdminRagController {
           ...item.data,
         })}\n\n`
       );
+      (res as any).flush?.();
     };
 
     globalEmitter.on('data', onEvent);
 
+    // 5. Clean up listeners and intervals on client disconnect/navigation
     req.on('close', () => {
+      clearInterval(keepAliveInterval);
       globalEmitter.off('data', onEvent);
     });
   };
