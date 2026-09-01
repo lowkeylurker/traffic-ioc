@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import adminRagRoutes from '../routes/admin-rag.routes';
+import { adminRagController } from '../controllers/admin-rag.controller';
 import { oltpPrisma } from '../config/oltp-prisma';
 import { qdrantClient } from '../rag/core/qdrant.client';
 
@@ -70,11 +71,27 @@ describe('Admin RAG Routes', () => {
     });
   });
 
-  describe('GET /api/v1/admin/rag/documents/jobs/:jobId/stream', () => {
-    it('should return 404 for non-existent job', async () => {
-      const res = await request(app).get('/api/v1/admin/rag/documents/jobs/non-existent-job/stream');
-      expect(res.status).toBe(404);
-      expect(res.body.success).toBe(false);
+  describe('GET /api/v1/admin/rag/documents/stream', () => {
+    it('should establish SSE stream connection and emit init event', () => {
+      const mockReq: any = { on: vi.fn() };
+      const mockRes: any = {
+        writeHead: vi.fn(),
+        write: vi.fn(),
+        flushHeaders: vi.fn(),
+      };
+
+      adminRagController.streamGlobalProgress(mockReq, mockRes);
+
+      expect(mockRes.writeHead).toHaveBeenCalledWith(
+        200,
+        expect.objectContaining({
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        })
+      );
+      expect(mockRes.write).toHaveBeenCalledWith(expect.stringContaining('event: init'));
+      expect(mockReq.on).toHaveBeenCalledWith('close', expect.any(Function));
     });
   });
 

@@ -318,64 +318,6 @@ export class AdminRagController {
 
 
 
-  /**
-   * GET /api/v1/admin/rag/documents/jobs/:jobId/stream
-   * Stream live SSE progress updates for an ingestion job
-   */
-  public streamJobProgress = (req: Request, res: Response): void => {
-    const { jobId } = req.params;
-    const job = jobRegistry.get(jobId);
-
-    if (!job) {
-      res.status(HTTP_STATUS.NOT_FOUND).json({
-        success: false,
-        error: `Ingestion job ${jobId} not found`,
-      });
-      return;
-    }
-
-    res.writeHead(HTTP_STATUS.OK, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    });
-    res.flushHeaders?.();
-
-    // Send initial handshake
-    res.write(
-      `event: init\ndata: ${JSON.stringify({
-        jobId,
-        docCode: job.docCode,
-        status: job.status,
-        message: 'Đã kết nối luồng theo dõi tiến trình xử lý văn bản',
-      })}\n\n`
-    );
-
-    // Replay past events
-    for (const item of job.events) {
-      res.write(`event: ${item.event}\ndata: ${JSON.stringify(item.data)}\n\n`);
-    }
-
-    if (job.status === 'COMPLETED' || job.status === 'FAILED') {
-      res.end();
-      return;
-    }
-
-    // Subscribe to new events
-    const onEvent = (item: IngestionJobEvent) => {
-      res.write(`event: ${item.event}\ndata: ${JSON.stringify(item.data)}\n\n`);
-      if (item.event === 'complete' || item.event === 'error') {
-        res.end();
-      }
-    };
-
-    job.emitter.on('data', onEvent);
-
-    req.on('close', () => {
-      job.emitter.off('data', onEvent);
-    });
-  };
 
   /**
    * DELETE /api/v1/admin/rag/documents/:docId
