@@ -2,6 +2,7 @@
 
 from src.config import settings
 
+
 def get_health():
     return {
         "status": "ok",
@@ -11,9 +12,11 @@ def get_health():
         "qdrant_collection": settings.QDRANT_COLLECTION,
     }
 
+
 try:
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
+
     from src.api.routes.ingest import router as ingest_router
 
     app = FastAPI(
@@ -46,6 +49,7 @@ except ImportError:
 if __name__ == "__main__":
     try:
         import uvicorn
+
         uvicorn.run("src.main:app", host=settings.HOST, port=settings.PORT, reload=True)
     except ImportError:
         print(f"Starting {settings.APP_NAME} on {settings.HOST}:{settings.PORT}")

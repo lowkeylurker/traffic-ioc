@@ -8,6 +8,7 @@ try:
 except ImportError:
     try:
         from pydantic import BaseSettings  # type: ignore
+
         SettingsConfigDict = None  # type: ignore
     except ImportError:
         # Fallback implementation when pydantic is not installed
@@ -26,6 +27,7 @@ except ImportError:
                     for k in dir(cls)
                     if not k.startswith("_") and not callable(getattr(cls, k))
                 }
+
         SettingsConfigDict = None  # type: ignore
 
 
@@ -37,17 +39,21 @@ class Settings(BaseSettings):
 
     # PostgreSQL OLTP Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5433/traffic_ioc_oltp"
-    
+
     # Qdrant Vector Store
     QDRANT_HOST: str = "localhost"
     QDRANT_PORT: int = 6333
     QDRANT_COLLECTION: str = "vietnam_traffic_laws"
     QDRANT_VECTOR_SIZE: int = 1024
-    
+
     # Ollama Embeddings
     OLLAMA_URL: str = "http://localhost:11434"
     OLLAMA_EMBED_MODEL: str = "bge-m3"
-    
+
+    # Redis Pub/Sub & Caching
+    REDIS_URL: str = "redis://localhost:6379"
+    REDIS_INGESTION_CHANNEL: str = "rag:ingestion:events"
+
     # Google Gemini Vision OCR
     GEMINI_API_KEY: str = ""
     GEMINI_OCR_MODEL: str = "gemini-1.5-flash"

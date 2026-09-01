@@ -8,7 +8,7 @@ authors = [
     { name = "Smart Traffic IOC Team", email = "dev@traffic-ioc.local" }
 ]
 dependencies = [
-    "fastapi>=0.110.0",
+    "fastapi[standard]>=0.110.0",
     "uvicorn[standard]>=0.28.0",
     "pydantic>=2.6.0",
     "pydantic-settings>=2.2.0",
@@ -18,6 +18,7 @@ dependencies = [
     "ollama>=0.1.7",
     "sqlalchemy>=2.0.28",
     "asyncpg>=0.29.0",
+    "redis>=5.0.0",
     "pdfplumber>=0.10.3",
     "pymupdf>=1.23.26",
     "python-docx>=1.1.0",

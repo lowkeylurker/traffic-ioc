@@ -62,10 +62,18 @@ class IngestionPipeline:
         self.detector = DocumentDetector()
         self.pdf_parser = PdfDigitalParser()
         self.docx_parser = DocxParser()
-        self.ocr_parser = OcrVisionParser(api_key=settings.GEMINI_API_KEY, model_name=settings.GEMINI_OCR_MODEL)
+        self.ocr_parser = OcrVisionParser(
+            api_key=settings.GEMINI_API_KEY, model_name=settings.GEMINI_OCR_MODEL
+        )
         self.composer = LegalChunkComposer()
-        self.embedder = OllamaEmbedder(base_url=settings.OLLAMA_URL, model_name=settings.OLLAMA_EMBED_MODEL)
-        self.qdrant_sync = QdrantSyncService(host=settings.QDRANT_HOST, port=settings.QDRANT_PORT, vector_size=settings.QDRANT_VECTOR_SIZE)
+        self.embedder = OllamaEmbedder(
+            base_url=settings.OLLAMA_URL, model_name=settings.OLLAMA_EMBED_MODEL
+        )
+        self.qdrant_sync = QdrantSyncService(
+            host=settings.QDRANT_HOST,
+            port=settings.QDRANT_PORT,
+            vector_size=settings.QDRANT_VECTOR_SIZE,
+        )
         self.oltp_sync = OltpSyncService(db_url=settings.DATABASE_URL)
 
     def process_ingestion(self, req: IngestionRequest) -> IngestionResponse:
@@ -130,11 +138,267 @@ class IngestionPipeline:
             message="Document parsed, enriched, embedded, and synced successfully",
         )
 
+    async def process_ingestion_stream(self, req: IngestionRequest):
+        import json
+        import asyncio
+
+        def format_sse(event_type: str, data: dict) -> str:
+            return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+        try:
+            # 1. Resolve raw content bytes or text
+            if req.content_base64:
+                content_bytes = base64.b64decode(req.content_base64)
+            elif req.content_text:
+                content_bytes = req.content_text.encode("utf-8")
+            else:
+                yield format_sse("error", {"error": "Either content_text or content_base64 must be provided."})
+                return
+
+            yield format_sse("progress", {
+                "step": "FILE_LOADED",
+                "percent": 15,
+                "message": f"Tải lên tệp {req.filename} thành công, kích thước: {len(content_bytes)} bytes."
+            })
+            await asyncio.sleep(0.1)
+
+            # 2. Detect document format & scan density
+            detection = self.detector.detect(filename=req.filename, content=content_bytes)
+
+            yield format_sse("progress", {
+                "step": "FORMAT_DETECTED",
+                "percent": 25,
+                "message": f"Định dạng nhận diện: {detection.detected_format}, Đề xuất: {detection.recommendation.value}"
+            })
+            await asyncio.sleep(0.1)
+
+            # 3. Parse into structured Legal Markdown
+            if detection.recommendation == ParserRecommendation.OCR_VISION or req.is_scanned:
+                yield format_sse("progress", {
+                    "step": "OCR_PROCESSING",
+                    "percent": 35,
+                    "message": "Đang thực hiện OCR qua Google Gemini Flash cho văn bản scan..."
+                })
+                markdown_text = self.ocr_parser.parse(content_bytes, filename=req.filename)
+            elif detection.recommendation == ParserRecommendation.PDF_DIGITAL:
+                markdown_text = self.pdf_parser.parse(content_bytes, filename=req.filename)
+            elif detection.recommendation == ParserRecommendation.DOCX_PARSER:
+                markdown_text = self.docx_parser.parse(content_bytes, filename=req.filename)
+            else:
+                markdown_text = content_bytes.decode("utf-8", errors="ignore")
+
+            # 4. AST Hierarchical Parsing
+            yield format_sse("progress", {
+                "step": "AST_PARSED",
+                "percent": 50,
+                "message": "Đang trích xuất cây phân cấp Chương -> Điều -> Khoản -> Điểm..."
+            })
+            ast_parser = LegalNodeParser(doc_code=req.doc_code, doc_title=req.doc_title)
+            ast_nodes = ast_parser.parse_to_nodes(markdown_text)
+
+            # 5. Enrich chunks with breadcrumbs, fine ranges, and supplementary cross-linking
+            enriched_chunks = self.composer.compose_chunks(ast_nodes)
+            yield format_sse("progress", {
+                "step": "CHUNKS_ENRICHED",
+                "percent": 65,
+                "message": f"Đã sinh {len(enriched_chunks)} chunks với ngữ cảnh breadcrumbs và khung phạt."
+            })
+            await asyncio.sleep(0.1)
+
+            # 6. Generate dense vector embeddings via Ollama bge-m3
+            yield format_sse("progress", {
+                "step": "EMBEDDINGS_GENERATED",
+                "percent": 80,
+                "message": f"Đang tạo vector nhúng 1024-chiều (Ollama bge-m3) cho {len(enriched_chunks)} chunks..."
+            })
+            chunk_texts = [c.enriched_text for c in enriched_chunks]
+            embeddings = self.embedder.embed_documents(chunk_texts)
+
+            # 7. Sync vector embeddings to Qdrant collection
+            collection_name = settings.QDRANT_COLLECTION
+            points_count = self.qdrant_sync.upsert_chunks(
+                collection_name=collection_name,
+                chunks=enriched_chunks,
+                embeddings=embeddings,
+            )
+
+            # 8. Sync relational tables to PostgreSQL OLTP
+            yield format_sse("progress", {
+                "step": "STORAGE_SYNCED",
+                "percent": 95,
+                "message": f"Đã lưu trữ {len(enriched_chunks)} bản ghi vào OLTP và {points_count} points vào Qdrant."
+            })
+            self.oltp_sync.sync_document_and_chunks(
+                kb_code=req.kb_code,
+                kb_name=req.kb_name,
+                doc_code=req.doc_code,
+                doc_title=req.doc_title,
+                chunks=enriched_chunks,
+                source_url=req.source_url,
+                metadata=req.metadata,
+            )
+
+            # 9. Complete
+            yield format_sse("complete", {
+                "step": "COMPLETED",
+                "percent": 100,
+                "status": "success",
+                "doc_code": req.doc_code,
+                "doc_title": req.doc_title,
+                "chunks_count": len(enriched_chunks),
+                "points_upserted": points_count,
+                "collection_name": collection_name,
+                "message": "Hoàn tất xử lý và đánh chỉ mục văn bản pháp luật giao thông.",
+            })
+
+        except Exception as e:
+            yield format_sse("error", {
+                "step": "FAILED",
+                "error": str(e),
+                "message": f"Lỗi trong quá trình xử lý: {str(e)}",
+            })
+
+    async def process_ingestion_async(self, req: IngestionRequest, job_id: str):
+        from src.services.redis_publisher import redis_publisher
+
+        doc_code = req.doc_code or "LAW-DOC"
+        try:
+            # 1. Resolve raw content bytes or text
+            if req.content_base64:
+                content_bytes = base64.b64decode(req.content_base64)
+            elif req.content_text:
+                content_bytes = req.content_text.encode("utf-8")
+            else:
+                await redis_publisher.publish_event(
+                    job_id, doc_code, "error", {"error": "Either content_text or content_base64 must be provided."}
+                )
+                return
+
+            await redis_publisher.publish_event(
+                job_id, doc_code, "progress", {
+                    "step": "FILE_LOADED",
+                    "percent": 15,
+                    "message": f"Tải lên tệp {req.filename} thành công ({len(content_bytes)} bytes)."
+                }
+            )
+
+            # 2. Detect document format & scan density
+            detection = self.detector.detect(filename=req.filename, content=content_bytes)
+            await redis_publisher.publish_event(
+                job_id, doc_code, "progress", {
+                    "step": "FORMAT_DETECTED",
+                    "percent": 25,
+                    "message": f"Định dạng nhận diện: {detection.detected_format}, Đề xuất: {detection.recommendation.value}"
+                }
+            )
+
+            # 3. Parse into structured Legal Markdown
+            if detection.recommendation == ParserRecommendation.OCR_VISION or req.is_scanned:
+                await redis_publisher.publish_event(
+                    job_id, doc_code, "progress", {
+                        "step": "OCR_PROCESSING",
+                        "percent": 35,
+                        "message": "Đang thực hiện OCR qua Google Gemini Flash cho văn bản scan..."
+                    }
+                )
+                markdown_text = self.ocr_parser.parse(content_bytes, filename=req.filename)
+            elif detection.recommendation == ParserRecommendation.PDF_DIGITAL:
+                markdown_text = self.pdf_parser.parse(content_bytes, filename=req.filename)
+            elif detection.recommendation == ParserRecommendation.DOCX_PARSER:
+                markdown_text = self.docx_parser.parse(content_bytes, filename=req.filename)
+            else:
+                markdown_text = content_bytes.decode("utf-8", errors="ignore")
+
+            # 4. AST Hierarchical Parsing
+            await redis_publisher.publish_event(
+                job_id, doc_code, "progress", {
+                    "step": "AST_PARSED",
+                    "percent": 50,
+                    "message": "Đang trích xuất cây phân cấp Chương -> Điều -> Khoản -> Điểm..."
+                }
+            )
+            ast_parser = LegalNodeParser(doc_code=req.doc_code, doc_title=req.doc_title)
+            ast_nodes = ast_parser.parse_to_nodes(markdown_text)
+
+            # 5. Enrich chunks with breadcrumbs, fine ranges, and supplementary cross-linking
+            enriched_chunks = self.composer.compose_chunks(ast_nodes)
+            await redis_publisher.publish_event(
+                job_id, doc_code, "progress", {
+                    "step": "CHUNKS_ENRICHED",
+                    "percent": 65,
+                    "message": f"Đã sinh {len(enriched_chunks)} chunks với ngữ cảnh breadcrumbs và khung phạt."
+                }
+            )
+
+            # 6. Generate dense vector embeddings via Ollama bge-m3
+            await redis_publisher.publish_event(
+                job_id, doc_code, "progress", {
+                    "step": "EMBEDDINGS_GENERATED",
+                    "percent": 80,
+                    "message": f"Đang tạo vector nhúng 1024-chiều (Ollama bge-m3) cho {len(enriched_chunks)} chunks..."
+                }
+            )
+            chunk_texts = [c.enriched_text for c in enriched_chunks]
+            embeddings = self.embedder.embed_documents(chunk_texts)
+
+            # 7. Sync vector embeddings to Qdrant collection
+            collection_name = settings.QDRANT_COLLECTION
+            points_count = self.qdrant_sync.upsert_chunks(
+                collection_name=collection_name,
+                chunks=enriched_chunks,
+                embeddings=embeddings,
+            )
+
+            # 8. Sync relational tables to PostgreSQL OLTP
+            await redis_publisher.publish_event(
+                job_id, doc_code, "progress", {
+                    "step": "STORAGE_SYNCED",
+                    "percent": 95,
+                    "message": f"Đã lưu trữ {len(enriched_chunks)} bản ghi vào OLTP và {points_count} points vào Qdrant."
+                }
+            )
+            self.oltp_sync.sync_document_and_chunks(
+                kb_code=req.kb_code,
+                kb_name=req.kb_name,
+                doc_code=req.doc_code,
+                doc_title=req.doc_title,
+                chunks=enriched_chunks,
+                source_url=req.source_url,
+                metadata=req.metadata,
+            )
+
+            # 9. Complete
+            await redis_publisher.publish_event(
+                job_id, doc_code, "complete", {
+                    "step": "COMPLETED",
+                    "percent": 100,
+                    "status": "success",
+                    "doc_code": req.doc_code,
+                    "doc_title": req.doc_title,
+                    "chunks_count": len(enriched_chunks),
+                    "points_upserted": points_count,
+                    "collection_name": collection_name,
+                    "message": "Hoàn tất xử lý và đánh chỉ mục văn bản pháp luật giao thông.",
+                }
+            )
+        except Exception as e:
+            await redis_publisher.publish_event(
+                job_id, doc_code, "error", {
+                    "step": "FAILED",
+                    "error": str(e),
+                    "message": f"Lỗi trong quá trình xử lý: {str(e)}",
+                }
+            )
+
 
 pipeline_instance = IngestionPipeline()
 
 try:
-    from fastapi import APIRouter, File, HTTPException, UploadFile
+    import asyncio
+    import uuid
+    from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+    from fastapi.responses import StreamingResponse
+
     router = APIRouter(prefix="/ingest/traffic-law", tags=["Ingestion"])
 
     @router.post("/process", response_model=IngestionResponse)
@@ -143,6 +407,35 @@ try:
             return pipeline_instance.process_ingestion(request)
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+    @router.post("/process-async")
+    async def process_traffic_law_async_endpoint(
+        request: IngestionRequest,
+        background_tasks: BackgroundTasks,
+        job_id: Optional[str] = None,
+    ):
+        effective_job_id = job_id or f"job-{uuid.uuid4()}"
+        background_tasks.add_task(
+            pipeline_instance.process_ingestion_async, request, effective_job_id
+        )
+        return {
+            "status": "accepted",
+            "jobId": effective_job_id,
+            "docCode": request.doc_code,
+            "message": "Ingestion job queued for asynchronous processing",
+        }
+
+    @router.post("/process-stream")
+    async def process_traffic_law_stream_endpoint(request: IngestionRequest):
+        return StreamingResponse(
+            pipeline_instance.process_ingestion_stream(request),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Content-Type": "text/event-stream",
+            },
+        )
 
     @router.post("/upload")
     async def upload_traffic_law_file(
@@ -161,5 +454,63 @@ try:
         )
         return pipeline_instance.process_ingestion(req)
 
+    @router.post("/upload-async")
+    async def upload_traffic_law_file_async(
+        background_tasks: BackgroundTasks,
+        kb_code: str = Form("vietnam_traffic_legislation"),
+        doc_code: str = Form("LAW-CUSTOM"),
+        doc_title: str = Form("Custom Traffic Regulation"),
+        is_scanned: Optional[bool] = Form(None),
+        job_id: Optional[str] = Form(None),
+        file: UploadFile = File(...),
+    ):
+        content_bytes = await file.read()
+        effective_job_id = job_id or f"job-{uuid.uuid4()}"
+        req = IngestionRequest(
+            kb_code=kb_code,
+            doc_code=doc_code,
+            doc_title=doc_title,
+            filename=file.filename or "upload.pdf",
+            is_scanned=is_scanned,
+            content_base64=base64.b64encode(content_bytes).decode("utf-8"),
+        )
+        background_tasks.add_task(
+            pipeline_instance.process_ingestion_async, req, effective_job_id
+        )
+        return {
+            "status": "accepted",
+            "jobId": effective_job_id,
+            "docCode": doc_code,
+            "message": "Ingestion job queued for asynchronous processing",
+        }
+
+    @router.post("/upload-stream")
+    async def upload_traffic_law_file_stream(
+        kb_code: str = Form("vietnam_traffic_legislation"),
+        doc_code: str = Form("LAW-CUSTOM"),
+        doc_title: str = Form("Custom Traffic Regulation"),
+        is_scanned: Optional[bool] = Form(None),
+        file: UploadFile = File(...),
+    ):
+        content_bytes = await file.read()
+        req = IngestionRequest(
+            kb_code=kb_code,
+            doc_code=doc_code,
+            doc_title=doc_title,
+            filename=file.filename or "upload.pdf",
+            is_scanned=is_scanned,
+            content_base64=base64.b64encode(content_bytes).decode("utf-8"),
+        )
+        return StreamingResponse(
+            pipeline_instance.process_ingestion_stream(req),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Content-Type": "text/event-stream",
+            },
+        )
+
 except ImportError:
     router = None  # type: ignore
+
