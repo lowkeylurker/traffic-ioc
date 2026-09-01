@@ -17,7 +17,6 @@ router.get('/:docId/chunks', adminRagController.getDocumentChunks);
 
 // File upload & ingestion streaming
 router.post('/upload', upload.single('file'), adminRagController.uploadDocument);
-router.post('/upload-stream', upload.single('file'), adminRagController.uploadDocumentDirectStream);
 router.get('/jobs/:jobId/stream', adminRagController.streamJobProgress);
 
 // Document deletion & re-indexing

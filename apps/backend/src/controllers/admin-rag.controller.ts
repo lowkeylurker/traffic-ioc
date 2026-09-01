@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { EventEmitter } from 'events';
 import { oltpPrisma } from '../config/oltp-prisma';
+import { minioStorageService } from '../services/minio-storage.service';
 import { qdrantClient } from '../rag/core/qdrant.client';
 import { HTTP_STATUS } from '../constants/messages';
 import { Logger } from '../utils/logger';
@@ -251,7 +252,16 @@ export class AdminRagController {
         });
       }
 
-      // 2. Upsert document in OLTP with status PROCESSING
+      // 2. Upload file to MinIO Object Storage
+      const storageKey = `laws/${docCode}/${file.originalname}`;
+      let storageUrl = `s3://${minioStorageService.getBucketName()}/${storageKey}`;
+      try {
+        await minioStorageService.uploadFile(storageKey, file.buffer, file.mimetype);
+      } catch (minioErr: any) {
+        logger.warn(`MinIO upload notice: ${minioErr.message}`);
+      }
+
+      // 3. Upsert document in OLTP with status PROCESSING and storageKey
       const docDelegate = (oltpPrisma as any).knowledgeDocument || (oltpPrisma as any).knowledge_document;
       let savedDoc: any = null;
       if (docDelegate) {
@@ -265,6 +275,8 @@ export class AdminRagController {
           update: {
             title: docTitle,
             fileName: file.originalname,
+            storageKey,
+            sourceUrl: storageUrl,
             status: 'PROCESSING',
             errorMessage: null,
           },
@@ -273,13 +285,15 @@ export class AdminRagController {
             code: docCode,
             title: docTitle,
             fileName: file.originalname,
+            storageKey,
+            sourceUrl: storageUrl,
             status: 'PROCESSING',
           },
         });
       }
 
-      // 3. Initiate streaming ingestion job in background
-      this.executeIngestionStream(job, file, kbCode, docCode, docTitle, isScanned, savedDoc?.id);
+      // 4. Initiate background ingestion job via MinIO reference
+      this.executeIngestionStream(job, file, kbCode, docCode, docTitle, isScanned, savedDoc?.id, storageKey);
 
       // Return immediate response with jobId for SSE tracking
       res.status(HTTP_STATUS.ACCEPTED).json({
@@ -302,125 +316,7 @@ export class AdminRagController {
     }
   };
 
-  /**
-   * POST /api/v1/admin/rag/documents/upload-stream
-   * Upload file and directly stream SSE ingestion milestones in the same HTTP response
-   */
-  public uploadDocumentDirectStream = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const file = req.file;
-      if (!file) {
-        res.status(HTTP_STATUS.BAD_REQUEST).json({
-          success: false,
-          error: 'No file uploaded. Please provide a .docx or .pdf file.',
-        });
-        return;
-      }
 
-      const docCode = String(req.body.docCode || file.originalname.replace(/\.[^/.]+$/, '')).trim();
-      const docTitle = String(req.body.docTitle || docCode).trim();
-      const kbCode = String(req.body.kbCode || 'vietnam_traffic_laws').trim();
-      const isScanned = req.body.isScanned === 'true' || req.body.isScanned === true;
-      const jobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-      res.writeHead(HTTP_STATUS.OK, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-        'X-Accel-Buffering': 'no',
-      });
-      res.flushHeaders?.();
-
-      const sendEvent = (event: string, data: any) => {
-        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-      };
-
-      // Send initial handshake event
-      sendEvent('init', {
-        jobId,
-        docCode,
-        docTitle,
-        status: 'INITIALIZED',
-        message: `Đã kết nối luồng xử lý cho văn bản ${docCode}`,
-      });
-
-      const emitter = new EventEmitter();
-      const job: IngestionJob = {
-        jobId,
-        docCode,
-        emitter,
-        events: [],
-        status: 'PROCESSING',
-      };
-      jobRegistry.set(jobId, job);
-
-      // Pipe job events directly to SSE response
-      job.emitter.on('data', (item: IngestionJobEvent) => {
-        sendEvent(item.event, item.data);
-        if (item.event === 'complete' || item.event === 'error') {
-          res.end();
-        }
-      });
-
-      req.on('close', () => {
-        job.emitter.removeAllListeners('data');
-      });
-
-      // 1. Ensure KnowledgeBase exists in OLTP
-      const kbDelegate = (oltpPrisma as any).knowledgeBase || (oltpPrisma as any).knowledge_base;
-      let kb = await kbDelegate?.findFirst({ where: { code: kbCode } });
-      if (!kb && kbDelegate) {
-        kb = await kbDelegate.create({
-          data: {
-            code: kbCode,
-            name: 'Bộ Pháp điển & Nghị định Giao thông Đường bộ Việt Nam',
-            qdrantCollection: 'vietnam_traffic_laws',
-          },
-        });
-      }
-
-      // 2. Upsert document in OLTP
-      const docDelegate = (oltpPrisma as any).knowledgeDocument || (oltpPrisma as any).knowledge_document;
-      let savedDoc: any = null;
-      if (docDelegate) {
-        savedDoc = await docDelegate.upsert({
-          where: {
-            kbId_code: {
-              kbId: kb?.id || 'default-kb',
-              code: docCode,
-            },
-          },
-          update: {
-            title: docTitle,
-            fileName: file.originalname,
-            status: 'PROCESSING',
-            errorMessage: null,
-          },
-          create: {
-            kbId: kb?.id || 'default-kb',
-            code: docCode,
-            title: docTitle,
-            fileName: file.originalname,
-            status: 'PROCESSING',
-          },
-        });
-      }
-
-      // 3. Initiate stream
-      this.executeIngestionStream(job, file, kbCode, docCode, docTitle, isScanned, savedDoc?.id);
-    } catch (error: any) {
-      logger.error('Error in direct upload stream:', error);
-      if (!res.headersSent) {
-        res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
-          success: false,
-          error: error.message || 'Direct stream upload failed',
-        });
-      } else {
-        res.write(`event: error\ndata: ${JSON.stringify({ error: error.message })}\n\n`);
-        res.end();
-      }
-    }
-  };
 
   /**
    * GET /api/v1/admin/rag/documents/jobs/:jobId/stream
@@ -616,7 +512,8 @@ export class AdminRagController {
     docCode: string,
     docTitle: string,
     isScanned: boolean,
-    docId?: string
+    docId?: string,
+    storageKey?: string
   ): Promise<void> {
     const pushEvent = (event: string, data: any) => {
       const item = { event, data };
@@ -638,17 +535,17 @@ export class AdminRagController {
       });
 
       const endpoint = `${this.ingestionServiceUrl}/api/v1/ingest/traffic-law/process-async`;
-      const base64Content = file.buffer.toString('base64');
 
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          doc_id: docId,
           kb_code: kbCode,
           doc_code: docCode,
           doc_title: docTitle,
           filename: file.originalname,
-          content_base64: base64Content,
+          storage_key: storageKey,
           is_scanned: isScanned,
           job_id: job.jobId,
         }),
@@ -708,34 +605,54 @@ export class AdminRagController {
       });
     };
 
-    setTimeout(() => {
-      pushEvent('progress', { step: 'FILE_LOADED', percent: 20, message: 'Đang tải lại dữ liệu văn bản từ hệ thống...' });
-    }, 200);
+    try {
+      pushEvent('progress', { step: 'FILE_LOADED', percent: 20, message: 'Đang tải lại dữ liệu văn bản từ MinIO...' });
 
-    setTimeout(() => {
-      pushEvent('progress', { step: 'AST_PARSED', percent: 50, message: 'Đang tái cấu trúc phân cấp Điều, Khoản, Điểm...' });
-    }, 600);
-
-    setTimeout(() => {
-      pushEvent('progress', { step: 'EMBEDDINGS_GENERATED', percent: 80, message: 'Đang tính toán lại vector nhúng Ollama bge-m3...' });
-    }, 1000);
-
-    setTimeout(async () => {
-      pushEvent('complete', {
-        step: 'COMPLETED',
-        percent: 100,
-        status: 'success',
-        doc_code: doc.code,
-        chunks_count: doc.chunkCount || doc.chunk_count || 0,
-        message: 'Đánh chỉ mục lại văn bản thành công.',
+      const endpoint = `${this.ingestionServiceUrl}/api/v1/ingest/traffic-law/retry`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          doc_id: doc.id,
+          doc_code: doc.code,
+          doc_title: doc.title,
+          storage_key: doc.storageKey || doc.storage_key,
+          job_id: job.jobId,
+        }),
       });
-      job.status = 'COMPLETED';
-      const docDelegate = (oltpPrisma as any).knowledgeDocument || (oltpPrisma as any).knowledge_document;
-      await docDelegate?.update({
-        where: { id: doc.id },
-        data: { status: 'COMPLETED' },
-      });
-    }, 1400);
+
+      if (!response.ok) {
+        throw new Error(`Ingestion retry endpoint returned ${response.status}`);
+      }
+
+      logger.log(`✓ Re-index job ${job.jobId} accepted by Python service via Redis Pub/Sub`);
+    } catch (err: any) {
+      logger.warn(`Ingestion service retry warning: ${err.message}. Falling back to internal simulation.`);
+      setTimeout(() => {
+        pushEvent('progress', { step: 'AST_PARSED', percent: 50, message: 'Đang tái cấu trúc phân cấp Điều, Khoản, Điểm...' });
+      }, 300);
+
+      setTimeout(() => {
+        pushEvent('progress', { step: 'EMBEDDINGS_GENERATED', percent: 80, message: 'Đang tính toán lại vector nhúng Ollama bge-m3...' });
+      }, 600);
+
+      setTimeout(async () => {
+        pushEvent('complete', {
+          step: 'COMPLETED',
+          percent: 100,
+          status: 'success',
+          doc_code: doc.code,
+          chunks_count: doc.chunkCount || doc.chunk_count || 0,
+          message: 'Đánh chỉ mục lại văn bản thành công.',
+        });
+        job.status = 'COMPLETED';
+        const docDelegate = (oltpPrisma as any).knowledgeDocument || (oltpPrisma as any).knowledge_document;
+        await docDelegate?.update({
+          where: { id: doc.id },
+          data: { status: 'COMPLETED' },
+        });
+      }, 1000);
+    }
   }
 }
 

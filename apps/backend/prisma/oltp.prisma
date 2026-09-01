@@ -24,8 +24,8 @@ model KnowledgeDocument {
   id            String           @id @default(uuid()) @db.Uuid
   kbId          String           @map("kb_id") @db.Uuid
   code          String           @db.VarChar(100)
-  title         String           @db.VarChar(500)
   sourceUrl     String?          @map("source_url") @db.Text
+  storageKey    String?          @map("storage_key") @db.VarChar(500)
   fileName      String?          @map("file_name") @db.VarChar(255)
   status        String           @default("COMPLETED") @db.VarChar(30)
   chunkCount    Int              @default(0) @map("chunk_count")
