@@ -47,6 +47,15 @@
 - [x] 7.2 Implement Redis subscriber service in `apps/backend/src/services/rag-ingestion-events.service.ts` that subscribes to `rag:ingestion:events`, updates OLTP document database status, and pipes events to backend SSE emitters
 - [x] 7.3 Refactor `apps/backend/src/controllers/admin-rag.controller.ts` upload and reindex handlers to return 202 Accepted immediately and rely on Redis Pub/Sub for progress tracking
 - [x] 7.4 Verify end-to-end asynchronous ingestion, Redis event propagation, and Admin Web global tracker via unit tests and monorepo build check
+- [x] 7.5 Restructure `rag-ingestion/` into clean layered architecture (`src/schemas/`, `src/services/ingestion_pipeline.py`, thin `src/api/routes/ingest.py` controllers, and modern `@asynccontextmanager` lifespan runner)
+
+## 8. MinIO Object Storage & Document Reference Architecture
+
+- [x] 8.1 Add `minio` container service with persistent volume to `docker-compose.yml`
+- [x] 8.2 Add `storageKey` to `KnowledgeDocument` in `prisma/oltp.prisma` and build `MinioStorageService` in `apps/backend/src/services/minio-storage.service.ts`
+- [x] 8.3 Implement `minio` client reader in `rag-ingestion/src/services/minio_storage.py` and update `IngestionPipeline` to download document binaries by `doc_id` / `storage_key`
+- [x] 8.4 Update backend upload & reindex controllers to stream file to MinIO and dispatch lightweight JSON payloads (`{ doc_id, storage_key, job_id }`) without base64 body inflation
+- [x] 8.5 Verify with unit tests in backend and rag-ingestion
 
 
 

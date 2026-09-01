@@ -1,22 +1,22 @@
 ## ADDED Requirements
 
 ### Requirement: Legal Document Ingestion and Hierarchical Structuring
-The system SHALL ingest Vietnamese legal traffic documents (.docx, digital .pdf, and scanned image .pdf), transcribe scanned documents via Google Gemini Flash OCR, parse the content into a structural AST (Chương > Điều > Khoản > Điểm), enrich chunks with context breadcrumbs and fine brackets, generate 1024-dimension embeddings via local Ollama `BAAI/bge-m3`, and atomically persist records into both the OLTP PostgreSQL database and the Qdrant vector database.
+The system SHALL ingest Vietnamese legal traffic documents (.docx, digital .pdf, and scanned image .pdf), transcribe scanned documents via Google Gemini Flash OCR, parse the content into a structural AST (Chương > Điều > Khoản > Điểm), enrich chunks with context breadcrumbs and fine brackets, generate 1024-dimension embeddings via local Ollama `BAAI/bge-m3`, and atomically persist records into both the OLTP PostgreSQL database and the Qdrant vector database via asynchronous background jobs publishing progress events over Redis Pub/Sub.
 
-#### Scenario: Ingesting digital decree document
-- **GIVEN** an authorized System Admin uploads a valid decree file `Nghị định 100/2019/NĐ-CP.docx` via `POST /api/v1/ingest/traffic-law/process`
-- **WHEN** the ingestion service parses the document into structural nodes
-- **THEN** it generates self-contained chunks containing breadcrumbs, fine ranges, and vehicle tags, writes relational records to OLTP PostgreSQL `KnowledgeDocument` and `KnowledgeChunk`, and upserts 1024-dim dense vectors to the Qdrant collection `vietnam_traffic_laws` with matching UUIDs.
+#### Scenario: Ingesting digital decree document via asynchronous job
+- **GIVEN** an authorized System Admin uploads a valid decree file `Nghị định 100/2019/NĐ-CP.docx` via `POST /api/v1/admin/rag/documents/upload` which dispatches `POST /api/v1/ingest/traffic-law/process-async`
+- **WHEN** the ingestion service accepts the job and parses the document into structural nodes in a background worker
+- **THEN** it publishes milestone progress events (`FILE_LOADED`, `FORMAT_DETECTED`, `AST_PARSED`, `CHUNKS_ENRICHED`, `EMBEDDINGS_GENERATED`, `STORAGE_SYNCED`, `COMPLETED`) to Redis channel `rag:ingestion:events`, generates self-contained chunks containing breadcrumbs, fine ranges, and vehicle tags, writes relational records to OLTP PostgreSQL `KnowledgeDocument` and `KnowledgeChunk`, and upserts 1024-dim dense vectors to the Qdrant collection `vietnam_traffic_laws` with matching UUIDs.
 
 #### Scenario: Ingesting scanned decree document with OCR
 - **GIVEN** an authorized System Admin uploads a scanned PDF decree `Nghị định 123/2021/NĐ-CP_scan.pdf` with no native text layer
 - **WHEN** the ingestion service detects low text density
 - **THEN** it invokes Google Gemini Flash OCR to transcribe pages into structured Markdown with legal headings, which is then parsed by the legal AST parser into standard relational chunks and Qdrant vectors.
 
-#### Scenario: Toolchain build and typecheck with uv and pyrefly
+#### Scenario: Toolchain build, layered architecture, and typecheck with uv
 - **GIVEN** the `rag-ingestion/` Python service repository
 - **WHEN** the developer executes project setup, dependency resolution, or service startup
-- **THEN** the system SHALL resolve dependencies via `uv` using `pyproject.toml` (including `fastapi[standard]`), maintain a reproducible `uv.lock`, pass static type verification via `pyrefly`, and boot the service via `uv run fastapi dev src/main.py`.
+- **THEN** the system SHALL resolve dependencies via `uv` using `pyproject.toml`, follow a clean layered architecture separating HTTP controllers (`api/routes/ingest.py`), DTO schemas (`schemas/ingest.py`), and background pipeline orchestrator (`services/ingestion_pipeline.py`), maintain a reproducible `uv.lock`, and boot the service via standard CLI `uv run uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload` using modern lifespan context manager.
 
 #### Scenario: Dual-Database Schema Separation (OLTP vs DW)
 - **GIVEN** the multi-schema architecture in `apps/backend`
@@ -81,7 +81,7 @@ The system SHALL provide an administrative management console in `apps/admin-web
 #### Scenario: Admin uploads decree document with real-time Redis Pub/Sub to SSE progress
 - **GIVEN** an authenticated Admin accesses `/law-documents` and submits a decree file (`.docx` or `.pdf`) with document metadata
 - **WHEN** the upload request is accepted by `POST /api/v1/admin/rag/documents/upload`
-- **THEN** the backend issues an asynchronous ingestion task with `jobId`, FastAPI `rag-ingestion` service processes the document and publishes milestone progress events (`FILE_LOADED` 15% $\to$ `AST_PARSED` 40% $\to$ `EMBEDDINGS_GENERATED` 70% $\to$ `STORAGE_SYNCED` 90% $\to$ `COMPLETED` 100%) to Redis topic `rag:ingestion:events`, and the backend forwards the events in real-time via `GET /api/v1/admin/rag/documents/stream` and `GET /api/v1/admin/rag/documents/jobs/:jobId/stream` to the Admin Web progress tracker.
+- **THEN** the backend issues an asynchronous ingestion task with `jobId`, FastAPI `rag-ingestion` service processes the document and publishes milestone progress events (`FILE_LOADED` 15% $\to$ `FORMAT_DETECTED` 25% $\to$ `AST_PARSED` 50% $\to$ `CHUNKS_ENRICHED` 65% $\to$ `EMBEDDINGS_GENERATED` 80% $\to$ `STORAGE_SYNCED` 95% $\to$ `COMPLETED` 100%) to Redis topic `rag:ingestion:events`, and the backend forwards the events in real-time via `GET /api/v1/admin/rag/documents/stream` and `GET /api/v1/admin/rag/documents/jobs/:jobId/stream` to the Admin Web progress tracker.
 
 #### Scenario: Admin inspects extracted chunks in drawer
 - **GIVEN** an ingested document in the administrative document catalog
@@ -96,5 +96,4 @@ The system SHALL provide an administrative management console in `apps/admin-web
 #### Scenario: Admin re-indexes an existing document
 - **GIVEN** an existing document requiring vector recalculation or re-parsing
 - **WHEN** the Admin clicks "Đánh chỉ mục lại" (`POST /api/v1/admin/rag/documents/:docId/reindex`)
-- **THEN** the ingestion pipeline re-runs AST extraction and embeddings, publishing progress events over Redis Pub/Sub and updating existing chunk records and vector points while streaming progress via SSE.
-
+- **THEN** the backend invokes `POST /api/v1/ingest/traffic-law/retry`, re-running AST extraction and embeddings in the background, publishing progress events over Redis Pub/Sub and updating existing chunk records and vector points while streaming progress via SSE.

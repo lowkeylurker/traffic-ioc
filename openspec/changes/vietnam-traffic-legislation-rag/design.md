@@ -18,18 +18,22 @@ Smart Traffic IOC operates a dual-engine architecture: a PostgreSQL/PostGIS Kimb
 
 ## Decisions
 
-### 1. Two-Stage Service Split: Python FastAPI vs Express Gateway
-- **Decision**: Ingestion pipeline lives in `rag-ingestion/` (Python FastAPI + LlamaIndex), while real-time retrieval lives in `apps/backend` (Express.js + TypeScript). Inter-service communication for asynchronous document ingestion progress uses **Redis Pub/Sub** (`rag:ingestion:events`).
+### 1. Two-Stage Service Split, Object Storage & Layered Python Ingestion
+- **Decision**: Raw files uploaded via the admin web gateway are streamed directly to **MinIO Object Storage** (`traffic-ioc-documents` bucket) by `apps/backend`. The backend saves metadata + `storageKey` into PostgreSQL OLTP and dispatches lightweight JSON trigger payloads (`{ doc_id, job_id, storage_key }`) to `rag-ingestion/` (`POST /api/v1/ingest/traffic-law/process-async`). Inter-service progress updates are broadcast via **Redis Pub/Sub** (`rag:ingestion:events`).
+- **Internal Service Architecture (`rag-ingestion/`)**:
+  - `src/schemas/`: Isolated Pydantic DTOs (`IngestionRequest`, `JobAcceptedResponse`, `RetryProcessRequest`).
+  - `src/services/minio_storage.py`: MinIO client streaming raw document binaries using stored `storage_key` or `doc_id`.
+  - `src/services/ingestion_pipeline.py`: Pure business logic orchestration (`IngestionPipeline`) coordinating MinIO retrieval, format detection, OCR, AST parsing, chunk enrichment, Ollama embeddings, Qdrant upserting, PostgreSQL syncing, and Redis milestone publishing.
+  - `src/api/routes/ingest.py`: Thin route controllers handling HTTP validation, dispatching background worker tasks, and returning standard `JobAcceptedResponse`. Direct file upload / multipart handling in `rag-ingestion` is completely removed in favor of MinIO object references.
 - **Toolchain & Packaging (`rag-ingestion/`)**:
   - Package & Project Manager: `uv` (fast Rust-based package manager and resolver).
-  - Dependency Management: `pyproject.toml` with reproducible lockfile (`uv.lock`), including `redis` for asynchronous event publishing.
-  - Static Analysis & Type Checking: `pyrefly` (configured in `pyproject.toml`).
+  - Dependency Management: `pyproject.toml` with reproducible lockfile (`uv.lock`), including `redis` and `minio`.
+  - Lifecycle: Modern `@asynccontextmanager` FastAPI `lifespan` managing background shutdown and Redis/MinIO connection pooling.
   - Containerization: Multi-stage `Dockerfile` utilizing `ghcr.io/astral-sh/uv`.
-- **Rationale**: Python provides superior document AI, OCR, and LlamaIndex AST parsing abstractions. `uv` ensures sub-second dependency installation and deterministic environments. Express acts as the single low-latency API gateway, handling authentication, rate limiting, and SSE streaming. Redis Pub/Sub completely decouples the long-running ingestion lifecycle from HTTP socket limits, allowing multi-instance backend scaling and eliminating reverse-proxy timeout risks during heavy OCR.
+- **Rationale**: Keeps the HTTP payload between internal services < 1 KB (avoiding 33% base64 memory inflation and payload size limits), guarantees zero duplication when retrying/re-indexing, and provides a production-grade decoupled object storage pattern. Express acts as the single API gateway, handling authentication, rate limiting, MinIO uploads, and SSE streaming.
 - **Alternatives Considered**:
-  - *All-in-Node.js*: Heavy OCR and complex legal AST parsing in TypeScript is brittle and lacks rich Document AI libraries.
-  - *All-in-Python*: Bypasses the unified Express API gateway and duplicates auth/session management.
-  - *Direct HTTP Point-to-Point Streaming*: Vulnerable to proxy timeouts on large scanned documents and does not broadcast across multiple load-balanced Node.js instances.
+  - *Base64 in JSON Request Body*: Causes 33% memory bloat and risks heap exhaustion on large 50MB scanned PDF decrees.
+  - *Direct HTTP Point-to-Point Streaming & Synchronous Request*: Vulnerable to proxy timeouts on large scanned documents and does not broadcast across multiple load-balanced Node.js instances.
   - *Legacy pip + requirements.txt*: Slower builds, lacks lockfile reproducibility, and does not enforce modern PEP 621 standards.
 
 ### 2. Dual Database Architecture & Multi-Prisma Configuration
@@ -144,6 +148,7 @@ model KnowledgeDocument {
   code          String           @db.VarChar(100)
   title         String           @db.VarChar(500)
   sourceUrl     String?          @map("source_url") @db.Text
+  storageKey    String?          @map("storage_key") @db.VarChar(500)
   fileName      String?          @map("file_name") @db.VarChar(255)
   status        String           @default("COMPLETED") @db.VarChar(30)
   chunkCount    Int              @default(0) @map("chunk_count")
