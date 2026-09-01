@@ -103,15 +103,16 @@ class TestOcrVisionParser(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.text = expected_text
 
+        mock_client_instance = MagicMock()
+        mock_client_instance.models.generate_content.return_value = mock_response
+
         mock_genai = MagicMock()
-        mock_model_instance = MagicMock()
-        mock_model_instance.generate_content.return_value = mock_response
-        mock_genai.GenerativeModel.return_value = mock_model_instance
+        mock_genai.Client.return_value = mock_client_instance
 
         mock_google = MagicMock()
-        mock_google.generativeai = mock_genai
+        mock_google.genai = mock_genai
 
-        with patch.dict(sys.modules, {"google": mock_google, "google.generativeai": mock_genai}):
+        with patch.dict(sys.modules, {"google": mock_google, "google.genai": mock_genai}):
             with patch.object(self.parser, "_pdf_to_images", return_value=[b"fake_image_page_1"]):
                 result_markdown = self.parser.parse(b"%PDF scanned", filename="scanned_law.pdf")
                 self.assertIn("CHƯƠNG II", result_markdown)

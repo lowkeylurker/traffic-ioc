@@ -90,7 +90,7 @@ class OcrVisionParser:
             return []
 
     def _transcribe_image(self, image_bytes: bytes) -> str:
-        """Invoke Google Gemini Vision API to transcribe a single page image into structured Markdown.
+        """Invoke Google GenAI SDK (google.genai) to transcribe a single page image into structured Markdown.
 
         Args:
             image_bytes (bytes): PNG image byte array.
@@ -99,19 +99,21 @@ class OcrVisionParser:
             str: Transcribed Markdown text for the page.
         """
         try:
-            import google.generativeai as genai
+            from google import genai
+            from google.genai import types
 
-            if self.api_key:
-                genai.configure(api_key=self.api_key)
-            model = genai.GenerativeModel(self.model_name)
-
-            image_part = {
-                "mime_type": "image/png",
-                "data": image_bytes,
-            }
-
-            response = model.generate_content([LEGAL_OCR_SYSTEM_PROMPT, image_part])
-            if hasattr(response, "text"):
+            client = genai.Client(api_key=self.api_key) if self.api_key else genai.Client()
+            response = client.models.generate_content(
+                model=self.model_name,
+                contents=[
+                    types.Part.from_bytes(
+                        data=image_bytes,
+                        mime_type="image/png",
+                    ),
+                    LEGAL_OCR_SYSTEM_PROMPT,
+                ],
+            )
+            if hasattr(response, "text") and response.text:
                 return str(response.text)
             return str(response)
         except Exception as e:
