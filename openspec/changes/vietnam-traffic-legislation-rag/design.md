@@ -97,7 +97,6 @@ Smart Traffic IOC operates a dual-engine architecture: a PostgreSQL/PostGIS Kimb
   - `GET /api/v1/admin/rag/documents/:docId/chunks`: Fetch chunks for a document.
   - `POST /api/v1/admin/rag/documents/upload`: Multi-part upload handler triggering asynchronous ingestion.
   - `GET /api/v1/admin/rag/documents/stream`: Global Server-Sent Events stream fed by Redis Pub/Sub subscription on topic `rag:ingestion:events`.
-  - `GET /api/v1/admin/rag/documents/jobs/:jobId/stream`: Job-specific Server-Sent Events stream.
   - `DELETE /api/v1/admin/rag/documents/:docId`: Atomic deletion across OLTP DB and Qdrant vectors.
   - `POST /api/v1/admin/rag/documents/:docId/reindex`: Re-trigger ingestion pipeline.
 - **Messaging Contract (`rag:ingestion:events`)**:

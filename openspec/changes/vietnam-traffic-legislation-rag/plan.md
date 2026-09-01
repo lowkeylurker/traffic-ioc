@@ -173,7 +173,7 @@
 
 ### Task 6.5: Document Upload Modal with Live SSE Stepper (`apps/admin-web`)
 - [ ] **Step 1:** Build `apps/admin-web/src/components/admin-rag/DocumentUploadModal.tsx` with Ant Design `Upload.Dragger`, metadata form inputs, and Force OCR toggle.
-- [ ] **Step 2:** Implement live SSE connection to `/api/v1/admin/rag/documents/jobs/:jobId/stream` rendering real-time stepper progress (`Progress` / `Steps`) and event log console.
+- [ ] **Step 2:** Implement live SSE connection to `/api/v1/admin/rag/documents/stream` rendering real-time stepper progress (`Progress` / `Steps`) and event log console.
 - [ ] **Step 3:** Commit point: `[FE] Add: Document upload modal with live SSE progress stepper in admin-web`.
 
 ### Task 6.6: Chunk Inspector Drawer & Actions (`apps/admin-web`)

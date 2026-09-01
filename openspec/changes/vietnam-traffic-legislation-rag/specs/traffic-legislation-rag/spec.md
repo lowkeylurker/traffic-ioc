@@ -81,7 +81,7 @@ The system SHALL provide an administrative management console in `apps/admin-web
 #### Scenario: Admin uploads decree document with real-time Redis Pub/Sub to SSE progress
 - **GIVEN** an authenticated Admin accesses `/law-documents` and submits a decree file (`.docx` or `.pdf`) with document metadata
 - **WHEN** the upload request is accepted by `POST /api/v1/admin/rag/documents/upload`
-- **THEN** the backend issues an asynchronous ingestion task with `jobId`, FastAPI `rag-ingestion` service processes the document and publishes milestone progress events (`FILE_LOADED` 15% $\to$ `FORMAT_DETECTED` 25% $\to$ `AST_PARSED` 50% $\to$ `CHUNKS_ENRICHED` 65% $\to$ `EMBEDDINGS_GENERATED` 80% $\to$ `STORAGE_SYNCED` 95% $\to$ `COMPLETED` 100%) to Redis topic `rag:ingestion:events`, and the backend forwards the events in real-time via `GET /api/v1/admin/rag/documents/stream` and `GET /api/v1/admin/rag/documents/jobs/:jobId/stream` to the Admin Web progress tracker.
+- **THEN** the backend issues an asynchronous ingestion task with `jobId`, FastAPI `rag-ingestion` service processes the document and publishes milestone progress events (`FILE_LOADED` 15% $\to$ `FORMAT_DETECTED` 25% $\to$ `AST_PARSED` 50% $\to$ `CHUNKS_ENRICHED` 65% $\to$ `EMBEDDINGS_GENERATED` 80% $\to$ `STORAGE_SYNCED` 95% $\to$ `COMPLETED` 100%) to Redis topic `rag:ingestion:events`, and the backend forwards the events in real-time via `GET /api/v1/admin/rag/documents/stream` to the Admin Web progress tracker.
 
 #### Scenario: Admin inspects extracted chunks in drawer
 - **GIVEN** an ingested document in the administrative document catalog
