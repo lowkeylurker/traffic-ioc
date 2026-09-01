@@ -1,10 +1,14 @@
-"""Unit tests for FastAPI ingestion API endpoints."""
+"""Unit tests for FastAPI ingestion API endpoints and Celery task execution."""
 
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from fastapi.testclient import TestClient
+
+from src.main import app
 from src.schemas.ingest import IngestionRequest
 from src.services.ingestion_pipeline import IngestionPipeline
+from src.tasks.ingestion_tasks import process_document_ingestion_task
 
 
 class TestIngestionPipeline(unittest.IsolatedAsyncioTestCase):
@@ -87,6 +91,57 @@ class TestIngestionPipeline(unittest.IsolatedAsyncioTestCase):
         health = get_health()
         self.assertEqual(health["status"], "ok")
         self.assertEqual(health["service"], "rag-ingestion")
+
+
+class TestCeleryIngestionRoutes(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+
+    @patch("src.api.routes.ingest.process_document_ingestion_task.apply_async")
+    def test_enqueue_process_async_endpoint(self, mock_apply_async):
+        payload = {
+            "kb_code": "vietnam_traffic_laws",
+            "doc_code": "ND-100-2019",
+            "doc_title": "Nghị định 100/2019/NĐ-CP",
+            "content_text": "# CHƯƠNG I\nĐiều 1. Quy định chung",
+        }
+        response = self.client.post("/api/v1/ingest/traffic-law/process-async", json=payload)
+        self.assertEqual(response.status_code, 202)
+        data = response.json()
+        self.assertEqual(data["status"], "accepted")
+        self.assertEqual(data["docCode"], "ND-100-2019")
+        self.assertTrue(data["jobId"].startswith("job-"))
+        mock_apply_async.assert_called_once()
+
+    @patch("src.api.routes.ingest.process_document_ingestion_task.apply_async")
+    def test_enqueue_retry_endpoint(self, mock_apply_async):
+        payload = {
+            "doc_code": "ND-123-2021",
+            "doc_title": "Nghị định 123/2021/NĐ-CP",
+            "storage_key": "laws/ND123/nd123.pdf",
+        }
+        response = self.client.post("/api/v1/ingest/traffic-law/retry", json=payload)
+        self.assertEqual(response.status_code, 202)
+        data = response.json()
+        self.assertEqual(data["status"], "accepted")
+        self.assertEqual(data["docCode"], "ND-123-2021")
+        mock_apply_async.assert_called_once()
+
+    @patch(
+        "src.tasks.ingestion_tasks.ingestion_pipeline.process_ingestion_async",
+        new_callable=AsyncMock,
+    )
+    def test_celery_task_execution(self, mock_pipeline):
+        req_dict = {
+            "doc_code": "ND-100-2019",
+            "doc_title": "Nghị định 100/2019/NĐ-CP",
+            "content_text": "Sample law content",
+        }
+        res = process_document_ingestion_task.apply(args=[req_dict, "job-celery-123"]).get()
+        self.assertEqual(res["status"], "completed")
+        self.assertEqual(res["job_id"], "job-celery-123")
+        self.assertEqual(res["doc_code"], "ND-100-2019")
+        mock_pipeline.assert_called_once()
 
 
 if __name__ == "__main__":

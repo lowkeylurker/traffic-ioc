@@ -1,5 +1,6 @@
-"""Core configuration, settings, and database infrastructure."""
+"""Core configuration, settings, database, and task queue infrastructure."""
 
+from src.core.celery_app import celery_app
 from src.core.config import Settings, settings
 from src.core.db import (
     close_db_engine,
@@ -12,6 +13,7 @@ from src.core.db import (
 __all__ = [
     "Settings",
     "settings",
+    "celery_app",
     "get_async_engine",
     "get_async_session_factory",
     "get_db_session",

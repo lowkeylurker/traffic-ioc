@@ -39,12 +39,12 @@ This microservice (`rag-ingestion/`) is a Python 3.11+ FastAPI service that pars
 > - The API Gateway (`apps/backend`) uploads files to MinIO (`traffic-ioc-documents` bucket) and stores the `storageKey` in PostgreSQL OLTP.
 > - `rag-ingestion` receives lightweight JSON trigger payloads (`storage_key` or `doc_id`) and streams binaries directly from MinIO using `minio_storage`.
 
-### 5. Pure Asynchronous Jobs & Redis Pub/Sub Milestones
+### 5. Distributed Background Tasks with Celery & Redis Pub/Sub Milestones
 > [!IMPORTANT]
-> **Asynchronous Execution Rule**:
-> - Endpoints in `src/api/routes/ingest.py` MUST NEVER execute synchronous parsing.
-> - Always schedule ingestion via FastAPI `BackgroundTasks` and return HTTP `202 Accepted` with a `jobId`.
-> - The worker pipeline MUST publish real-time milestone events across Redis topic `rag:ingestion:events`:
+> **Celery Task Execution Rule**:
+> - Endpoints in `src/api/routes/ingest.py` MUST NEVER execute synchronous parsing or in-process threading.
+> - Always enqueue ingestion jobs to Celery via `process_document_ingestion_task.apply_async(...)` and return HTTP `202 Accepted` with a `jobId`.
+> - The Celery worker pipeline MUST publish real-time milestone events across Redis topic `rag:ingestion:events`:
 >   `FILE_LOADED` (15%) $\to$ `FORMAT_DETECTED` (25%) $\to$ `OCR_PROCESSING` (35%) $\to$ `AST_PARSED` (50%) $\to$ `CHUNKS_ENRICHED` (65%) $\to$ `EMBEDDINGS_GENERATED` (80%) $\to$ `STORAGE_SYNCED` (95%) $\to$ `COMPLETED` (100%) or `FAILED`.
 
 ---
@@ -56,7 +56,8 @@ This microservice (`rag-ingestion/`) is a Python 3.11+ FastAPI service that pars
 - **Lint & Fix**: `uv run ruff check --fix .` (or root `pnpm lint:rag`)
 - **Type Check**: `uv run pyrefly check` (or root `pnpm typecheck:rag`)
 - **Run Unit Tests**: `uv run pytest`
-- **Start Dev Server**: `uv run uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload`
+- **Start FastAPI Server**: `uv run uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload` (or root `pnpm dev:rag`)
+- **Start Celery Worker**: `uv run celery -A src.core.celery_app.celery_app worker --loglevel=info` (or root `pnpm worker:rag`)
 
 ---
 
@@ -65,10 +66,13 @@ This microservice (`rag-ingestion/`) is a Python 3.11+ FastAPI service that pars
 - **`src/core/`**: Central application infrastructure:
   - `config.py`: Pydantic application settings loaded from environment variables.
   - `db.py`: Centralized async engine management, Prisma parameter sanitization (`?schema=public`), and `async_sessionmaker[AsyncSession]` factories.
+  - `celery_app.py`: Celery distributed worker application setup over Redis broker.
+- **`src/tasks/`**:
+  - `ingestion_tasks.py`: Celery task definitions (`process_document_ingestion_task`) with automatic retry and error handling.
 - **`src/models/`**:
   - `oltp.py`: Declarative SQLAlchemy 2.0 ORM models (`KnowledgeBaseModel`, `KnowledgeDocumentModel`, `KnowledgeChunkModel`) mirroring `oltp.prisma`.
 - **`src/schemas/`**: Pydantic DTOs (`IngestionRequest`, `JobAcceptedResponse`, `RetryProcessRequest`).
-- **`src/api/routes/`**: Thin FastAPI route controllers dispatching background jobs.
+- **`src/api/routes/`**: Thin FastAPI route controllers dispatching jobs to Celery.
 - **`src/services/`**:
   - `ingestion_pipeline.py`: Main orchestrator (`IngestionPipeline`).
   - `minio_storage.py`: MinIO binary stream & download client.

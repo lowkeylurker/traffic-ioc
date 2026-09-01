@@ -9,6 +9,7 @@
     "dev:user": "turbo dev --filter=@traffic-ioc/user-web",
     "dev:backend": "turbo dev --filter=@traffic-ioc/backend",
     "dev:rag": "cd rag-ingestion && uv run uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload",
+    "worker:rag": "cd rag-ingestion && uv run celery -A src.core.celery_app.celery_app worker --loglevel=info",
     "format:rag": "cd rag-ingestion && uv run ruff format .",
     "lint:rag": "cd rag-ingestion && uv run ruff check --fix .",
     "typecheck:rag": "cd rag-ingestion && uv run pyrefly check",

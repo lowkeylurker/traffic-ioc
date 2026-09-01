@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
     REDIS_INGESTION_CHANNEL: str = "rag:ingestion:events"
 
+    # Celery Distributed Task Queue
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
+    CELERY_TASK_DEFAULT_QUEUE: str = "rag_ingestion"
+
     # Google Gemini Vision OCR
     GEMINI_API_KEY: str = ""
     GEMINI_OCR_MODEL: str = "gemini-1.5-flash"
