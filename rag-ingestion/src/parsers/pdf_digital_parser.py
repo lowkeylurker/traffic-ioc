@@ -40,7 +40,7 @@ class PdfDigitalParser:
             doc = fitz.open(stream=content_bytes, filetype="pdf")
             pages_text = []
             for page in doc:
-                text = page.get_text("text")
+                text = str(page.get_text("text") or "")
                 if text.strip():
                     pages_text.append(text.strip())
             return "\n\n".join(pages_text)
@@ -54,8 +54,8 @@ class PdfDigitalParser:
             with pdfplumber.open(io.BytesIO(content_bytes)) as pdf:
                 pages_text = []
                 for page in pdf.pages:
-                    text = page.extract_text()
-                    if text and text.strip():
+                    text = str(page.extract_text() or "")
+                    if text.strip():
                         pages_text.append(text.strip())
                 return "\n\n".join(pages_text)
         except Exception:

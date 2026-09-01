@@ -14,7 +14,7 @@ Smart Traffic IOC is an urban intelligent operations center platform providing r
   - `packages/shared-config/`: Shared tsconfig & lint configs
   - `data-pipeline/` & `ai-core/`: Python 3.10+ (`requirements.txt`)
 - **Python Formatting, Linting & Docstrings (`rag-ingestion/`)**:
-  - Always run `uv run ruff format .` and `uv run ruff check --fix .` after modifying code in `rag-ingestion/`.
+  - Always run `uv run ruff format .`, `uv run ruff check --fix .`, and `uv run pyrefly check` after modifying code in `rag-ingestion/`.
   - Always provide comprehensive Google/Sphinx style docstrings on all classes and functions (documenting `Args:`, `Returns:`, `Raises:`).
   - Use MinIO object storage references (`storage_key` / `doc_id`) for document binaries instead of base64 JSON payloads.
 - **Database Schema**:

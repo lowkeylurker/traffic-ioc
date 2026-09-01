@@ -2,13 +2,9 @@
 # Documentation: https://pyrefly.org/docs/configuration.html
 
 project-includes = ["src"]
-project-excludes = [".venv", ".git", "__pycache__", "dist", "build", "alembic"]
+project-excludes = [".venv", ".git", "__pycache__", "dist", "build", "alembic", "tests"]
 
-python-version = "3.12"
+python-version = "3.11"
 
-# Import search paths: project root for `app.*` absolute imports.
+# Import search paths: project root for absolute imports.
 search-path = ["."]
-
-[check]
-# Enable strict mode or other specific checks if needed
-strict = false

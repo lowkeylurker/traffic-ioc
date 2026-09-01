@@ -65,7 +65,7 @@ class DocxParser:
             elements = []
             for p in doc.paragraphs:
                 if p.text.strip():
-                    style_name = p.style.name.lower() if p.style else ""
+                    style_name = (p.style.name or "").lower() if p.style and p.style.name else ""
                     if "heading" in style_name or "tiêu đề" in style_name:
                         elements.append({"type": "heading", "text": p.text.strip()})
                     else:

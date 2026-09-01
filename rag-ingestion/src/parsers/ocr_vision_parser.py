@@ -103,15 +103,18 @@ class OcrVisionParser:
             from google.genai import types
 
             client = genai.Client(api_key=self.api_key) if self.api_key else genai.Client()
-            response = client.models.generate_content(
-                model=self.model_name,
-                contents=[
+            content_payload = types.Content(
+                parts=[
                     types.Part.from_bytes(
                         data=image_bytes,
                         mime_type="image/png",
                     ),
-                    LEGAL_OCR_SYSTEM_PROMPT,
-                ],
+                    types.Part.from_text(text=LEGAL_OCR_SYSTEM_PROMPT),
+                ]
+            )
+            response = client.models.generate_content(
+                model=self.model_name,
+                contents=content_payload,
             )
             if hasattr(response, "text") and response.text:
                 return str(response.text)
