@@ -109,7 +109,7 @@ Smart Traffic IOC operates a dual-engine architecture: a PostgreSQL/PostGIS Kimb
   - `GET /api/v1/admin/documents`: List documents with pagination and status.
   - `GET /api/v1/admin/documents/:docId/chunks`: Fetch chunks for a document.
   - `POST /api/v1/admin/documents/upload`: Multi-part upload handler triggering asynchronous ingestion.
-  - `GET /api/v1/admin/documents/stream`: Global Server-Sent Events stream fed by Redis Pub/Sub subscription on topic `rag:ingestion:events`.
+  - `GET /api/v1/admin/documents/stream`: Global Server-Sent Events stream fed by Redis Pub/Sub subscription on topic `rag:ingestion:events`. Implements `compression` bypass filter, `X-Accel-Buffering: no`, 15-second `: keepalive\n\n` comments, and explicit `res.flush()` to guarantee immediate real-time packet delivery across reverse proxies.
   - `DELETE /api/v1/admin/documents/:docId`: Atomic deletion across OLTP DB and Qdrant vectors.
   - `POST /api/v1/admin/documents/:docId/reindex`: Re-trigger ingestion pipeline.
 - **Messaging Contract (`rag:ingestion:events`)**:
