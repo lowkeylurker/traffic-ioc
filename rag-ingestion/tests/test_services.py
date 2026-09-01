@@ -1,38 +1,80 @@
-"""Unit tests for OllamaEmbedder, OltpSyncService, and QdrantSyncService."""
+"""Unit tests for EmbedderFactory, OpenAIEmbedder, OltpSyncService, and QdrantSyncService."""
 
 import unittest
 from unittest.mock import MagicMock, patch
 
 from src.enrichers.chunk_composer import EnrichedChunk
-from src.services.embedder import OllamaEmbedder
+from src.services.embedder import (
+    BaseEmbedder,
+    EmbedderFactory,
+    OpenAIEmbedder,
+    get_embedder,
+)
 from src.services.oltp_sync import OltpSyncService
 from src.services.qdrant_sync import QdrantSyncService
 
 
-class TestOllamaEmbedder(unittest.TestCase):
+class TestEmbedderFactory(unittest.TestCase):
+    def test_factory_creates_openai_embedder(self):
+        embedder = EmbedderFactory.create(
+            provider="openai",
+            base_url="http://localhost:11434/v1",
+            api_key="ollama",
+            model_name="bge-m3",
+            vector_dim=1024,
+        )
+        self.assertIsInstance(embedder, BaseEmbedder)
+        self.assertIsInstance(embedder, OpenAIEmbedder)
+        self.assertEqual(embedder.vector_dim, 1024)
+
+    def test_factory_unknown_provider_raises_error(self):
+        with self.assertRaises(ValueError):
+            EmbedderFactory.create(provider="unsupported_provider")
+
+    def test_get_embedder_helper(self):
+        embedder = get_embedder()
+        self.assertIsInstance(embedder, BaseEmbedder)
+
+
+class TestOpenAIEmbedder(unittest.TestCase):
     def setUp(self):
-        self.embedder = OllamaEmbedder(base_url="http://localhost:11434", model_name="bge-m3")
+        self.embedder = OpenAIEmbedder(
+            base_url="http://localhost:11434/v1", api_key="ollama", model_name="bge-m3"
+        )
 
-    @patch("urllib.request.urlopen")
-    def test_embed_single_text(self, mock_urlopen):
+    def test_embed_single_text(self):
+        mock_client = MagicMock()
+        mock_item = MagicMock()
+        mock_item.embedding = [0.1, 0.2, 0.3]
         mock_response = MagicMock()
-        mock_response.read.return_value = b'{"embedding": [0.1, 0.2, 0.3]}'
-        mock_urlopen.return_value.__enter__.return_value = mock_response
+        mock_response.data = [mock_item]
+        mock_client.embeddings.create.return_value = mock_response
 
+        self.embedder._client = mock_client
         vector = self.embedder.embed_query("Vượt đèn đỏ xe máy phạt bao nhiêu?")
         self.assertEqual(len(vector), 3)
         self.assertEqual(vector[0], 0.1)
+        mock_client.embeddings.create.assert_called_once_with(
+            model="bge-m3",
+            input=["Vượt đèn đỏ xe máy phạt bao nhiêu?"],
+        )
 
-    @patch("urllib.request.urlopen")
-    def test_embed_batch_documents(self, mock_urlopen):
+    def test_embed_batch_documents(self):
+        mock_client = MagicMock()
+        mock_item1 = MagicMock()
+        mock_item1.embedding = [0.05, 0.15, 0.25]
+        mock_item2 = MagicMock()
+        mock_item2.embedding = [0.10, 0.20, 0.30]
         mock_response = MagicMock()
-        mock_response.read.return_value = b'{"embedding": [0.05, 0.15, 0.25]}'
-        mock_urlopen.return_value.__enter__.return_value = mock_response
+        mock_response.data = [mock_item1, mock_item2]
+        mock_client.embeddings.create.return_value = mock_response
 
+        self.embedder._client = mock_client
         texts = ["Hành vi 1", "Hành vi 2"]
         vectors = self.embedder.embed_documents(texts)
         self.assertEqual(len(vectors), 2)
         self.assertEqual(vectors[0], [0.05, 0.15, 0.25])
+        self.assertEqual(vectors[1], [0.10, 0.20, 0.30])
 
 
 class TestQdrantSyncService(unittest.TestCase):

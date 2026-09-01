@@ -11,6 +11,7 @@ Coordinates the multi-stage ingestion lifecycle:
 """
 
 import logging
+from typing import Optional
 
 from src.config import settings
 from src.enrichers.chunk_composer import LegalChunkComposer
@@ -23,7 +24,7 @@ from src.parsers.legal_ast import LegalNodeParser
 from src.parsers.ocr_vision_parser import OcrVisionParser
 from src.parsers.pdf_digital_parser import PdfDigitalParser
 from src.schemas.ingest import IngestionRequest
-from src.services.embedder import OllamaEmbedder
+from src.services.embedder import BaseEmbedder, get_embedder
 from src.services.minio_storage import minio_storage
 from src.services.oltp_sync import OltpSyncService
 from src.services.qdrant_sync import QdrantSyncService
@@ -41,13 +42,13 @@ class IngestionPipeline:
         docx_parser (DocxParser): Parses Microsoft Word .docx decree files.
         ocr_parser (OcrVisionParser): Transcribes scanned image PDFs using Google Gemini Flash Vision.
         composer (LegalChunkComposer): Enriches AST nodes with breadcrumb context and fine brackets.
-        embedder (OllamaEmbedder): Generates 1024-dim dense vectors using Ollama BAAI/bge-m3.
+        embedder (BaseEmbedder): Unified vector embedder instance instantiated via EmbedderFactory.
         qdrant_sync (QdrantSyncService): Upserts vector points into Qdrant collection.
         oltp_sync (OltpSyncService): Syncs relational metadata to PostgreSQL OLTP.
         minio_storage (MinioStorageService): Downloads raw document binaries from MinIO object storage.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, embedder: Optional[BaseEmbedder] = None) -> None:
         """Initialize pipeline sub-services and parser components."""
         self.detector = DocumentDetector()
         self.pdf_parser = PdfDigitalParser()
@@ -56,9 +57,7 @@ class IngestionPipeline:
             api_key=settings.GEMINI_API_KEY, model_name=settings.GEMINI_OCR_MODEL
         )
         self.composer = LegalChunkComposer()
-        self.embedder = OllamaEmbedder(
-            base_url=settings.OLLAMA_URL, model_name=settings.OLLAMA_EMBED_MODEL
-        )
+        self.embedder = embedder or get_embedder()
         self.qdrant_sync = QdrantSyncService(
             host=settings.QDRANT_HOST,
             port=settings.QDRANT_PORT,

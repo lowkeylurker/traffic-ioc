@@ -8,6 +8,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
+    """Configuration settings loaded from environment variables and .env files."""
+
     APP_NAME: str = "Vietnam Traffic Legislation Ingestion Service"
     APP_ENV: str = "development"
     PORT: int = 8001
@@ -29,9 +31,11 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION: str = "vietnam_traffic_laws"
     QDRANT_VECTOR_SIZE: int = 1024
 
-    # Ollama Embeddings
-    OLLAMA_URL: str = "http://localhost:11434"
-    OLLAMA_EMBED_MODEL: str = "bge-m3"
+    # Embedding Configuration (OpenAI, Ollama, vLLM, etc.)
+    EMBEDDING_PROVIDER: str = "openai"
+    EMBEDDING_BASE_URL: str = "http://localhost:11434/v1"
+    EMBEDDING_API_KEY: str = "ollama"
+    EMBEDDING_MODEL: str = "bge-m3"
 
     # Redis Pub/Sub & Caching
     REDIS_URL: str = "redis://localhost:6379"
