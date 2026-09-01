@@ -1,34 +1,10 @@
 """Application configuration for rag-ingestion microservice."""
 
-import os
-from typing import Optional
+from pathlib import Path
 
-try:
-    from pydantic_settings import BaseSettings, SettingsConfigDict
-except ImportError:
-    try:
-        from pydantic import BaseSettings  # type: ignore
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-        SettingsConfigDict = None  # type: ignore
-    except ImportError:
-        # Fallback implementation when pydantic is not installed
-        class BaseSettings:  # type: ignore
-            def __init__(self, **kwargs):
-                for k, v in self._get_defaults().items():
-                    env_val = os.getenv(k.upper(), os.getenv(k))
-                    setattr(self, k, env_val if env_val is not None else kwargs.get(k, v))
-                for k, v in kwargs.items():
-                    setattr(self, k, v)
-
-            @classmethod
-            def _get_defaults(cls):
-                return {
-                    k: getattr(cls, k)
-                    for k in dir(cls)
-                    if not k.startswith("_") and not callable(getattr(cls, k))
-                }
-
-        SettingsConfigDict = None  # type: ignore
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
@@ -39,6 +15,13 @@ class Settings(BaseSettings):
 
     # PostgreSQL OLTP Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5433/traffic_ioc_oltp"
+
+    # MinIO / S3 Object Storage
+    MINIO_ENDPOINT: str = "localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET: str = "traffic-ioc-documents"
+    MINIO_SECURE: bool = False
 
     # Qdrant Vector Store
     QDRANT_HOST: str = "localhost"
@@ -58,13 +41,15 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_OCR_MODEL: str = "gemini-1.5-flash"
 
-    if SettingsConfigDict is not None:
-        model_config = SettingsConfigDict(
-            env_file=".env",
-            env_file_encoding="utf-8",
-            extra="ignore",
-            case_sensitive=True,
-        )
+    model_config = SettingsConfigDict(
+        env_file=(
+            str(BASE_DIR / ".env"),
+            ".env",
+        ),
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+    )
 
 
 settings = Settings()

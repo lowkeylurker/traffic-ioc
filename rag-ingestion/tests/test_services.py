@@ -1,7 +1,7 @@
 """Unit tests for OllamaEmbedder, OltpSyncService, and QdrantSyncService."""
 
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from src.enrichers.chunk_composer import EnrichedChunk
 from src.services.embedder import OllamaEmbedder
@@ -70,7 +70,9 @@ class TestQdrantSyncService(unittest.TestCase):
 
 class TestOltpSyncService(unittest.TestCase):
     def setUp(self):
-        self.oltp_service = OltpSyncService(db_url="postgresql+asyncpg://postgres:postgres@localhost:5433/traffic_ioc_oltp")
+        self.oltp_service = OltpSyncService(
+            db_url="postgresql+asyncpg://postgres:postgres@localhost:5433/traffic_ioc_oltp"
+        )
 
     def test_sync_document_and_chunks(self):
         chunk = EnrichedChunk(
@@ -87,7 +89,11 @@ class TestOltpSyncService(unittest.TestCase):
             vehicle_types=["motorbike"],
         )
 
-        with patch.object(self.oltp_service, "_execute_sync", return_value={"kb_id": "kb-1", "doc_id": "doc-1", "synced_chunks": 1}):
+        with patch.object(
+            self.oltp_service,
+            "_execute_sync",
+            return_value={"kb_id": "kb-1", "doc_id": "doc-1", "synced_chunks": 1},
+        ):
             res = self.oltp_service.sync_document_and_chunks(
                 kb_code="vietnam_traffic_legislation",
                 kb_name="Cơ sở dữ liệu Pháp luật Giao thông Việt Nam",

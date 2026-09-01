@@ -1,12 +1,19 @@
-"""Seed script to index foundational Vietnamese Traffic Decrees (NĐ 100/2019, NĐ 123/2021)."""
+"""Seed script to index foundational Vietnamese Traffic Decrees (NĐ 100/2019, NĐ 123/2021).
 
+Provides an asynchronous database seeding routine that initializes the Qdrant
+`vietnam_traffic_laws` collection and PostgreSQL OLTP `knowledge_base` with
+standardized core traffic regulations (speeding, red-light violations, alcohol limits).
+"""
+
+import asyncio
 import os
 import sys
 
 # Ensure root package path is available
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from src.api.routes.ingest import IngestionPipeline, IngestionRequest
+from src.schemas.ingest import IngestionRequest
+from src.services.ingestion_pipeline import IngestionPipeline
 
 SAMPLE_ND100_2019 = """
 # CHƯƠNG I: QUY ĐỊNH CHUNG
@@ -78,7 +85,8 @@ SAMPLE_ND100_2019 = """
 """
 
 
-def seed_database():
+async def seed_database() -> None:
+    """Execute asynchronous database seeding for core Vietnamese Traffic Decree 100/2019."""
     pipeline = IngestionPipeline()
     print("🌱 Bắt đầu nạp văn bản pháp luật mẫu vào Qdrant và PostgreSQL...")
 
@@ -92,11 +100,9 @@ def seed_database():
         content_text=SAMPLE_ND100_2019,
     )
 
-    res = pipeline.process_ingestion(req)
-    print(f"✅ Đã nạp thành công văn bản: {res.doc_code} - {res.doc_title}")
-    print(f"📊 Số lượng chunk được bóc tách và làm giàu ngữ cảnh: {res.chunks_count}")
-    print(f"🎯 Điểm vector được đồng bộ vào Qdrant ({res.collection_name}): {res.points_upserted}")
+    await pipeline.process_ingestion_async(req, "seed-nd100")
+    print(f"✅ Đã nạp thành công văn bản: {req.doc_code} - {req.doc_title}")
 
 
 if __name__ == "__main__":
-    seed_database()
+    asyncio.run(seed_database())

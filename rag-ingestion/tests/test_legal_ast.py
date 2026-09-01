@@ -1,7 +1,8 @@
 """Unit tests for hierarchical legal AST parser."""
 
 import unittest
-from src.parsers.legal_ast import LegalASTNode, LegalNodeParser, LegalNodeType
+
+from src.parsers.legal_ast import LegalNodeParser
 
 SAMPLE_LEGAL_MARKDOWN = """
 # CHƯƠNG II: HÀNH VI VI PHẠM, HÌNH THỨC, MỨC XỬ PHẠT
@@ -50,7 +51,7 @@ class TestLegalASTParser(unittest.TestCase):
     def test_parse_to_leaf_nodes(self):
         nodes = self.parser.parse_to_nodes(SAMPLE_LEGAL_MARKDOWN)
         self.assertTrue(len(nodes) >= 4)  # Points from Clause 1, 2, 10
-        
+
         point_k_nodes = [n for n in nodes if n.point_code == "k" and n.clause_number == 2]
         self.assertEqual(len(point_k_nodes), 1)
         node = point_k_nodes[0]

@@ -1,4 +1,8 @@
-"""DOCX parser converting Vietnamese legal Word documents to structured Markdown."""
+"""DOCX parser converting Vietnamese legal Word documents to structured Markdown.
+
+Extracts headings, paragraphs, and tables from `.docx` files and formats Vietnamese
+legal structural headings (Chương, Mục, Điều) into standard Markdown hierarchy for AST parsing.
+"""
 
 import io
 from typing import Any, Dict, List, Union
@@ -8,9 +12,18 @@ class DocxParser:
     """Parses Word .docx documents into structured Markdown for legal AST processing."""
 
     def parse(self, content: Union[bytes, str], filename: str = "") -> str:
+        """Parse Microsoft Word DOCX binary or string into structured legal Markdown.
+
+        Args:
+            content (Union[bytes, str]): Raw document bytes or UTF-8 string.
+            filename (str): Optional filename for logging and context.
+
+        Returns:
+            str: Clean Markdown string with standardized legal header markdown `#`, `##`.
+        """
         content_bytes = content.encode("utf-8") if isinstance(content, str) else content
         elements = self._extract_elements(content_bytes)
-        
+
         md_lines = []
         for el in elements:
             el_type = el.get("type", "paragraph")
@@ -37,8 +50,17 @@ class DocxParser:
         return "\n\n".join(md_lines)
 
     def _extract_elements(self, content_bytes: bytes) -> List[Dict[str, Any]]:
+        """Extract paragraph blocks and headings using python-docx.
+
+        Args:
+            content_bytes (bytes): Binary bytes of the .docx file.
+
+        Returns:
+            List[Dict[str, Any]]: List of dictionary elements with 'type' and 'text'.
+        """
         try:
             import docx
+
             doc = docx.Document(io.BytesIO(content_bytes))
             elements = []
             for p in doc.paragraphs:

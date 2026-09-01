@@ -1,6 +1,10 @@
-"""OCR Vision parser leveraging Google Gemini Flash for scanned legal PDF transcription."""
+"""OCR Vision parser leveraging Google Gemini Flash for scanned legal PDF transcription.
 
-import io
+Converts rasterized PDF pages into 200-DPI PNG pixmaps and utilizes Google Gemini 1.5 Flash
+Vision API to transcribe Vietnamese decree pages into structured legal Markdown with
+high-fidelity diacritic accuracy and preserved legal typography.
+"""
+
 import os
 from typing import List, Optional, Union
 
@@ -20,13 +24,33 @@ QUY TẮC CẤU TRÚC:
 
 
 class OcrVisionParser:
-    """Uses Google Gemini 1.5 Flash Vision to transcribe scanned Vietnamese decree PDFs."""
+    """Uses Google Gemini 1.5 Flash Vision to transcribe scanned Vietnamese decree PDFs.
 
-    def __init__(self, api_key: Optional[str] = None, model_name: str = "gemini-1.5-flash"):
+    Attributes:
+        api_key (str): Google Gemini API token.
+        model_name (str): Vision model identifier (default: "gemini-1.5-flash").
+    """
+
+    def __init__(self, api_key: Optional[str] = None, model_name: str = "gemini-1.5-flash") -> None:
+        """Initialize OCR Vision parser.
+
+        Args:
+            api_key (Optional[str]): Gemini API key token.
+            model_name (str): Gemini model identifier.
+        """
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
         self.model_name = model_name
 
     def parse(self, content: Union[bytes, str], filename: str = "") -> str:
+        """Render scanned PDF pages to images and transcribe into legal Markdown.
+
+        Args:
+            content (Union[bytes, str]): Binary PDF bytes.
+            filename (str): Optional source filename for context.
+
+        Returns:
+            str: Transcribed Markdown text stitched across all pages.
+        """
         content_bytes = content.encode("utf-8") if isinstance(content, str) else content
         images = self._pdf_to_images(content_bytes)
 
@@ -42,8 +66,17 @@ class OcrVisionParser:
         return "\n\n".join(transcribed_pages)
 
     def _pdf_to_images(self, content_bytes: bytes) -> List[bytes]:
+        """Rasterize PDF pages to 200 DPI PNG byte buffers using PyMuPDF.
+
+        Args:
+            content_bytes (bytes): Raw PDF binary.
+
+        Returns:
+            List[bytes]: List of PNG image byte arrays.
+        """
         try:
             import fitz  # PyMuPDF
+
             doc = fitz.open(stream=content_bytes, filetype="pdf")
             images = []
             for page in doc:
@@ -57,17 +90,26 @@ class OcrVisionParser:
             return []
 
     def _transcribe_image(self, image_bytes: bytes) -> str:
+        """Invoke Google Gemini Vision API to transcribe a single page image into structured Markdown.
+
+        Args:
+            image_bytes (bytes): PNG image byte array.
+
+        Returns:
+            str: Transcribed Markdown text for the page.
+        """
         try:
             import google.generativeai as genai
+
             if self.api_key:
                 genai.configure(api_key=self.api_key)
             model = genai.GenerativeModel(self.model_name)
-            
+
             image_part = {
                 "mime_type": "image/png",
                 "data": image_bytes,
             }
-            
+
             response = model.generate_content([LEGAL_OCR_SYSTEM_PROMPT, image_part])
             if hasattr(response, "text"):
                 return str(response.text)

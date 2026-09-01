@@ -1,6 +1,5 @@
 """Unit tests for document parsers and adaptive document detector."""
 
-import io
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
@@ -29,7 +28,9 @@ class TestDocumentDetector(unittest.TestCase):
 
     def test_detect_digital_pdf(self):
         with patch.object(self.detector, "_analyze_pdf_density", return_value=(False, 10, 1200)):
-            result = self.detector.detect(filename="decree_100_digital.pdf", content=b"%PDF-1.5 digital content")
+            result = self.detector.detect(
+                filename="decree_100_digital.pdf", content=b"%PDF-1.5 digital content"
+            )
             self.assertEqual(result.doc_type, DocumentType.PDF)
             self.assertEqual(result.recommendation, ParserRecommendation.PDF_DIGITAL)
             self.assertFalse(result.is_scanned)
@@ -38,7 +39,9 @@ class TestDocumentDetector(unittest.TestCase):
 
     def test_detect_scanned_pdf(self):
         with patch.object(self.detector, "_analyze_pdf_density", return_value=(True, 5, 25)):
-            result = self.detector.detect(filename="decree_100_scanned.pdf", content=b"%PDF-1.5 scanned image")
+            result = self.detector.detect(
+                filename="decree_100_scanned.pdf", content=b"%PDF-1.5 scanned image"
+            )
             self.assertEqual(result.doc_type, DocumentType.PDF)
             self.assertEqual(result.recommendation, ParserRecommendation.OCR_VISION)
             self.assertTrue(result.is_scanned)
@@ -67,11 +70,18 @@ class TestDocxParser(unittest.TestCase):
         self.parser = DocxParser()
 
     def test_parse_docx_paragraphs_and_tables(self):
-        with patch.object(self.parser, "_extract_elements", return_value=[
-            {"type": "heading", "text": "CHƯƠNG I: QUY ĐỊNH CHUNG"},
-            {"type": "paragraph", "text": "Điều 1. Phạm vi điều chỉnh"},
-            {"type": "paragraph", "text": "Nghị định này quy định về xử phạt vi phạm hành chính trong lĩnh vực giao thông đường bộ."},
-        ]):
+        with patch.object(
+            self.parser,
+            "_extract_elements",
+            return_value=[
+                {"type": "heading", "text": "CHƯƠNG I: QUY ĐỊNH CHUNG"},
+                {"type": "paragraph", "text": "Điều 1. Phạm vi điều chỉnh"},
+                {
+                    "type": "paragraph",
+                    "text": "Nghị định này quy định về xử phạt vi phạm hành chính trong lĩnh vực giao thông đường bộ.",
+                },
+            ],
+        ):
             markdown = self.parser.parse(b"fake_docx_bytes", filename="test.docx")
             self.assertIn("# CHƯƠNG I", markdown)
             self.assertIn("## Điều 1", markdown)
@@ -89,10 +99,10 @@ class TestOcrVisionParser(unittest.TestCase):
             "Phạt tiền từ 100.000 đồng đến 200.000 đồng đối với một trong các hành vi:\n"
             "- Điểm a) Không chấp hành hiệu lệnh, chỉ dẫn của biển báo hiệu, vạch kẻ đường."
         )
-        
+
         mock_response = MagicMock()
         mock_response.text = expected_text
-        
+
         mock_genai = MagicMock()
         mock_model_instance = MagicMock()
         mock_model_instance.generate_content.return_value = mock_response

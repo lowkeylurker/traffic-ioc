@@ -1,7 +1,8 @@
 """Unit tests for chunk composer, breadcrumb enricher, and penalty cross-linker."""
 
 import unittest
-from src.enrichers.chunk_composer import EnrichedChunk, LegalChunkComposer
+
+from src.enrichers.chunk_composer import LegalChunkComposer
 from src.parsers.legal_ast import LegalNodeParser
 
 SAMPLE_DECREE_TEXT = """
@@ -30,7 +31,7 @@ class TestChunkComposer(unittest.TestCase):
     def test_extract_fine_ranges_and_vehicles(self):
         nodes = self.parser.parse_to_nodes(SAMPLE_DECREE_TEXT)
         enriched_chunks = self.composer.compose_chunks(nodes)
-        
+
         # Test Point 2b (Chạy vượt đèn đỏ)
         chunk_2b = next(c for c in enriched_chunks if c.clause_number == 2 and c.point_code == "b")
         self.assertEqual(chunk_2b.fine_min_vnd, 400000)
