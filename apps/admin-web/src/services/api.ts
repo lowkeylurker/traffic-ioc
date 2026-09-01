@@ -17,6 +17,9 @@ import {
   IncidentCollection,
   IncidentImpactResponse,
   IncidentReportCreateResponse,
+  LawChunk,
+  LawDocument,
+  LawDocumentListResponse,
   NewsFeedResponse,
   OlapCrossAnalysisPoint,
   OlapDistrictRankingItem,
@@ -394,7 +397,50 @@ export const predictionApi = {
       data: batchResponse.items,
       timestamp: new Date().toISOString()
     };
-  }
+  },
+}
+
+// Law Document Management API (RAG Admin)
+export const lawDocumentApi = {
+  getDocuments: (params?: {
+    page?: number
+    pageSize?: number
+    search?: string
+    status?: string
+  }): Promise<{ success: boolean; data: LawDocumentListResponse }> =>
+    axiosInstance.get('/admin/rag/documents', { params }),
+
+  getDocumentChunks: (
+    docId: string
+  ): Promise<{ success: boolean; data: LawChunk[] }> =>
+    axiosInstance.get(`/admin/rag/documents/${docId}/chunks`),
+
+  uploadDocument: (
+    formData: FormData
+  ): Promise<{
+    success: boolean
+    message: string
+    data: { jobId: string; docId?: string; docCode: string; docTitle: string }
+  }> =>
+    axiosInstance.post('/admin/rag/documents/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
+
+  deleteDocument: (
+    docId: string
+  ): Promise<{ success: boolean; message: string }> =>
+    axiosInstance.delete(`/admin/rag/documents/${docId}`),
+
+  reindexDocument: (
+    docId: string
+  ): Promise<{
+    success: boolean
+    message: string
+    data: { jobId: string; docId: string; docCode: string }
+  }> => axiosInstance.post(`/admin/rag/documents/${docId}/reindex`),
 }
 
 export default axiosInstance
+

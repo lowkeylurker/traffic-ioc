@@ -523,6 +523,69 @@ export interface SimulationRoutingResult {
   rerouteFailureReason?: string
 }
 
+// User Benchmark Types
+export interface BenchmarkProfile {
+  id: string
+  fullName: string
+  role: 'admin' | 'user'
+  avatarUrl?: string
+}
+
+// Law Document Management Types (RAG Admin)
+export interface LawDocument {
+  id: string
+  kbId: string
+  code: string
+  title: string
+  fileName?: string
+  sourceUrl?: string
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+  chunkCount: number
+  errorMessage?: string
+  metadata?: Record<string, any>
+  createdAt: string
+  updatedAt: string
+}
+
+export interface LawChunk {
+  id: string
+  documentId: string
+  chunkIndex: number
+  breadcrumb?: string
+  content: string
+  qdrantPointId: string
+  metadata?: Record<string, any>
+  createdAt: string
+}
+
+export interface LawDocumentListResponse {
+  items: LawDocument[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface IngestionProgressEvent {
+  step:
+    | 'FILE_LOADED'
+    | 'FORMAT_DETECTED'
+    | 'OCR_PROCESSING'
+    | 'AST_PARSED'
+    | 'CHUNKS_ENRICHED'
+    | 'EMBEDDINGS_GENERATED'
+    | 'STORAGE_SYNCED'
+    | 'COMPLETED'
+    | 'FAILED'
+  percent: number
+  message: string
+  status?: string
+  doc_code?: string
+  doc_title?: string
+  chunks_count?: number
+  points_upserted?: number
+  error?: string
+}
+
 export interface PlaceSearchResult {
   id: string
   name: string

@@ -9,6 +9,7 @@ import { NewsPage } from '@/pages/NewsPage'
 import { RealTimePage } from '@/pages/RealTimePage'
 import { SimulationPage } from '@/pages/SimulationPage'
 import { UserProfilePage } from '@/pages/UserProfilePage'
+import { LawDocumentsPage } from '@/pages/LawDocumentsPage'
 import { Button, Result } from 'antd'
 import {
   Navigate,
@@ -92,6 +93,14 @@ function App() {
             element={
               <RoleGuard requiredRole="admin">
                 <CitizenReportsAdminPage />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="law-documents"
+            element={
+              <RoleGuard requiredRole="admin">
+                <LawDocumentsPage />
               </RoleGuard>
             }
           />

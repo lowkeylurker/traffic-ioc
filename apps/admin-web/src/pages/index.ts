@@ -6,3 +6,5 @@ export { NewsPage } from './NewsPage'
 export { RealTimePage } from './RealTimePage'
 export { SimulationPage } from './SimulationPage'
 export { UserProfilePage } from './UserProfilePage'
+export { LawDocumentsPage } from './LawDocumentsPage'
+

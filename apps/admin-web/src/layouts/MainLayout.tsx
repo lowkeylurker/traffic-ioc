@@ -14,6 +14,7 @@ import {
   MenuOutlined,
   UserOutlined,
   BellOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons'
 import { useAuth, useUser } from '@clerk/clerk-react'
 import { Button, Drawer, Grid, Layout, Menu, Badge } from 'antd'
@@ -21,6 +22,8 @@ import React, { useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSocket } from '@/hooks/useSocket'
 import { useNotificationStore } from '@/stores/useNotificationStore'
+import { LawIngestionProvider } from '@/hooks/useLawIngestion'
+import { GlobalIngestionTracker } from '@/components/admin-rag/GlobalIngestionTracker'
 
 const { Sider, Content } = Layout
 const { useBreakpoint } = Grid
@@ -113,6 +116,11 @@ export const MainLayout: React.FC = () => {
             key: '/history',
             icon: <FileSearchOutlined />,
             label: 'Tra cứu Lịch sử',
+          },
+          {
+            key: '/law-documents',
+            icon: <FileTextOutlined />,
+            label: 'Văn bản Pháp luật',
           },
           {
             key: '/notifications',
@@ -254,116 +262,119 @@ export const MainLayout: React.FC = () => {
   )
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      {!isMobileUserView && (
-        <Sider
-          width={LAYOUT_SIDER_WIDTH}
-          collapsedWidth={56}
-          theme="light"
-          collapsible
-          collapsed={collapsed}
-          onCollapse={(value) => setCollapsed(value)}
-          style={{
-            background: '#ffffff',
-            borderRight: '1px solid #f0f0f0',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <div
+    <LawIngestionProvider>
+      <Layout style={{ minHeight: '100vh' }}>
+        {!isMobileUserView && (
+          <Sider
+            width={LAYOUT_SIDER_WIDTH}
+            collapsedWidth={56}
+            theme="light"
+            collapsible
+            collapsed={collapsed}
+            onCollapse={(value) => setCollapsed(value)}
             style={{
-              flex: 1,
+              background: '#ffffff',
+              borderRight: '1px solid #f0f0f0',
               display: 'flex',
               flexDirection: 'column',
-              overflow: 'hidden',
             }}
           >
             <div
               style={{
-                padding: '16px',
-                textAlign: collapsed ? 'center' : 'left',
-                color: '#001529',
-                fontSize: collapsed ? 20 : 18,
-                fontWeight: 'bold',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s',
-              }}
-            >
-              {collapsed ? '🚦' : 'Traffic IOC'}
-            </div>
-            <Menu
-              theme="light"
-              mode="inline"
-              selectedKeys={[location.pathname]}
-              items={visibleMenuItems}
-              onClick={(item) => navigate(item.key)}
-              style={{ flex: 1, borderInlineEnd: 'none' }}
-            />
-          </div>
-          {renderMenuFooter(collapsed)}
-        </Sider>
-      )}
-
-      {isMobileUserView && (
-        <>
-          <Button
-            type="primary"
-            shape="circle"
-            icon={<MenuOutlined />}
-            onClick={() => setMobileMenuOpen(true)}
-            aria-label="Mở menu"
-            style={{
-              position: 'fixed',
-              top: 12,
-              right: 12,
-              zIndex: 1200,
-              boxShadow: '0 8px 18px rgba(0, 21, 41, 0.24)',
-            }}
-          />
-
-          <Drawer
-            placement="right"
-            width={280}
-            open={mobileMenuOpen}
-            onClose={() => setMobileMenuOpen(false)}
-            title="Traffic IOC"
-            styles={{
-              body: {
-                padding: 0,
+                flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
-                height: '100%',
-              },
-            }}
-          >
-            <Menu
-              theme="light"
-              mode="inline"
-              selectedKeys={[location.pathname]}
-              items={visibleMenuItems}
-              onClick={(item) => {
-                setMobileMenuOpen(false)
-                navigate(item.key)
+                overflow: 'hidden',
               }}
-              style={{ flex: 1, borderInlineEnd: 'none' }}
+            >
+              <div
+                style={{
+                  padding: '16px',
+                  textAlign: collapsed ? 'center' : 'left',
+                  color: '#001529',
+                  fontSize: collapsed ? 20 : 18,
+                  fontWeight: 'bold',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {collapsed ? '🚦' : 'Traffic IOC'}
+              </div>
+              <Menu
+                theme="light"
+                mode="inline"
+                selectedKeys={[location.pathname]}
+                items={visibleMenuItems}
+                onClick={(item) => navigate(item.key)}
+                style={{ flex: 1, borderInlineEnd: 'none' }}
+              />
+            </div>
+            {renderMenuFooter(collapsed)}
+          </Sider>
+        )}
+
+        {isMobileUserView && (
+          <>
+            <Button
+              type="primary"
+              shape="circle"
+              icon={<MenuOutlined />}
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Mở menu"
+              style={{
+                position: 'fixed',
+                top: 12,
+                right: 12,
+                zIndex: 1200,
+                boxShadow: '0 8px 18px rgba(0, 21, 41, 0.24)',
+              }}
             />
-            {renderMenuFooter(false, true)}
-          </Drawer>
-        </>
-      )}
 
-      <Layout>
-        <Content style={{ padding: 0, background: '#f0f2f5' }}>
-          <Outlet />
-        </Content>
+            <Drawer
+              placement="right"
+              width={280}
+              open={mobileMenuOpen}
+              onClose={() => setMobileMenuOpen(false)}
+              title="Traffic IOC"
+              styles={{
+                body: {
+                  padding: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%',
+                },
+              }}
+            >
+              <Menu
+                theme="light"
+                mode="inline"
+                selectedKeys={[location.pathname]}
+                items={visibleMenuItems}
+                onClick={(item) => {
+                  setMobileMenuOpen(false)
+                  navigate(item.key)
+                }}
+                style={{ flex: 1, borderInlineEnd: 'none' }}
+              />
+              {renderMenuFooter(false, true)}
+            </Drawer>
+          </>
+        )}
+
+        <Layout>
+          <Content style={{ padding: 0, background: '#f0f2f5' }}>
+            <Outlet />
+          </Content>
+        </Layout>
+
+        <SignInSignUpDialog
+          open={authDialogOpen}
+          onClose={() => setAuthDialogOpen(false)}
+        />
+
+        <LiveNewsTicker />
+        <GlobalIngestionTracker />
       </Layout>
-
-      <SignInSignUpDialog
-        open={authDialogOpen}
-        onClose={() => setAuthDialogOpen(false)}
-      />
-
-      <LiveNewsTicker />
-    </Layout>
+    </LawIngestionProvider>
   )
 }
