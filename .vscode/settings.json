@@ -1,0 +1,24 @@
+{
+  // Chỉ định các folder con chứa môi trường ảo (Venv)
+  "python.venvFolders": ["rag-ingestion"],
+
+  // Hoặc nếu bạn muốn Pylance hiểu được các đường dẫn import từ folder con không bị báo lỗi gạch đỏ
+  "python.analysis.extraPaths": ["./rag-ingestion"],
+
+  // Bật tính năng format khi lưu file nói chung
+  "editor.formatOnSave": true,
+
+  // Cấu hình riêng cho ngôn ngữ Python
+  "[python]": {
+    // Chỉ định extension làm nhiệm vụ format chính (Ví dụ dưới đây là dành cho Ruff)
+    "editor.defaultFormatter": "charliermarsh.ruff",
+
+    // Nếu bạn dùng extension Black Formatter thì đổi thành dòng dưới đây:
+    // "editor.defaultFormatter": "ms-python.black-formatter",
+
+    "editor.codeActionsOnSave": {
+      // Tự động tối ưu hóa và sắp xếp các dòng import khi lưu
+      "source.organizeImports": "explicit"
+    }
+  }
+}
