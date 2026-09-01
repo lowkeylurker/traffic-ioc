@@ -129,7 +129,7 @@ export interface UseRagChatReturn {
  * Custom React hook for real-time SSE Vietnamese Traffic Law RAG chat
  */
 export function useRagChat(options: UseRagChatOptions = {}): UseRagChatReturn {
-  const { initialSessionId = null, apiBaseUrl = '' } = options;
+  const { initialSessionId = null, apiBaseUrl = process.env.NEXT_PUBLIC_API_URL } = options;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -190,7 +190,7 @@ export function useRagChat(options: UseRagChatOptions = {}): UseRagChatReturn {
       abortControllerRef.current = abortController;
 
       try {
-        const endpoint = `${apiBaseUrl}/api/v1/rag/traffic-law/chat`;
+        const endpoint = `${apiBaseUrl}/rag/traffic-law/chat`;
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
