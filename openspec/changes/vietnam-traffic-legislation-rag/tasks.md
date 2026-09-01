@@ -31,3 +31,24 @@
 - [x] 5.1 Run full monorepo typecheck and lint verification via `pnpm build:check && pnpm lint`
 - [x] 5.2 Ingest a complete sample Vietnamese traffic regulation, submit a test chat query from the web UI, and verify citation cards and SSE streaming
 
+## 6. Admin Law Document Management & SSE Streaming
+
+- [x] 6.1 Update `prisma/oltp.prisma` with PascalCase models (`KnowledgeBase`, `KnowledgeDocument`, `KnowledgeChunk`, `ChatSession`, `ChatMessage`, `ChatFeedback`), map to snake_case tables, and regenerate client via `pnpm --filter=@traffic-ioc/backend prisma:gen`
+- [x] 6.2 Implement `rag-ingestion` streaming ingestion endpoint (`POST /api/v1/ingest/traffic-law/process-stream`) emitting SSE progress events (`FILE_LOADED`, `AST_PARSED`, `EMBEDDINGS_GENERATED`, `STORAGE_SYNCED`, `COMPLETED`)
+- [x] 6.3 Implement Admin document management controller and routes in `apps/backend` (`src/controllers/admin-rag.controller.ts`, `src/routes/admin-rag.routes.ts`) for document CRUD, chunk fetching, upload proxy, SSE streaming (`/jobs/:jobId/stream`), and Qdrant vector deletion
+- [x] 6.4 Build `LawDocumentsPage` in `apps/admin-web/src/pages/LawDocumentsPage.tsx` with Ant Design table, status tags, search/filters, and mount into React Router & sidebar navigation
+- [x] 6.5 Build document upload modal with drag-and-drop and live SSE Progress Stepper + event log in `apps/admin-web/src/components/admin-rag/DocumentUploadModal.tsx`
+- [x] 6.6 Build chunk inspector drawer (`apps/admin-web/src/components/admin-rag/ChunkInspectorDrawer.tsx`) and deletion/re-indexing actions
+- [x] 6.7 Verify end-to-end admin document upload, SSE progress streaming, chunk inspection, and vector synchronization across monorepo
+
+## 7. Redis Pub/Sub Architecture Migration
+
+- [x] 7.1 Add `redis` dependency to `rag-ingestion/pyproject.toml`, implement `src/services/redis_publisher.py` for broadcasting progress events over `rag:ingestion:events`, and update ingestion worker to publish milestones asynchronously
+- [x] 7.2 Implement Redis subscriber service in `apps/backend/src/services/rag-ingestion-events.service.ts` that subscribes to `rag:ingestion:events`, updates OLTP document database status, and pipes events to backend SSE emitters
+- [x] 7.3 Refactor `apps/backend/src/controllers/admin-rag.controller.ts` upload and reindex handlers to return 202 Accepted immediately and rely on Redis Pub/Sub for progress tracking
+- [x] 7.4 Verify end-to-end asynchronous ingestion, Redis event propagation, and Admin Web global tracker via unit tests and monorepo build check
+
+
+
+
+

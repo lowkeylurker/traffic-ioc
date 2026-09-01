@@ -145,3 +145,72 @@
 - [ ] **Step 2:** Send query *"Đi xe máy không đội mũ bảo hiểm phạt bao nhiêu tiền?"* from `apps/user-web`.
 - [ ] **Step 3:** Verify UI renders streamed text, fine range card (400.000đ - 600.000đ), and citation badge (Điều 6 Khoản 2 Điểm b NĐ 100).
 - [ ] **Step 4:** Commit point: `[DOCS] Complete: End-to-end Vietnamese traffic legislation RAG verification`.
+
+---
+
+## Task 6: Admin Law Document Management & SSE Streaming
+
+### Task 6.1: Update OLTP Schema with PascalCase Models
+- [ ] **Step 1:** Update `apps/backend/prisma/oltp.prisma` with PascalCase model names (`KnowledgeBase`, `KnowledgeDocument`, `KnowledgeChunk`, `ChatSession`, `ChatMessage`, `ChatFeedback`) and `@map`/`@@map` database mappings.
+- [ ] **Step 2:** Run `pnpm --filter=@traffic-ioc/backend prisma:gen` to generate updated `client-oltp` and update existing backend imports if needed.
+- [ ] **Step 3:** Commit point: `[BE] Refactor: Update OLTP Prisma schema to PascalCase models`.
+
+### Task 6.2: Streaming Ingestion Endpoint in `rag-ingestion/`
+- [ ] **Step 1:** Add `POST /api/v1/ingest/traffic-law/process-stream` in `rag-ingestion/src/api/routes/ingest.py` utilizing Python `StreamingResponse` with `text/event-stream`.
+- [ ] **Step 2:** Emit progress events at milestones: `15% - FILE_LOADED`, `40% - AST_PARSED`, `70% - EMBEDDINGS_GENERATED`, `90% - STORAGE_SYNCED`, `100% - COMPLETED`.
+- [ ] **Step 3:** Commit point: `[PIPELINE] Add: Real-time SSE streaming ingestion endpoint in rag-ingestion`.
+
+### Task 6.3: Admin Document Gateway Controller & SSE Proxy (`apps/backend`)
+- [ ] **Step 1:** Create `src/controllers/admin-rag.controller.ts` with handlers for `listDocuments`, `getDocumentChunks`, `uploadDocument`, `streamJobProgress`, `deleteDocument`, and `reindexDocument`.
+- [ ] **Step 2:** Implement Qdrant vector deletion by `doc_code` payload filter upon document deletion.
+- [ ] **Step 3:** Create `src/routes/admin-rag.routes.ts` and mount under `/api/v1/admin/rag/documents`.
+- [ ] **Step 4:** Commit point: `[BE] Add: Admin law document management gateway and SSE streaming proxy`.
+
+### Task 6.4: Admin Web Navigation & LawDocumentsPage (`apps/admin-web`)
+- [ ] **Step 1:** Add `/law-documents` route in `apps/admin-web/src/App.tsx` and sidebar navigation item with `<FileTextOutlined />` in `apps/admin-web/src/layouts/MainLayout.tsx`.
+- [ ] **Step 2:** Create `apps/admin-web/src/pages/LawDocumentsPage.tsx` with Ant Design table displaying document code, title, file type, status tags, chunk count, and action buttons.
+- [ ] **Step 3:** Commit point: `[FE] Add: LawDocumentsPage and sidebar navigation in admin-web`.
+
+### Task 6.5: Document Upload Modal with Live SSE Stepper (`apps/admin-web`)
+- [ ] **Step 1:** Build `apps/admin-web/src/components/admin-rag/DocumentUploadModal.tsx` with Ant Design `Upload.Dragger`, metadata form inputs, and Force OCR toggle.
+- [ ] **Step 2:** Implement live SSE connection to `/api/v1/admin/rag/documents/jobs/:jobId/stream` rendering real-time stepper progress (`Progress` / `Steps`) and event log console.
+- [ ] **Step 3:** Commit point: `[FE] Add: Document upload modal with live SSE progress stepper in admin-web`.
+
+### Task 6.6: Chunk Inspector Drawer & Actions (`apps/admin-web`)
+- [ ] **Step 1:** Build `apps/admin-web/src/components/admin-rag/ChunkInspectorDrawer.tsx` displaying chunk breadcrumbs, fine ranges, vehicle tags, and full clause text.
+- [ ] **Step 2:** Integrate delete confirmation modal (purging OLTP records & Qdrant vectors) and re-indexing mutation.
+- [ ] **Step 3:** Commit point: `[FE] Add: Chunk inspector drawer and deletion/re-indexing actions in admin-web`.
+
+### Task 6.7: Full Monorepo Typecheck & Build Verification
+- [ ] **Step 1:** Run `pnpm build:check` across all packages and apps.
+- [ ] **Step 2:** Verify `apps/admin-web`, `apps/backend`, `apps/user-web`, and `rag-ingestion`.
+- [ ] **Step 3:** Commit point: `[DOCS] Complete: Admin law document management implementation and verification`.
+
+---
+
+## Task 7: Redis Pub/Sub Architecture Migration
+
+### Task 7.1: Redis Event Publisher in `rag-ingestion`
+- [ ] **Step 1:** Add `redis>=5.0.0` to `rag-ingestion/pyproject.toml` dependencies.
+- [ ] **Step 2:** Implement `src/services/redis_publisher.py` with singleton Redis client broadcasting JSON payloads to `rag:ingestion:events`.
+- [ ] **Step 3:** Update `src/pipeline.py` / `src/api/routes/ingest.py` to trigger asynchronous background task and publish progress at each milestone (`FILE_LOADED`, `FORMAT_DETECTED`, `OCR_PROCESSING`, `AST_PARSED`, `CHUNKS_ENRICHED`, `EMBEDDINGS_GENERATED`, `STORAGE_SYNCED`, `COMPLETED`, `ERROR`).
+- [ ] **Step 4:** Commit point: `[PIPELINE] Add: Redis Pub/Sub progress event publisher in rag-ingestion`.
+
+### Task 7.2: Redis Event Subscriber Service in `apps/backend`
+- [ ] **Step 1:** Implement `src/services/rag-ingestion-events.service.ts` connecting to Redis with a dedicated subscriber client.
+- [ ] **Step 2:** Subscribe to `rag:ingestion:events` on server start, parse incoming JSON messages, update `KnowledgeDocument` in OLTP database on completion/failure, and broadcast to `globalEmitter`.
+- [ ] **Step 3:** Hook service startup and graceful teardown in `src/server.ts`.
+- [ ] **Step 4:** Commit point: `[BE] Add: Redis Pub/Sub ingestion event subscriber service`.
+
+### Task 7.3: Async Upload & Reindex Controller Refactoring
+- [ ] **Step 1:** Update `uploadDocument` and `reindexDocument` in `src/controllers/admin-rag.controller.ts` to dispatch async requests to FastAPI and return `202 Accepted` with `jobId`.
+- [ ] **Step 2:** Keep SSE endpoints (`/stream` and `/jobs/:jobId/stream`) piping directly from the Redis event bus.
+- [ ] **Step 3:** Commit point: `[BE] Refactor: Asynchronous RAG ingestion endpoints backed by Redis Pub/Sub`.
+
+### Task 7.4: Verification & Monorepo Build Check
+- [ ] **Step 1:** Run backend unit tests (`pnpm --filter=@traffic-ioc/backend test`).
+- [ ] **Step 2:** Run monorepo typecheck (`pnpm build:check`).
+- [ ] **Step 3:** Validate OpenSpec change via `npx openspec validate vietnam-traffic-legislation-rag --type change`.
+- [ ] **Step 4:** Commit point: `[DOCS] Complete: Redis Pub/Sub ingestion migration verification`.
+
+

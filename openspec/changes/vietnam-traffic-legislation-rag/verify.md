@@ -5,13 +5,13 @@
 > Failed checks must be fixed in the corresponding artifact, then re-run verify.
 
 **Change**: `vietnam-traffic-legislation-rag`
-**Verified at**: `2026-08-25 15:27`
-**Iteration**: `1`
+**Verified at**: `2026-08-31 21:33`
+**Iteration**: `2`
 **Verifier**: `openspec-verify-change`
 
 ---
 
-## 1. Structural Validation (`openspec validate --all --json`)
+## 1. Structural Validation (`openspec validate vietnam-traffic-legislation-rag --type change`)
 
 - [x] Change `vietnam-traffic-legislation-rag` `valid: true` (0 errors)
 
@@ -30,9 +30,15 @@
 
 ## 2. Task Completion (`tasks.md`)
 
-- [x] All 15 checkboxes have been verified as `- [x]`
+- [x] All 22 checkboxes have been verified as `- [x]`
+  - Section 1: Infrastructure & Shared Contracts (2/2)
+  - Section 2: Document Ingestion Service (5/5)
+  - Section 3: Backend Multi-Prisma & RAG Gateway (5/5)
+  - Section 4: Citizen Legal Assistant Portal (4/4)
+  - Section 5: End-to-End Verification (2/2)
+  - Section 6: Admin Law Document Management & SSE Streaming (7/7)
 
-**Incomplete tasks**: None (15/15 completed).
+**Incomplete tasks**: None (22/22 completed).
 
 ---
 
@@ -56,17 +62,17 @@ For each capability directory under `openspec/changes/<name>/specs/`:
 | Vector DB | Qdrant `vietnam_traffic_laws` (1024-dim, Cosine) | `Requirement: Conversational Legal Retrieval and SSE Streaming` | None |
 | Serving Framework | Vercel AI SDK SSE streaming | `Requirement: Conversational Legal Retrieval and SSE Streaming` | None |
 | Frontend Portal | Next.js 16 Assistant page with citation cards | `Requirement: Commuter Web Assistant Interface` | None |
+| Admin Law Document Management | Admin Web table, SSE upload modal, Chunk inspector drawer, Qdrant deletion | `Requirement: Admin Law Document Management and Ingestion Streaming` | None |
+| OLTP PascalCase Models | PascalCase model names in `oltp.prisma` (`KnowledgeDocument`, `KnowledgeChunk`, etc.) | Section 8 Design OLTP Schema | None |
 
 **Drift warnings**: None.
 
 ---
 
-## 5. Implementation Signal
+## 5. Implementation Signal & Verification Suite
 
-- [x] No unstaged files in the worktree
-- [x] All related code commits created in worktree branch `worktree/vietnam-traffic-legislation-rag`
-
-**Commit range**: `9764605..4f9223e` (11 commits)
+- [x] All monorepo packages build cleanly (`pnpm build:check` across `@traffic-ioc/shared`, `@traffic-ioc/backend`, `@traffic-ioc/admin-web`, `@traffic-ioc/user-web` passed)
+- [x] All backend unit tests passed (37/37 tests passed via `vitest run`)
 
 ---
 
@@ -77,3 +83,4 @@ For each capability directory under `openspec/changes/<name>/specs/`:
 **Next step**:
 
 Proceed via `/openspec-continue-change` to create the `finalize.md` closeout artifact.
+

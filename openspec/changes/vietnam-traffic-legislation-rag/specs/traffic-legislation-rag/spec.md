@@ -6,7 +6,7 @@ The system SHALL ingest Vietnamese legal traffic documents (.docx, digital .pdf,
 #### Scenario: Ingesting digital decree document
 - **GIVEN** an authorized System Admin uploads a valid decree file `Nghị định 100/2019/NĐ-CP.docx` via `POST /api/v1/ingest/traffic-law/process`
 - **WHEN** the ingestion service parses the document into structural nodes
-- **THEN** it generates self-contained chunks containing breadcrumbs, fine ranges, and vehicle tags, writes relational records to OLTP PostgreSQL `knowledge_document` and `knowledge_chunk`, and upserts 1024-dim dense vectors to the Qdrant collection `vietnam_traffic_laws` with matching UUIDs.
+- **THEN** it generates self-contained chunks containing breadcrumbs, fine ranges, and vehicle tags, writes relational records to OLTP PostgreSQL `KnowledgeDocument` and `KnowledgeChunk`, and upserts 1024-dim dense vectors to the Qdrant collection `vietnam_traffic_laws` with matching UUIDs.
 
 #### Scenario: Ingesting scanned decree document with OCR
 - **GIVEN** an authorized System Admin uploads a scanned PDF decree `Nghị định 123/2021/NĐ-CP_scan.pdf` with no native text layer
@@ -15,8 +15,13 @@ The system SHALL ingest Vietnamese legal traffic documents (.docx, digital .pdf,
 
 #### Scenario: Toolchain build and typecheck with uv and pyrefly
 - **GIVEN** the `rag-ingestion/` Python service repository
-- **WHEN** the developer executes project setup, dependency resolution, or static analysis
-- **THEN** the system SHALL resolve dependencies via `uv` using `pyproject.toml`, maintain a reproducible `uv.lock`, pass static type verification via `pyrefly`, and boot the service via `uv run`.
+- **WHEN** the developer executes project setup, dependency resolution, or service startup
+- **THEN** the system SHALL resolve dependencies via `uv` using `pyproject.toml` (including `fastapi[standard]`), maintain a reproducible `uv.lock`, pass static type verification via `pyrefly`, and boot the service via `uv run fastapi dev src/main.py`.
+
+#### Scenario: Dual-Database Schema Separation (OLTP vs DW)
+- **GIVEN** the multi-schema architecture in `apps/backend`
+- **WHEN** the backend initializes database connections and executes schema synchronization
+- **THEN** the system SHALL connect the OLTP schema via `OLTP_DATABASE_URL` with Prisma migrations enabled, and connect the DW schema and raw PostGIS pool via `DW_DATABASE_URL` with SQL-first introspection (`prisma db pull`).
 
 ---
 
@@ -51,12 +56,12 @@ The system SHALL track conversational context across multiple turns within a cha
 #### Scenario: Commuter asks follow-up question
 - **GIVEN** an ongoing chat session where the user previously asked about motorbike speed violations
 - **WHEN** the Commuter sends `{"sessionId": "...", "message": "Còn đối với ô tô thì sao?"}`
-- **THEN** the backend contextualizes the query into an independent search query for car speed violations, retrieves car-specific chunks (Điều 5), and persists both turns in `chat_messages`.
+- **THEN** the backend contextualizes the query into an independent search query for car speed violations, retrieves car-specific chunks (Điều 5), and persists both turns in `ChatMessage`.
 
 #### Scenario: Commuter submits feedback on legal answer
 - **GIVEN** an existing assistant message with `messageId`
 - **WHEN** the Commuter sends `POST /api/v1/rag/feedback` with payload `{"messageId": "...", "rating": 1, "comment": "Rất chính xác"}`
-- **THEN** the system persists the feedback record in `chat_feedback` linked to the message and returns `{ "success": true }`.
+- **THEN** the system persists the feedback record in `ChatFeedback` linked to the message and returns `{ "success": true }`.
 
 ---
 
@@ -67,3 +72,29 @@ The web client (`apps/user-web`) SHALL provide a dedicated interactive chat inte
 - **GIVEN** a completed response with citation badges rendered in `apps/user-web`
 - **WHEN** the Commuter clicks on the citation badge `[Nghị định 100 - Điều 6 Khoản 4 Điểm a]`
 - **THEN** a drawer or popover opens displaying the full legal excerpt, effective date, and source link.
+
+---
+
+### Requirement: Admin Law Document Management and Ingestion Streaming
+The system SHALL provide an administrative management console in `apps/admin-web` and gateway endpoints in `apps/backend` allowing authenticated administrators to upload traffic decrees, monitor asynchronous parsing and vectorization in real-time via Server-Sent Events (SSE) backed by a decoupled Redis Pub/Sub message broker (`rag:ingestion:events`), inspect generated AST chunks, delete documents with vector cleanup, and trigger re-indexing.
+
+#### Scenario: Admin uploads decree document with real-time Redis Pub/Sub to SSE progress
+- **GIVEN** an authenticated Admin accesses `/law-documents` and submits a decree file (`.docx` or `.pdf`) with document metadata
+- **WHEN** the upload request is accepted by `POST /api/v1/admin/rag/documents/upload`
+- **THEN** the backend issues an asynchronous ingestion task with `jobId`, FastAPI `rag-ingestion` service processes the document and publishes milestone progress events (`FILE_LOADED` 15% $\to$ `AST_PARSED` 40% $\to$ `EMBEDDINGS_GENERATED` 70% $\to$ `STORAGE_SYNCED` 90% $\to$ `COMPLETED` 100%) to Redis topic `rag:ingestion:events`, and the backend forwards the events in real-time via `GET /api/v1/admin/rag/documents/stream` and `GET /api/v1/admin/rag/documents/jobs/:jobId/stream` to the Admin Web progress tracker.
+
+#### Scenario: Admin inspects extracted chunks in drawer
+- **GIVEN** an ingested document in the administrative document catalog
+- **WHEN** the Admin clicks "Xem Chunks" for the document
+- **THEN** the UI opens a slide-out drawer rendering the list of chunks, breadcrumb hierarchies (*Chương ➔ Điều ➔ Khoản ➔ Điểm*), fine brackets, vehicle tags, license penalties, and Qdrant point IDs.
+
+#### Scenario: Admin deletes legal document and purges vectors
+- **GIVEN** an existing legal document in `KnowledgeDocument`
+- **WHEN** the Admin issues `DELETE /api/v1/admin/rag/documents/:docId`
+- **THEN** the backend cascades deletion in PostgreSQL OLTP and removes all matching point vectors from the Qdrant `vietnam_traffic_laws` collection.
+
+#### Scenario: Admin re-indexes an existing document
+- **GIVEN** an existing document requiring vector recalculation or re-parsing
+- **WHEN** the Admin clicks "Đánh chỉ mục lại" (`POST /api/v1/admin/rag/documents/:docId/reindex`)
+- **THEN** the ingestion pipeline re-runs AST extraction and embeddings, publishing progress events over Redis Pub/Sub and updating existing chunk records and vector points while streaming progress via SSE.
+
