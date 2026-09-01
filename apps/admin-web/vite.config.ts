@@ -12,6 +12,13 @@ export default defineConfig({
       'nonplussedly-pseudogaseous-marge.ngrok-free.dev',
       '127.0.0.1',
     ],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        ws: true,
+      },
+    },
   },
   resolve: {
     alias: {

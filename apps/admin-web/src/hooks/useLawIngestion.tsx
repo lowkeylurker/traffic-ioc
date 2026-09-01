@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+} from 'react'
 import { notification as antdNotification } from 'antd'
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
@@ -23,15 +30,23 @@ export interface LawIngestionContextType {
   activeJobId: string | null
   activeJob: LawIngestionJob | null
   isProcessing: boolean
-  startIngestionStream: (jobId: string, docCode: string, docTitle: string) => Promise<void>
+  startIngestionStream: (
+    jobId: string,
+    docCode: string,
+    docTitle: string
+  ) => Promise<void>
   setActiveJobId: (jobId: string | null) => void
   dismissJob: (jobId: string) => void
   clearAllJobs: () => void
 }
 
-const LawIngestionContext = createContext<LawIngestionContextType | undefined>(undefined)
+const LawIngestionContext = createContext<LawIngestionContextType | undefined>(
+  undefined
+)
 
-export const LawIngestionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const LawIngestionProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [jobs, setJobs] = useState<Record<string, LawIngestionJob>>({})
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const isConnectingRef = useRef<boolean>(false)
@@ -67,7 +82,10 @@ export const LawIngestionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       try {
         token = await getToken()
       } catch (tokenErr) {
-        console.warn('Could not get Clerk access token for global stream:', tokenErr)
+        console.warn(
+          'Could not get Clerk access token for global stream:',
+          tokenErr
+        )
       }
 
       // Check if aborted during token fetch
@@ -80,19 +98,38 @@ export const LawIngestionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         headers['Authorization'] = `Bearer ${token}`
       }
 
+      // Connect to the backend global SSE stream via @microsoft/fetch-event-source
+      // fetchEventSource supports custom Authorization headers (unlike native EventSource)
+      // and automatic retry on network disconnects.
       fetchEventSource(globalStreamUrl, {
         method: 'GET',
         headers,
         signal: ctrl.signal,
         async onopen(response) {
-          if (response.ok && response.headers.get('content-type')?.includes('text/event-stream')) {
-            console.log('⚡ [GLOBAL-SSE] Connected to global law ingestion stream on page load')
+          if (
+            response.ok &&
+            response.headers.get('content-type')?.includes('text/event-stream')
+          ) {
+            console.log(
+              '⚡ [GLOBAL-SSE] Connected to global law ingestion stream on page load'
+            )
             return
           }
-          if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-            throw new Error(`Global stream server returned ${response.status}: ${response.statusText}`)
+          if (
+            response.status >= 400 &&
+            response.status < 500 &&
+            response.status !== 429
+          ) {
+            throw new Error(
+              `Global stream server returned ${response.status}: ${response.statusText}`
+            )
           }
         },
+        // Handlers for distinct SSE event names emitted by backend:
+        // 'init'     -> Snapshot of currently active jobs upon initial connection
+        // 'progress' -> Real-time pipeline milestone (0% -> 95%) with active step and message
+        // 'complete' -> 100% finished with chunk count and vector index verification
+        // 'error'    -> Pipeline failure alert
         onmessage(msg) {
           if (msg.event === 'init') {
             try {
@@ -103,7 +140,10 @@ export const LawIngestionProvider: React.FC<{ children: React.ReactNode }> = ({ 
             }
           } else if (msg.event === 'progress') {
             try {
-              const data: IngestionProgressEvent & { jobId?: string; docCode?: string } = JSON.parse(msg.data)
+              const data: IngestionProgressEvent & {
+                jobId?: string
+                docCode?: string
+              } = JSON.parse(msg.data)
               const jobId = data.jobId
               if (!jobId) return
 
@@ -146,8 +186,20 @@ export const LawIngestionProvider: React.FC<{ children: React.ReactNode }> = ({ 
               if (!jobId) return
 
               setJobs((prev) => {
-                const current = prev[jobId]
-                if (!current) return prev
+                const current = prev[jobId] || {
+                  jobId,
+                  docCode: data.doc_code || data.docCode || 'Văn bản',
+                  docTitle:
+                    data.doc_title ||
+                    data.docTitle ||
+                    data.doc_code ||
+                    'Văn bản',
+                  progress: 0,
+                  currentStep: 'COMPLETED',
+                  statusMessage: '',
+                  logs: [],
+                  status: 'PROCESSING',
+                }
                 return {
                   ...prev,
                   [jobId]: {
@@ -167,6 +219,7 @@ export const LawIngestionProvider: React.FC<{ children: React.ReactNode }> = ({ 
                   },
                 }
               })
+              setActiveJobId((prev) => prev || jobId)
 
               antdNotification.success({
                 message: `Lập chỉ mục thành công: ${data.doc_code || data.docCode || 'Văn bản'}`,
@@ -184,11 +237,20 @@ export const LawIngestionProvider: React.FC<{ children: React.ReactNode }> = ({ 
               const jobId = data.jobId
               if (!jobId) return
 
-              const errMsg = data.error || 'Quá trình xử lý văn bản thất bại'
+              const errMsg =
+                data.error || data.message || 'Quá trình xử lý văn bản thất bại'
 
               setJobs((prev) => {
-                const current = prev[jobId]
-                if (!current) return prev
+                const current = prev[jobId] || {
+                  jobId,
+                  docCode: data.doc_code || data.docCode || 'Văn bản',
+                  docTitle: data.doc_code || 'Văn bản',
+                  progress: 0,
+                  currentStep: 'FAILED',
+                  statusMessage: '',
+                  logs: [],
+                  status: 'PROCESSING',
+                }
                 return {
                   ...prev,
                   [jobId]: {
@@ -205,6 +267,7 @@ export const LawIngestionProvider: React.FC<{ children: React.ReactNode }> = ({ 
                   },
                 }
               })
+              setActiveJobId((prev) => prev || jobId)
 
               antdNotification.error({
                 message: `Lỗi xử lý văn bản: ${data.doc_code || data.docCode || 'Văn bản'}`,
@@ -284,7 +347,9 @@ export const LawIngestionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [])
 
   const activeJob = activeJobId ? jobs[activeJobId] || null : null
-  const isProcessing = Object.values(jobs).some((j) => j.status === 'PROCESSING')
+  const isProcessing = Object.values(jobs).some(
+    (j) => j.status === 'PROCESSING'
+  )
 
   return (
     <LawIngestionContext.Provider
@@ -307,8 +372,9 @@ export const LawIngestionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 export const useLawIngestion = (): LawIngestionContextType => {
   const context = useContext(LawIngestionContext)
   if (!context) {
-    throw new Error('useLawIngestion must be used within a LawIngestionProvider')
+    throw new Error(
+      'useLawIngestion must be used within a LawIngestionProvider'
+    )
   }
   return context
 }
-
