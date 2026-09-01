@@ -62,6 +62,10 @@ class IngestionRequest(BaseModel):
         default=None,
         description="Explicit flag to force Gemini Vision OCR transcription.",
     )
+    job_id: Optional[str] = Field(
+        default=None,
+        description="Optional tracking job ID token passed from caller for event correlation.",
+    )
     metadata: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Optional dictionary of custom metadata fields.",

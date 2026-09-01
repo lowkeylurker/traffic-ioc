@@ -48,7 +48,7 @@ async def process_traffic_law_async_endpoint(
     Returns:
         JobAcceptedResponse: Confirmation with jobId for Redis Pub/Sub progress tracking.
     """
-    effective_job_id = job_id or f"job-{uuid.uuid4()}"
+    effective_job_id = request.job_id or job_id or f"job-{uuid.uuid4()}"
     process_document_ingestion_task.apply_async(
         kwargs={
             "req_dict": request.model_dump(),
