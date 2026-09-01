@@ -21,15 +21,20 @@ Smart Traffic IOC operates a dual-engine architecture: a PostgreSQL/PostGIS Kimb
 ### 1. Two-Stage Service Split, Object Storage & Layered Python Ingestion
 - **Decision**: Raw files uploaded via the admin web gateway are streamed directly to **MinIO Object Storage** (`traffic-ioc-documents` bucket) by `apps/backend`. The backend saves metadata + `storageKey` into PostgreSQL OLTP and dispatches lightweight JSON trigger payloads (`{ doc_id, job_id, storage_key }`) to `rag-ingestion/` (`POST /api/v1/ingest/traffic-law/process-async`). Inter-service progress updates are broadcast via **Redis Pub/Sub** (`rag:ingestion:events`).
 - **Internal Service Architecture (`rag-ingestion/`)**:
+  - `src/core/`: Centralized application infrastructure:
+    - `src/core/config.py`: Pydantic settings loading environment variables.
+    - `src/core/db.py`: Centralized async engine management, Prisma parameter sanitization (`?schema=public`), and `async_sessionmaker[AsyncSession]` factories.
+  - `src/models/`: Declarative SQLAlchemy 2.0 ORM models (`KnowledgeBaseModel`, `KnowledgeDocumentModel`, `KnowledgeChunkModel`) mirroring `oltp.prisma`.
   - `src/schemas/`: Isolated Pydantic DTOs (`IngestionRequest`, `JobAcceptedResponse`, `RetryProcessRequest`).
   - `src/services/minio_storage.py`: MinIO client streaming raw document binaries using stored `storage_key` or `doc_id`.
   - `src/services/embedder.py`: Extensible `EmbedderFactory` wrapping `BaseEmbedder` and `OpenAIEmbedder` via the OpenAI Python SDK, abstracting model configuration from the rest of the application.
+  - `src/services/oltp_sync.py`: Service utilizing SQLAlchemy models and `src.core.db` async sessions to transactionally upsert knowledge records.
   - `src/services/ingestion_pipeline.py`: Pure business logic orchestration (`IngestionPipeline`) coordinating MinIO retrieval, format detection, OCR, AST parsing, chunk enrichment, embedding factory generation, Qdrant upserting, PostgreSQL syncing, and Redis milestone publishing.
   - `src/api/routes/ingest.py`: Thin route controllers handling HTTP validation, dispatching background worker tasks, and returning standard `JobAcceptedResponse`. Direct file upload / multipart handling in `rag-ingestion` is completely removed in favor of MinIO object references.
 - **Toolchain & Packaging (`rag-ingestion/`)**:
   - Package & Project Manager: `uv` (fast Rust-based package manager and resolver).
   - Dependency Management: `pyproject.toml` with reproducible lockfile (`uv.lock`), including `redis` and `minio`.
-  - Lifecycle: Modern `@asynccontextmanager` FastAPI `lifespan` managing background shutdown and Redis/MinIO connection pooling.
+  - Lifecycle: Modern `@asynccontextmanager` FastAPI `lifespan` managing background shutdown, Redis/MinIO connection pooling, and `close_db_engine()`.
   - Containerization: Multi-stage `Dockerfile` utilizing `ghcr.io/astral-sh/uv`.
 - **Rationale**: Keeps the HTTP payload between internal services < 1 KB (avoiding 33% base64 memory inflation and payload size limits), guarantees zero duplication when retrying/re-indexing, and provides a production-grade decoupled object storage pattern. Express acts as the single API gateway, handling authentication, rate limiting, MinIO uploads, and SSE streaming.
 - **Alternatives Considered**:
@@ -37,13 +42,17 @@ Smart Traffic IOC operates a dual-engine architecture: a PostgreSQL/PostGIS Kimb
   - *Direct HTTP Point-to-Point Streaming & Synchronous Request*: Vulnerable to proxy timeouts on large scanned documents and does not broadcast across multiple load-balanced Node.js instances.
   - *Legacy pip + requirements.txt*: Slower builds, lacks lockfile reproducibility, and does not enforce modern PEP 621 standards.
 
-### 2. Dual Database Architecture & Multi-Prisma Configuration
+### 2. Dual Database Architecture & Schema Synchronization Pattern
 - **Decision**: Physically separate the existing OLAP Data Warehouse (`traffic_ioc_dw`) from the operational RAG database (`traffic_ioc_oltp`). Configure `apps/backend` with two independent Prisma clients:
   - `prisma/oltp.prisma` generating `../src/generated/client-oltp` (`oltpPrisma`).
   - `prisma/dw.prisma` generating `../src/generated/client-dw` (`dwPrisma`).
-- **Rationale**: Keeps the Kimball Star Schema clean from transactional chat records, prevents connection pool exhaustion, and avoids Prisma migration conflicts with partitioned DW tables.
+- **Schema Migration Single Source of Truth (SSOT)**:
+  - `apps/backend` retains exclusive ownership of DDL and migrations (`pnpm prisma:migrate:oltp` / `prisma:push:oltp`).
+  - `rag-ingestion/` acts as a high-performance database client, utilizing strongly-typed declarative SQLAlchemy models (`src/models/oltp.py`) and centralized async engine/session factories (`src/core/db.py`) in `src/services/oltp_sync.py` for idempotent batch syncing of `knowledge_base`, `knowledge_document`, and `knowledge_chunk` records.
+- **Rationale**: Keeps the Kimball Star Schema clean from transactional chat records, prevents connection pool exhaustion, and avoids Prisma migration conflicts with partitioned DW tables while ensuring zero runtime coupling between TypeScript and Python workers.
 - **DB Engine Query Path**:
-  - *Prisma ORM (`oltpPrisma`)*: Used for all CRUD operations on `knowledge_base`, `knowledge_document`, `knowledge_chunk`, `chat_session`, and `chat_message`.
+  - *Prisma ORM (`oltpPrisma`)*: Used in `apps/backend` for all CRUD operations on `knowledge_base`, `knowledge_document`, `knowledge_chunk`, `chat_session`, and `chat_message`.
+  - *SQLAlchemy AsyncSession (`src/core/db.py`)*: Used in `rag-ingestion` for transactional batch upserts (`pg_insert`, `session.add_all`).
   - *Raw PostGIS Pool (`db.ts`)*: Retained for spatial corridor/segment queries on the OLAP DW.
 
 ### 3. Dedicated Vector Store: Qdrant

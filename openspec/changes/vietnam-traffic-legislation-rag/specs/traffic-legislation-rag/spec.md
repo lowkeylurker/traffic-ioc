@@ -16,7 +16,7 @@ The system SHALL ingest Vietnamese legal traffic documents (.docx, digital .pdf,
 #### Scenario: Toolchain build, layered architecture, and typecheck with uv
 - **GIVEN** the `rag-ingestion/` Python service repository
 - **WHEN** the developer executes project setup, dependency resolution, or service startup
-- **THEN** the system SHALL resolve dependencies via `uv` using `pyproject.toml`, follow a clean layered architecture separating HTTP controllers (`api/routes/ingest.py`), DTO schemas (`schemas/ingest.py`), and background pipeline orchestrator (`services/ingestion_pipeline.py`), maintain a reproducible `uv.lock`, and boot the service via standard CLI `uv run uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload` using modern lifespan context manager.
+- **THEN** the system SHALL resolve dependencies via `uv` using `pyproject.toml`, follow a clean layered architecture separating centralized core infrastructure (`src/core/config.py`, `src/core/db.py`), declarative ORM models (`src/models/oltp.py`), HTTP controllers (`api/routes/ingest.py`), DTO schemas (`schemas/ingest.py`), and background pipeline orchestrator (`services/ingestion_pipeline.py`), maintain a reproducible `uv.lock`, and boot the service via standard CLI `uv run uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload` using modern lifespan context manager.
 
 #### Scenario: Dual-Database Schema Separation (OLTP vs DW)
 - **GIVEN** the multi-schema architecture in `apps/backend`
