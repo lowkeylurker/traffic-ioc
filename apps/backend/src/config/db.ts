@@ -3,9 +3,11 @@ import { Pool } from 'pg';
 
 const maxConnections = Number(process.env.PG_POOL_MAX || (process.env.NODE_ENV === 'production' ? 10 : 3));
 
+const dwDatabaseUrl = process.env.DW_DATABASE_URL || process.env.DATABASE_URL;
+
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL?.includes('sslmode=require')
+    connectionString: dwDatabaseUrl,
+    ssl: dwDatabaseUrl?.includes('sslmode=require')
         ? { rejectUnauthorized: false }
         : false,
     max: Number.isFinite(maxConnections) && maxConnections > 0 ? maxConnections : 3,

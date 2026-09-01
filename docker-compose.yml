@@ -4,7 +4,7 @@
 # 🎯 Auto-start Mode: Core services + ETL Scheduler (Production Ready)
 # 📊 When Docker Desktop opens, these services start automatically:
 #    ✅ postgres       - Data warehouse (always running)
-#    ✅ data-pipeline  - ETL container (always running) 
+#    ✅ data-pipeline  - ETL container (always running)
 #    ✅ etl-scheduler  - Automated ETL jobs (always running)
 #    ✅ ai-core        - ML/AI service
 #

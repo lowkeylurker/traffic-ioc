@@ -22,9 +22,10 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3000
-      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:5173}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:5173,http://localhost:3000}
+      - DW_DATABASE_URL=${DW_DATABASE_URL:-postgresql://${POSTGRES_USER:-traffic_user}:${POSTGRES_PASSWORD:-traffic_password}@postgres:5432/${POSTGRES_DB:-traffic_backend_db}?schema=public}
+      - OLTP_DATABASE_URL=${OLTP_DATABASE_URL:-postgresql://${POSTGRES_USER:-traffic_user}:${POSTGRES_PASSWORD:-traffic_password}@postgres:5432/${POSTGRES_DB:-traffic_backend_db}?schema=public}
       - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-traffic_user}:${POSTGRES_PASSWORD:-traffic_password}@postgres:5432/${POSTGRES_DB:-traffic_backend_db}?schema=public}
-      - APP_DATABASE_URL=postgresql://${POSTGRES_USER:-traffic_user}:${POSTGRES_PASSWORD:-traffic_password}@postgres:5432/${POSTGRES_DB:-traffic_backend_db}?schema=public
       - REDIS_URL=redis://redis:6379
       - DATABASE_CACHE_RESPONSE_URL=mongodb://${MONGO_INITDB_ROOT_USERNAME:-root}:${MONGO_INITDB_ROOT_PASSWORD:-example}@mongodb:27017/traffic-ioc-cache-response-db?authSource=admin
       # External integrations & feature flags

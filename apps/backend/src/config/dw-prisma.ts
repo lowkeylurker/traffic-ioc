@@ -6,7 +6,7 @@ import { PrismaClient as DwPrismaClient } from '../generated/client-dw';
 const globalForDwPrisma = global as unknown as { dwPrisma: DwPrismaClient };
 
 function buildDwDatabaseUrl(): string | undefined {
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env.DW_DATABASE_URL || process.env.DATABASE_URL;
   if (!databaseUrl || process.env.NODE_ENV === 'production') {
     return databaseUrl;
   }

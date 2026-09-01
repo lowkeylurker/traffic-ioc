@@ -16,9 +16,11 @@ Create `.env` file based on `.env.example`:
 
 ```bash
 PORT=3000
-DATABASE_URL="postgresql://user:password@localhost:5432/traffic_ioc_db?schema=public"
 NODE_ENV=development
-CORS_ORIGIN=http://localhost:5173
+OLTP_DATABASE_URL="postgresql://user:password@localhost:5432/traffic_oltp_db?schema=public"
+DW_DATABASE_URL="postgresql://user:password@localhost:5432/traffic_dw_db?schema=public"
+DATABASE_URL="postgresql://user:password@localhost:5432/traffic_dw_db?schema=public"
+CORS_ORIGIN=http://localhost:5173,http://localhost:3000
 CLERK_PUBLISHABLE_KEY=pk_test_xxx
 CLERK_SECRET_KEY=sk_test_xxx
 CLOUDINARY_CLOUD_NAME=your_cloud_name
@@ -29,14 +31,22 @@ REDIS_URL=redis://localhost:6379
 RELIABILITY_QUEUE_ENABLED=true
 ```
 
-### 3. Pull Database Schema
+### 3. Database Management & Prisma Schema
 
-Since the database is managed by Data Engineers using SQL scripts, use Prisma introspection:
-
-```bash
-npx prisma db pull
-npx prisma generate
-```
+- **OLTP Schema (`prisma/oltp.prisma`)**: Application transactional database (RAG, Chat, Feedback, User Incidents).
+  ```bash
+  npm run prisma:migrate:oltp   # Run migrations for OLTP
+  npm run prisma:gen:oltp       # Generate OLTP Prisma Client
+  ```
+- **DW Schema (`prisma/dw.prisma`)**: Data Warehouse / OLAP analytics database. Introspected from SQL pipelines:
+  ```bash
+  npm run prisma:pull:dw        # Introspect schema from DW database
+  npm run prisma:gen:dw         # Generate DW Prisma Client
+  ```
+- **Generate all clients**:
+  ```bash
+  npm run prisma:gen
+  ```
 
 ### 4. Run Development Server
 

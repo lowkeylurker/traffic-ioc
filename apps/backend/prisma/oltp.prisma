@@ -5,78 +5,92 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("OLTP_DATABASE_URL")
 }
 
-model knowledge_base {
-  id                String               @id @default(uuid()) @db.Uuid
-  code              String               @unique @db.VarChar(50)
-  name              String               @db.VarChar(255)
-  qdrant_collection String               @db.VarChar(100)
-  documents         knowledge_document[]
-  chat_sessions     chat_session[]
-  created_at        DateTime             @default(now())
+model KnowledgeBase {
+  id                String              @id @default(uuid()) @db.Uuid
+  code              String              @unique @db.VarChar(50)
+  name              String              @db.VarChar(255)
+  qdrantCollection  String              @map("qdrant_collection") @db.VarChar(100)
+  documents         KnowledgeDocument[]
+  chatSessions      ChatSession[]
+  createdAt         DateTime            @default(now()) @map("created_at")
+
+  @@map("knowledge_base")
 }
 
-model knowledge_document {
-  id             String            @id @default(uuid()) @db.Uuid
-  kb_id          String            @db.Uuid
-  code           String            @db.VarChar(100)
-  title          String            @db.VarChar(500)
-  source_url     String?           @db.Text
-  metadata       Json?
-  chunks         knowledge_chunk[]
-  knowledge_base knowledge_base    @relation(fields: [kb_id], references: [id], onDelete: Cascade)
-  created_at     DateTime          @default(now())
+model KnowledgeDocument {
+  id            String           @id @default(uuid()) @db.Uuid
+  kbId          String           @map("kb_id") @db.Uuid
+  code          String           @db.VarChar(100)
+  title         String           @db.VarChar(500)
+  sourceUrl     String?          @map("source_url") @db.Text
+  fileName      String?          @map("file_name") @db.VarChar(255)
+  status        String           @default("COMPLETED") @db.VarChar(30)
+  chunkCount    Int              @default(0) @map("chunk_count")
+  errorMessage  String?          @map("error_message") @db.Text
+  metadata      Json?
+  chunks        KnowledgeChunk[]
+  knowledgeBase KnowledgeBase    @relation(fields: [kbId], references: [id], onDelete: Cascade)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @default(now()) @updatedAt @map("updated_at")
 
-  @@unique([kb_id, code])
+  @@unique([kbId, code])
+  @@map("knowledge_document")
 }
 
-model knowledge_chunk {
-  id              String             @id @default(uuid()) @db.Uuid
-  document_id     String             @db.Uuid
-  chunk_index     Int
-  breadcrumb      String?            @db.VarChar(500)
-  content         String             @db.Text
-  qdrant_point_id String             @unique @db.Uuid
-  metadata        Json?
-  document        knowledge_document @relation(fields: [document_id], references: [id], onDelete: Cascade)
-  created_at      DateTime           @default(now())
+model KnowledgeChunk {
+  id            String            @id @default(uuid()) @db.Uuid
+  documentId    String            @map("document_id") @db.Uuid
+  chunkIndex    Int               @map("chunk_index")
+  breadcrumb    String?           @db.VarChar(500)
+  content       String            @db.Text
+  qdrantPointId String            @unique @map("qdrant_point_id") @db.Uuid
+  metadata      Json?
+  document      KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt     DateTime          @default(now()) @map("created_at")
 
-  @@index([document_id])
+  @@index([documentId])
+  @@map("knowledge_chunk")
 }
 
-model chat_session {
-  id             String         @id @default(uuid()) @db.Uuid
-  kb_id          String         @db.Uuid
-  user_id        String?        @db.Uuid
-  title          String         @default("Cuộc trò chuyện mới")
-  messages       chat_message[]
-  knowledge_base knowledge_base @relation(fields: [kb_id], references: [id], onDelete: Cascade)
-  created_at     DateTime       @default(now())
-  updated_at     DateTime       @default(now()) @updatedAt
+model ChatSession {
+  id            String         @id @default(uuid()) @db.Uuid
+  kbId          String         @map("kb_id") @db.Uuid
+  userId        String?        @map("user_id") @db.Uuid
+  title         String         @default("Cuộc trò chuyện mới")
+  messages      ChatMessage[]
+  knowledgeBase KnowledgeBase  @relation(fields: [kbId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
+
+  @@map("chat_session")
 }
 
-model chat_message {
-  id          String         @id @default(uuid()) @db.Uuid
-  session_id  String         @db.Uuid
-  role        String         @db.VarChar(20)
-  content     String         @db.Text
+model ChatMessage {
+  id          String        @id @default(uuid()) @db.Uuid
+  sessionId   String        @map("session_id") @db.Uuid
+  role        String        @db.VarChar(20)
+  content     String        @db.Text
   citations   Json?
-  latency_ms  Int?
-  tokens_used Int?
-  feedback    chat_feedback?
-  session     chat_session   @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  created_at  DateTime       @default(now())
+  latencyMs   Int?          @map("latency_ms")
+  tokensUsed  Int?          @map("tokens_used")
+  feedback    ChatFeedback?
+  session     ChatSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now()) @map("created_at")
 
-  @@index([session_id])
+  @@index([sessionId])
+  @@map("chat_message")
 }
 
-model chat_feedback {
-  id         String       @id @default(uuid()) @db.Uuid
-  message_id String       @unique @db.Uuid
-  rating     Int          @db.SmallInt
-  comment    String?      @db.Text
-  message    chat_message @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  created_at DateTime     @default(now())
+model ChatFeedback {
+  id        String      @id @default(uuid()) @db.Uuid
+  messageId String      @unique @map("message_id") @db.Uuid
+  rating    Int         @db.SmallInt
+  comment   String?     @db.Text
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@map("chat_feedback")
 }

@@ -60,3 +60,5 @@ worktrees/
 # Generated clients & build artifacts
 apps/backend/src/generated/
 *.tsbuildinfo
+
+apps/backend/logs/**.*

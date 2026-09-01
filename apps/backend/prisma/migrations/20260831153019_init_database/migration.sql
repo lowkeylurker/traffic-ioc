@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "knowledge_document" ADD COLUMN     "chunk_count" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "error_message" TEXT,
+ADD COLUMN     "file_name" VARCHAR(255),
+ADD COLUMN     "status" VARCHAR(30) NOT NULL DEFAULT 'COMPLETED',
+ADD COLUMN     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
