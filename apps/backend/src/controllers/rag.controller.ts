@@ -9,8 +9,8 @@ const logger = new Logger('RagController');
 
 export class RagController {
   /**
-   * SSE Streaming endpoint for Vietnamese Traffic Law RAG
-   * POST /api/v1/rag/traffic-law/chat
+   * SSE Streaming endpoint for Vietnamese Traffic Law Assistant
+   * POST /api/v1/traffic-law/chat
    */
   public async streamChat(req: Request, res: Response, next: NextFunction): Promise<void> {
     const startTime = Date.now();
@@ -111,7 +111,7 @@ export class RagController {
 
   /**
    * Feedback submission endpoint
-   * POST /api/v1/rag/feedback
+   * POST /api/v1/traffic-law/feedback
    */
   public async submitFeedback(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {

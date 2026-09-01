@@ -88,8 +88,9 @@ export const createApp = (): Express => {
   app.use('/api/history', historyRoutes);
   app.use('/api/traffic', trafficRoutes);
   app.use('/api/search', searchRoutes);
-  app.use('/api/rag', ragRoutes);
-  app.use('/api/admin/rag/documents', adminRagRoutes);
+  app.use('/api/traffic-law', ragRoutes);
+  app.use('/api/admin/documents', adminRagRoutes);
+  app.use('/api/admin/document', adminRagRoutes);
 
   app.use(`${apiV1}${ROUTE_PATHS.MAP}`, mapRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.TRAFFIC}`, trafficRoutes);
@@ -102,8 +103,9 @@ export const createApp = (): Express => {
   app.use(`${apiV1}${ROUTE_PATHS.WEATHER}`, weatherRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.USER}`, userRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.NEWS}`, newsRoutes);
-  app.use(`${apiV1}${ROUTE_PATHS.RAG}`, ragRoutes);
-  app.use(`${apiV1}/admin/rag/documents`, adminRagRoutes);
+  app.use(`${apiV1}${ROUTE_PATHS.TRAFFIC_LAW}`, ragRoutes);
+  app.use(`${apiV1}/admin/documents`, adminRagRoutes);
+  app.use(`${apiV1}/admin/document`, adminRagRoutes);
 
   logger.log('Routes registered:', {
     map: `${apiV1}${ROUTE_PATHS.MAP}`,
@@ -117,7 +119,8 @@ export const createApp = (): Express => {
     weather: `${apiV1}${ROUTE_PATHS.WEATHER}`,
     user: `${apiV1}${ROUTE_PATHS.USER}`,
     news: `${apiV1}${ROUTE_PATHS.NEWS}`,
-    rag: `${apiV1}${ROUTE_PATHS.RAG}`,
+    trafficLaw: `${apiV1}${ROUTE_PATHS.TRAFFIC_LAW}`,
+    adminDocuments: `${apiV1}/admin/documents`,
   });
 
   // ============================================================================

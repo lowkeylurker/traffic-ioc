@@ -6,17 +6,17 @@ import { adminRagController } from '../controllers/admin-rag.controller';
 import { oltpPrisma } from '../config/oltp-prisma';
 import { qdrantClient } from '../rag/core/qdrant.client';
 
-describe('Admin RAG Routes', () => {
+describe('Admin Documents Routes', () => {
   let app: express.Express;
 
   beforeEach(() => {
     vi.restoreAllMocks();
     app = express();
     app.use(express.json());
-    app.use('/api/v1/admin/rag/documents', adminRagRoutes);
+    app.use('/api/v1/admin/documents', adminRagRoutes);
   });
 
-  describe('GET /api/v1/admin/rag/documents', () => {
+  describe('GET /api/v1/admin/documents', () => {
     it('should return paginated list of legal documents', async () => {
       const docDelegate = (oltpPrisma as any).knowledgeDocument || (oltpPrisma as any).knowledge_document;
       if (docDelegate) {
@@ -36,7 +36,7 @@ describe('Admin RAG Routes', () => {
         ]);
       }
 
-      const res = await request(app).get('/api/v1/admin/rag/documents');
+      const res = await request(app).get('/api/v1/admin/documents');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -46,7 +46,7 @@ describe('Admin RAG Routes', () => {
     });
   });
 
-  describe('GET /api/v1/admin/rag/documents/:docId/chunks', () => {
+  describe('GET /api/v1/admin/documents/:docId/chunks', () => {
     it('should return chunks for given docId', async () => {
       const chunkDelegate = (oltpPrisma as any).knowledgeChunk || (oltpPrisma as any).knowledge_chunk;
       if (chunkDelegate) {
@@ -62,7 +62,7 @@ describe('Admin RAG Routes', () => {
         ]);
       }
 
-      const res = await request(app).get('/api/v1/admin/rag/documents/doc-uuid-1/chunks');
+      const res = await request(app).get('/api/v1/admin/documents/doc-uuid-1/chunks');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -71,7 +71,7 @@ describe('Admin RAG Routes', () => {
     });
   });
 
-  describe('GET /api/v1/admin/rag/documents/stream', () => {
+  describe('GET /api/v1/admin/documents/stream', () => {
     it('should establish SSE stream connection and emit init event', () => {
       const mockReq: any = { on: vi.fn() };
       const mockRes: any = {
@@ -95,7 +95,7 @@ describe('Admin RAG Routes', () => {
     });
   });
 
-  describe('DELETE /api/v1/admin/rag/documents/:docId', () => {
+  describe('DELETE /api/v1/admin/documents/:docId', () => {
     it('should delete document in DB and purge from Qdrant', async () => {
       const docDelegate = (oltpPrisma as any).knowledgeDocument || (oltpPrisma as any).knowledge_document;
       if (docDelegate) {
@@ -110,7 +110,7 @@ describe('Admin RAG Routes', () => {
         vi.spyOn(qdrantClient, 'delete').mockResolvedValueOnce({ status: 'ok' } as any);
       }
 
-      const res = await request(app).delete('/api/v1/admin/rag/documents/doc-uuid-1');
+      const res = await request(app).delete('/api/v1/admin/documents/doc-uuid-1');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);

@@ -17,7 +17,7 @@
 - [x] 3.2 Implement singleton Prisma instances in `src/config/oltp-prisma.ts` and `src/config/dw-prisma.ts`, and initialize Qdrant client in `src/rag/core/qdrant.client.ts`
 - [x] 3.3 Install Vercel AI SDK (`ai`, `@ai-sdk/google`, `ollama-ai-provider`), and build `src/rag/core/llm-gateway.ts` supporting Google Gemini Flash and Ollama Qwen 2.5
 - [x] 3.4 Implement RAG orchestrator in `src/rag/core/rag-orchestrator.ts` and traffic legislation strategy in `src/rag/strategies/traffic-law.strategy.ts`
-- [x] 3.5 Implement RAG controller and routes in `src/controllers/rag.controller.ts` and `src/routes/rag.routes.ts` (`POST /api/v1/rag/traffic-law/chat` SSE stream and `POST /api/v1/rag/feedback`), mount in `src/app.ts`, and verify via `curl`
+- [x] 3.5 Implement RAG controller and routes in `src/controllers/rag.controller.ts` and `src/routes/rag.routes.ts` (`POST /api/v1/traffic-law/chat` SSE stream and `POST /api/v1/traffic-law/feedback`), mount in `src/app.ts`, and verify via `curl`
 
 ## 4. Citizen Legal Assistant Portal (`apps/user-web`)
 

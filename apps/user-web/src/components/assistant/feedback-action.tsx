@@ -32,7 +32,7 @@ export function FeedbackAction({
     setSubmitError(null);
 
     try {
-      const response = await fetch('/api/v1/rag/feedback', {
+      const response = await fetch('/api/v1/traffic-law/feedback', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

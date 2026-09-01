@@ -36,7 +36,7 @@ export class AdminRagController {
   }
 
   /**
-   * GET /api/v1/admin/rag/documents/stream
+   * GET /api/v1/admin/documents/stream
    * Global SSE channel initialized at page load to stream real-time document ingestion events
    */
   public streamGlobalProgress = (req: Request, res: Response): void => {
@@ -82,7 +82,7 @@ export class AdminRagController {
   };
 
   /**
-   * GET /api/v1/admin/rag/documents
+   * GET /api/v1/admin/documents
    * List all legal documents with pagination, search, and chunk counts
    */
   public listDocuments = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -161,7 +161,7 @@ export class AdminRagController {
   };
 
   /**
-   * GET /api/v1/admin/rag/documents/:docId/chunks
+   * GET /api/v1/admin/documents/:docId/chunks
    * Fetch all structural chunks for a given legal document
    */
   public getDocumentChunks = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -208,7 +208,7 @@ export class AdminRagController {
   };
 
   /**
-   * POST /api/v1/admin/rag/documents/upload
+   * POST /api/v1/admin/documents/upload
    * Accept file upload, register async ingestion job, and start streaming pipeline
    */
   public uploadDocument = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -320,7 +320,7 @@ export class AdminRagController {
 
 
   /**
-   * DELETE /api/v1/admin/rag/documents/:docId
+   * DELETE /api/v1/admin/documents/:docId
    * Delete legal document, cascading chunks in OLTP DB and purging points in Qdrant
    */
   public deleteDocument = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -385,7 +385,7 @@ export class AdminRagController {
   };
 
   /**
-   * POST /api/v1/admin/rag/documents/:docId/reindex
+   * POST /api/v1/admin/documents/:docId/reindex
    * Re-run indexing on an existing document
    */
   public reindexDocument = async (req: Request, res: Response, next: NextFunction): Promise<void> => {

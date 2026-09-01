@@ -190,7 +190,7 @@ export function useRagChat(options: UseRagChatOptions = {}): UseRagChatReturn {
       abortControllerRef.current = abortController;
 
       try {
-        const endpoint = `${apiBaseUrl}/rag/traffic-law/chat`;
+        const endpoint = `${apiBaseUrl}/traffic-law/chat`;
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: {

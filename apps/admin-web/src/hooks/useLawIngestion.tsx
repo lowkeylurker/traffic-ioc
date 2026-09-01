@@ -60,7 +60,7 @@ export const LawIngestionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     activeCtrlRef.current = ctrl
 
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-    const globalStreamUrl = `${apiBase}/admin/rag/documents/stream`
+    const globalStreamUrl = `${apiBase}/admin/documents/stream`
 
     const connectGlobalStream = async () => {
       let token: string | null = null

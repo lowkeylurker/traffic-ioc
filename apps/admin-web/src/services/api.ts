@@ -400,7 +400,7 @@ export const predictionApi = {
   },
 }
 
-// Law Document Management API (RAG Admin)
+// Law Document Management API (Admin Documents)
 export const lawDocumentApi = {
   getDocuments: (params?: {
     page?: number
@@ -408,12 +408,12 @@ export const lawDocumentApi = {
     search?: string
     status?: string
   }): Promise<{ success: boolean; data: LawDocumentListResponse }> =>
-    axiosInstance.get('/admin/rag/documents', { params }),
+    axiosInstance.get('/admin/documents', { params }),
 
   getDocumentChunks: (
     docId: string
   ): Promise<{ success: boolean; data: LawChunk[] }> =>
-    axiosInstance.get(`/admin/rag/documents/${docId}/chunks`),
+    axiosInstance.get(`/admin/documents/${docId}/chunks`),
 
   uploadDocument: (
     formData: FormData
@@ -422,7 +422,7 @@ export const lawDocumentApi = {
     message: string
     data: { jobId: string; docId?: string; docCode: string; docTitle: string }
   }> =>
-    axiosInstance.post('/admin/rag/documents/upload', formData, {
+    axiosInstance.post('/admin/documents/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -431,7 +431,7 @@ export const lawDocumentApi = {
   deleteDocument: (
     docId: string
   ): Promise<{ success: boolean; message: string }> =>
-    axiosInstance.delete(`/admin/rag/documents/${docId}`),
+    axiosInstance.delete(`/admin/documents/${docId}`),
 
   reindexDocument: (
     docId: string
@@ -439,7 +439,7 @@ export const lawDocumentApi = {
     success: boolean
     message: string
     data: { jobId: string; docId: string; docCode: string }
-  }> => axiosInstance.post(`/admin/rag/documents/${docId}/reindex`),
+  }> => axiosInstance.post(`/admin/documents/${docId}/reindex`),
 }
 
 export default axiosInstance

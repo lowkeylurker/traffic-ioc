@@ -37,7 +37,7 @@ describe('FeedbackAction Component', () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/rag/feedback',
+        '/api/v1/traffic-law/feedback',
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

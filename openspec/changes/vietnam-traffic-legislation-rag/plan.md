@@ -100,10 +100,10 @@
 
 ### Task 3.5: RAG Controller & SSE Streaming Routes
 - [ ] **Step 1:** Create `src/controllers/rag.controller.ts` with `streamChat` and `submitFeedback` handlers.
-- [ ] **Step 2:** Create `src/routes/rag.routes.ts` mounting `POST /api/v1/rag/traffic-law/chat` and `POST /api/v1/rag/feedback`.
-- [ ] **Step 3:** Mount RAG router in `src/app.ts` under `/api/v1/rag`.
-- [ ] **Step 4:** Test endpoint with `curl -N -X POST http://localhost:5000/api/v1/rag/traffic-law/chat -H "Content-Type: application/json" -d '{"message": "Vượt đèn đỏ xe máy phạt bao nhiêu?"}'` and verify SSE streaming.
-- [ ] **Step 5:** Commit point: `[BE] Add: RAG chat SSE streaming controller and feedback route`.
+- [ ] **Step 2:** Create `src/routes/rag.routes.ts` mounting `POST /api/v1/traffic-law/chat` and `POST /api/v1/traffic-law/feedback`.
+- [ ] **Step 3:** Mount router in `src/app.ts` under `/api/v1/traffic-law`.
+- [ ] **Step 4:** Test endpoint with `curl -N -X POST http://localhost:5000/api/v1/traffic-law/chat -H "Content-Type: application/json" -d '{"message": "Vượt đèn đỏ xe máy phạt bao nhiêu?"}'` and verify SSE streaming.
+- [ ] **Step 5:** Commit point: `[BE] Add: Traffic law chat SSE streaming controller and feedback route`.
 
 ---
 

@@ -93,12 +93,12 @@ Smart Traffic IOC operates a dual-engine architecture: a PostgreSQL/PostGIS Kimb
   - `GlobalIngestionTracker`: Global floating status indicator mounted in `MainLayout.tsx` backed by `LawIngestionProvider` context and custom hook `useLawIngestion`.
   - `Delete & Reindex`: Delete cascades OLTP chunks and purges Qdrant vectors by `doc_code` filter; Reindex re-dispatches document parsing.
 - **Backend Admin Gateway & Redis Event Bus (`apps/backend`)**:
-  - `GET /api/v1/admin/rag/documents`: List documents with pagination and status.
-  - `GET /api/v1/admin/rag/documents/:docId/chunks`: Fetch chunks for a document.
-  - `POST /api/v1/admin/rag/documents/upload`: Multi-part upload handler triggering asynchronous ingestion.
-  - `GET /api/v1/admin/rag/documents/stream`: Global Server-Sent Events stream fed by Redis Pub/Sub subscription on topic `rag:ingestion:events`.
-  - `DELETE /api/v1/admin/rag/documents/:docId`: Atomic deletion across OLTP DB and Qdrant vectors.
-  - `POST /api/v1/admin/rag/documents/:docId/reindex`: Re-trigger ingestion pipeline.
+  - `GET /api/v1/admin/documents`: List documents with pagination and status.
+  - `GET /api/v1/admin/documents/:docId/chunks`: Fetch chunks for a document.
+  - `POST /api/v1/admin/documents/upload`: Multi-part upload handler triggering asynchronous ingestion.
+  - `GET /api/v1/admin/documents/stream`: Global Server-Sent Events stream fed by Redis Pub/Sub subscription on topic `rag:ingestion:events`.
+  - `DELETE /api/v1/admin/documents/:docId`: Atomic deletion across OLTP DB and Qdrant vectors.
+  - `POST /api/v1/admin/documents/:docId/reindex`: Re-trigger ingestion pipeline.
 - **Messaging Contract (`rag:ingestion:events`)**:
   ```json
   {

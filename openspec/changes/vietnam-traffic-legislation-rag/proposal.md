@@ -28,7 +28,7 @@ Citizens and traffic operators in Ho Chi Minh City face frequent ambiguity regar
 
 - **Impacted Monorepo Subsystems**:
   - `rag-ingestion/`: Python FastAPI microservice managed with `uv` and `pyproject.toml` (LlamaIndex, `google-generativeai`, `qdrant-client`, `ollama`, `sqlalchemy`, `redis`, `pdfplumber`, `python-docx`, `pyrefly`), providing chunking, OCR, embeddings, and Redis Pub/Sub progress event publishing (`rag:ingestion:events`).
-  - `apps/backend`: Express.js backend with dual Prisma clients (`prisma/oltp.prisma`, `prisma/dw.prisma`), Vercel AI SDK (`ai`), RAG chat endpoints under `/api/v1/rag/*`, and Admin document management with Redis subscriber event listener bridging to SSE proxy endpoints under `/api/v1/admin/rag/documents/*`.
+  - `apps/backend`: Express.js backend with dual Prisma clients (`prisma/oltp.prisma`, `prisma/dw.prisma`), Vercel AI SDK (`ai`), conversational legal chat endpoints under `/api/v1/traffic-law/*`, and Admin document management with Redis subscriber event listener bridging to SSE streaming endpoints under `/api/v1/admin/documents/*`.
   - `apps/admin-web`: React 18 & Ant Design admin portal adding `/law-documents` page, live SSE progress modal, chunk inspector drawer, and deletion/re-indexing mutations.
   - `apps/user-web`: Next.js 16 frontend adding `/assistant` page, chat UI components, citation modals, and feedback mutations.
   - `packages/shared`: Shared Zod validation schemas, TypeScript interfaces for RAG requests, citations, SSE/PubSub events, and admin document management payloads.

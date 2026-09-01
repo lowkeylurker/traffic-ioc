@@ -5,20 +5,20 @@ import ragRoutes from '../routes/rag.routes';
 import { oltpPrisma } from '../config/oltp-prisma';
 import { ragOrchestrator } from '../rag/core/rag-orchestrator';
 
-describe('RAG Routes', () => {
+describe('Traffic Law Assistant Routes', () => {
   let app: express.Express;
 
   beforeEach(() => {
     vi.restoreAllMocks();
     app = express();
     app.use(express.json());
-    app.use('/api/v1/rag', ragRoutes);
+    app.use('/api/v1/traffic-law', ragRoutes);
   });
 
-  describe('POST /api/v1/rag/traffic-law/chat', () => {
+  describe('POST /api/v1/traffic-law/chat', () => {
     it('should reject requests with empty message with 400 Bad Request', async () => {
       const response = await request(app)
-        .post('/api/v1/rag/traffic-law/chat')
+        .post('/api/v1/traffic-law/chat')
         .send({ message: '' });
 
       expect(response.status).toBe(400);
@@ -57,7 +57,7 @@ describe('RAG Routes', () => {
       });
 
       const response = await request(app)
-        .post('/api/v1/rag/traffic-law/chat')
+        .post('/api/v1/traffic-law/chat')
         .send({
           message: 'Không đội mũ bảo hiểm bị phạt bao nhiêu tiền?',
           vehicleFilter: 'MOTORBIKE',
@@ -73,10 +73,10 @@ describe('RAG Routes', () => {
     });
   });
 
-  describe('POST /api/v1/rag/feedback', () => {
+  describe('POST /api/v1/traffic-law/feedback', () => {
     it('should reject invalid rating or missing messageId with 400', async () => {
       const response = await request(app)
-        .post('/api/v1/rag/feedback')
+        .post('/api/v1/traffic-law/feedback')
         .send({ messageId: 'not-a-uuid', rating: 'positive' });
 
       expect(response.status).toBe(400);
@@ -99,7 +99,7 @@ describe('RAG Routes', () => {
       }
 
       const response = await request(app)
-        .post('/api/v1/rag/feedback')
+        .post('/api/v1/traffic-law/feedback')
         .send({
           messageId: validUuid,
           rating: 1,
