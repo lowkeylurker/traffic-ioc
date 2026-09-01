@@ -12,6 +12,8 @@
     "build:check": "turbo build:check",
     "lint": "turbo lint",
     "prisma:gen": "turbo prisma:gen",
+    "prisma:migrate:oltp": "pnpm --filter=@traffic-ioc/backend prisma:migrate:oltp",
+    "prisma:pull:dw": "pnpm --filter=@traffic-ioc/backend prisma:pull:dw",
     "clean": "turbo clean && rm -rf node_modules apps/*/node_modules apps/*/dist apps/*/.next packages/*/node_modules packages/*/dist"
   },
   "devDependencies": {

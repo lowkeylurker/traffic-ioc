@@ -83,7 +83,7 @@ describe('EmbedderService', () => {
     const embedder = new EmbedderService();
     await expect(
       embedder.embedQuery('Mức phạt nồng độ cồn')
-    ).rejects.toThrowError(/Ollama embedding failed.*53/i);
+    ).rejects.toThrow(/Ollama embedding failed with status 503/i);
   });
 
   it('should export a singleton embedderService instance', () => {

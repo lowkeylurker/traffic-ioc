@@ -14,6 +14,7 @@ import { clearTrafficNewsQueueOnStartup, scheduleTrafficNewsJob } from './jobs/n
 import { connectMongoDB, disconnectMongoDB } from './config/mongoose';
 import { trafficNewsWorker } from './jobs/trafficNewsWorker';
 import { trafficMVRefreshJobService } from './jobs/traffic-mv-refresh.service';
+import { ragIngestionEventsService } from './services/rag-ingestion-events.service';
 
 const logger = new Logger('Server');
 
@@ -81,6 +82,7 @@ async function shutdownServer(server: HttpServerWithCloseAll, csvExportWorker?: 
   await runShutdownTask('routing refresh job service', () => routingRefreshJobService.stop());
   await runShutdownTask('corridor analytics job service', () => corridorAnalyticsJobService.stop());
   await runShutdownTask('traffic MV refresh job service', () => trafficMVRefreshJobService.stop());
+  await runShutdownTask('RAG ingestion events service', () => ragIngestionEventsService.stop());
   await runShutdownTask('MongoDB', () => disconnectMongoDB());
   await runShutdownTask('Redis', () => closeRedisConnection());
   await runShutdownTask('PostgreSQL pool', () => pgPool.end());
@@ -105,14 +107,12 @@ async function main() {
     // Tạo HTTP Server và tích hợp Socket.io Server
     const { createServer } = await import('http');
     const { Server } = await import('socket.io');
+    const { getCorsOptions } = await import('./config/cors');
     const { socketService } = await import('./services/socket.service');
 
     const httpServer = createServer(app);
     const io = new Server(httpServer, {
-      cors: {
-        origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-        credentials: true,
-      },
+      cors: getCorsOptions(),
     });
 
     // Setup Socket.io Gateway
@@ -126,6 +126,7 @@ async function main() {
     await routingRefreshJobService.start();
     await corridorAnalyticsJobService.start();
     await trafficMVRefreshJobService.start();
+    await ragIngestionEventsService.start();
 
     // Khởi tạo News Ticker Job
     await clearTrafficNewsQueueOnStartup();

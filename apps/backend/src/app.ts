@@ -1,6 +1,7 @@
 // Express App Setup - Cấu hình Express server
 
 import cors from 'cors';
+import { getCorsOptions } from './config/cors';
 import express, { Express } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -25,6 +26,7 @@ import trafficRoutes from './routes/traffic.routes';
 import userRoutes from './routes/user/user.routes';
 import weatherRoutes from './routes/weather.routes';
 import ragRoutes from './routes/rag.routes';
+import adminRagRoutes from './routes/admin-rag.routes';
 
 const logger = new Logger('App');
 
@@ -53,12 +55,7 @@ export const createApp = (): Express => {
   app.use(compression());
 
   // CORS
-  app.use(
-    cors({
-      origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-      credentials: true,
-    })
-  );
+  app.use(cors(getCorsOptions()));
 
   // Body parsing
   app.use(express.json({ limit: '10mb' }));
@@ -92,6 +89,7 @@ export const createApp = (): Express => {
   app.use('/api/traffic', trafficRoutes);
   app.use('/api/search', searchRoutes);
   app.use('/api/rag', ragRoutes);
+  app.use('/api/admin/rag/documents', adminRagRoutes);
 
   app.use(`${apiV1}${ROUTE_PATHS.MAP}`, mapRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.TRAFFIC}`, trafficRoutes);
@@ -105,6 +103,7 @@ export const createApp = (): Express => {
   app.use(`${apiV1}${ROUTE_PATHS.USER}`, userRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.NEWS}`, newsRoutes);
   app.use(`${apiV1}${ROUTE_PATHS.RAG}`, ragRoutes);
+  app.use(`${apiV1}/admin/rag/documents`, adminRagRoutes);
 
   logger.log('Routes registered:', {
     map: `${apiV1}${ROUTE_PATHS.MAP}`,

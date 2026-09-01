@@ -14,22 +14,24 @@ describe('RagOrchestrator', () => {
     };
 
     mockQdrant = {
-      search: vi.fn().mockResolvedValue([
-        {
-          id: 'chunk-uuid-1',
-          score: 0.89,
-          payload: {
-            chunk_id: 'chunk-uuid-1',
-            doc_code: 'ND100/2019/ND-CP',
-            article_number: 6,
-            clause_number: 2,
-            point_code: 'b',
-            fine_min: 400000,
-            fine_max: 600000,
-            vehicle_types: ['MOTORBIKE'],
+      query: vi.fn().mockResolvedValue({
+        points: [
+          {
+            id: 'chunk-uuid-1',
+            score: 0.89,
+            payload: {
+              chunk_id: 'chunk-uuid-1',
+              doc_code: 'ND100/2019/ND-CP',
+              article_number: 6,
+              clause_number: 2,
+              point_code: 'b',
+              fine_min: 400000,
+              fine_max: 600000,
+              vehicle_types: ['MOTORBIKE'],
+            },
           },
-        },
-      ]),
+        ],
+      }),
     };
 
     mockOltpPrisma = {
@@ -91,8 +93,8 @@ describe('RagOrchestrator', () => {
       'Không đội mũ bảo hiểm bị phạt bao nhiêu?'
     );
 
-    // 2. Qdrant searched with threshold >= 0.60
-    expect(mockQdrant.search).toHaveBeenCalledWith(
+    // 2. Qdrant queried with threshold >= 0.60
+    expect(mockQdrant.query).toHaveBeenCalledWith(
       'vietnam_traffic_laws',
       expect.objectContaining({
         limit: 5,
@@ -120,7 +122,7 @@ describe('RagOrchestrator', () => {
       vehicleFilter: 'CAR',
     });
 
-    expect(mockQdrant.search).toHaveBeenCalledWith(
+    expect(mockQdrant.query).toHaveBeenCalledWith(
       'vietnam_traffic_laws',
       expect.objectContaining({
         filter: expect.objectContaining({
@@ -136,13 +138,15 @@ describe('RagOrchestrator', () => {
   });
 
   it('should filter out Qdrant results below 0.60 score threshold', async () => {
-    mockQdrant.search.mockResolvedValueOnce([
-      {
-        id: 'low-score-chunk',
-        score: 0.45, // < 0.60
-        payload: { doc_code: 'ND100' },
-      },
-    ]);
+    mockQdrant.query.mockResolvedValueOnce({
+      points: [
+        {
+          id: 'low-score-chunk',
+          score: 0.45, // < 0.60
+          payload: { doc_code: 'ND100' },
+        },
+      ],
+    });
 
     const result = await orchestrator.retrieveAndPrepareStream({
       message: 'Một câu hỏi không liên quan đến luật',

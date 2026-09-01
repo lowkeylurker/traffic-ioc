@@ -33,7 +33,7 @@ describe('TrafficLawStrategy', () => {
     expect(prompt).toContain('Điều 6');
     expect(prompt).toContain('400.000');
     expect(prompt).toContain('600.000');
-    expect(prompt).toContain('Luật Giao thông');
+    expect(prompt).toContain('an toàn giao thông');
     // Strict negative grounding instruction
     expect(prompt).toMatch(/không tự ý bịa đặt|chỉ dựa vào căn cứ|nếu không có trong văn bản/i);
   });

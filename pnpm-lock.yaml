@@ -41,6 +41,9 @@ importers:
       '@deck.gl/react':
         specifier: ^9.2.11
         version: 9.3.10(@deck.gl/core@9.3.10)(@deck.gl/widgets@9.3.10(@deck.gl/core@9.3.10)(@luma.gl/core@9.3.6))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@microsoft/fetch-event-source':
+        specifier: ^2.0.1
+        version: 2.0.1
       '@sentry/react':
         specifier: ^10.53.1
         version: 10.70.0(react@18.3.1)
@@ -1396,6 +1399,9 @@ packages:
 
   '@math.gl/web-mercator@4.1.0':
     resolution: {integrity: sha512-HZo3vO5GCMkXJThxRJ5/QYUYRr3XumfT8CzNNCwoJfinxy5NtKUd7dusNTXn7yJ40UoB8FMIwkVwNlqaiRZZAw==}
+
+  '@microsoft/fetch-event-source@2.0.1':
+    resolution: {integrity: sha512-W6CLUJ2eBMw3Rec70qrsEW0jOm/3twwJv21mrmj2yORiaVmVYGS4sSS5yUwvQc1ZlDLYGPnClVWmUUMagKNsfA==}
 
   '@mongodb-js/saslprep@1.5.0':
     resolution: {integrity: sha512-Hk1SKJCMcCos38+vqDnZzlIo4XRj9yCGzYkjB4LcqpeXRIYfia1UWTz+VrueLxoU+uSRJzgkufxoRZg8gi52YA==}
@@ -7371,6 +7377,8 @@ snapshots:
   '@math.gl/web-mercator@4.1.0':
     dependencies:
       '@math.gl/core': 4.1.0
+
+  '@microsoft/fetch-event-source@2.0.1': {}
 
   '@mongodb-js/saslprep@1.5.0':
     dependencies:

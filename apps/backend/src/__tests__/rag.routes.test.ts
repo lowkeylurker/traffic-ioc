@@ -86,13 +86,17 @@ describe('RAG Routes', () => {
     it('should save feedback and return 200/201 for valid submission', async () => {
       const validUuid = '123e4567-e89b-12d3-a456-426614174000';
 
-      vi.spyOn(oltpPrisma.chat_feedback, 'create').mockResolvedValueOnce({
-        id: 'fb-uuid-1',
-        message_id: validUuid,
-        rating: 1,
-        comment: 'Rất chính xác!',
-        created_at: new Date(),
-      } as any);
+      const feedbackTarget = (oltpPrisma as any).chatFeedback || (oltpPrisma as any).chat_feedback;
+      if (feedbackTarget) {
+        vi.spyOn(feedbackTarget, 'create').mockResolvedValueOnce({
+          id: 'fb-uuid-1',
+          messageId: validUuid,
+          message_id: validUuid,
+          rating: 1,
+          comment: 'Rất chính xác!',
+          createdAt: new Date(),
+        } as any);
+      }
 
       const response = await request(app)
         .post('/api/v1/rag/feedback')

@@ -63,7 +63,8 @@ export class RagOrchestrator {
   public async ensureChatSession(sessionId?: string | null, userId?: string | null, title?: string): Promise<string> {
     if (sessionId) {
       try {
-        const existing = await this.oltpPrisma.chat_session.findUnique({
+        const delegate = this.oltpPrisma.chatSession || this.oltpPrisma.chat_session;
+        const existing = await delegate?.findUnique({
           where: { id: sessionId },
         });
         if (existing) {
@@ -75,29 +76,31 @@ export class RagOrchestrator {
     }
 
     try {
-      let kb = await this.oltpPrisma.knowledge_base.findFirst({
+      const kbDelegate = this.oltpPrisma.knowledgeBase || this.oltpPrisma.knowledge_base;
+      let kb = await kbDelegate?.findFirst({
         where: { code: 'vietnam_traffic_laws' },
       });
 
-      if (!kb) {
-        kb = await this.oltpPrisma.knowledge_base.create({
+      if (!kb && kbDelegate) {
+        kb = await kbDelegate.create({
           data: {
             code: 'vietnam_traffic_laws',
             name: 'Bộ Pháp điển & Nghị định Giao thông Đường bộ Việt Nam',
-            qdrant_collection: this.collectionName,
+            qdrantCollection: this.collectionName,
           },
         });
       }
 
-      const newSession = await this.oltpPrisma.chat_session.create({
+      const sessionDelegate = this.oltpPrisma.chatSession || this.oltpPrisma.chat_session;
+      const newSession = await sessionDelegate?.create({
         data: {
-          kb_id: kb.id,
-          user_id: userId || null,
+          kbId: kb?.id || 'default-kb',
+          userId: userId || null,
           title: title ? title.slice(0, 100) : 'Cuộc trò chuyện mới',
         },
       });
 
-      return newSession.id;
+      return newSession?.id || sessionId || 'default-session-id';
     } catch {
       return sessionId || 'default-session-id';
     }
@@ -124,34 +127,60 @@ export class RagOrchestrator {
       ];
     }
 
-    let searchResults: any[] = [];
+    let rawPoints: any[] = [];
     try {
-      searchResults = await this.qdrant.search(this.collectionName, {
-        vector: queryVector,
-        limit: this.topK,
-        score_threshold: this.scoreThreshold,
-        filter: Object.keys(searchFilter).length > 0 ? searchFilter : undefined,
-      });
+      if (typeof this.qdrant.query === 'function') {
+        const queryRes = await this.qdrant.query(this.collectionName, {
+          query: queryVector,
+          limit: this.topK,
+          score_threshold: this.scoreThreshold,
+          filter: Object.keys(searchFilter).length > 0 ? searchFilter : undefined,
+          with_payload: true,
+        });
+        rawPoints = Array.isArray(queryRes) ? queryRes : (queryRes?.points ?? []);
+      } else if (typeof this.qdrant.search === 'function') {
+        const searchRes = await this.qdrant.search(this.collectionName, {
+          vector: queryVector,
+          limit: this.topK,
+          score_threshold: this.scoreThreshold,
+          filter: Object.keys(searchFilter).length > 0 ? searchFilter : undefined,
+        });
+        rawPoints = Array.isArray(searchRes) ? searchRes : (searchRes?.points ?? []);
+      } else if (typeof this.qdrant.api === 'function') {
+        const api = this.qdrant.api();
+        if (typeof api?.searchPoints === 'function') {
+          const res = await api.searchPoints({
+            collection_name: this.collectionName,
+            vector: queryVector,
+            limit: this.topK,
+            score_threshold: this.scoreThreshold,
+            filter: Object.keys(searchFilter).length > 0 ? searchFilter : undefined,
+          });
+          rawPoints = res.data?.result ?? [];
+        }
+      }
     } catch (err) {
       console.warn(`[RagOrchestrator] Qdrant search warning:`, err);
-      searchResults = [];
+      rawPoints = [];
     }
 
     // Filter results strictly above scoreThreshold
-    const validPoints = (searchResults || []).filter(
+    const validPoints = (rawPoints || []).filter(
       (p: any) => (p.score ?? 0) >= this.scoreThreshold
     );
 
-    // 4. OLTP PostgreSQL Hydration
+    // 4. OLTP PostgreSQL Hydration with Qdrant payload fallback
     const pointIds = validPoints.map((p: any) => String(p.id));
     const enrichedChunks: EnrichedLegalContext[] = [];
 
     if (pointIds.length > 0) {
+      const chunkMap = new Map<string, any>();
       try {
-        const oltpChunks = await this.oltpPrisma.knowledge_chunk.findMany({
+        const chunkDelegate = this.oltpPrisma.knowledgeChunk || this.oltpPrisma.knowledge_chunk;
+        const oltpChunks = await chunkDelegate?.findMany({
           where: {
             OR: [
-              { qdrant_point_id: { in: pointIds } },
+              { qdrantPointId: { in: pointIds } },
               { id: { in: pointIds } },
             ],
           },
@@ -160,59 +189,65 @@ export class RagOrchestrator {
           },
         });
 
-        const chunkMap = new Map<string, any>();
         for (const c of oltpChunks || []) {
-          chunkMap.set(c.qdrant_point_id, c);
-          chunkMap.set(c.id, c);
-        }
-
-        for (const point of validPoints) {
-          const oltpChunk = chunkMap.get(String(point.id));
-          const payload = point.payload || {};
-
-          const docCode =
-            oltpChunk?.document?.code || payload.doc_code || 'ND100/2019/ND-CP';
-          const docTitle =
-            oltpChunk?.document?.title || payload.doc_title || docCode;
-          const articleNumber =
-            oltpChunk?.metadata?.article_number ?? payload.article_number ?? 0;
-          const clauseNumber =
-            oltpChunk?.metadata?.clause_number ?? payload.clause_number ?? null;
-          const pointCode =
-            oltpChunk?.metadata?.point_code ?? payload.point_code ?? null;
-          const fineMin =
-            oltpChunk?.metadata?.fine_min ?? payload.fine_min ?? null;
-          const fineMax =
-            oltpChunk?.metadata?.fine_max ?? payload.fine_max ?? null;
-          const suspensionMonths =
-            oltpChunk?.metadata?.suspension_months ?? payload.suspension_months ?? null;
-          const content =
-            oltpChunk?.content || payload.content || '';
-          const breadcrumb =
-            oltpChunk?.breadcrumb || payload.breadcrumb || '';
-          const sourceUrl =
-            oltpChunk?.document?.source_url || payload.source_url || null;
-
-          if (content) {
-            enrichedChunks.push({
-              chunkId: String(point.id),
-              docCode,
-              docTitle,
-              articleNumber,
-              clauseNumber,
-              pointCode,
-              breadcrumb,
-              content,
-              fineMin,
-              fineMax,
-              suspensionMonths,
-              score: point.score,
-              sourceUrl,
-            });
-          }
+          if (c.qdrantPointId) chunkMap.set(c.qdrantPointId, c);
+          if (c.qdrant_point_id) chunkMap.set(c.qdrant_point_id, c);
+          if (c.id) chunkMap.set(c.id, c);
         }
       } catch (err) {
         console.warn(`[RagOrchestrator] OLTP chunk hydration warning:`, err);
+      }
+
+      for (const point of validPoints) {
+        const oltpChunk = chunkMap.get(String(point.id));
+        const payload = point.payload || {};
+
+        const docCode =
+          oltpChunk?.document?.code || payload.doc_code || 'ND100/2019/ND-CP';
+        const docTitle =
+          oltpChunk?.document?.title || payload.doc_title || docCode;
+        const articleNumber =
+          oltpChunk?.metadata?.article_number ?? payload.article_number ?? 0;
+        const clauseNumber =
+          oltpChunk?.metadata?.clause_number ?? payload.clause_number ?? null;
+        const pointCode =
+          oltpChunk?.metadata?.point_code ?? payload.point_code ?? null;
+        const fineMin =
+          oltpChunk?.metadata?.fine_min ?? payload.fine_min ?? null;
+        const fineMax =
+          oltpChunk?.metadata?.fine_max ?? payload.fine_max ?? null;
+        const suspensionMonths =
+          oltpChunk?.metadata?.suspension_months ??
+          payload.suspension_months ??
+          payload.suspension_months_max ??
+          null;
+        const content =
+          oltpChunk?.content || payload.content || payload.text || '';
+        const breadcrumb =
+          oltpChunk?.breadcrumb || payload.breadcrumb || '';
+        const sourceUrl =
+          oltpChunk?.document?.source_url ||
+          payload.source_url ||
+          payload.metadata?.source_url ||
+          null;
+
+        if (content) {
+          enrichedChunks.push({
+            chunkId: String(point.id),
+            docCode,
+            docTitle,
+            articleNumber,
+            clauseNumber,
+            pointCode,
+            breadcrumb,
+            content,
+            fineMin,
+            fineMax,
+            suspensionMonths,
+            score: point.score,
+            sourceUrl,
+          });
+        }
       }
     }
 

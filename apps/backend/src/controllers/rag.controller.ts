@@ -63,21 +63,25 @@ export class RagController {
 
       // 3. Save assistant message and latency to OLTP
       let savedMessageId = `msg-${Date.now()}`;
-      try {
-        const assistantMsg = await oltpPrisma.chat_message.create({
-          data: {
-            session_id: activeSessionId,
-            role: 'assistant',
-            content: fullResponseText,
-            citations: citations as any,
-            latency_ms: latencyMs,
-          },
-        });
-        if (assistantMsg?.id) {
-          savedMessageId = assistantMsg.id;
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(activeSessionId);
+      if (isUuid) {
+        try {
+          const msgDelegate = (oltpPrisma as any).chatMessage || (oltpPrisma as any).chat_message;
+          const assistantMsg = await msgDelegate?.create({
+            data: {
+              sessionId: activeSessionId,
+              role: 'assistant',
+              content: fullResponseText,
+              citations: citations as any,
+              latencyMs: latencyMs,
+            },
+          });
+          if (assistantMsg?.id) {
+            savedMessageId = assistantMsg.id;
+          }
+        } catch (dbErr) {
+          logger.warn('Failed to persist assistant message to OLTP:', dbErr);
         }
-      } catch (dbErr) {
-        logger.warn('Failed to persist assistant message to OLTP:', dbErr);
       }
 
       // 4. Emit done event
@@ -122,9 +126,10 @@ export class RagController {
 
       const { messageId, rating, comment } = parseResult.data;
 
-      const feedback = await oltpPrisma.chat_feedback.create({
+      const feedbackDelegate = (oltpPrisma as any).chatFeedback || (oltpPrisma as any).chat_feedback;
+      const feedback = await feedbackDelegate?.create({
         data: {
-          message_id: messageId,
+          messageId: messageId,
           rating,
           comment: comment || null,
         },
