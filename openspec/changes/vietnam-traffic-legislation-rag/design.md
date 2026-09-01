@@ -24,17 +24,21 @@ Smart Traffic IOC operates a dual-engine architecture: a PostgreSQL/PostGIS Kimb
   - `src/core/`: Centralized application infrastructure:
     - `src/core/config.py`: Pydantic settings loading environment variables.
     - `src/core/db.py`: Centralized async engine management, Prisma parameter sanitization (`?schema=public`), and `async_sessionmaker[AsyncSession]` factories.
+    - `src/core/celery_app.py`: Celery distributed task queue application configured over Redis broker.
+  - `src/tasks/`: Celery task workers:
+    - `src/tasks/ingestion_tasks.py`: `process_document_ingestion_task` worker executing pipeline with automatic retries and isolated process execution.
   - `src/models/`: Declarative SQLAlchemy 2.0 ORM models (`KnowledgeBaseModel`, `KnowledgeDocumentModel`, `KnowledgeChunkModel`) mirroring `oltp.prisma`.
   - `src/schemas/`: Isolated Pydantic DTOs (`IngestionRequest`, `JobAcceptedResponse`, `RetryProcessRequest`).
   - `src/services/minio_storage.py`: MinIO client streaming raw document binaries using stored `storage_key` or `doc_id`.
   - `src/services/embedder.py`: Extensible `EmbedderFactory` wrapping `BaseEmbedder` and `OpenAIEmbedder` via the OpenAI Python SDK, abstracting model configuration from the rest of the application.
   - `src/services/oltp_sync.py`: Service utilizing SQLAlchemy models and `src.core.db` async sessions to transactionally upsert knowledge records.
   - `src/services/ingestion_pipeline.py`: Pure business logic orchestration (`IngestionPipeline`) coordinating MinIO retrieval, format detection, OCR, AST parsing, chunk enrichment, embedding factory generation, Qdrant upserting, PostgreSQL syncing, and Redis milestone publishing.
-  - `src/api/routes/ingest.py`: Thin route controllers handling HTTP validation, dispatching background worker tasks, and returning standard `JobAcceptedResponse`. Direct file upload / multipart handling in `rag-ingestion` is completely removed in favor of MinIO object references.
+  - `src/api/routes/ingest.py`: Thin route controllers handling HTTP validation, dispatching background worker tasks via `process_document_ingestion_task.apply_async()`, and returning standard `JobAcceptedResponse`.
 - **Toolchain & Packaging (`rag-ingestion/`)**:
   - Package & Project Manager: `uv` (fast Rust-based package manager and resolver).
-  - Dependency Management: `pyproject.toml` with reproducible lockfile (`uv.lock`), including `redis` and `minio`.
+  - Dependency Management: `pyproject.toml` with reproducible lockfile (`uv.lock`), including `redis`, `minio`, and `celery[redis]`.
   - Lifecycle: Modern `@asynccontextmanager` FastAPI `lifespan` managing background shutdown, Redis/MinIO connection pooling, and `close_db_engine()`.
+  - Background Execution: Dedicated Celery workers (`uv run celery -A src.core.celery_app.celery_app worker`) decoupled from FastAPI HTTP processes.
   - Containerization: Multi-stage `Dockerfile` utilizing `ghcr.io/astral-sh/uv`.
 - **Rationale**: Keeps the HTTP payload between internal services < 1 KB (avoiding 33% base64 memory inflation and payload size limits), guarantees zero duplication when retrying/re-indexing, and provides a production-grade decoupled object storage pattern. Express acts as the single API gateway, handling authentication, rate limiting, MinIO uploads, and SSE streaming.
 - **Alternatives Considered**:
