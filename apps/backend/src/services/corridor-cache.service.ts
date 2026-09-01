@@ -20,9 +20,8 @@ export class CorridorCacheService {
       await CorridorAnalytics.findOneAndUpdate(
         { corridorKey, date },
         { data },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
-      logger.log(`✓ Đã lưu cache cho ${corridorKey ?? 'TẤT CẢ'} vào ngày ${date}`);
     } catch (error) {
       logger.error(`Error setting cache for ${corridorKey} on ${date}`, error);
     }

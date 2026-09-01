@@ -25,32 +25,30 @@ class CorridorAnalyticsJobService {
     this.worker = new Worker(
       QUEUE_NAME,
       async (job) => {
-        const { type, date, corridorKey } = job.data || {};
+        const { type, date, corridorKey, isToday } = job.data || {};
 
-        if (job.name === 'daily-end-of-day' || job.name === 'periodic-update-today' || type === 'SCHEDULED_BATCH') {
-          const isToday = job.name === 'periodic-update-today';
-          
+        if (job.name === 'daily-end-of-day' || job.name === 'periodic-update-today' || type === 'SCHEDULED_BATCH' || type === 'REFRESH_DATE_BATCH') {
+          const isTodayJob = job.name === 'periodic-update-today' || isToday;
+
           // Bỏ qua nếu nằm ngoài giới hạn 22:30 cho ngày hôm nay
-          if (isToday) {
+          if (isTodayJob) {
             const now = new Date();
             const hour = now.getHours();
             const minute = now.getMinutes();
             if (hour === 22 && minute > 30) {
-              logger.log('Bỏ qua cập nhật ngày hôm nay sau 22:30');
               return;
             }
           }
 
-          const targetDate = isToday 
+          const targetDate = date || (isTodayJob
             ? new Date().toISOString().substring(0, 10)
-            : new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+            : new Date(Date.now() - 86400000).toISOString().substring(0, 10));
 
-          await this.enqueueRefreshForDate(targetDate);
+          await this.refreshCorridorsForDate(targetDate);
           return;
         }
 
         if (type === 'REFRESH_CACHE') {
-          logger.log(`Đang xử lý job ${job.id} loại=${type} ngày=${date} mã hành lang=${corridorKey ?? 'TẤT CẢ'}`);
           const data = await analyticsService.computeCorridorDashboard({ date, corridorKey });
           await corridorCacheService.setCache(corridorKey, date, data);
         }
@@ -71,6 +69,40 @@ class CorridorAnalyticsJobService {
     logger.log('Dịch vụ Job Corridor Analytics đã khởi động');
   }
 
+  /**
+   * Refreshes all corridors for a target date and outputs only 2 logs: processing log and summary log
+   */
+  public async refreshCorridorsForDate(date: string): Promise<{ success: number; failed: number }> {
+    const startedAt = Date.now();
+
+    // 1. Lấy tất cả hành lang (+ 1 dữ liệu tổng thể null)
+    const corridors = await analyticsService.getCorridorOptions();
+    const corridorKeys = [null, ...corridors.map((c) => c.corridorKey)];
+
+    // Log 1: Processing log
+    logger.log(`Đang xử lý cập nhật dữ liệu phân tích hành lang cho ngày ${date} (tổng số: ${corridorKeys.length} hành lang)...`);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const key of corridorKeys) {
+      try {
+        const data = await analyticsService.computeCorridorDashboard({ date, corridorKey: key ?? undefined });
+        await corridorCacheService.setCache(key, date, data);
+        successCount++;
+      } catch (error) {
+        failCount++;
+        logger.error(`Lỗi khi xử lý hành lang ${key ?? 'TẤT CẢ'} ngày ${date}:`, error);
+      }
+    }
+
+    const durationMs = Date.now() - startedAt;
+    // Log 2: Summary log
+    logger.log(`Hoàn tất cập nhật dữ liệu hành lang ngày ${date}: ${successCount} thành công, ${failCount} thất bại (${durationMs}ms)`);
+
+    return { success: successCount, failed: failCount };
+  }
+
   private async scheduleJobs(): Promise<void> {
     if (!this.queue) return;
 
@@ -80,11 +112,10 @@ class CorridorAnalyticsJobService {
       await this.queue.removeRepeatableByKey(job.key);
     }
 
-    // Job cuối ngày (12:00 AM) - xử lý dữ liệu ngày hôm qua
-    // Chạy lúc 12:05 AM để đảm bảo an toàn
+    // Job cuối ngày (12:05 AM) - xử lý dữ liệu ngày hôm qua
     await this.queue.add(
       'daily-end-of-day',
-      { type: 'SCHEDULED_BATCH', subtype: 'YESTERDAY' },
+      { type: 'SCHEDULED_BATCH', isToday: false },
       {
         repeat: { pattern: '5 0 * * *' }, // 00:05 AM hàng ngày
         jobId: 'daily-end-of-day',
@@ -94,7 +125,7 @@ class CorridorAnalyticsJobService {
     // Job cập nhật định kỳ (Mỗi 5 phút từ 6:00 đến 22:30)
     await this.queue.add(
       'periodic-update-today',
-      { type: 'SCHEDULED_BATCH', subtype: 'TODAY' },
+      { type: 'SCHEDULED_BATCH', isToday: true },
       {
         repeat: { pattern: '*/5 6-22 * * *' },
         jobId: 'periodic-update-today',
@@ -107,32 +138,12 @@ class CorridorAnalyticsJobService {
 
     const yesterday = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
     const hasData = await corridorCacheService.hasDataForDate(yesterday);
-    
+
     if (!hasData) {
-      logger.log(`[Backfill] Dữ liệu ngày hôm qua (${yesterday}) đang trống. Khởi động worker backfill...`);
-      await this.enqueueRefreshForDate(yesterday);
-    } else {
-      logger.log(`[Backfill] Đã có dữ liệu cho ngày hôm qua (${yesterday})`);
+      logger.log(`[Backfill] Dữ liệu ngày hôm qua (${yesterday}) đang trống. Khởi động cập nhật...`);
+      await this.refreshCorridorsForDate(yesterday);
     }
   }
-
-  private async enqueueRefreshForDate(date: string): Promise<void> {
-    if (!this.queue) return;
-
-    // Lấy tất cả hành lang
-    const corridors = await analyticsService.getCorridorOptions();
-    const corridorKeys = [null, ...corridors.map(c => c.corridorKey)];
-
-    for (const key of corridorKeys) {
-      await this.queue.add(
-        'refresh-cache',
-        { type: 'REFRESH_CACHE', date, corridorKey: key },
-        { jobId: `refresh-${date}-${key ?? 'ALL'}-${Date.now()}` }
-      );
-    }
-    logger.log(`Đã thêm vào hàng đợi làm mới cho ${corridorKeys.length} hành lang vào ngày ${date}`);
-  }
-
 
   async stop(): Promise<void> {
     if (this.worker) await this.worker.close();
@@ -141,3 +152,4 @@ class CorridorAnalyticsJobService {
 }
 
 export const corridorAnalyticsJobService = new CorridorAnalyticsJobService();
+

@@ -46,8 +46,14 @@ class TrafficMVRefreshJobService {
   private async scheduleJob(): Promise<void> {
     if (!this.queue) return;
 
-    // Refresh every minute
-    const pattern = '* * * * *';
+    // Xóa các job lặp lại cũ để cập nhật cron pattern mới
+    const repeatableJobs = await this.queue.getRepeatableJobs();
+    for (const job of repeatableJobs) {
+      await this.queue.removeRepeatableByKey(job.key);
+    }
+
+    // Refresh every 10 minutes
+    const pattern = '*/10 * * * *';
 
     await this.queue.add(
       JOB_NAME,

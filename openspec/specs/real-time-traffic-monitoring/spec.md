@@ -1,5 +1,8 @@
 # Feature Spec: Real-Time Traffic Monitoring & Geospatial Tiling
 
+## Purpose
+The Real-Time Traffic Monitoring & Geospatial Tiling module continuously ingests, processes, and serves traffic telemetry, Mapbox Vector Tiles (MVT), and Level of Service (LOS) status metrics across the Ho Chi Minh City arterial road network for real-time operator visualization.
+
 ## 1. Feature Overview & Architecture Context
 The **Real-Time Traffic Monitoring & Geospatial Tiling** module is the foundational telemetry ingestion and visualization engine of the Smart Traffic IOC platform. It continuously processes traffic flow metrics (current speed, free-flow speed, Level of Service [LOS], PCU volume, and congestion index) across the Ho Chi Minh City arterial road network.
 
@@ -20,7 +23,7 @@ flowchart LR
         TrafficTileSvc["TrafficTileService"]
         MapSvc["MapService"]
         RedisCache["Redis (30s Status Cache)"]
-        MVRefresher["BullMQ (traffic-mv-refresh 1m)"]
+        MVRefresher["BullMQ (traffic-mv-refresh 10m)"]
     end
 
     subgraph Client ["Frontend Client Layer"]
@@ -203,7 +206,7 @@ sequenceDiagram
 ## 4. Internal Data Pipeline & Business Logic
 
 1. **Materialized View Background Refreshing (`apps/backend/src/jobs/traffic-mv-refresh.service.ts`)**:
-   - BullMQ worker executes every minute (`* * * * *`) on queue `traffic-mv-refresh` with dedicated Redis connection `createRedisConnection()`.
+   - BullMQ worker executes every 10 minutes (`*/10 * * * *`) on queue `traffic-mv-refresh` with dedicated Redis connection `createRedisConnection()`.
    - Runs SQL: `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_latest_traffic_status`.
    - Pre-computes EPSG:3857 Web Mercator geometry column (`ST_Transform(s.geometry_linestring, 3857) AS geom_3857`) and distinct latest flow metrics to ensure MVT queries execute under 15ms.
 
@@ -277,7 +280,7 @@ sequenceDiagram
 
 ---
 
-## 7. OpenSpec Formal Requirements & Scenarios
+## Requirements
 
 ### Requirement: Real-Time Vector Tile Delivery via PostGIS MVT
 The system SHALL generate binary Mapbox Vector Tile protobuf buffers on-demand for requested zoom, X, and Y tile coordinates using PostGIS spatial envelope calculations.

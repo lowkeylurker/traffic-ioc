@@ -83,7 +83,7 @@ export class NotificationController {
       const notification = await Notification.findOneAndUpdate(
         { _id: id, userId },
         { $set: { read: true } },
-        { new: true }
+        { returnDocument: 'after' }
       );
 
       if (!notification) {

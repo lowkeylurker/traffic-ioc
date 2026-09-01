@@ -19,7 +19,7 @@ export class CorridorReliabilityCacheService {
       await CorridorReliability.findOneAndUpdate(
         { timeWindow, sourcePeriod, corridorKey },
         { periodStart, periodEnd, data },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
     } catch (error) {
       logger.error(`Lỗi khi lưu cache reliability cho ${timeWindow} - ${sourcePeriod} - ${corridorKey ?? 'TẤT CẢ'}`, error);
